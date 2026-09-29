@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
+import { Route as ApiPublicWebhooksClickmassaRouteImport } from './routes/api/public/webhooks/clickmassa'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,46 @@ const ApiPublicSyncHqrentalsRoute = ApiPublicSyncHqrentalsRouteImport.update({
   path: '/api/public/sync/hqrentals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebhooksClickmassaRoute =
+  ApiPublicWebhooksClickmassaRouteImport.update({
+    id: '/api/public/webhooks/clickmassa',
+    path: '/api/public/webhooks/clickmassa',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/sync/hqrentals'
+  fullPaths:
+    '/' | '/api/public/sync/hqrentals' | '/api/public/webhooks/clickmassa'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/sync/hqrentals'
-  id: '__root__' | '/' | '/api/public/sync/hqrentals'
+  to: '/' | '/api/public/sync/hqrentals' | '/api/public/webhooks/clickmassa'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/public/sync/hqrentals'
+    | '/api/public/webhooks/clickmassa'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
+  ApiPublicWebhooksClickmassaRoute: typeof ApiPublicWebhooksClickmassaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +81,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncHqrentalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/clickmassa': {
+      id: '/api/public/webhooks/clickmassa'
+      path: '/api/public/webhooks/clickmassa'
+      fullPath: '/api/public/webhooks/clickmassa'
+      preLoaderRoute: typeof ApiPublicWebhooksClickmassaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
+  ApiPublicWebhooksClickmassaRoute: ApiPublicWebhooksClickmassaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
