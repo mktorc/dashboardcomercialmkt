@@ -10,9 +10,9 @@ export function KpiCard({
 }: {
   label: string;
   value: string;
-  hint?: string;
+  hint?: string | undefined;
   icon: LucideIcon;
-  highlight?: boolean;
+  highlight?: boolean | undefined;
 }) {
   return (
     <Card className="relative overflow-hidden border-border bg-card p-5">
