@@ -14,7 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      crm_leads: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          lead_id: string | null
+          name: string | null
+          phone: string | null
+          stage_name: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          phone?: string | null
+          stage_name?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          phone?: string | null
+          stage_name?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_source?: string | null
+        }
+        Relationships: []
+      }
+      google_ads_metrics: {
+        Row: {
+          campaign_id: string | null
+          campaign_name: string
+          clicks: number
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          spend: number
+          utm_campaign: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          campaign_name: string
+          clicks?: number
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          spend?: number
+          utm_campaign?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          campaign_name?: string
+          clicks?: number
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          spend?: number
+          utm_campaign?: string | null
+        }
+        Relationships: []
+      }
+      meta_ads_metrics: {
+        Row: {
+          campaign_id: string | null
+          campaign_name: string
+          clicks: number
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          spend: number
+          utm_campaign: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          campaign_name: string
+          clicks?: number
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          spend?: number
+          utm_campaign?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          campaign_name?: string
+          clicks?: number
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          spend?: number
+          utm_campaign?: string | null
+        }
+        Relationships: []
+      }
+      reservations: {
+        Row: {
+          car_category: string | null
+          created_at: string
+          customer_email: string | null
+          customer_phone: string | null
+          id: string
+          rental_days: number
+          reservation_id: string | null
+          status: string
+          total_amount: number
+          utm_campaign: string | null
+        }
+        Insert: {
+          car_category?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_phone?: string | null
+          id?: string
+          rental_days?: number
+          reservation_id?: string | null
+          status?: string
+          total_amount?: number
+          utm_campaign?: string | null
+        }
+        Update: {
+          car_category?: string | null
+          created_at?: string
+          customer_email?: string | null
+          customer_phone?: string | null
+          id?: string
+          rental_days?: number
+          reservation_id?: string | null
+          status?: string
+          total_amount?: number
+          utm_campaign?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
