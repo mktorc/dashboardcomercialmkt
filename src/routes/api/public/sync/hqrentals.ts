@@ -6,43 +6,27 @@ import { createFileRoute } from "@tanstack/react-router";
 
 type HqReservation = Record<string, unknown>;
 
-function pick<T>(obj: HqReservation, keys: string[]): T | undefined {
-  for (const k of keys) {
-    const v = obj[k];
-    if (v !== undefined && v !== null && v !== "") return v as T;
-  }
-  return undefined;
-}
-
-function toNumber(v: unknown): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
 function normalizeStatus(v: unknown): string {
   const s = String(v ?? "").toLowerCase();
-  if (["confirmed", "confirmada", "active", "rented", "completed", "finalizada"].includes(s))
-    return "confirmed";
-  if (["cancelled", "canceled", "cancelada"].includes(s)) return "cancelled";
-  return s || "confirmed";
+  if (["open", "rental", "completed", "confirmed"].includes(s)) return "confirmed";
+  if (["cancelled", "canceled", "no_show"].includes(s)) return "cancelled";
+  return s || "pending";
 }
 
 function mapReservation(r: HqReservation) {
-  const customer = (r.customer ?? r.client ?? {}) as HqReservation;
+  const customer = (r["customer"] ?? {}) as HqReservation;
+  const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
+  const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
   return {
-    reservation_id: String(
-      pick(r, ["reservation_id", "reservationId", "id", "code", "number"]) ?? "",
-    ),
-    customer_email: pick<string>(customer, ["email"]) ?? pick<string>(r, ["customer_email", "email"]) ?? null,
-    customer_phone: pick<string>(customer, ["phone", "mobile"]) ?? pick<string>(r, ["customer_phone", "phone"]) ?? null,
-    car_category:
-      pick<string>(r, ["car_category", "carCategory", "category", "vehicle_category", "group"]) ?? null,
-    rental_days: toNumber(pick(r, ["rental_days", "rentalDays", "days"]) ?? 1) || 1,
-    total_amount: toNumber(pick(r, ["total_amount", "totalAmount", "total", "amount", "price"])),
-    status: normalizeStatus(pick(r, ["status"])),
-    utm_campaign: pick<string>(r, ["utm_campaign", "utmCampaign"]) ?? null,
-    created_at:
-      pick<string>(r, ["created_at", "createdAt", "created", "date"]) ?? new Date().toISOString(),
+    reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
+    customer_email: (customer["email"] as string | null) ?? null,
+    customer_phone: (customer["phone_number"] as string | null) ?? null,
+    car_category: (vehicleClass["name"] as string | null) ?? null,
+    rental_days: Number(r["total_days"]) || 1,
+    total_amount: Number(r["total_price"]) || 0,
+    status: normalizeStatus(r["status"]),
+    utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
+    created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
   };
 }
 
@@ -64,35 +48,43 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         }
 
         const basic = btoa(`${tenant}:${user}`);
-        const url = `${baseUrl.replace(/\/$/, "")}/car-rental/reservations`;
+        const base = `${baseUrl.replace(/\/$/, "")}/car-rental/reservations`;
 
-        const hqRes = await fetch(url, {
-          headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
-        });
-        if (!hqRes.ok) {
-          const body = await hqRes.text();
-          return Response.json(
-            { error: `HQ Rentals respondeu ${hqRes.status}`, detail: body.slice(0, 500) },
-            { status: 502 },
-          );
-        }
+        const all: HqReservation[] = [];
+        let page = 1;
+        let lastPage = 1;
+        do {
+          const hqRes = await fetch(`${base}?page=${page}`, {
+            headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
+          });
+          if (!hqRes.ok) {
+            const body = await hqRes.text();
+            return Response.json(
+              { error: `HQ Rentals respondeu ${hqRes.status}`, detail: body.slice(0, 500) },
+              { status: 502 },
+            );
+          }
+          const payload = (await hqRes.json()) as {
+            data?: HqReservation[];
+            last_page?: number;
+          };
+          all.push(...(payload.data ?? []));
+          lastPage = payload.last_page ?? 1;
+          page += 1;
+        } while (page <= lastPage);
 
-        const payload = (await hqRes.json()) as unknown;
-        const list: HqReservation[] = Array.isArray(payload)
-          ? (payload as HqReservation[])
-          : ((payload as HqReservation)?.data ??
-            (payload as HqReservation)?.reservations ??
-            (payload as HqReservation)?.items ??
-            []) as HqReservation[];
-
-        const rows = list.map(mapReservation).filter((r) => r.reservation_id !== "");
+        const rows = all.map(mapReservation).filter((r) => r.reservation_id !== "");
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { error } = await supabaseAdmin
-          .from("reservations")
-          .upsert(rows, { onConflict: "reservation_id" });
-        if (error) {
-          return Response.json({ error: error.message }, { status: 500 });
+        // Upsert em lotes para não estourar o limite de payload
+        const BATCH = 500;
+        for (let i = 0; i < rows.length; i += BATCH) {
+          const { error } = await supabaseAdmin
+            .from("reservations")
+            .upsert(rows.slice(i, i + BATCH), { onConflict: "reservation_id" });
+          if (error) {
+            return Response.json({ error: error.message }, { status: 500 });
+          }
         }
 
         return Response.json({ ok: true, synced: rows.length });
