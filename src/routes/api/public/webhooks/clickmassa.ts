@@ -81,6 +81,13 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           }
         }
 
+        if (!row.name && !row.email && !row.phone) {
+          return Response.json(
+            { error: "Payload sem dados de contato (nome, e-mail ou telefone)" },
+            { status: 422 },
+          );
+        }
+
         const { error } = await supabaseAdmin.from("crm_leads").insert(row);
         if (error) return Response.json({ error: error.message }, { status: 500 });
         return Response.json({ ok: true, action: "inserted", lead_id: leadId });
