@@ -116,6 +116,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             ok: true,
             pipelines: pipelines.map((p) => p["name"]),
             tickets: tickets.length,
+            ticketsOk,
+            warning: ticketsOk ? null : "Atendimentos indisponíveis para este token",
             synced: rows.length,
             nextPage: more ? page : null,
           });
