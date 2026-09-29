@@ -60,6 +60,10 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),
           updated_at: new Date().toISOString(),
         };
+        // Atualização parcial: campos que não vieram no payload preservam o valor salvo.
+        const partial = Object.fromEntries(
+          Object.entries(row).filter(([, v]) => v !== null),
+        );
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
