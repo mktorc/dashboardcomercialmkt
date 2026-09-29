@@ -64,7 +64,7 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
         // Atualização parcial: campos que não vieram no payload preservam o valor salvo.
         const partial = Object.fromEntries(
           Object.entries(row).filter(([, v]) => v !== null),
-        );
+        ) as typeof row;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
