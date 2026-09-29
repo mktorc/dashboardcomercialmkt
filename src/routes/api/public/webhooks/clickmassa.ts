@@ -57,9 +57,14 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           phone: pick(p, ["phone", "telefone", "phone_number", "celular", "whatsapp"]),
           stage_name: pick(p, ["stage_name", "stage", "etapa", "funil_etapa", "status", "funnel_stage"]),
           utm_source: pick(p, ["utm_source", "source", "origem"]),
+          utm_medium: pick(p, ["utm_medium", "medium", "canal"]),
           utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),
           updated_at: new Date().toISOString(),
         };
+        // Atualização parcial: campos que não vieram no payload preservam o valor salvo.
+        const partial = Object.fromEntries(
+          Object.entries(row).filter(([, v]) => v !== null),
+        ) as typeof row;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -74,7 +79,7 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           if (existing) {
             const { error } = await supabaseAdmin
               .from("crm_leads")
-              .update(row)
+              .update(partial)
               .eq("id", existing.id);
             if (error) return Response.json({ error: error.message }, { status: 500 });
             return Response.json({ ok: true, action: "updated", lead_id: leadId });

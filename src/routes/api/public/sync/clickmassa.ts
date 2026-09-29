@@ -50,8 +50,16 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
 
         try {
           const pipelines = (await get("/pipelines")) as unknown as Obj[];
-          const ticketsRes = await get("/tickets");
-          const tickets = (ticketsRes["tickets"] as Obj[] | undefined) ?? [];
+          // /tickets exige contexto de usuário e pode falhar com token permanente:
+          // segue sem os atendimentos em vez de abortar a sincronização.
+          let tickets: Obj[] = [];
+          let ticketsOk = true;
+          try {
+            const ticketsRes = await get("/tickets");
+            tickets = (ticketsRes["tickets"] as Obj[] | undefined) ?? [];
+          } catch {
+            ticketsOk = false;
+          }
           const ticketByContact = new Map<string, Obj>();
           tickets.forEach((t) => ticketByContact.set(String(t["contactId"]), t));
 
@@ -108,6 +116,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             ok: true,
             pipelines: pipelines.map((p) => p["name"]),
             tickets: tickets.length,
+            ticketsOk,
+            warning: ticketsOk ? null : "Atendimentos indisponíveis para este token",
             synced: rows.length,
             nextPage: more ? page : null,
           });
