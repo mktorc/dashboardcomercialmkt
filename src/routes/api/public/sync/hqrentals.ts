@@ -18,15 +18,15 @@ function mapReservation(r: HqReservation) {
   const vehicleClass = (r.vehicle_class ?? {}) as HqReservation;
   const campaign = (r.campaign_parameters ?? {}) as HqReservation;
   return {
-    reservation_id: String(r.prefixed_id ?? r.id ?? ""),
-    customer_email: (customer.email as string | null) ?? null,
-    customer_phone: (customer.phone_number as string | null) ?? null,
-    car_category: (vehicleClass.name as string | null) ?? null,
-    rental_days: Number(r.total_days) || 1,
-    total_amount: Number(r.total_price) || 0,
-    status: normalizeStatus(r.status),
-    utm_campaign: (campaign.utm_campaign as string | null) ?? null,
-    created_at: (r.created_at as string | null) ?? new Date().toISOString(),
+    reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
+    customer_email: (customer["email"] as string | null) ?? null,
+    customer_phone: (customer["phone_number"] as string | null) ?? null,
+    car_category: (vehicleClass["name"] as string | null) ?? null,
+    rental_days: Number(r["total_days"]) || 1,
+    total_amount: Number(r["total_price"]) || 0,
+    status: normalizeStatus(r["status"]),
+    utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
+    created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
   };
 }
 
