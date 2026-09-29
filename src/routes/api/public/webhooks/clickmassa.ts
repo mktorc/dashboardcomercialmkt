@@ -78,7 +78,7 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           if (existing) {
             const { error } = await supabaseAdmin
               .from("crm_leads")
-              .update(row)
+              .update(partial)
               .eq("id", existing.id);
             if (error) return Response.json({ error: error.message }, { status: 500 });
             return Response.json({ ok: true, action: "updated", lead_id: leadId });
