@@ -61,13 +61,6 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           updated_at: new Date().toISOString(),
         };
 
-        if (!row.name && !row.email && !row.phone) {
-          return Response.json(
-            { error: "Payload sem dados de contato (nome, e-mail ou telefone)" },
-            { status: 422 },
-          );
-        }
-
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         // Se veio um identificador de lead, atualiza o existente; senão insere novo
