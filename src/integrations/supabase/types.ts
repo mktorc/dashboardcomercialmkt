@@ -25,6 +25,7 @@ export type Database = {
           stage_name: string | null
           updated_at: string
           utm_campaign: string | null
+          utm_medium: string | null
           utm_source: string | null
         }
         Insert: {
@@ -37,6 +38,7 @@ export type Database = {
           stage_name?: string | null
           updated_at?: string
           utm_campaign?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
         }
         Update: {
@@ -49,6 +51,7 @@ export type Database = {
           stage_name?: string | null
           updated_at?: string
           utm_campaign?: string | null
+          utm_medium?: string | null
           utm_source?: string | null
         }
         Relationships: []
