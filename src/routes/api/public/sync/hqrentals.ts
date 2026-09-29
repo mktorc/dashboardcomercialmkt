@@ -14,9 +14,9 @@ function normalizeStatus(v: unknown): string {
 }
 
 function mapReservation(r: HqReservation) {
-  const customer = (r.customer ?? {}) as HqReservation;
-  const vehicleClass = (r.vehicle_class ?? {}) as HqReservation;
-  const campaign = (r.campaign_parameters ?? {}) as HqReservation;
+  const customer = (r["customer"] ?? {}) as HqReservation;
+  const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
+  const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
   return {
     reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
     customer_email: (customer["email"] as string | null) ?? null,
