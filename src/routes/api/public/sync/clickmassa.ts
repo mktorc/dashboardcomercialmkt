@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isSyncAuthorized } from "@/lib/sync-auth";
 
 // Sincronização ClickMassa (API) -> tabela `crm_leads`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>.
@@ -27,8 +28,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cron = process.env["LOVABLE_CRON_SECRET"];
-        if (!cron || request.headers.get("authorization") !== `Bearer ${cron}`) {
+        if (!isSyncAuthorized(request)) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
