@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
+import { Route as ApiPublicSyncMetaAdsRouteImport } from './routes/api/public/sync/meta-ads'
 import { Route as ApiPublicWebhooksClickmassaRouteImport } from './routes/api/public/webhooks/clickmassa'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const ApiPublicSyncHqrentalsRoute = ApiPublicSyncHqrentalsRouteImport.update({
   path: '/api/public/sync/hqrentals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncMetaAdsRoute = ApiPublicSyncMetaAdsRouteImport.update({
+  id: '/api/public/sync/meta-ads',
+  path: '/api/public/sync/meta-ads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicWebhooksClickmassaRoute =
   ApiPublicWebhooksClickmassaRouteImport.update({
     id: '/api/public/webhooks/clickmassa',
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRoutesById {
@@ -53,6 +61,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
 }
 export interface FileRouteTypes {
@@ -61,18 +70,21 @@ export interface FileRouteTypes {
     | '/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
   id:
     | '__root__'
     | '/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
   fileRoutesById: FileRoutesById
 }
@@ -80,6 +92,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
+  ApiPublicSyncMetaAdsRoute: typeof ApiPublicSyncMetaAdsRoute
   ApiPublicWebhooksClickmassaRoute: typeof ApiPublicWebhooksClickmassaRoute
 }
 
@@ -106,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncHqrentalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync/meta-ads': {
+      id: '/api/public/sync/meta-ads'
+      path: '/api/public/sync/meta-ads'
+      fullPath: '/api/public/sync/meta-ads'
+      preLoaderRoute: typeof ApiPublicSyncMetaAdsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/clickmassa': {
       id: '/api/public/webhooks/clickmassa'
       path: '/api/public/webhooks/clickmassa'
@@ -120,6 +140,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
+  ApiPublicSyncMetaAdsRoute: ApiPublicSyncMetaAdsRoute,
   ApiPublicWebhooksClickmassaRoute: ApiPublicWebhooksClickmassaRoute,
 }
 export const routeTree = rootRouteImport
