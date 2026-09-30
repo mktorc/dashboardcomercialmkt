@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isSyncAuthorized } from "@/lib/sync-auth.server";
 
 // Sincronização Meta Ads (Graph API insights) -> tabela `meta_ads_metrics`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>. Query opcional: ?days=30
@@ -10,8 +11,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cron = process.env["LOVABLE_CRON_SECRET"];
-        if (!cron || request.headers.get("authorization") !== `Bearer ${cron}`) {
+        if (!isSyncAuthorized(request)) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const account = process.env["META_AD_ACCOUNT_ID"];

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isSyncAuthorized } from "@/lib/sync-auth.server";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
@@ -34,9 +35,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cronSecret = process.env["LOVABLE_CRON_SECRET"];
-        const auth = request.headers.get("authorization") ?? "";
-        if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+        if (!isSyncAuthorized(request)) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
