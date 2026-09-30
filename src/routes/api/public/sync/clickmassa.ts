@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { isSyncAuthorized } from "@/lib/sync-auth.server";
+import { isSyncAuthorized } from "@/lib/sync-auth";
 
 // Sincronização ClickMassa (API) -> tabela `crm_leads`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>.

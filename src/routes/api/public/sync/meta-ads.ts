@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { isSyncAuthorized } from "@/lib/sync-auth.server";
+import { isSyncAuthorized } from "@/lib/sync-auth";
 
 // Sincronização Meta Ads (Graph API insights) -> tabela `meta_ads_metrics`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>. Query opcional: ?days=30

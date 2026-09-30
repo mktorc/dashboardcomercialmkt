@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { isSyncAuthorized } from "@/lib/sync-auth.server";
+import { isSyncAuthorized } from "@/lib/sync-auth";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
