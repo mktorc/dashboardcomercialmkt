@@ -42,7 +42,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
               const tags = String((ad["creative"] as Obj | undefined)?.["url_tags"] ?? "");
               const m = tags.match(/utm_campaign=([^&]+)/i);
               const cid = String(ad["campaign_id"]);
-              if (m && !utmByCampaign.has(cid)) utmByCampaign.set(cid, decodeURIComponent(m[1]));
+              if (m && !utmByCampaign.has(cid)) utmByCampaign.set(cid, decodeURIComponent(m[1] ?? ""));
             }
             next = ((j["paging"] as Obj | undefined)?.["next"] as string) ?? null;
           }
