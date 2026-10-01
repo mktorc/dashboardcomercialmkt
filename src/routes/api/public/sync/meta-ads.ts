@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           // utm_campaign vem dos url_tags dos anúncios de cada campanha
           const utmByCampaign = new Map<string, string>();
           let next: string | null =
-            `${GRAPH}/${account}/ads?fields=campaign_id,creative{url_tags}&limit=500&access_token=${token}`;
+            `${GRAPH}/${usedAccount}/ads?fields=campaign_id,creative{url_tags}&limit=500&access_token=${token}`;
           while (next) {
             const j: Obj = await call(next);
             for (const ad of (j["data"] as Obj[]) ?? []) {
@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
 
           const rows: Obj[] = [];
           const range = encodeURIComponent(JSON.stringify({ since: d(since), until: d(until) }));
-          next = `${GRAPH}/${account}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions&limit=500&access_token=${token}`;
+          next = `${GRAPH}/${usedAccount}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions&limit=500&access_token=${token}`;
           while (next) {
             const j: Obj = await call(next);
             for (const r of (j["data"] as Obj[]) ?? []) {
@@ -97,7 +97,14 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
               .upsert(rows.slice(i, i + 500) as never, { onConflict: "date,campaign_id" });
             if (error) return Response.json({ error: error.message }, { status: 500 });
           }
-          return Response.json({ ok: true, synced: rows.length, since: d(since), until: d(until) });
+          return Response.json({
+            ok: true,
+            synced: rows.length,
+            since: d(since),
+            until: d(until),
+            account: usedAccount,
+            ...(accountNote ? { note: accountNote } : {}),
+          });
         } catch (e) {
           return Response.json({ error: (e as Error).message }, { status: 502 });
         }
