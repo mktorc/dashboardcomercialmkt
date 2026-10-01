@@ -5,7 +5,7 @@ import { isSyncAuthorized } from "@/lib/sync-auth";
 // Proteção: Authorization: Bearer <segredo cron>. Query opcional: ?days=30
 
 type Obj = Record<string, unknown>;
-const API = "https://googleads.googleapis.com/v25";
+const API = "https://googleads.googleapis.com/v24";
 
 export const Route = createFileRoute("/api/public/sync/google-ads")({
   server: {
