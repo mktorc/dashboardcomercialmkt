@@ -15,7 +15,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const account = process.env["META_AD_ACCOUNT_ID"];
-        const token = process.env["META_ACCESS_TOKEN"];
+        const token = process.env["META_ADS_SYSTEM_USER_TOKEN"] || process.env["META_ACCESS_TOKEN"];
         if (!account || !token) {
           return Response.json({ error: "Meta Ads não configurado" }, { status: 500 });
         }
