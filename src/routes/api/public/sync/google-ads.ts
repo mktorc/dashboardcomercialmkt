@@ -5,7 +5,7 @@ import { isSyncAuthorized } from "@/lib/sync-auth";
 // Proteção: Authorization: Bearer <segredo cron>. Query opcional: ?days=30
 
 type Obj = Record<string, unknown>;
-const API = "https://googleads.googleapis.com/v24";
+const API = "https://connector-gateway.lovable.dev/google_ads/v25";
 
 export const Route = createFileRoute("/api/public/sync/google-ads")({
   server: {
@@ -16,36 +16,17 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
         }
         const env = (k: string) => process.env[k];
         const customer = env("GOOGLE_ADS_CUSTOMER_ID")?.replace(/-/g, "");
-        const devToken = env("GOOGLE_ADS_DEVELOPER_TOKEN");
-        const clientId = env("GOOGLE_OAUTH_CLIENT_ID");
-        const clientSecret = env("GOOGLE_OAUTH_CLIENT_SECRET");
-        const refresh = env("GOOGLE_ADS_REFRESH_TOKEN");
-        if (!customer || !devToken || !clientId || !clientSecret || !refresh) {
+        const lovableKey = env("LOVABLE_API_KEY");
+        const connKey = env("GOOGLE_ADS_API_KEY");
+        if (!customer || !lovableKey || !connKey) {
           return Response.json({ error: "Google Ads não configurado" }, { status: 500 });
         }
-        const loginId = env("GOOGLE_ADS_LOGIN_CUSTOMER_ID")?.replace(/-/g, "") || customer;
         const days = Math.min(365, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
         const d = (x: Date) => x.toISOString().slice(0, 10);
         const until = new Date();
         const since = new Date(Date.now() - (days - 1) * 86400000);
 
         try {
-          const tr = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              client_id: clientId,
-              client_secret: clientSecret,
-              refresh_token: refresh,
-              grant_type: "refresh_token",
-            }),
-          });
-          const tj = (await tr.json()) as Obj;
-          if (!tr.ok) {
-            return Response.json({ error: `OAuth ${tr.status}: ${JSON.stringify(tj)}` }, { status: 502 });
-          }
-          const accessToken = String(tj["access_token"]);
-
           const query = `SELECT segments.date, campaign.id, campaign.name, campaign.tracking_url_template, campaign.final_url_suffix, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${d(since)}' AND '${d(until)}'`;
           const rows: Obj[] = [];
           let pageToken: string | undefined;
@@ -53,9 +34,8 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
             const r = await fetch(`${API}/customers/${customer}/googleAds:search`, {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "developer-token": devToken,
-                "login-customer-id": loginId,
+                Authorization: `Bearer ${lovableKey}`,
+                "X-Connection-Api-Key": connKey,
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({ query, pageToken }),
