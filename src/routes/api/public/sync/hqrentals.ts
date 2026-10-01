@@ -48,6 +48,10 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
 
         const basic = btoa(`${tenant}:${user}`);
         const base = `${baseUrl.replace(/\/$/, "")}/car-rental/reservations`;
+        // ?days=N: modo incremental (a API devolve as mais recentes primeiro).
+        // Sem o parâmetro: histórico completo (acionamento manual).
+        const daysParam = Number(new URL(request.url).searchParams.get("days"));
+        const cutoff = daysParam > 0 ? Date.now() - daysParam * 86400000 : null;
 
         const all: HqReservation[] = [];
         let page = 1;
@@ -67,9 +71,16 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
             data?: HqReservation[];
             last_page?: number;
           };
-          all.push(...(payload.data ?? []));
+          const data = payload.data ?? [];
           lastPage = payload.last_page ?? 1;
           page += 1;
+          if (cutoff !== null) {
+            const recent = data.filter((r) => Date.parse(String(r["created_at"] ?? "")) >= cutoff);
+            all.push(...recent);
+            if (recent.length < data.length) break;
+          } else {
+            all.push(...data);
+          }
         } while (page <= lastPage);
 
         const rows = all.map(mapReservation).filter((r) => r.reservation_id !== "");
