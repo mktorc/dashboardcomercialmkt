@@ -31,6 +31,29 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           return j;
         };
 
+        // Se o ID configurado for recusado (ex.: token sem permissão nessa conta),
+        // descobre a conta acessível pelo token e usa essa.
+        let usedAccount = account;
+        let accountNote: string | null = null;
+        try {
+          await call(`${GRAPH}/${account}?fields=account_id&access_token=${token}`);
+        } catch {
+          const ads = await call(
+            `${GRAPH}/me/adaccounts?fields=account_id&access_token=${token}`,
+          );
+          const list = (ads["data"] as Obj[]) ?? [];
+          if (list.length === 1) {
+            const accId = String(list[0]!["account_id"]);
+            usedAccount = `act_${accId}`;
+            accountNote = `META_AD_ACCOUNT_ID configurado sem acesso; usando conta acessível pelo token: ${usedAccount}`;
+          } else {
+            throw new Error(
+              `Ad account ${account} sem permissão para este token e ${list.length} contas acessíveis via /me/adaccounts`,
+            );
+          }
+        }
+
+
         try {
           // utm_campaign vem dos url_tags dos anúncios de cada campanha
           const utmByCampaign = new Map<string, string>();
