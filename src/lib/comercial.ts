@@ -17,13 +17,18 @@ export type CTask = {
 };
 export type Goal = { seller_name: string; month: string; revenue_goal: number; ticket_goal: number };
 
-export const sellerKey = (n: string | null | undefined) =>
-  (n ?? "")
+// Apelidos usados no HQ Rentals -> nome do usuário no ClickMassa
+const ALIASES: Record<string, string> = { naty: "nathalia", thay: "thayanne" };
+
+export const sellerKey = (n: string | null | undefined) => {
+  const k = (n ?? "")
     .trim()
     .split(/\s+/)[0]!
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase() || "sem_vendedor";
+    .toLowerCase();
+  return k ? (ALIASES[k] ?? k) : "sem_vendedor";
+};
 
 const startIso = (d: string) => new Date(d + "T00:00:00").toISOString();
 const endIso = (d: string) => new Date(d + "T23:59:59.999").toISOString();
