@@ -36,6 +36,13 @@
       "when": 1790959857888,
       "tag": "0004_comercial_tab_and_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790961482032,
+      "tag": "0005_seller_key_normalization",
+      "breakpoints": true
     }
   ]
 }
