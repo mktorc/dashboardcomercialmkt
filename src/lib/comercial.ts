@@ -150,7 +150,10 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   confirmed
     .filter((r) => inPeriod(r.created_at))
     .forEach((r) => {
-      const row = touch(nameOf(r.seller_name));
+      const k0 = nameOf(r.seller_name);
+      const k = k0 === "sem_vendedor" ? "venda_direta" : k0;
+      if (k === "venda_direta") names.set(k, DIRECT_SALE_LABEL);
+      const row = touch(k);
       row.reservas++;
       row.faturamento += r.total_amount;
       row.disc += r.discount_amount;
@@ -175,7 +178,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     ticketGoal: goalCount.get(r.key) ? r.ticketGoal / goalCount.get(r.key)! : 0,
   }));
   const sellers = all
-    .filter((r) => r.key !== "sem_vendedor")
+    .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta")
     .sort((a, b) => a.name.localeCompare(b.name));
   const visible = seller === "all" ? all : all.filter((r) => r.key === seller);
 

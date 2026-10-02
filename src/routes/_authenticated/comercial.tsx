@@ -111,7 +111,7 @@ function Comercial() {
       });
   }, [view, search, sort]);
 
-  const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && (r.faturamento || r.revenueGoal));
+  const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.faturamento || r.revenueGoal));
   const chartH = Math.max(220, goalRows.length * 34);
 
   const Th = ({ k: key, label, left }: { k: SortKey; label: string; left?: boolean }) => (
@@ -239,7 +239,7 @@ function Comercial() {
                       <td className="px-4 py-3 text-right">{r.leads.toLocaleString("pt-BR")}</td>
                       <td className="px-4 py-3 text-right">{r.overdue}</td>
                       <td className="px-4 py-3 text-right">{r.reservas}</td>
-                      <td className="px-4 py-3 text-right">{pct(r.conversao)}</td>
+                      <td className="px-4 py-3 text-right">{r.key === "venda_direta" ? "—" : pct(r.conversao)}</td>
                       <td className="px-4 py-3 text-right">{brl(r.ticket)}</td>
                       <td className="px-4 py-3 text-right font-medium text-accent">{brl(r.faturamento)}</td>
                     </tr>
