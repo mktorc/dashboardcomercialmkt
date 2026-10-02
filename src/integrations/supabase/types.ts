@@ -238,7 +238,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      seller_key: { Args: { _name: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

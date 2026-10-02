@@ -255,6 +255,47 @@ function Comercial() {
               </table>
             </div>
           </Card>
+
+          <Card className="overflow-hidden">
+            <div className="border-b border-border px-5 py-4">
+              <h2 className="text-sm font-semibold text-foreground">Auditoria — leads sem vendedor (10 mais recentes)</h2>
+              <p className="text-xs text-muted-foreground">
+                No período: {view ? view.unassigned.toLocaleString("pt-BR") : "—"} sem responsável no ClickMassa (fila) ·{" "}
+                {view ? view.unmatched.toLocaleString("pt-BR") : "—"} com nome sem correspondência
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px] text-sm">
+                <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium">Criado em</th>
+                    <th className="px-4 py-3 text-left font-medium">Lead</th>
+                    <th className="px-4 py-3 text-left font-medium">Etapa</th>
+                    <th className="px-4 py-3 text-left font-medium">Responsável no ClickMassa</th>
+                    <th className="px-4 py-3 text-left font-medium">Diagnóstico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(view?.audit ?? []).map((l) => (
+                    <tr key={l.lead_id ?? l.created_at} className="border-t border-border">
+                      <td className="px-4 py-3">{new Date(l.created_at).toLocaleString("pt-BR")}</td>
+                      <td className="px-4 py-3 text-foreground">{l.name ?? "—"}</td>
+                      <td className="px-4 py-3">{l.stage_name ?? "—"}</td>
+                      <td className="px-4 py-3">{l.seller_name?.trim() || <span className="text-muted-foreground">vazio (nulo)</span>}</td>
+                      <td className="px-4 py-3">
+                        {l.reason === "null" ? "Fila / não atribuído" : <span className="text-destructive">Falha de correspondência</span>}
+                      </td>
+                    </tr>
+                  ))}
+                  {view && !view.audit.length ? (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">Nenhum caso no período.</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       </main>
     </div>

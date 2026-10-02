@@ -1,7 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 
-export type CLead = { lead_id: string | null; created_at: string; seller_name: string | null };
+export type CLead = {
+  lead_id: string | null;
+  created_at: string;
+  seller_name: string | null;
+  name?: string | null;
+  stage_name?: string | null;
+};
+
+export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
 export type CRes = {
   created_at: string;
   total_amount: number;
@@ -42,7 +50,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_leads")
-        .select("lead_id, created_at, seller_name")
+        .select("lead_id, created_at, seller_name, name, stage_name")
         .gte("created_at", startIso(from))
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -107,7 +115,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const names = new Map<string, string>();
   const nameOf = (n: string | null) => {
     const k = sellerKey(n);
-    if (!names.has(k)) names.set(k, n?.trim() || "Sem vendedor");
+    if (!names.has(k)) names.set(k, n?.trim() || UNASSIGNED_LABEL);
     return k;
   };
   const confirmed = d.reservations.filter((r) => r.status === "confirmed");
@@ -210,7 +218,31 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     bucket[n] = ((bucket[n] as number | undefined) ?? 0) + r.total_amount;
   });
 
+  // Auditoria: casos sem vendedor reconhecido (nulo no ClickMassa ou nome sem correspondência)
+  const knownUsers = new Set(
+    [...d.tasks.map((t) => t.user_name), ...d.reservations.map((r) => r.seller_name)]
+      .map((n) => sellerKey(n))
+      .filter((k) => k !== "sem_vendedor"),
+  );
+  const leadCount = new Map<string, number>();
+  d.leads.forEach((l) => leadCount.set(sellerKey(l.seller_name), (leadCount.get(sellerKey(l.seller_name)) ?? 0) + 1));
+  const audit = d.leads
+    .filter((l) => sellerKey(l.seller_name) === "sem_vendedor" || !knownUsers.has(sellerKey(l.seller_name)))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 10)
+    .map((l) => ({
+      ...l,
+      reason: l.seller_name?.trim() ? ("match" as const) : ("null" as const),
+    }));
+  const unassigned = leadCount.get("sem_vendedor") ?? 0;
+  const unmatched = d.leads.filter(
+    (l) => sellerKey(l.seller_name) !== "sem_vendedor" && !knownUsers.has(sellerKey(l.seller_name)),
+  ).length;
+
   return {
+    audit,
+    unassigned,
+    unmatched,
     kpis,
     rows: visible.filter((r) => r.leads || r.reservas || r.overdue || r.pending || r.done),
     sellers,
