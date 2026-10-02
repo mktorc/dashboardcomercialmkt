@@ -14,7 +14,7 @@ function normalizeStatus(v: unknown): string {
   return s || "pending";
 }
 
-function mapReservation(r: HqReservation) {
+function mapReservation(r: HqReservation, users: Map<string, string>) {
   const customer = (r["customer"] ?? {}) as HqReservation;
   const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
   const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
@@ -27,6 +27,8 @@ function mapReservation(r: HqReservation) {
     total_amount: Number(r["total_price"]) || 0,
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
+    seller_name: users.get(String(r["created_by"] ?? "")) ?? null,
+    discount_amount: Number(r["discounts_amount"]) || 0,
     created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
   };
 }
@@ -83,7 +85,19 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           }
         } while (page <= lastPage);
 
-        const rows = all.map(mapReservation).filter((r) => r.reservation_id !== "");
+        const users = new Map<string, string>();
+        for (let up = 1; up <= 20; up++) {
+          const ur = await fetch(`${baseUrl.replace(/\/$/, "")}/users?page=${up}`, {
+            headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
+          });
+          if (!ur.ok) break;
+          const uj = (await ur.json()) as { data?: { data?: HqReservation[]; last_page?: number } };
+          (uj.data?.data ?? []).forEach((u) =>
+            users.set(String(u["id"]), String(u["full_name"] ?? u["first_name"] ?? "").trim()),
+          );
+          if (up >= (uj.data?.last_page ?? 1)) break;
+        }
+        const rows = all.map((r) => mapReservation(r, users)).filter((r) => r.reservation_id !== "");
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         // Upsert em lotes para não estourar o limite de payload

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetch-all";
 
 export type RangeKey = "today" | "7d" | "month" | "30d";
 
@@ -56,26 +57,26 @@ export type AnalyticsData = {
 export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
   const { from, to } = rangeToDates(range);
   const [meta, google, leads, reservations] = await Promise.all([
-    supabase
+    fetchAll((a, b) => supabase
       .from("meta_ads_metrics")
       .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
       .gte("date", isoDay(from))
-      .lte("date", isoDay(to)),
-    supabase
+      .lte("date", isoDay(to)).range(a, b)),
+    fetchAll((a, b) => supabase
       .from("google_ads_metrics")
       .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
       .gte("date", isoDay(from))
-      .lte("date", isoDay(to)),
-    supabase
+      .lte("date", isoDay(to)).range(a, b)),
+    fetchAll((a, b) => supabase
       .from("crm_leads")
       .select("created_at, stage_name, utm_source, utm_campaign")
       .gte("created_at", iso(from))
-      .lte("created_at", iso(to)),
-    supabase
+      .lte("created_at", iso(to)).range(a, b)),
+    fetchAll((a, b) => supabase
       .from("reservations")
       .select("created_at, car_category, rental_days, total_amount, status, utm_campaign")
       .gte("created_at", iso(from))
-      .lte("created_at", iso(to)),
+      .lte("created_at", iso(to)).range(a, b)),
   ]);
 
   const err = meta.error || google.error || leads.error || reservations.error;

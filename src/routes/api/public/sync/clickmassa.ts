@@ -96,6 +96,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                   s(funnel?.["stageName"] ?? funnel?.["name"]) ??
                   s(c["leadStatus"]) ??
                   (t ? `Atendimento: ${s(t["status"])}` : "Novo contato"),
+                seller_name: s(c["wallet"]),
                 utm_source: utm.source ?? s(c["channel"]),
                 utm_medium: utm.medium,
                 utm_campaign: utm.campaign,
@@ -112,8 +113,41 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             if (error) return Response.json({ error: error.message }, { status: 500 });
           }
 
+          // Tarefas + usuários (aba Comercial)
+          let tasksSynced = 0;
+          try {
+            const usersRes = await get("/users");
+            const names = new Map<string, string>();
+            ((usersRes["users"] as Obj[] | undefined) ?? []).forEach((u) =>
+              names.set(String(u["id"]), String(u["name"] ?? "")),
+            );
+            const tasks = (await get("/tasks")) as unknown as Obj[];
+            const taskRows = tasks.map((t) => {
+              const raw = s(t["dueDate"]) ?? s(t["date"]);
+              const d = raw ? raw.slice(0, 10).replace(/^(\d{5,})/, (m) => m.slice(-4)) : null;
+              return {
+                task_id: String(t["id"]),
+                user_name: names.get(String(t["responsibleUserId"])) ?? null,
+                lead_id: t["contactId"] ? `cm-${t["contactId"]}` : null,
+                completed: Boolean(t["completed"]),
+                due_date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
+                created_at: s(t["createdAt"]) ?? new Date().toISOString(),
+              };
+            });
+            for (let i = 0; i < taskRows.length; i += 1000) {
+              const { error } = await supabaseAdmin
+                .from("crm_tasks")
+                .upsert(taskRows.slice(i, i + 1000), { onConflict: "task_id" });
+              if (error) throw error;
+            }
+            tasksSynced = taskRows.length;
+          } catch (e) {
+            console.error("tasks sync", e);
+          }
+
           return Response.json({
             ok: true,
+            tasksSynced,
             pipelines: pipelines.map((p) => p["name"]),
             tickets: tickets.length,
             ticketsOk,

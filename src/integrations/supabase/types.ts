@@ -22,6 +22,7 @@ export type Database = {
           lead_id: string | null
           name: string | null
           phone: string | null
+          seller_name: string | null
           stage_name: string | null
           updated_at: string
           utm_campaign: string | null
@@ -35,6 +36,7 @@ export type Database = {
           lead_id?: string | null
           name?: string | null
           phone?: string | null
+          seller_name?: string | null
           stage_name?: string | null
           updated_at?: string
           utm_campaign?: string | null
@@ -48,11 +50,42 @@ export type Database = {
           lead_id?: string | null
           name?: string | null
           phone?: string | null
+          seller_name?: string | null
           stage_name?: string | null
           updated_at?: string
           utm_campaign?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+        }
+        Relationships: []
+      }
+      crm_tasks: {
+        Row: {
+          completed: boolean
+          created_at: string
+          due_date: string | null
+          id: string
+          lead_id: string | null
+          task_id: string
+          user_name: string | null
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          lead_id?: string | null
+          task_id: string
+          user_name?: string | null
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          lead_id?: string | null
+          task_id?: string
+          user_name?: string | null
         }
         Relationships: []
       }
@@ -134,9 +167,11 @@ export type Database = {
           created_at: string
           customer_email: string | null
           customer_phone: string | null
+          discount_amount: number
           id: string
           rental_days: number
           reservation_id: string | null
+          seller_name: string | null
           status: string
           total_amount: number
           utm_campaign: string | null
@@ -146,9 +181,11 @@ export type Database = {
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null
+          discount_amount?: number
           id?: string
           rental_days?: number
           reservation_id?: string | null
+          seller_name?: string | null
           status?: string
           total_amount?: number
           utm_campaign?: string | null
@@ -158,12 +195,41 @@ export type Database = {
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null
+          discount_amount?: number
           id?: string
           rental_days?: number
           reservation_id?: string | null
+          seller_name?: string | null
           status?: string
           total_amount?: number
           utm_campaign?: string | null
+        }
+        Relationships: []
+      }
+      sales_goals: {
+        Row: {
+          id: string
+          month: string
+          revenue_goal: number
+          seller_name: string
+          ticket_goal: number
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          month: string
+          revenue_goal?: number
+          seller_name: string
+          ticket_goal?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          month?: string
+          revenue_goal?: number
+          seller_name?: string
+          ticket_goal?: number
+          updated_at?: string
         }
         Relationships: []
       }

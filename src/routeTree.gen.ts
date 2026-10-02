@@ -10,6 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
@@ -20,6 +24,25 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedComercialRoute = AuthenticatedComercialRouteImport.update({
+  id: '/comercial',
+  path: '/comercial',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const ApiPublicSyncClickmassaRoute = ApiPublicSyncClickmassaRouteImport.update({
   id: '/api/public/sync/clickmassa',
@@ -50,6 +73,9 @@ const ApiPublicWebhooksClickmassaRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/comercial': typeof AuthenticatedComercialRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
@@ -58,6 +84,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/comercial': typeof AuthenticatedComercialRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
@@ -67,6 +96,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/comercial': typeof AuthenticatedComercialRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
@@ -77,6 +110,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
+    | '/comercial'
+    | '/dashboard'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
@@ -85,6 +121,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth'
+    | '/comercial'
+    | '/dashboard'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
@@ -93,6 +132,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/comercial'
+    | '/_authenticated/dashboard'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
@@ -102,6 +145,8 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
@@ -117,6 +162,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/comercial': {
+      id: '/_authenticated/comercial'
+      path: '/comercial'
+      fullPath: '/comercial'
+      preLoaderRoute: typeof AuthenticatedComercialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/sync/clickmassa': {
       id: '/api/public/sync/clickmassa'
@@ -156,8 +229,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedComercialRoute: AuthenticatedComercialRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncGoogleAdsRoute: ApiPublicSyncGoogleAdsRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
