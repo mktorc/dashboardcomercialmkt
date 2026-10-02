@@ -10,6 +10,7 @@ export type CLead = {
 };
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
+export const DIRECT_SALE_LABEL = "Venda Direta / Site";
 export type CRes = {
   created_at: string;
   total_amount: number;
@@ -213,7 +214,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (!bucket) return;
     const k = nameOf(r.seller_name);
     if (seller !== "all" && k !== seller) return;
-    const n = names.get(k)!;
+    const n = k === "sem_vendedor" ? DIRECT_SALE_LABEL : names.get(k)!;
     stackKeys.add(n);
     bucket[n] = ((bucket[n] as number | undefined) ?? 0) + r.total_amount;
   });
