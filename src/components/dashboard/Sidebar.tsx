@@ -1,15 +1,24 @@
-import { BarChart3, Car, LayoutDashboard, LineChart, Megaphone, Users } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Briefcase, LayoutDashboard, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const items = [
-  { label: "Visão geral", icon: LayoutDashboard, active: true },
-  { label: "Mídia paga", icon: Megaphone },
-  { label: "Leads CRM", icon: Users },
-  { label: "Reservas", icon: Car },
-  { label: "Atribuição", icon: BarChart3 },
-  { label: "Evolução", icon: LineChart },
-];
+  { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/dashboard" },
+  { key: "comercial", label: "Comercial", icon: Briefcase, to: "/comercial" },
+] as const;
 
-export function Sidebar() {
+export function Sidebar({ active }: { active: "dashboard" | "comercial" }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  async function signOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+
   return (
     <aside
       className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border p-4 lg:flex"
@@ -29,20 +38,27 @@ export function Sidebar() {
       </div>
       <nav className="flex flex-col gap-1">
         {items.map((item) => (
-          <button
-            key={item.label}
+          <Link
+            key={item.key}
+            to={item.to}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-              item.active
+              active === item.key
                 ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
             }`}
           >
             <item.icon className="size-4" />
             {item.label}
-          </button>
+          </Link>
         ))}
       </nav>
-      <p className="mt-auto text-xs text-sidebar-foreground/60">
+      <button
+        onClick={signOut}
+        className="mt-auto flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent"
+      >
+        <LogOut className="size-4" /> Sair
+      </button>
+      <p className="mt-3 text-xs text-sidebar-foreground/60">
         Meta Ads · Google Ads · ClickMassa · HQ Rentals
       </p>
     </aside>
