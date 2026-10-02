@@ -83,7 +83,7 @@ const tooltipStyle = {
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-type SortKey = keyof Pick<SellerRow, "name" | "leads" | "overdue" | "reservas" | "conversao" | "ticket" | "faturamento">;
+type SortKey = keyof Pick<SellerRow, "name" | "leads" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
 
 function Comercial() {
   const now = new Date();
@@ -91,6 +91,7 @@ function Comercial() {
   const [to, setTo] = useState(ymd(now));
   const [seller, setSeller] = useState("all");
   const [search, setSearch] = useState("");
+  const [noTaskOpen, setNoTaskOpen] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "faturamento", dir: -1 });
 
   const { data, isLoading, error } = useQuery({
@@ -178,10 +179,28 @@ function Comercial() {
             <KpiCard icon={Users} label="Leads recebidos" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Novos contatos no ClickMassa" />
             <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
             <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
-            <KpiCard icon={ClipboardX} label="Leads sem tarefa" value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} hint="Sem nenhuma tarefa atribuída" />
+            <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
+              <KpiCard icon={ClipboardX} label="Oportunidades sem tarefa" value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} hint="Clique para ver a lista" highlight />
+            </button>
             <KpiCard icon={AlarmClock} label="Tarefas atrasadas" value={k ? k.overdue.toLocaleString("pt-BR") : "—"} hint="Pendentes com data vencida" />
             <KpiCard icon={ClipboardCheck} label="Tarefas pendentes / concluídas" value={k ? `${k.pending.toLocaleString("pt-BR")} / ${k.done.toLocaleString("pt-BR")}` : "—"} hint="Criadas no período" />
           </section>
+
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
+            <p className="text-xs text-muted-foreground">Novos contatos no ClickMassa — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={view?.daily ?? []}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                  <XAxis dataKey="dia" {...axis} />
+                  <YAxis {...axis} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} />
+                  <Bar dataKey="oportunidades" name="Oportunidades" fill="#44E500" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
 
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-foreground">Valor fechado por vendedor ao mês</h2>
@@ -220,12 +239,15 @@ function Comercial() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] text-sm">
+              <table className="w-full min-w-[1000px] text-sm">
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <Th k="name" label="Vendedor" left />
                     <Th k="leads" label="Leads" />
-                    <Th k="overdue" label="Tarefas atrasadas" />
+                    <Th k="tasksTotal" label="Tarefas totais" />
+                    <Th k="overdue" label="Atrasadas" />
+                    <Th k="done" label="Concluídas" />
+                    <Th k="noTask" label="Sem tarefa" />
                     <Th k="reservas" label="Reservas" />
                     <Th k="conversao" label="Conversão" />
                     <Th k="ticket" label="Ticket médio" />
@@ -237,7 +259,10 @@ function Comercial() {
                     <tr key={r.key} className="border-t border-border">
                       <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
                       <td className="px-4 py-3 text-right">{r.leads.toLocaleString("pt-BR")}</td>
+                      <td className="px-4 py-3 text-right">{r.tasksTotal}</td>
                       <td className="px-4 py-3 text-right">{r.overdue}</td>
+                      <td className="px-4 py-3 text-right">{r.done}</td>
+                      <td className="px-4 py-3 text-right">{r.noTask}</td>
                       <td className="px-4 py-3 text-right">{r.reservas}</td>
                       <td className="px-4 py-3 text-right">{r.key === "venda_direta" ? "—" : pct(r.conversao)}</td>
                       <td className="px-4 py-3 text-right">{brl(r.ticket)}</td>
@@ -246,7 +271,7 @@ function Comercial() {
                   ))}
                   {!tableRows.length ? (
                     <tr>
-                      <td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">
+                      <td colSpan={10} className="px-5 py-10 text-center text-muted-foreground">
                         {isLoading ? "Carregando…" : "Nenhum dado no período."}
                       </td>
                     </tr>
@@ -257,6 +282,34 @@ function Comercial() {
           </Card>
         </div>
       </main>
+      <Dialog open={noTaskOpen} onOpenChange={setNoTaskOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Oportunidades sem tarefa ({view?.noTaskList.length ?? 0})</DialogTitle>
+          </DialogHeader>
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2 text-left">Criado em</th>
+                <th className="py-2 text-left">Contato</th>
+                <th className="py-2 text-left">Etapa</th>
+                <th className="py-2 text-left">Responsável</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(view?.noTaskList ?? []).slice(0, 500).map((l, i) => (
+                <tr key={(l.lead_id ?? "") + i} className="border-t border-border">
+                  <td className="py-2">{new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
+                  <td className="py-2 text-foreground">{l.name ?? "—"}</td>
+                  <td className="py-2">{l.stage_name ?? "—"}</td>
+                  <td className="py-2">{l.owner}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(view?.noTaskList.length ?? 0) > 500 ? <p className="text-xs text-muted-foreground">Mostrando os 500 mais recentes.</p> : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
