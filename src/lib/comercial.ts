@@ -23,6 +23,7 @@ export type CTask = {
   user_name: string | null;
   completed: boolean;
   due_date: string | null;
+  created_at: string;
 };
 export type Goal = { seller_name: string; month: string; revenue_goal: number; ticket_goal: number };
 
@@ -67,9 +68,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_tasks")
-        .select("lead_id, user_name, completed, due_date")
-        .gte("created_at", startIso(from))
-        .lte("created_at", endIso(to))
+        .select("lead_id, user_name, completed, due_date, created_at")
         .range(a, b),
     ),
     supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal"),
@@ -101,6 +100,8 @@ export type SellerRow = {
   overdue: number;
   pending: number;
   done: number;
+  tasksTotal: number;
+  noTask: number;
   reservas: number;
   conversao: number;
   ticket: number;
@@ -132,15 +133,22 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const touch = (k: string) => {
     if (!rows.has(k))
       rows.set(k, {
-        key: k, name: "", leads: 0, overdue: 0, pending: 0, done: 0, reservas: 0, conversao: 0,
+        key: k, name: "", leads: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
         ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, gross: 0, disc: 0,
       });
     return rows.get(k)!;
   };
 
-  d.leads.forEach((l) => touch(nameOf(l.seller_name)).leads++);
-  d.tasks.forEach((t) => {
+  // Tarefas de qualquer data contam para saber se o lead tem tarefa
+  const leadIdsWithTask = new Set(d.tasks.map((t) => t.lead_id).filter(Boolean));
+  d.leads.forEach((l) => {
+    const r = touch(nameOf(l.seller_name));
+    r.leads++;
+    if (!leadIdsWithTask.has(l.lead_id)) r.noTask++;
+  });
+  d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
     const r = touch(nameOf(t.user_name));
+    r.tasksTotal++;
     if (t.completed) r.done++;
     else {
       r.pending++;
@@ -183,10 +191,24 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const visible = seller === "all" ? all : all.filter((r) => r.key === seller);
 
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
-  const leadIdsWithTask = new Set(d.tasks.map((t) => t.lead_id).filter(Boolean));
-  const leadsNoTask = d.leads.filter(
-    (l) => (seller === "all" || sellerKey(l.seller_name) === seller) && !leadIdsWithTask.has(l.lead_id),
-  ).length;
+  const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
+  const noTaskList = sellerLeads
+    .filter((l) => !leadIdsWithTask.has(l.lead_id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((l) => ({ ...l, owner: l.seller_name?.trim() || UNASSIGNED_LABEL }));
+  const leadsNoTask = noTaskList.length;
+  // Oportunidades criadas por dia
+  const daily = new Map<string, { dia: string; oportunidades: number }>();
+  for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
+    const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
+    daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, oportunidades: 0 });
+  }
+  sellerLeads.forEach((l) => {
+    const dt = new Date(l.created_at);
+    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const b = daily.get(key);
+    if (b) b.oportunidades++;
+  });
   const leads = sum((r) => r.leads);
   const reservas = sum((r) => r.reservas);
   const faturamento = sum((r) => r.faturamento);
@@ -200,6 +222,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     overdue: sum((r) => r.overdue),
     pending: sum((r) => r.pending),
     done: sum((r) => r.done),
+    tasksTotal: sum((r) => r.tasksTotal),
   };
 
   // Barras empilhadas: últimos 6 meses até o fim do período
@@ -222,31 +245,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     bucket[n] = ((bucket[n] as number | undefined) ?? 0) + r.total_amount;
   });
 
-  // Auditoria: casos sem vendedor reconhecido (nulo no ClickMassa ou nome sem correspondência)
-  const knownUsers = new Set(
-    [...d.tasks.map((t) => t.user_name), ...d.reservations.map((r) => r.seller_name)]
-      .map((n) => sellerKey(n))
-      .filter((k) => k !== "sem_vendedor"),
-  );
-  const leadCount = new Map<string, number>();
-  d.leads.forEach((l) => leadCount.set(sellerKey(l.seller_name), (leadCount.get(sellerKey(l.seller_name)) ?? 0) + 1));
-  const audit = d.leads
-    .filter((l) => sellerKey(l.seller_name) === "sem_vendedor" || !knownUsers.has(sellerKey(l.seller_name)))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .slice(0, 10)
-    .map((l) => ({
-      ...l,
-      reason: l.seller_name?.trim() ? ("match" as const) : ("null" as const),
-    }));
-  const unassigned = leadCount.get("sem_vendedor") ?? 0;
-  const unmatched = d.leads.filter(
-    (l) => sellerKey(l.seller_name) !== "sem_vendedor" && !knownUsers.has(sellerKey(l.seller_name)),
-  ).length;
-
   return {
-    audit,
-    unassigned,
-    unmatched,
+    daily: [...daily.values()],
+    noTaskList,
     kpis,
     rows: visible.filter((r) => r.leads || r.reservas || r.overdue || r.pending || r.done),
     sellers,
