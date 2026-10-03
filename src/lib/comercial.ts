@@ -140,11 +140,13 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   };
 
   // Tarefas de qualquer data contam para saber se o lead tem tarefa
-  const leadIdsWithTask = new Set(d.tasks.map((t) => t.lead_id).filter(Boolean));
+  // Oportunidade "sem tarefa" = ativa no funil (não ganha/perdida) e sem tarefa pendente agendada
+  const leadIdsWithTask = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
+  const isActive = (l: CLead) => !/^(lost|won|perdid|ganh|fechad)/i.test((l.stage_name ?? "").trim());
   d.leads.forEach((l) => {
     const r = touch(nameOf(l.seller_name));
     r.leads++;
-    if (!leadIdsWithTask.has(l.lead_id)) r.noTask++;
+    if (isActive(l) && !leadIdsWithTask.has(l.lead_id)) r.noTask++;
   });
   d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
     const r = touch(nameOf(t.user_name));
@@ -193,7 +195,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
   const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
   const noTaskList = sellerLeads
-    .filter((l) => !leadIdsWithTask.has(l.lead_id))
+    .filter((l) => isActive(l) && !leadIdsWithTask.has(l.lead_id))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((l) => ({ ...l, owner: l.seller_name?.trim() || UNASSIGNED_LABEL }));
   const leadsNoTask = noTaskList.length;
