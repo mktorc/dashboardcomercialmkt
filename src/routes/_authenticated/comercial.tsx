@@ -83,7 +83,7 @@ const tooltipStyle = {
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-type SortKey = keyof Pick<SellerRow, "name" | "leads" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
+type SortKey = keyof Pick<SellerRow, "name" | "leads" | "oportunidades" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
 
 function Comercial() {
   const now = new Date();
@@ -176,7 +176,8 @@ function Comercial() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard icon={Users} label="Oportunidades" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Abertas no ClickMassa no período" />
+            <KpiCard icon={Users} label="Leads recebidos" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Novos contatos no ClickMassa no período" />
+            <KpiCard icon={Target} label="Oportunidades" value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} hint="Atendimentos ativos no funil" />
             <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
             <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
             <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
@@ -186,21 +187,38 @@ function Comercial() {
             <KpiCard icon={ClipboardCheck} label="Tarefas pendentes / concluídas" value={k ? `${k.pending.toLocaleString("pt-BR")} / ${k.done.toLocaleString("pt-BR")}` : "—"} hint="Criadas no período" />
           </section>
 
-          <Card className="p-5">
-            <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
-            <p className="text-xs text-muted-foreground">Novos contatos no ClickMassa — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
-            <div className="mt-4 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={view?.daily ?? []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                  <XAxis dataKey="dia" {...axis} />
-                  <YAxis {...axis} allowDecimals={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="oportunidades" name="Oportunidades" fill="#44E500" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          <section className="grid gap-4 xl:grid-cols-2">
+            <Card className="p-5">
+              <h2 className="text-sm font-semibold text-foreground">Leads recebidos por dia</h2>
+              <p className="text-xs text-muted-foreground">Novos contatos no ClickMassa — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
+              <div className="mt-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={view?.daily ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                    <XAxis dataKey="dia" {...axis} />
+                    <YAxis {...axis} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="leads" name="Leads" fill="#44E500" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
+              <p className="text-xs text-muted-foreground">Atendimentos ativos no funil — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
+              <div className="mt-4 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={view?.daily ?? []}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                    <XAxis dataKey="dia" {...axis} />
+                    <YAxis {...axis} allowDecimals={false} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <Bar dataKey="oportunidades" name="Oportunidades" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </section>
 
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-foreground">Valor fechado por vendedor ao mês</h2>
@@ -243,7 +261,8 @@ function Comercial() {
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <Th k="name" label="Vendedor" left />
-                    <Th k="leads" label="Oportunidades" />
+                    <Th k="leads" label="Leads" />
+                    <Th k="oportunidades" label="Oportunidades" />
                     <Th k="tasksTotal" label="Tarefas totais" />
                     <Th k="overdue" label="Atrasadas" />
                     <Th k="done" label="Concluídas" />
@@ -259,6 +278,7 @@ function Comercial() {
                     <tr key={r.key} className="border-t border-border">
                       <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
                       <td className="px-4 py-3 text-right">{r.leads.toLocaleString("pt-BR")}</td>
+                      <td className="px-4 py-3 text-right">{r.oportunidades.toLocaleString("pt-BR")}</td>
                       <td className="px-4 py-3 text-right">{r.tasksTotal}</td>
                       <td className="px-4 py-3 text-right">{r.overdue}</td>
                       <td className="px-4 py-3 text-right">{r.done}</td>
@@ -271,7 +291,7 @@ function Comercial() {
                   ))}
                   {!tableRows.length ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-10 text-center text-muted-foreground">
+                      <td colSpan={11} className="px-5 py-10 text-center text-muted-foreground">
                         {isLoading ? "Carregando…" : "Nenhum dado no período."}
                       </td>
                     </tr>
