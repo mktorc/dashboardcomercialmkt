@@ -58,7 +58,7 @@ export const Route = createFileRoute("/_authenticated/comercial")({
       { title: "Comercial | Orlando Rent Car Analytics" },
       {
         name: "description",
-        content: "Desempenho individual e da equipe de vendas: leads, conversão, ticket, tarefas e metas.",
+        content: "Desempenho individual e da equipe de vendas: oportunidades, conversão, ticket, tarefas e metas.",
       },
       { property: "og:title", content: "Comercial | Orlando Rent Car Analytics" },
       {
@@ -176,7 +176,7 @@ function Comercial() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard icon={Users} label="Leads recebidos" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Novos contatos no ClickMassa" />
+            <KpiCard icon={Users} label="Oportunidades" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Abertas no ClickMassa no período" />
             <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
             <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
             <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
@@ -243,7 +243,7 @@ function Comercial() {
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <Th k="name" label="Vendedor" left />
-                    <Th k="leads" label="Leads" />
+                    <Th k="leads" label="Oportunidades" />
                     <Th k="tasksTotal" label="Tarefas totais" />
                     <Th k="overdue" label="Atrasadas" />
                     <Th k="done" label="Concluídas" />
