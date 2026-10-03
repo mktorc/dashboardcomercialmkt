@@ -97,6 +97,7 @@ export type SellerRow = {
   key: string;
   name: string;
   leads: number;
+  oportunidades: number;
   overdue: number;
   pending: number;
   done: number;
@@ -133,7 +134,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const touch = (k: string) => {
     if (!rows.has(k))
       rows.set(k, {
-        key: k, name: "", leads: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
+        key: k, name: "", leads: 0, oportunidades: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
         ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, gross: 0, disc: 0,
       });
     return rows.get(k)!;
@@ -146,6 +147,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   d.leads.forEach((l) => {
     const r = touch(nameOf(l.seller_name));
     r.leads++;
+    if (isActive(l)) r.oportunidades++;
     if (isActive(l) && !leadIdsWithTask.has(l.lead_id)) r.noTask++;
   });
   d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
@@ -200,22 +202,27 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     .map((l) => ({ ...l, owner: l.seller_name?.trim() || UNASSIGNED_LABEL }));
   const leadsNoTask = noTaskList.length;
   // Oportunidades criadas por dia
-  const daily = new Map<string, { dia: string; oportunidades: number }>();
+  const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
   for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
     const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
-    daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, oportunidades: 0 });
+    daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, leads: 0, oportunidades: 0 });
   }
   sellerLeads.forEach((l) => {
     const dt = new Date(l.created_at);
     const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
     const b = daily.get(key);
-    if (b) b.oportunidades++;
+    if (b) {
+      b.leads++;
+      if (isActive(l)) b.oportunidades++;
+    }
   });
   const leads = sum((r) => r.leads);
+  const oportunidades = sum((r) => r.oportunidades);
   const reservas = sum((r) => r.reservas);
   const faturamento = sum((r) => r.faturamento);
   const kpis = {
     leads,
+    oportunidades,
     reservas,
     faturamento,
     conversao: leads ? reservas / leads : 0,
