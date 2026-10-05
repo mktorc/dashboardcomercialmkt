@@ -51,8 +51,8 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const executionContext = ctx as ExecutionContext;
-      if (typeof executionContext.waitUntil === "function") {
+      const executionContext = ctx as ExecutionContext | undefined;
+      if (typeof executionContext?.waitUntil === "function") {
         Object.defineProperty(request, "waitUntil", {
           configurable: true,
           value: executionContext.waitUntil.bind(executionContext),
