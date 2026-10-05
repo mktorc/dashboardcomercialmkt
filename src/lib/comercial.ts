@@ -220,6 +220,15 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const oportunidades = sum((r) => r.oportunidades);
   const reservas = sum((r) => r.reservas);
   const faturamento = sum((r) => r.faturamento);
+  const responseMinutes = sellerLeads.flatMap((lead) => {
+    if (!lead.lead_id) return [];
+    const firstTask = d.tasks
+      .filter((task) => task.lead_id === lead.lead_id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+    if (!firstTask) return [];
+    const minutes = (new Date(firstTask.created_at).getTime() - new Date(lead.created_at).getTime()) / 60_000;
+    return Number.isFinite(minutes) && minutes >= 0 ? [minutes] : [];
+  });
   const kpis = {
     leads,
     oportunidades,
@@ -233,7 +242,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     done: sum((r) => r.done),
     tasksTotal: sum((r) => r.tasksTotal),
     taskExecutionRate: sum((r) => r.tasksTotal) ? sum((r) => r.done) / sum((r) => r.tasksTotal) : 0,
-    averageResponseMinutes: null as number | null,
+    averageResponseMinutes: responseMinutes.length
+      ? responseMinutes.reduce((total, minutes) => total + minutes, 0) / responseMinutes.length
+      : null,
   };
 
   // Barras empilhadas: últimos 6 meses até o fim do período

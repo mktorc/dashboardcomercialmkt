@@ -85,7 +85,7 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
         .from("crm_leads")
         .update(partial)
         .eq("id", existing.id);
-      if (error) console.error("[webhook-clickmassa] update error:", error.message);
+      if (error) throw error;
       return;
     }
   }
@@ -96,7 +96,7 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
   }
 
   const { error } = await supabaseAdmin.from("crm_leads").insert(row);
-  if (error) console.error("[webhook-clickmassa] insert error:", error.message);
+  if (error) throw error;
 }
 
 async function auditAndProcess(rawBody: string, authHeader: string): Promise<void> {
