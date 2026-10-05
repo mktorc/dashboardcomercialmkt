@@ -7,7 +7,6 @@ export type CLead = {
   seller_name: string | null;
   name?: string | null;
   stage_name?: string | null;
-  first_response_at: string | null;
 };
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
@@ -25,7 +24,6 @@ export type CTask = {
   completed: boolean;
   due_date: string | null;
   created_at: string;
-  completed_at: string | null;
 };
 export type Goal = { seller_name: string; month: string; revenue_goal: number; ticket_goal: number };
 
@@ -54,7 +52,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_leads")
-        .select("lead_id, created_at, seller_name, name, stage_name, first_response_at")
+        .select("lead_id, created_at, seller_name, name, stage_name")
         .gte("created_at", startIso(from))
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -70,7 +68,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_tasks")
-        .select("lead_id, user_name, completed, due_date, created_at, completed_at")
+        .select("lead_id, user_name, completed, due_date, created_at")
         .range(a, b),
     ),
     supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal"),
@@ -142,16 +140,16 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     return rows.get(k)!;
   };
 
-  // Tarefas de qualquer data contam para saber se o lead tem tarefa
-  // Oportunidade "sem tarefa" = ativa no funil (não ganha/perdida) e sem tarefa pendente agendada
   const leadIdsWithTask = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
   const isActive = (l: CLead) => !/^(lost|won|perdid|ganh|fechad)/i.test((l.stage_name ?? "").trim());
+  
   d.leads.forEach((l) => {
     const r = touch(nameOf(l.seller_name));
     r.leads++;
     if (isActive(l)) r.oportunidades++;
     if (isActive(l) && !leadIdsWithTask.has(l.lead_id)) r.noTask++;
   });
+
   d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
     const r = touch(nameOf(t.user_name));
     r.tasksTotal++;
@@ -161,6 +159,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       if (t.due_date && t.due_date < today) r.overdue++;
     }
   });
+
   confirmed
     .filter((r) => inPeriod(r.created_at))
     .forEach((r) => {
@@ -173,6 +172,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       row.disc += r.discount_amount;
       row.gross += r.total_amount + r.discount_amount;
     });
+
   const goalCount = new Map<string, number>();
   d.goals
     .filter((g) => months.has(g.month))
@@ -191,6 +191,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     descontoPct: r.gross ? r.disc / r.gross : 0,
     ticketGoal: goalCount.get(r.key) ? r.ticketGoal / goalCount.get(r.key)! : 0,
   }));
+
   const sellers = all
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta")
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -203,12 +204,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((l) => ({ ...l, owner: l.seller_name?.trim() || UNASSIGNED_LABEL }));
   const leadsNoTask = noTaskList.length;
+
   // Oportunidades criadas por dia
   const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
   for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
     const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
     daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, leads: 0, oportunidades: 0 });
   }
+
   sellerLeads.forEach((l) => {
     const dt = new Date(l.created_at);
     const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
@@ -218,19 +221,62 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       if (isActive(l)) b.oportunidades++;
     }
   });
+
   const leads = sum((r) => r.leads);
   const oportunidades = sum((r) => r.oportunidades);
   const reservas = sum((r) => r.reservas);
   const faturamento = sum((r) => r.faturamento);
-  const responseMinutes = sellerLeads.flatMap((lead) => {
-    if (!lead.first_response_at) return [];
-    const minutes = (new Date(lead.first_response_at).getTime() - new Date(lead.created_at).getTime()) / 60_000;
-    return Number.isFinite(minutes) && minutes >= 0 ? [minutes] : [];
+  const doneTasks = sum((r) => r.done);
+  const pendingTasks = sum((r) => r.pending);
+  const tasksTotal = sum((r) => r.tasksTotal);
+
+  // 1. Cálculo Ultradefensivo: Taxa de Execução de Tarefas (%)
+  const totalTasksUnfiltered = pendingTasks + doneTasks;
+  const taskExecutionRateFormatted = totalTasksUnfiltered > 0
+    ? `${((doneTasks / totalTasksUnfiltered) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+    : '0%';
+
+  // 2. Cálculo Ultradefensivo: SLA (Tempo Médio entre Lead criado e 1ª tarefa criada)
+  const filteredTasks = d.tasks.filter((t) => seller === "all" || sellerKey(t.user_name) === seller);
+  const leadFirstTaskMap = new Map<string, number>();
+
+  filteredTasks.forEach((t) => {
+    if (!t.lead_id || !t.created_at) return;
+    const taskTime = new Date(t.created_at).getTime();
+    if (isNaN(taskTime)) return;
+
+    const existingTime = leadFirstTaskMap.get(t.lead_id);
+    if (!existingTime || taskTime < existingTime) {
+      leadFirstTaskMap.set(t.lead_id, taskTime);
+    }
   });
-  const scheduledTasks = d.tasks.filter((task) => inPeriod(task.created_at) && (seller === "all" || sellerKey(task.user_name) === seller));
-  const completedOnTime = scheduledTasks.filter(
-    (task) => task.completed && task.completed_at && task.due_date && task.completed_at.slice(0, 10) <= task.due_date,
-  ).length;
+
+  const responseTimesInMinutes: number[] = [];
+  sellerLeads.forEach((l) => {
+    if (!l.lead_id || !l.created_at) return;
+    const leadTime = new Date(l.created_at).getTime();
+    if (isNaN(leadTime)) return;
+
+    const firstTaskTime = leadFirstTaskMap.get(l.lead_id);
+    if (firstTaskTime && firstTaskTime >= leadTime) {
+      responseTimesInMinutes.push((firstTaskTime - leadTime) / (1000 * 60));
+    }
+  });
+
+  let slaFormatted = '--';
+  if (responseTimesInMinutes.length > 0) {
+    const avgMinutes = responseTimesInMinutes.reduce((a, b) => a + b, 0) / responseTimesInMinutes.length;
+    if (!isNaN(avgMinutes) && avgMinutes >= 0) {
+      if (avgMinutes < 60) {
+        slaFormatted = `${Math.round(avgMinutes)} min`;
+      } else {
+        const hours = Math.floor(avgMinutes / 60);
+        const mins = Math.round(avgMinutes % 60);
+        slaFormatted = `${hours}h ${mins}m`;
+      }
+    }
+  }
+
   const kpis = {
     leads,
     oportunidades,
@@ -240,14 +286,11 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     ticket: reservas ? faturamento / reservas : 0,
     leadsNoTask,
     overdue: sum((r) => r.overdue),
-    pending: sum((r) => r.pending),
-    done: sum((r) => r.done),
-    tasksTotal: sum((r) => r.tasksTotal),
-    taskExecutionRate: scheduledTasks.length ? completedOnTime / scheduledTasks.length : 0,
-    tasksWithCompletionTiming: scheduledTasks.filter((task) => task.completed_at && task.due_date).length,
-    averageResponseMinutes: responseMinutes.length
-      ? responseMinutes.reduce((total, minutes) => total + minutes, 0) / responseMinutes.length
-      : null,
+    pending: pendingTasks,
+    done: doneTasks,
+    tasksTotal,
+    taskExecutionRateFormatted, // Taxa % calculada
+    slaFormatted,               // SLA formatado ou '--'
   };
 
   // Barras empilhadas: últimos 6 meses até o fim do período
@@ -258,6 +301,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     const label = `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, "0")}`;
     monthly.set(label, { mes: label });
   }
+
   const stackKeys = new Set<string>();
   confirmed.forEach((r) => {
     const label = r.created_at.slice(0, 7).replace("-", "/");

@@ -14,13 +14,13 @@ import {
 import {
   AlarmClock,
   ArrowUpDown,
+  CheckCircle2,
+  Clock,
   ClipboardCheck,
   ClipboardX,
-  Gauge,
   DollarSign,
   Search,
   Target,
-  Timer,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -189,18 +189,8 @@ function Comercial() {
             </button>
             <KpiCard icon={AlarmClock} label="Tarefas atrasadas" value={k ? k.overdue.toLocaleString("pt-BR") : "—"} hint="Pendentes com data vencida" />
             <KpiCard icon={ClipboardCheck} label="Tarefas pendentes / concluídas" value={k ? `${k.pending.toLocaleString("pt-BR")} / ${k.done.toLocaleString("pt-BR")}` : "—"} hint="Criadas no período" />
-            <KpiCard
-              icon={Timer}
-              label="Tempo médio de resposta (SLA)"
-              value={k?.averageResponseMinutes != null ? duration(k.averageResponseMinutes) : "Sem dados"}
-              hint="Média de tempo até o primeiro atendimento"
-            />
-            <KpiCard
-              icon={Gauge}
-              label="Taxa de execução de tarefas"
-              value={k?.tasksWithCompletionTiming ? pct(k.taskExecutionRate) : "Sem dados"}
-              hint="% de tarefas concluídas no prazo"
-            />
+            <KpiCard icon={CheckCircle2} label="Taxa de execução de tarefas" value={k ? k.taskExecutionRateFormatted : "—"} hint="Relação de concluídas vs. total" highlight />
+            <KpiCard icon={Clock} label="Tempo médio de resposta (SLA)" value={k ? k.slaFormatted : "—"} hint="Lead criado → 1ª interação" />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-2">
