@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          first_response_at: string | null
           id: string
           lead_id: string | null
           name: string | null
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          first_response_at?: string | null
           id?: string
           lead_id?: string | null
           name?: string | null
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          first_response_at?: string | null
           id?: string
           lead_id?: string | null
           name?: string | null
@@ -62,6 +65,7 @@ export type Database = {
       crm_tasks: {
         Row: {
           completed: boolean
+          completed_at: string | null
           created_at: string
           due_date: string | null
           id: string
@@ -71,6 +75,7 @@ export type Database = {
         }
         Insert: {
           completed?: boolean
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -80,6 +85,7 @@ export type Database = {
         }
         Update: {
           completed?: boolean
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
