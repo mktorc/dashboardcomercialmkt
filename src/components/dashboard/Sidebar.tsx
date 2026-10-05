@@ -25,13 +25,12 @@ export function Sidebar({ active }: { active: "dashboard" | "comercial" }) {
       style={{ background: "var(--brand-dark)" }}
     >
       <div className="mb-8 flex items-center gap-2">
-        <span
-          className="flex size-9 items-center justify-center rounded-lg font-bold text-[color:var(--brand-dark)]"
-          style={{ background: "var(--brand-vivid)" }}
-        >
-          O
-        </span>
-        <div className="leading-tight">
+        <img
+          src="/logo-orc.png"
+          alt="Orlando Rent Car"
+          className="size-9 rounded-lg object-cover shadow-sm"
+        />
+      <div className="leading-tight">
           <p className="text-sm font-semibold text-sidebar-foreground">Orlando Rent Car</p>
           <p className="text-xs text-sidebar-foreground/70">Analytics & Growth</p>
         </div>
