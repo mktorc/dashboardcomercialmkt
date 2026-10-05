@@ -198,7 +198,7 @@ function Comercial() {
             <KpiCard
               icon={Gauge}
               label="Taxa de execução de tarefas"
-              value={k ? pct(k.taskExecutionRate) : "—"}
+              value={k?.tasksWithCompletionTiming ? pct(k.taskExecutionRate) : "Sem dados"}
               hint="% de tarefas concluídas no prazo"
             />
           </section>

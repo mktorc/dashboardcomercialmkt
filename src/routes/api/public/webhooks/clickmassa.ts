@@ -64,6 +64,7 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
     utm_source: pick(p, ["utm_source", "source", "origem"]),
     utm_medium: pick(p, ["utm_medium", "medium", "canal"]),
     utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),
+    first_response_at: pick(p, ["first_response_at", "firstResponseAt", "first_attendance_at", "firstAttendanceAt", "answered_at", "answeredAt"]),
     updated_at: new Date().toISOString(),
   };
   // Atualização parcial: campos que não vieram no payload preservam o valor salvo.

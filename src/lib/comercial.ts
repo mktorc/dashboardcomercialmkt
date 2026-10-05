@@ -7,6 +7,7 @@ export type CLead = {
   seller_name: string | null;
   name?: string | null;
   stage_name?: string | null;
+  first_response_at: string | null;
 };
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
@@ -24,6 +25,7 @@ export type CTask = {
   completed: boolean;
   due_date: string | null;
   created_at: string;
+  completed_at: string | null;
 };
 export type Goal = { seller_name: string; month: string; revenue_goal: number; ticket_goal: number };
 
@@ -52,7 +54,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_leads")
-        .select("lead_id, created_at, seller_name, name, stage_name")
+        .select("lead_id, created_at, seller_name, name, stage_name, first_response_at")
         .gte("created_at", startIso(from))
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -68,7 +70,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_tasks")
-        .select("lead_id, user_name, completed, due_date, created_at")
+        .select("lead_id, user_name, completed, due_date, created_at, completed_at")
         .range(a, b),
     ),
     supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal"),
@@ -221,14 +223,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const reservas = sum((r) => r.reservas);
   const faturamento = sum((r) => r.faturamento);
   const responseMinutes = sellerLeads.flatMap((lead) => {
-    if (!lead.lead_id) return [];
-    const firstTask = d.tasks
-      .filter((task) => task.lead_id === lead.lead_id)
-      .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
-    if (!firstTask) return [];
-    const minutes = (new Date(firstTask.created_at).getTime() - new Date(lead.created_at).getTime()) / 60_000;
+    if (!lead.first_response_at) return [];
+    const minutes = (new Date(lead.first_response_at).getTime() - new Date(lead.created_at).getTime()) / 60_000;
     return Number.isFinite(minutes) && minutes >= 0 ? [minutes] : [];
   });
+  const scheduledTasks = d.tasks.filter((task) => inPeriod(task.created_at) && (seller === "all" || sellerKey(task.user_name) === seller));
+  const completedOnTime = scheduledTasks.filter(
+    (task) => task.completed && task.completed_at && task.due_date && task.completed_at.slice(0, 10) <= task.due_date,
+  ).length;
   const kpis = {
     leads,
     oportunidades,
@@ -241,7 +243,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     pending: sum((r) => r.pending),
     done: sum((r) => r.done),
     tasksTotal: sum((r) => r.tasksTotal),
-    taskExecutionRate: sum((r) => r.tasksTotal) ? sum((r) => r.done) / sum((r) => r.tasksTotal) : 0,
+    taskExecutionRate: scheduledTasks.length ? completedOnTime / scheduledTasks.length : 0,
+    tasksWithCompletionTiming: scheduledTasks.filter((task) => task.completed_at && task.due_date).length,
     averageResponseMinutes: responseMinutes.length
       ? responseMinutes.reduce((total, minutes) => total + minutes, 0) / responseMinutes.length
       : null,
