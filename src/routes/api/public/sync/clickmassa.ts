@@ -130,6 +130,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                 user_name: names.get(String(t["responsibleUserId"])) ?? null,
                 lead_id: t["contactId"] ? `cm-${t["contactId"]}` : null,
                 completed: Boolean(t["completed"]),
+                completed_at: s(t["completedAt"]) ?? s(t["completed_at"]),
                 due_date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
                 created_at: s(t["createdAt"]) ?? new Date().toISOString(),
               };

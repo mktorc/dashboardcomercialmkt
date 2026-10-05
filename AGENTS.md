@@ -9,3 +9,4 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 - Dashboard pages live under src/routes/_authenticated/ and read data with the browser client; tables allow SELECT only to authenticated users (data is internal).
+- Public webhook work is attached to the platform execution context so responses can return immediately without abandoning database writes.

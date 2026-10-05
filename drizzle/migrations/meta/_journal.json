@@ -43,6 +43,20 @@
       "when": 1790961482032,
       "tag": "0005_seller_key_normalization",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791203543563,
+      "tag": "0006_create_webhook_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791203747598,
+      "tag": "0007_add_clickmassa_sla_timestamps",
+      "breakpoints": true
     }
   ]
 }

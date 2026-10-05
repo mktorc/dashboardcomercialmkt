@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          first_response_at: string | null
           id: string
           lead_id: string | null
           name: string | null
@@ -32,6 +33,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          first_response_at?: string | null
           id?: string
           lead_id?: string | null
           name?: string | null
@@ -46,6 +48,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          first_response_at?: string | null
           id?: string
           lead_id?: string | null
           name?: string | null
@@ -62,6 +65,7 @@ export type Database = {
       crm_tasks: {
         Row: {
           completed: boolean
+          completed_at: string | null
           created_at: string
           due_date: string | null
           id: string
@@ -71,6 +75,7 @@ export type Database = {
         }
         Insert: {
           completed?: boolean
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -80,6 +85,7 @@ export type Database = {
         }
         Update: {
           completed?: boolean
+          completed_at?: string | null
           created_at?: string
           due_date?: string | null
           id?: string
@@ -230,6 +236,42 @@ export type Database = {
           seller_name?: string
           ticket_goal?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          authorized: boolean
+          error_message: string | null
+          event_type: string | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          processing_status: string
+          received_at: string
+          source: string
+        }
+        Insert: {
+          authorized?: boolean
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_status?: string
+          received_at?: string
+          source: string
+        }
+        Update: {
+          authorized?: boolean
+          error_message?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_status?: string
+          received_at?: string
+          source?: string
         }
         Relationships: []
       }
