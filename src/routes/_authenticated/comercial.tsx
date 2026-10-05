@@ -16,9 +16,11 @@ import {
   ArrowUpDown,
   ClipboardCheck,
   ClipboardX,
+  Gauge,
   DollarSign,
   Search,
   Target,
+  Timer,
   UserCheck,
   Users,
 } from "lucide-react";
@@ -185,6 +187,18 @@ function Comercial() {
             </button>
             <KpiCard icon={AlarmClock} label="Tarefas atrasadas" value={k ? k.overdue.toLocaleString("pt-BR") : "—"} hint="Pendentes com data vencida" />
             <KpiCard icon={ClipboardCheck} label="Tarefas pendentes / concluídas" value={k ? `${k.pending.toLocaleString("pt-BR")} / ${k.done.toLocaleString("pt-BR")}` : "—"} hint="Criadas no período" />
+            <KpiCard
+              icon={Timer}
+              label="Tempo médio de resposta (SLA)"
+              value={k?.averageResponseMinutes != null ? `${Math.round(k.averageResponseMinutes)} min` : "Sem dados"}
+              hint="Média de tempo até o primeiro atendimento"
+            />
+            <KpiCard
+              icon={Gauge}
+              label="Taxa de execução de tarefas"
+              value={k ? pct(k.taskExecutionRate) : "—"}
+              hint="% de tarefas concluídas no prazo"
+            />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-2">

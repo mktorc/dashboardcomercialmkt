@@ -7,6 +7,10 @@ type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
+type ExecutionContext = {
+  waitUntil?: (promise: Promise<unknown>) => void;
+};
+
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
@@ -47,6 +51,13 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const executionContext = ctx as ExecutionContext;
+      if (typeof executionContext.waitUntil === "function") {
+        Object.defineProperty(request, "waitUntil", {
+          configurable: true,
+          value: executionContext.waitUntil.bind(executionContext),
+        });
+      }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

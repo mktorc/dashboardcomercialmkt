@@ -232,6 +232,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     pending: sum((r) => r.pending),
     done: sum((r) => r.done),
     tasksTotal: sum((r) => r.tasksTotal),
+    taskExecutionRate: sum((r) => r.tasksTotal) ? sum((r) => r.done) / sum((r) => r.tasksTotal) : 0,
+    averageResponseMinutes: null as number | null,
   };
 
   // Barras empilhadas: últimos 6 meses até o fim do período
