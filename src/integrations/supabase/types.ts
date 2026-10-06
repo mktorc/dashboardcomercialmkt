@@ -62,6 +62,48 @@ export type Database = {
         }
         Relationships: []
       }
+      crm_opportunities: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string | null
+          name: string | null
+          opportunity_id: string
+          pending_tasks: number
+          seller_name: string | null
+          stage_name: string | null
+          status: string | null
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          opportunity_id: string
+          pending_tasks?: number
+          seller_name?: string | null
+          stage_name?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          name?: string | null
+          opportunity_id?: string
+          pending_tasks?: number
+          seller_name?: string | null
+          stage_name?: string | null
+          status?: string | null
+          updated_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       crm_tasks: {
         Row: {
           completed: boolean
