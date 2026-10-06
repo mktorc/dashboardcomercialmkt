@@ -51,8 +51,39 @@ function unwrap(payload: ClickmassaPayload): ClickmassaPayload {
   return p;
 }
 
+const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const obj = (v: unknown) => (v && typeof v === "object" ? (v as ClickmassaPayload) : {});
+
+async function processOpportunity(p: ClickmassaPayload): Promise<void> {
+  const id = str(p["id"]);
+  if (!id) return;
+  const tc = obj(p["tasksCount"]);
+  const row = {
+    opportunity_id: id,
+    lead_id: p["contactId"] ? `cm-${p["contactId"]}` : null,
+    name: str(p["name"]) ?? str(obj(p["contact"])["name"]),
+    stage_name: str(obj(p["pipelineStep"])["name"]),
+    status: str(p["status"]),
+    seller_name: str(obj(p["responsible"])["name"]) ?? str(obj(p["user"])["name"]),
+    value: num(p["value"]),
+    pending_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
+    created_at: str(p["createdAt"]) ?? new Date().toISOString(),
+    updated_at: str(p["updatedAt"]) ?? new Date().toISOString(),
+  };
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin.from("crm_opportunities").upsert(row, { onConflict: "opportunity_id" });
+  if (error) throw error;
+}
+
+// Eventos de atendimento (tickets/mensagens) não alimentam o painel.
+const TICKET_EVENTS = /ticket|message/i;
+
 async function processPayload(payload: ClickmassaPayload): Promise<void> {
+  const event = str(payload["event"]) ?? "";
+  if (/^opportunity$/i.test(event)) return processOpportunity(payload);
+  if (TICKET_EVENTS.test(event)) return;
   const p = unwrap(payload);
+
 
   const leadId = pick(p, ["lead_id", "id", "leadId", "codigo", "code", "contact_id", "contactId"]);
   const row = {
