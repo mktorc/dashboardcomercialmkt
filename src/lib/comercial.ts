@@ -10,6 +10,16 @@ export type CLead = {
 };
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
+export type COpp = {
+  opportunity_id: string;
+  lead_id: string | null;
+  name: string | null;
+  stage_name: string | null;
+  status: string | null;
+  seller_name: string | null;
+  pending_tasks: number;
+  created_at: string;
+};
 export const DIRECT_SALE_LABEL = "Venda Direta / Site";
 export type CRes = {
   created_at: string;
@@ -48,7 +58,7 @@ export async function fetchComercial(from: string, to: string) {
   sixFrom.setMonth(sixFrom.getMonth() - 5, 1);
   const histFrom = sixFrom < new Date(from + "T00:00:00") ? sixFrom.toISOString() : startIso(from);
 
-  const [leads, res, tasks, goals] = await Promise.all([
+  const [leads, res, tasks, goals, opps] = await Promise.all([
     fetchAll((a, b) =>
       supabase
         .from("crm_leads")
@@ -72,11 +82,20 @@ export async function fetchComercial(from: string, to: string) {
         .range(a, b),
     ),
     supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal"),
+    fetchAll((a, b) =>
+      supabase
+        .from("crm_opportunities")
+        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
+        .gte("created_at", startIso(from))
+        .lte("created_at", endIso(to))
+        .range(a, b),
+    ),
   ]);
-  const err = leads.error || res.error || tasks.error || goals.error;
+  const err = leads.error || res.error || tasks.error || goals.error || opps.error;
   if (err) throw err;
   return {
     leads: leads.data as CLead[],
+    opportunities: (opps.data ?? []) as COpp[],
     reservations: (res.data as CRes[]).map((r) => ({
       ...r,
       total_amount: Number(r.total_amount),
@@ -141,13 +160,18 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   };
 
   const leadIdsWithTask = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
-  const isActive = (l: CLead) => !/^(lost|won|perdid|ganh|fechad)/i.test((l.stage_name ?? "").trim());
-  
+  // Oportunidades = cards do funil do ClickMassa (não atendimentos)
+  const isOpen = (o: COpp) => (o.status ?? "open").toLowerCase() === "open";
+  const hasNoTask = (o: COpp) => isOpen(o) && o.pending_tasks === 0 && !leadIdsWithTask.has(o.lead_id);
+  const opps = d.opportunities.filter((o) => inPeriod(o.created_at));
+
   d.leads.forEach((l) => {
-    const r = touch(nameOf(l.seller_name));
-    r.leads++;
-    if (isActive(l)) r.oportunidades++;
-    if (isActive(l) && !leadIdsWithTask.has(l.lead_id)) r.noTask++;
+    touch(nameOf(l.seller_name)).leads++;
+  });
+  opps.forEach((o) => {
+    const r = touch(nameOf(o.seller_name));
+    r.oportunidades++;
+    if (hasNoTask(o)) r.noTask++;
   });
 
   d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
@@ -199,27 +223,29 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
   const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
-  const noTaskList = sellerLeads
-    .filter((l) => isActive(l) && !leadIdsWithTask.has(l.lead_id))
+  const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
+  const noTaskList = sellerOpps
+    .filter(hasNoTask)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map((l) => ({ ...l, owner: l.seller_name?.trim() || UNASSIGNED_LABEL }));
+    .map((o) => ({ ...o, owner: o.seller_name?.trim() || UNASSIGNED_LABEL }));
   const leadsNoTask = noTaskList.length;
 
-  // Oportunidades criadas por dia
   const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
   for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
     const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
     daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, leads: 0, oportunidades: 0 });
   }
-
+  const dayKey = (iso: string) => {
+    const dt = new Date(iso);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  };
   sellerLeads.forEach((l) => {
-    const dt = new Date(l.created_at);
-    const key = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-    const b = daily.get(key);
-    if (b) {
-      b.leads++;
-      if (isActive(l)) b.oportunidades++;
-    }
+    const b = daily.get(dayKey(l.created_at));
+    if (b) b.leads++;
+  });
+  sellerOpps.forEach((o) => {
+    const b = daily.get(dayKey(o.created_at));
+    if (b) b.oportunidades++;
   });
 
   const leads = sum((r) => r.leads);
