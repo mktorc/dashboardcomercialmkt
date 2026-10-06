@@ -344,7 +344,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     daily: [...daily.values()],
     noTaskList,
     kpis,
-    rows: visible.filter((r) => r.leads || r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
+    rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
     sellers,
     monthly: [...monthly.values()],
     stackKeys: [...stackKeys],

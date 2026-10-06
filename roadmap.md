@@ -4,3 +4,4 @@
 - [x] Tornar o webhook ClickMassa tolerante a qualquer payload/erro e sempre confirmar o recebimento.
 - [x] Registrar tentativas do webhook em `webhook_logs` para auditoria.
 - [x] Verificar o build e o comportamento público do webhook.
+- [x] Remover os cards "Leads recebidos", "Tarefas atrasadas" e "Tarefas pendentes / concluídas" e a coluna "Leads" da tabela de vendedores.

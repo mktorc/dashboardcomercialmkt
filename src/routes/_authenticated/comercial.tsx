@@ -12,17 +12,14 @@ import {
   YAxis,
 } from "recharts";
 import {
-  AlarmClock,
   ArrowUpDown,
   CheckCircle2,
   Clock,
-  ClipboardCheck,
   ClipboardX,
   DollarSign,
   Search,
   Target,
   UserCheck,
-  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -87,7 +84,7 @@ const ymd = (d: Date) =>
 const duration = (minutes: number) =>
   minutes < 60 ? `${Math.round(minutes)} min` : `${(minutes / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
 
-type SortKey = keyof Pick<SellerRow, "name" | "leads" | "oportunidades" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
+type SortKey = keyof Pick<SellerRow, "name" | "oportunidades" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
 
 function Comercial() {
   const now = new Date();
@@ -180,15 +177,12 @@ function Comercial() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard icon={Users} label="Leads recebidos" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Novos contatos no ClickMassa no período" />
             <KpiCard icon={Target} label="Oportunidades" value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} hint="Oportunidades criadas no funil do ClickMassa" />
             <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
             <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
             <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
               <KpiCard icon={ClipboardX} label="Oportunidades sem tarefa" value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} hint="Clique para ver a lista" highlight />
             </button>
-            <KpiCard icon={AlarmClock} label="Tarefas atrasadas" value={k ? k.overdue.toLocaleString("pt-BR") : "—"} hint="Pendentes com data vencida" />
-            <KpiCard icon={ClipboardCheck} label="Tarefas pendentes / concluídas" value={k ? `${k.pending.toLocaleString("pt-BR")} / ${k.done.toLocaleString("pt-BR")}` : "—"} hint="Criadas no período" />
             <KpiCard icon={CheckCircle2} label="Taxa de execução de tarefas" value={k ? k.taskExecutionRateFormatted : "—"} hint="Relação de concluídas vs. total" highlight />
             <KpiCard icon={Clock} label="Tempo médio de resposta (SLA)" value={k ? k.slaFormatted : "—"} hint="Lead criado → 1ª interação" />
           </section>
@@ -267,7 +261,6 @@ function Comercial() {
                 <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <Th k="name" label="Vendedor" left />
-                    <Th k="leads" label="Leads" />
                     <Th k="oportunidades" label="Oportunidades" />
                     <Th k="tasksTotal" label="Tarefas totais" />
                     <Th k="overdue" label="Atrasadas" />
@@ -283,7 +276,6 @@ function Comercial() {
                   {tableRows.map((r) => (
                     <tr key={r.key} className="border-t border-border">
                       <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
-                      <td className="px-4 py-3 text-right">{r.leads.toLocaleString("pt-BR")}</td>
                       <td className="px-4 py-3 text-right">{r.oportunidades.toLocaleString("pt-BR")}</td>
                       <td className="px-4 py-3 text-right">{r.tasksTotal}</td>
                       <td className="px-4 py-3 text-right">{r.overdue}</td>
@@ -297,7 +289,7 @@ function Comercial() {
                   ))}
                   {!tableRows.length ? (
                     <tr>
-                      <td colSpan={11} className="px-5 py-10 text-center text-muted-foreground">
+                      <td colSpan={10} className="px-5 py-10 text-center text-muted-foreground">
                         {isLoading ? "Carregando…" : "Nenhum dado no período."}
                       </td>
                     </tr>
