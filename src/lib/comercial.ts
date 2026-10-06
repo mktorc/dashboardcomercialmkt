@@ -86,6 +86,7 @@ export async function fetchComercial(from: string, to: string) {
       supabase
         .from("crm_opportunities")
         .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
+        .eq("pipeline_name", "Comercial")
         .gte("created_at", startIso(from))
         .lte("created_at", endIso(to))
         .range(a, b),
