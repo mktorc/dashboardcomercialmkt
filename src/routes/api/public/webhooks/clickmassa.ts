@@ -58,11 +58,15 @@ async function processOpportunity(p: ClickmassaPayload): Promise<void> {
   const id = str(p["id"]);
   if (!id) return;
   const tc = obj(p["tasksCount"]);
+  // Etapas 1–6 pertencem ao funil "Comercial"; 7+ ao "Sucesso do Cliente".
+  const stepId = Number.isFinite(Number(p["pipelineStepId"])) && p["pipelineStepId"] != null ? Number(p["pipelineStepId"]) : null;
   const row = {
     opportunity_id: id,
     lead_id: p["contactId"] ? `cm-${p["contactId"]}` : null,
     name: str(p["name"]) ?? str(obj(p["contact"])["name"]),
     stage_name: str(obj(p["pipelineStep"])["name"]),
+    pipeline_step_id: stepId,
+    pipeline_name: stepId == null ? null : stepId <= 6 ? "Comercial" : "Sucesso do Cliente",
     status: str(p["status"]),
     seller_name: str(obj(p["responsible"])["name"]) ?? str(obj(p["user"])["name"]),
     value: num(p["value"]),
