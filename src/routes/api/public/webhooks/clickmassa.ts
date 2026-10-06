@@ -10,7 +10,7 @@ import type { Json } from "@/integrations/supabase/types";
 
 type ClickmassaPayload = Record<string, unknown>;
 
-const payloadSchema = z.record(z.unknown());
+const payloadSchema = z.record(z.string(), z.unknown());
 
 function str(v: unknown): string | null {
   if (v === null || v === undefined) return null;
