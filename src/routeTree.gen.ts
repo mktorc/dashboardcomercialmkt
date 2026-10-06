@@ -12,8 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
@@ -35,6 +38,17 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedComercialRoute = AuthenticatedComercialRouteImport.update({
   id: '/comercial',
   path: '/comercial',
@@ -44,6 +58,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicSyncClickmassaRoute = ApiPublicSyncClickmassaRouteImport.update({
   id: '/api/public/sync/clickmassa',
@@ -81,8 +100,11 @@ const ApiPublicWebhooksClickmassaRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
@@ -93,8 +115,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
@@ -107,8 +132,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/mcp': typeof McpRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
@@ -121,8 +149,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/mcp'
+    | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/dashboard'
+    | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
@@ -133,8 +164,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/mcp'
+    | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/dashboard'
+    | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
@@ -146,8 +180,11 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/mcp'
+    | '/.well-known/oauth-protected-resource'
     | '/_authenticated/comercial'
     | '/_authenticated/dashboard'
+    | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
@@ -160,6 +197,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  McpRoute: typeof McpRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
@@ -191,6 +231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/comercial': {
       id: '/_authenticated/comercial'
       path: '/comercial'
@@ -204,6 +258,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/sync/clickmassa': {
       id: '/api/public/sync/clickmassa'
@@ -267,6 +328,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  McpRoute: McpRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
     ApiPublicSyncClickmassaOpportunitiesRoute,
