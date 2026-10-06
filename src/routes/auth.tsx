@@ -18,11 +18,15 @@ export const Route = createFileRoute("/auth")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//") ? s["next"] : undefined,
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = Route.useSearch();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,12 +39,13 @@ function AuthPage() {
       if (mode === "in") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/dashboard" });
+        if (next) window.location.assign(next);
+        else navigate({ to: "/dashboard" });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + "/dashboard" },
+          options: { emailRedirectTo: window.location.origin + (next ?? "/dashboard") },
         });
         if (error) throw error;
         toast.success("Conta criada. Confirme pelo link enviado ao seu e-mail.");
