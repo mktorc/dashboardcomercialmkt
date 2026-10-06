@@ -181,7 +181,7 @@ function Comercial() {
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <KpiCard icon={Users} label="Leads recebidos" value={k ? k.leads.toLocaleString("pt-BR") : "—"} hint="Novos contatos no ClickMassa no período" />
-            <KpiCard icon={Target} label="Oportunidades" value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} hint="Atendimentos ativos no funil" />
+            <KpiCard icon={Target} label="Oportunidades" value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} hint="Oportunidades criadas no funil do ClickMassa" />
             <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
             <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
             <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
