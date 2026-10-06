@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
+import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
 import { Route as ApiPublicSyncMetaAdsRouteImport } from './routes/api/public/sync/meta-ads'
@@ -49,6 +50,12 @@ const ApiPublicSyncClickmassaRoute = ApiPublicSyncClickmassaRouteImport.update({
   path: '/api/public/sync/clickmassa',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncClickmassaOpportunitiesRoute =
+  ApiPublicSyncClickmassaOpportunitiesRouteImport.update({
+    id: '/api/public/sync/clickmassa-opportunities',
+    path: '/api/public/sync/clickmassa-opportunities',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSyncGoogleAdsRoute = ApiPublicSyncGoogleAdsRouteImport.update({
   id: '/api/public/sync/google-ads',
   path: '/api/public/sync/google-ads',
@@ -77,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/comercial': typeof AuthenticatedComercialRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
+  '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
@@ -88,6 +96,7 @@ export interface FileRoutesByTo {
   '/comercial': typeof AuthenticatedComercialRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
+  '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
@@ -101,6 +110,7 @@ export interface FileRoutesById {
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
+  '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/dashboard'
     | '/api/public/sync/clickmassa'
+    | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/meta-ads'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/dashboard'
     | '/api/public/sync/clickmassa'
+    | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/meta-ads'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comercial'
     | '/_authenticated/dashboard'
     | '/api/public/sync/clickmassa'
+    | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/meta-ads'
@@ -148,6 +161,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
+  ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
   ApiPublicSyncMetaAdsRoute: typeof ApiPublicSyncMetaAdsRoute
@@ -196,6 +210,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/sync/clickmassa'
       fullPath: '/api/public/sync/clickmassa'
       preLoaderRoute: typeof ApiPublicSyncClickmassaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/sync/clickmassa-opportunities': {
+      id: '/api/public/sync/clickmassa-opportunities'
+      path: '/api/public/sync/clickmassa-opportunities'
+      fullPath: '/api/public/sync/clickmassa-opportunities'
+      preLoaderRoute: typeof ApiPublicSyncClickmassaOpportunitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/sync/google-ads': {
@@ -247,6 +268,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
+  ApiPublicSyncClickmassaOpportunitiesRoute:
+    ApiPublicSyncClickmassaOpportunitiesRoute,
   ApiPublicSyncGoogleAdsRoute: ApiPublicSyncGoogleAdsRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
   ApiPublicSyncMetaAdsRoute: ApiPublicSyncMetaAdsRoute,
