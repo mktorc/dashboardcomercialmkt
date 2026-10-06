@@ -64,6 +64,13 @@
       "when": 1791320353290,
       "tag": "0008_crm_opportunities",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791321269422,
+      "tag": "0009_opportunity_pipeline",
+      "breakpoints": true
     }
   ]
 }
