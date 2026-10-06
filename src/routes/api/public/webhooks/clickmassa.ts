@@ -85,7 +85,9 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
   const p = unwrap(payload);
 
 
-  const leadId = pick(p, ["lead_id", "id", "leadId", "codigo", "code", "contact_id", "contactId"]);
+  const rawId = pick(p, ["lead_id", "id", "leadId", "codigo", "code", "contact_id", "contactId"]);
+  // Eventos de contato do ClickMassa usam o mesmo ID da sincronização (prefixo cm-)
+  const leadId = rawId && /contact/i.test(event) && !rawId.startsWith("cm-") ? `cm-${rawId}` : rawId;
   const row = {
     lead_id: leadId,
     name: pick(p, ["name", "nome", "full_name", "contact_name"]),
