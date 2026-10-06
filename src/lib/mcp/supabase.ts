@@ -17,10 +17,10 @@ function env(names: string[]): string | undefined {
 export function supabaseForUser(ctx: AuthContext) {
   const token = ctx.getToken();
   if (!token) throw new Error("Usuário não autenticado");
-  const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]) ?? import.meta.env.VITE_SUPABASE_URL;
+  const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]) ?? import.meta.env["VITE_SUPABASE_URL"];
   const key =
     env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY"]) ??
-    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
   if (!url || !key) throw new Error("Configuração do backend ausente");
   return createClient(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
