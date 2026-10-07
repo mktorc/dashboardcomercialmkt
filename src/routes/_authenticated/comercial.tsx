@@ -18,6 +18,7 @@ import {
   ClipboardX,
   DollarSign,
   Search,
+  CarFront,
   Target,
   UserCheck,
 } from "lucide-react";
@@ -50,6 +51,7 @@ import {
   saveGoals,
   type SellerRow,
 } from "@/lib/comercial";
+import { fetchOccupancy } from "@/lib/occupancy";
 
 export const Route = createFileRoute("/_authenticated/comercial")({
   head: () => ({
@@ -100,6 +102,7 @@ function Comercial() {
     queryFn: () => fetchComercial(from, to),
   });
   const view = useMemo(() => (data ? computeComercial(data, from, to, seller) : null), [data, from, to, seller]);
+  const { data: occ } = useQuery({ queryKey: ["occupancy"], queryFn: fetchOccupancy });
   const k = view?.kpis;
 
   const tableRows = useMemo(() => {
@@ -185,6 +188,19 @@ function Comercial() {
             </button>
             <KpiCard icon={CheckCircle2} label="Taxa de execução de tarefas" value={k ? k.taskExecutionRateFormatted : "—"} hint="Relação de concluídas vs. total" highlight />
             <KpiCard icon={Clock} label="Tempo médio de resposta (SLA)" value={k ? k.slaFormatted : "—"} hint="Lead criado → 1ª interação" />
+            {["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, i) => {
+              const m = occ?.months[i];
+              return (
+                <KpiCard
+                  key={label}
+                  icon={CarFront}
+                  label={label}
+                  value={m ? pct(m.rate) : "—"}
+                  hint={m && occ ? `${m.label} · ${Math.round(m.carDays).toLocaleString("pt-BR")} de ${m.capacity.toLocaleString("pt-BR")} diárias (${occ.vehicles} carros)` : undefined}
+                  highlight={i === 0}
+                />
+              );
+            })}
           </section>
 
           <section className="grid gap-4 xl:grid-cols-1">
