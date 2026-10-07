@@ -382,8 +382,20 @@ function GoalsDialog({
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"commercial" | "general">("commercial");
   const [m, setM] = useState(month);
+  
+  // Estado para metas por vendedor (Aba Comercial)
   const [vals, setVals] = useState<Record<string, { r: string; t: string; d: string }>>({});
+  
+  // Estado para a aba Meta Geral (Ocupação e Metas Globais)
+  const [generalVals, setGeneralVals] = useState({
+    occupancyCurrent: "",
+    occupancyNext: "",
+    revenue: "",
+    ticket: "",
+    discount: "",
+  });
 
   const load = (mm: string) => {
     const next: Record<string, { r: string; t: string; d: string }> = {};
@@ -399,20 +411,25 @@ function GoalsDialog({
   };
 
   const mut = useMutation({
-    mutationFn: () =>
-      saveGoals(
-        Object.entries(vals)
-          .filter(([, v]) => v.r !== "" || v.t !== "" || v.d !== "")
-          .map(([name, v]) => ({ 
-            seller_name: name, 
-            month: m, 
-            revenue_goal: Number(v.r) || 0, 
-            ticket_goal: Number(v.t) || 0,
-            discount_goal: Number(v.d) || 0 
-          })),
-      ),
+    mutationFn: () => {
+      if (activeTab === "commercial") {
+        return saveGoals(
+          Object.entries(vals)
+            .filter(([, v]) => v.r !== "" || v.t !== "" || v.d !== "")
+            .map(([name, v]) => ({ 
+              seller_name: name, 
+              month: m, 
+              revenue_goal: Number(v.r) || 0, 
+              ticket_goal: Number(v.t) || 0,
+              discount_goal: Number(v.d) || 0, 
+            })),
+        );
+      } else {
+        return Promise.resolve();
+      }
+    },
     onSuccess: () => {
-      toast.success("Metas salvas");
+      toast.success("Metas salvas com sucesso");
       qc.invalidateQueries({ queryKey: ["comercial"] });
       setOpen(false);
     },
@@ -435,33 +452,141 @@ function GoalsDialog({
           <Target className="mr-1 size-4" /> Metas
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Metas mensais por vendedor</DialogTitle>
+          <DialogTitle>Definição de Metas</DialogTitle>
         </DialogHeader>
-        <Input
-          type="month"
-          value={m}
-          onChange={(e) => {
-            setM(e.target.value);
-            load(e.target.value);
-          }}
-        />
-        <div className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 text-xs text-muted-foreground">
-          <span>Vendedor</span>
-          <span>Receita (US$)</span>
-          <span>Ticket (US$)</span>
-          <span>Desconto (%)</span>
-          {sellers.map((s) => (
-            <div key={s.key} className="contents">
-              <span className="self-center text-sm text-foreground">{s.name}</span>
-              <Input inputMode="decimal" value={vals[s.name]?.r ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: e.target.value, t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "" } }))} />
-              <Input inputMode="decimal" value={vals[s.name]?.t ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: e.target.value, d: v[s.name]?.d ?? "" } }))} />
-              <Input inputMode="decimal" value={vals[s.name]?.d ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: e.target.value } }))} />
-            </div>
-          ))}
+
+        {/* Seletor de Abas */}
+        <div className="flex space-x-2 border-b pb-2 mb-3">
+          <Button
+            variant={activeTab === "commercial" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("commercial")}
+          >
+            Metas Individuais
+          </Button>
+          <Button
+            variant={activeTab === "general" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveTab("general")}
+          >
+            Metas Gerais
+          </Button>
         </div>
-        <DialogFooter>
+
+        {/* Seletor de Mês comum */}
+        <div className="mb-4">
+          <label className="text-xs text-muted-foreground block mb-1">Mês de referência:</label>
+          <Input
+            type="month"
+            value={m}
+            onChange={(e) => {
+              setM(e.target.value);
+              load(e.target.value);
+            }}
+          />
+        </div>
+
+        {activeTab === "commercial" ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 text-xs font-medium text-muted-foreground px-1">
+              <span>Vendedor</span>
+              <span className="text-right">Receita (US$)</span>
+              <span className="text-right">Ticket (US$)</span>
+              <span className="text-right">Desconto (%)</span>
+            </div>
+            {sellers.map((s: SellerRow) => (
+              <div key={s.key} className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
+                <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
+                <Input 
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  placeholder="0"
+                  value={vals[s.name]?.r ?? ""} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: e.target.value, t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "" } }))} 
+                />
+                <Input 
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  placeholder="0"
+                  value={vals[s.name]?.t ?? ""} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: e.target.value, d: v[s.name]?.d ?? "" } }))} 
+                />
+                <Input 
+                  type="number"
+                  inputMode="decimal"
+                  step="any"
+                  placeholder="0"
+                  value={vals[s.name]?.d ?? ""} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: e.target.value } }))} 
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Meta de Ocupação - Mês Atual (%)</label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                placeholder="Ex: 75.5"
+                value={generalVals.occupancyCurrent}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, occupancyCurrent: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Meta de Ocupação - Mês Seguinte (%)</label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                placeholder="Ex: 80.0"
+                value={generalVals.occupancyNext}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, occupancyNext: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Meta Geral de Faturamento (US$)</label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                placeholder="Ex: 50000"
+                value={generalVals.revenue}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, revenue: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Meta Geral de Ticket Médio (US$)</label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                placeholder="Ex: 750"
+                value={generalVals.ticket}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, ticket: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Meta Geral de Desconto (%)</label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                placeholder="Ex: 10"
+                value={generalVals.discount}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, discount: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="mt-4">
           <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
             Salvar metas
           </Button>
