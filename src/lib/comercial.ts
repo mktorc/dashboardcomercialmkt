@@ -211,7 +211,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const all: SellerRow[] = [...rows.values()].map((r) => ({
     ...r,
     name: names.get(r.key) ?? r.key,
-    conversao: r.leads ? r.reservas / r.leads : 0,
+    conversao: r.oportunidades ? r.reservas / r.oportunidades : 0,
     ticket: r.reservas ? r.faturamento / r.reservas : 0,
     descontoPct: r.gross ? r.disc / r.gross : 0,
     ticketGoal: goalCount.get(r.key) ? r.ticketGoal / goalCount.get(r.key)! : 0,
@@ -309,7 +309,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     oportunidades,
     reservas,
     faturamento,
-    conversao: leads ? reservas / leads : 0,
+    conversao: oportunidades ? reservas / oportunidades : 0,
     ticket: reservas ? faturamento / reservas : 0,
     leadsNoTask,
     overdue: sum((r) => r.overdue),
