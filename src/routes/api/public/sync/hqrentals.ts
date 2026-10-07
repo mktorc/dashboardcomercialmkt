@@ -104,17 +104,18 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         // Tamanho da frota (para a taxa de ocupação)
-        let vehicles = 0;
+        const vehicleIds = new Set<string>();
         for (let vp = 1; vp <= 50; vp++) {
           const vr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles?page=${vp}`, {
             headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
           });
           if (!vr.ok) break;
           const vj = (await vr.json()) as { data?: HqReservation[]; last_page?: number };
-          const list = (vj.data ?? []).filter((v) => !v["deleted_at"]);
-          vehicles += list.length;
-          if (!list.length || vp >= (vj.last_page ?? 1)) break;
+          const before = vehicleIds.size;
+          (vj.data ?? []).filter((v) => !v["deleted_at"]).forEach((v) => vehicleIds.add(String(v["id"])));
+          if (vehicleIds.size === before || vp >= (vj.last_page ?? 1)) break;
         }
+        const vehicles = vehicleIds.size;
         if (vehicles > 0) {
           await supabaseAdmin
             .from("fleet_stats")
