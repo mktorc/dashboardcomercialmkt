@@ -143,6 +143,24 @@ export type Database = {
         }
         Relationships: []
       }
+      fleet_stats: {
+        Row: {
+          id: number
+          updated_at: string
+          vehicles: number
+        }
+        Insert: {
+          id?: number
+          updated_at?: string
+          vehicles?: number
+        }
+        Update: {
+          id?: number
+          updated_at?: string
+          vehicles?: number
+        }
+        Relationships: []
+      }
       google_ads_metrics: {
         Row: {
           campaign_id: string | null
@@ -223,8 +241,10 @@ export type Database = {
           customer_phone: string | null
           discount_amount: number
           id: string
+          pick_up_at: string | null
           rental_days: number
           reservation_id: string | null
+          return_at: string | null
           seller_name: string | null
           status: string
           total_amount: number
@@ -237,8 +257,10 @@ export type Database = {
           customer_phone?: string | null
           discount_amount?: number
           id?: string
+          pick_up_at?: string | null
           rental_days?: number
           reservation_id?: string | null
+          return_at?: string | null
           seller_name?: string | null
           status?: string
           total_amount?: number
@@ -251,8 +273,10 @@ export type Database = {
           customer_phone?: string | null
           discount_amount?: number
           id?: string
+          pick_up_at?: string | null
           rental_days?: number
           reservation_id?: string | null
+          return_at?: string | null
           seller_name?: string | null
           status?: string
           total_amount?: number

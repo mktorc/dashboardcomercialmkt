@@ -71,6 +71,13 @@
       "when": 1791321269422,
       "tag": "0009_opportunity_pipeline",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791397267505,
+      "tag": "0010_occupancy",
+      "breakpoints": true
     }
   ]
 }
