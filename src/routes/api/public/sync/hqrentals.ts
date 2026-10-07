@@ -24,7 +24,8 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     customer_phone: (customer["phone_number"] as string | null) ?? null,
     car_category: (vehicleClass["name"] as string | null) ?? null,
     rental_days: Number(r["total_days"]) || 1,
-    total_amount: Number(r["total_price"]) || 0,
+    // Faturamento = Rack Rate (fallback para total_price se ausente)
+    total_amount: Number(r["total_rack_rate"] ?? r["rack_rate"]) || Number(r["total_price"]) || 0,
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     seller_name: users.get(String(r["created_by"] ?? "")) ?? null,
