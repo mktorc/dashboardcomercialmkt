@@ -35,8 +35,13 @@ export type CTask = {
   due_date: string | null;
   created_at: string;
 };
-export type Goal = { seller_name: string; month: string; revenue_goal: number; ticket_goal: number };
-
+export type Goal = { 
+  seller_name: string; 
+  month: string; 
+  revenue_goal: number; 
+  ticket_goal: number; 
+  discount_goal?: number; 
+};
 // Apelidos usados no HQ Rentals -> nome do usuário no ClickMassa
 const ALIASES: Record<string, string> = { naty: "nathalia", thay: "thayanne" };
 
@@ -81,7 +86,7 @@ export async function fetchComercial(from: string, to: string) {
         .select("lead_id, user_name, completed, due_date, created_at")
         .range(a, b),
     ),
-    supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal"),
+    supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal, discount_goal"),
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
@@ -103,10 +108,11 @@ export async function fetchComercial(from: string, to: string) {
       discount_amount: Number(r.discount_amount),
     })),
     tasks: tasks.data as CTask[],
-    goals: ((goals.data ?? []) as Goal[]).map((g) => ({
+    goals: ((goals.data ?? []) as any[]).map((g) => ({
       ...g,
       revenue_goal: Number(g.revenue_goal),
       ticket_goal: Number(g.ticket_goal),
+      discount_goal: Number(g.discount_goal ?? 0),
     })),
   };
 }
@@ -130,6 +136,7 @@ export type SellerRow = {
   descontoPct: number;
   revenueGoal: number;
   ticketGoal: number;
+  discountGoal: number;
 };
 
 export function computeComercial(d: ComercialData, from: string, to: string, seller: string) {
@@ -155,7 +162,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (!rows.has(k))
       rows.set(k, {
         key: k, name: "", leads: 0, oportunidades: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
-        ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, gross: 0, disc: 0,
+        ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, discountGoal: 0, gross: 0, disc: 0, // <--- Adicionado discountGoal: 0
       });
     return rows.get(k)!;
   };
@@ -205,6 +212,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       const row = touch(nameOf(g.seller_name));
       row.revenueGoal += g.revenue_goal;
       row.ticketGoal += g.ticket_goal;
+      row.discountGoal += g.discount_goal; // <--- Adicionado
       goalCount.set(row.key, (goalCount.get(row.key) ?? 0) + 1);
     });
 
@@ -215,6 +223,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     ticket: r.reservas ? r.faturamento / r.reservas : 0,
     descontoPct: r.gross ? r.disc / r.gross : 0,
     ticketGoal: goalCount.get(r.key) ? r.ticketGoal / goalCount.get(r.key)! : 0,
+    discountGoal: goalCount.get(r.key) ? r.discountGoal / goalCount.get(r.key)! : 0, // <--- Adicionado
   }));
 
   const sellers = all
@@ -356,7 +365,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 export async function saveGoals(goals: Goal[]) {
   const { error } = await supabase
     .from("sales_goals")
-    .upsert(goals.map((g) => ({ ...g, updated_at: new Date().toISOString() })), {
+    .upsert(goals.map((g) => ({ ...g, updated_at: new Date().toISOString() })) as any, {
       onConflict: "seller_name,month",
     });
   if (error) throw error;

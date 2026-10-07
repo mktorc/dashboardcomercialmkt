@@ -243,7 +243,7 @@ function Comercial() {
           <section className="grid gap-4 xl:grid-cols-3">
             <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} />
             <GoalChart title="Ticket médio" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="ticket" b="ticketGoal" fmt={brl} />
-            <GoalChart title="Desconto médio (%)" subtitle="Desconto ÷ valor antes do desconto" data={goalRows} h={chartH} a="descontoPct" fmt={pct} />
+            <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" fmt={pct} />
           </section>
 
           <Card className="overflow-hidden">
@@ -378,18 +378,22 @@ function GoalsDialog({
 }: {
   sellers: SellerRow[];
   month: string;
-  goals: { seller_name: string; month: string; revenue_goal: number; ticket_goal: number }[];
+  goals: { seller_name: string; month: string; revenue_goal: number; ticket_goal: number; discount_goal?: number }[];
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [m, setM] = useState(month);
-  const [vals, setVals] = useState<Record<string, { r: string; t: string }>>({});
+  const [vals, setVals] = useState<Record<string, { r: string; t: string; d: string }>>({});
 
   const load = (mm: string) => {
-    const next: Record<string, { r: string; t: string }> = {};
+    const next: Record<string, { r: string; t: string; d: string }> = {};
     sellers.forEach((s) => {
       const g = goals.find((x) => x.month === mm && x.seller_name === s.name);
-      next[s.name] = { r: g ? String(g.revenue_goal) : "", t: g ? String(g.ticket_goal) : "" };
+      next[s.name] = { 
+        r: g ? String(g.revenue_goal) : "", 
+        t: g ? String(g.ticket_goal) : "",
+        d: g && g.discount_goal !== undefined ? String(g.discount_goal) : "" 
+      };
     });
     setVals(next);
   };
@@ -398,8 +402,14 @@ function GoalsDialog({
     mutationFn: () =>
       saveGoals(
         Object.entries(vals)
-          .filter(([, v]) => v.r !== "" || v.t !== "")
-          .map(([name, v]) => ({ seller_name: name, month: m, revenue_goal: Number(v.r) || 0, ticket_goal: Number(v.t) || 0 })),
+          .filter(([, v]) => v.r !== "" || v.t !== "" || v.d !== "")
+          .map(([name, v]) => ({ 
+            seller_name: name, 
+            month: m, 
+            revenue_goal: Number(v.r) || 0, 
+            ticket_goal: Number(v.t) || 0,
+            discount_goal: Number(v.d) || 0 
+          })),
       ),
     onSuccess: () => {
       toast.success("Metas salvas");
@@ -437,15 +447,17 @@ function GoalsDialog({
             load(e.target.value);
           }}
         />
-        <div className="grid grid-cols-[1fr_7rem_7rem] gap-2 text-xs text-muted-foreground">
+        <div className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 text-xs text-muted-foreground">
           <span>Vendedor</span>
           <span>Receita (US$)</span>
           <span>Ticket (US$)</span>
+          <span>Desconto (%)</span>
           {sellers.map((s) => (
             <div key={s.key} className="contents">
               <span className="self-center text-sm text-foreground">{s.name}</span>
-              <Input inputMode="decimal" value={vals[s.name]?.r ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: e.target.value, t: v[s.name]?.t ?? "" } }))} />
-              <Input inputMode="decimal" value={vals[s.name]?.t ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { t: e.target.value, r: v[s.name]?.r ?? "" } }))} />
+              <Input inputMode="decimal" value={vals[s.name]?.r ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: e.target.value, t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "" } }))} />
+              <Input inputMode="decimal" value={vals[s.name]?.t ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: e.target.value, d: v[s.name]?.d ?? "" } }))} />
+              <Input inputMode="decimal" value={vals[s.name]?.d ?? ""} onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: e.target.value } }))} />
             </div>
           ))}
         </div>
