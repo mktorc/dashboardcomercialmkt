@@ -187,22 +187,7 @@ function Comercial() {
             <KpiCard icon={Clock} label="Tempo médio de resposta (SLA)" value={k ? k.slaFormatted : "—"} hint="Lead criado → 1ª interação" />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-2">
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold text-foreground">Leads recebidos por dia</h2>
-              <p className="text-xs text-muted-foreground">Novos contatos no ClickMassa — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
-              <div className="mt-4 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={view?.daily ?? []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                    <XAxis dataKey="dia" {...axis} />
-                    <YAxis {...axis} allowDecimals={false} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="leads" name="Leads" fill="#44E500" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+          <section className="grid gap-4 xl:grid-cols-1">
             <Card className="p-5">
               <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
               <p className="text-xs text-muted-foreground">Atendimentos ativos no funil — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
