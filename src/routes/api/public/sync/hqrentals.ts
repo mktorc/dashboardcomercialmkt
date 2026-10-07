@@ -30,6 +30,8 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     seller_name: users.get(String(r["created_by"] ?? "")) ?? null,
     discount_amount: Number(r["discounts_amount"]) || 0,
+    pick_up_at: (r["pick_up_date"] as string | null) ?? null,
+    return_at: (r["return_date"] as string | null) ?? null,
     created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
   };
 }
@@ -101,6 +103,23 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         const rows = all.map((r) => mapReservation(r, users)).filter((r) => r.reservation_id !== "");
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        // Tamanho da frota (para a taxa de ocupação)
+        let vehicles = 0;
+        for (let vp = 1; vp <= 50; vp++) {
+          const vr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles?page=${vp}`, {
+            headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
+          });
+          if (!vr.ok) break;
+          const vj = (await vr.json()) as { data?: HqReservation[]; last_page?: number };
+          const list = (vj.data ?? []).filter((v) => !v["deleted_at"]);
+          vehicles += list.length;
+          if (!list.length || vp >= (vj.last_page ?? 1)) break;
+        }
+        if (vehicles > 0) {
+          await supabaseAdmin
+            .from("fleet_stats")
+            .upsert({ id: 1, vehicles, updated_at: new Date().toISOString() });
+        }
         // Upsert em lotes para não estourar o limite de payload
         const BATCH = 500;
         for (let i = 0; i < rows.length; i += BATCH) {
