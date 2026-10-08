@@ -1,8 +1,8 @@
 # Roadmap
 
-- [ ] Reordenar nove cartões, substituir ocupação +2 por desconto e limitar subtextos a comparativos.
-- [ ] Incluir metas gerais e individuais de conversão e comparativos de meta e ano anterior para desconto.
-- [ ] Testar cálculos e verificar salvamento e leitura das metas na aba Comercial.
+- [x] Reordenar nove cartões, substituir ocupação +2 por desconto e limitar subtextos a comparativos.
+- [x] Incluir metas gerais e individuais de conversão e comparativos de meta e ano anterior para desconto.
+- [x] Testar cálculos e verificar salvamento e leitura das metas na aba Comercial.
 
 - [x] Comparar faturamento, ticket médio e ocupação do mês atual e seguinte com metas nos cartões, e verificar salvamento e leitura.
 
