@@ -318,6 +318,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     oportunidades,
     reservas,
     faturamento,
+    rackRate: faturamento,      // <--- Rack Rate agora usa o faturamento líquido (com desconto)
     conversao: oportunidades ? reservas / oportunidades : 0,
     ticket: reservas ? faturamento / reservas : 0,
     leadsNoTask,
@@ -325,8 +326,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     pending: pendingTasks,
     done: doneTasks,
     tasksTotal,
-    taskExecutionRateFormatted, // Taxa % calculada
-    slaFormatted,               // SLA formatado ou '--'
+    taskExecutionRateFormatted,
+    slaFormatted,
   };
 
   // Barras empilhadas: últimos 6 meses até o fim do período

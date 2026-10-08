@@ -187,7 +187,7 @@ function Comercial() {
               <KpiCard icon={ClipboardX} label="Oportunidades sem tarefa" value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} hint="Clique para ver a lista" highlight />
             </button>
             <KpiCard icon={CheckCircle2} label="Taxa de execução de tarefas" value={k ? k.taskExecutionRateFormatted : "—"} hint="Relação de concluídas vs. total" highlight />
-            <KpiCard icon={Clock} label="Tempo médio de resposta (SLA)" value={k ? k.slaFormatted : "—"} hint="Lead criado → 1ª interação" />
+            <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)" value={k ? brl(k.rackRate) : "—"} hint="Valor líquido (já com descontos)" />
             {["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, i) => {
               const m = occ?.months[i];
               return (
