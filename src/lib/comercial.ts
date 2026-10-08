@@ -492,7 +492,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 
   const monthly = new Map<string, Record<string, number | string>>();
   const end = new Date(to + "T00:00:00");
-  for (let i = 5; i >= 0; i--) {
+  for (let i = 4; i >= 0; i--) {
     const m = new Date(end.getFullYear(), end.getMonth() - i, 1);
     const label = `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, "0")}`;
     monthly.set(label, { mes: label });

@@ -6,3 +6,4 @@
 - [x] Limitar os indicadores comerciais mensais a cinco meses.
 - [x] Adicionar desconto médio mensal em linhas e converter ticket médio para linhas.
 - [x] Validar os cinco meses e os cálculos de desconto médio.
+- [x] Limitar o gráfico de valor fechado por vendedor ao mês a cinco meses.
