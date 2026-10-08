@@ -78,9 +78,9 @@ function getPreviousPeriod(from: string, to: string) {
 export async function fetchComercial(from: string, to: string) {
   const { prevFrom, prevTo } = getPreviousPeriod(from, to);
 
-  const sixFrom = new Date(to + "T00:00:00");
-  sixFrom.setMonth(sixFrom.getMonth() - 5, 1);
-  const histFrom = sixFrom < new Date(from + "T00:00:00") ? sixFrom.toISOString() : startIso(prevFrom);
+  const fiveFrom = new Date(to + "T00:00:00");
+  fiveFrom.setMonth(fiveFrom.getMonth() - 4, 1);
+  const histFrom = fiveFrom < new Date(from + "T00:00:00") ? fiveFrom.toISOString() : startIso(prevFrom);
 
   const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps, yearRes] = await Promise.all([
     // Período atual
@@ -209,18 +209,20 @@ export type MonthlyCommercial = {
   faturamento: number;
   conversao: number;
   ticket: number;
+  descontoPct: number;
 };
 
 const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 export function computeMonthlyCommercial(
   opportunities: Pick<COpp, "created_at" | "seller_name">[],
-  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "total_amount">[],
+  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "total_amount" | "discount_amount">[],
   seller: string,
   today: Date,
 ): MonthlyCommercial[] {
   const buckets = new Map<string, MonthlyCommercial>();
-  for (let offset = -5; offset <= 0; offset++) {
+  const monthlyDiscounts = new Map<string, { net: number; discount: number }>();
+  for (let offset = -4; offset <= 0; offset++) {
     const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1));
     const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
     buckets.set(key, {
@@ -230,7 +232,9 @@ export function computeMonthlyCommercial(
       faturamento: 0,
       conversao: 0,
       ticket: 0,
+      descontoPct: 0,
     });
+    monthlyDiscounts.set(key, { net: 0, discount: 0 });
   }
 
   opportunities.forEach((opportunity) => {
@@ -247,10 +251,18 @@ export function computeMonthlyCommercial(
     if (!bucket) return;
     bucket.reservas++;
     bucket.faturamento += reservation.total_amount;
+    const discount = monthlyDiscounts.get(reservation.created_at.slice(0, 7));
+    if (discount) {
+      discount.net += reservation.total_amount;
+      discount.discount += reservation.discount_amount;
+    }
   });
-  buckets.forEach((bucket) => {
+  buckets.forEach((bucket, key) => {
     bucket.conversao = bucket.oportunidades ? bucket.reservas / bucket.oportunidades : 0;
     bucket.ticket = bucket.reservas ? bucket.faturamento / bucket.reservas : 0;
+    const discount = monthlyDiscounts.get(key);
+    const gross = (discount?.net ?? 0) + (discount?.discount ?? 0);
+    bucket.descontoPct = gross ? (discount?.discount ?? 0) / gross : 0;
   });
   return [...buckets.values()];
 }
