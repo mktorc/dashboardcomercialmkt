@@ -6,6 +6,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -245,7 +247,8 @@ function Comercial() {
             <MonthlyBarChart title="Taxa de conversão mensal" data={view?.monthlyKpis ?? []} dataKey="conversao" valueName="Conversão" formatter={pct} />
             <MonthlyBarChart title="Faturamento mensal" data={view?.monthlyKpis ?? []} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis />
             <MonthlyBarChart title="Reservas mensais" data={view?.monthlyKpis ?? []} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis />
-            <MonthlyBarChart title="Ticket médio mensal" data={view?.monthlyKpis ?? []} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis />
+            <MonthlyLineChart title="Ticket médio mensal" data={view?.monthlyKpis ?? []} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis />
+            <MonthlyLineChart title="Desconto médio mensal" data={view?.monthlyKpis ?? []} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis />
           </section>
 
           <Card className="p-5">
@@ -393,6 +396,44 @@ function MonthlyBarChart({
             <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatter(value), valueName]} />
             <Bar dataKey={dataKey} name={valueName} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  );
+}
+
+function MonthlyLineChart({
+  title,
+  data,
+  dataKey,
+  valueName,
+  formatter,
+  currencyAxis = false,
+  percentageAxis = false,
+}: {
+  title: string;
+  data: object[];
+  dataKey: string;
+  valueName: string;
+  formatter: (value: number) => string;
+  currencyAxis?: boolean;
+  percentageAxis?: boolean;
+}) {
+  return (
+    <Card className="p-5">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <div className="mt-4 h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 8, right: 8, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="mes" interval={0} minTickGap={0} {...axis} />
+            <YAxis
+              {...axis}
+              tickFormatter={(value: number) => currencyAxis ? `$${Math.round(value).toLocaleString("pt-BR")}` : percentageAxis ? `${Math.round(value * 100)}%` : value.toLocaleString("pt-BR")}
+            />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatter(value), valueName]} />
+            <Line type="monotone" dataKey={dataKey} name={valueName} stroke="var(--chart-1)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+          </LineChart>
         </ResponsiveContainer>
       </div>
     </Card>
