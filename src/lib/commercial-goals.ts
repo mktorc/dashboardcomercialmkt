@@ -23,5 +23,23 @@ export function revenueAndTicketGoals(goals: Goal[], from: string, to: string, s
   return {
     revenue: selected.reduce((sum, g) => sum + g.revenue_goal, 0),
     ticket: selected.length ? selected.reduce((sum, g) => sum + g.ticket_goal, 0) / selected.length : 0,
+    discount: selected.length ? selected.reduce((sum, g) => sum + (g.discount_goal ?? 0), 0) / selected.length : 0,
+    conversion: selected.length ? selected.reduce((sum, g) => sum + (g.conversion_goal ?? 0), 0) / selected.length : 0,
   };
+}
+export function previousYearDate(day: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  if (year === undefined || month === undefined || date === undefined) return "";
+  const lastDay = new Date(Date.UTC(year - 1, month, 0)).getUTCDate();
+  return `${year - 1}-${String(month).padStart(2, "0")}-${String(Math.min(date, lastDay)).padStart(2, "0")}`;
+}
+
+export function averageDiscount(rows: { total_amount: number; discount_amount: number }[]) {
+  const discount = rows.reduce((sum, r) => sum + r.discount_amount, 0);
+  const gross = rows.reduce((sum, r) => sum + r.total_amount + r.discount_amount, 0);
+  return gross > 0 ? discount / gross : 0;
+}
+
+export function yearOverYearDiscount(current: number, previous: number, hasHistory: boolean) {
+  return hasHistory ? (current - previous) * 100 : null;
 }

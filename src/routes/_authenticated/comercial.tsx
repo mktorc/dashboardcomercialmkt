@@ -21,6 +21,7 @@ import {
   CarFront,
   Target,
   UserCheck,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,6 +51,7 @@ import {
   fetchComercial,
   saveGoals,
   type SellerRow,
+  type Goal,
 } from "@/lib/comercial";
 import { fetchOccupancy } from "@/lib/occupancy";
 import { GLOBAL_GOAL, OCCUPANCY_GOAL, isGeneralGoal, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
@@ -84,6 +86,7 @@ const tooltipStyle = {
 };
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const comparison = (value: number) => `${value >= 0 ? "+" : ""}${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% vs. mês anterior`;
 const duration = (minutes: number) =>
   minutes < 60 ? `${Math.round(minutes)} min` : `${(minutes / 60).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} h`;
 
@@ -182,69 +185,40 @@ function Comercial() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard 
-              icon={Target} 
-              label="Oportunidades" 
-              value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} 
-              hint={k ? `Criadas no funil · ${k.oportunidadesVar >= 0 ? "+" : ""}${k.oportunidadesVar.toFixed(1)}% vs. mês anterior` : "Oportunidades criadas no funil do ClickMassa"} 
-            />
-            <KpiCard 
-              icon={UserCheck} 
-              label="Taxa de conversão" 
-              value={k ? pct(k.conversao) : "—"} 
-              hint={k ? `${k.reservas} reservas concluídas · ${k.conversaoVar >= 0 ? "+" : ""}${k.conversaoVar.toFixed(1)}% vs. mês anterior` : undefined} 
-              highlight 
-            />
-            
-            <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
-              <KpiCard 
-                icon={ClipboardX} 
-                label="Oportunidades sem tarefa" 
-                value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} 
-                hint={k ? `Clique para ver a lista · ${k.leadsNoTaskVar <= 0 ? "" : "+"}${k.leadsNoTaskVar.toFixed(1)}% vs. mês anterior` : "Clique para ver a lista"} 
-                highlight 
-              />
-            </button>
-            
-            <KpiCard 
-              icon={DollarSign} 
-              label="Faturamento (Rack Rate)" 
-              value={k ? brl(k.faturamento) : "—"} 
-              hint={k ? `Valor líquido · ${k.faturamentoVar >= 0 ? "+" : ""}${k.faturamentoVar.toFixed(1)}% vs. mês anterior` : "Valor líquido (já com descontos)"} 
-              goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }}
-            />
-
-            <KpiCard 
-              icon={CheckCircle2} 
-              label="Reservas concluídas" 
-              value={k ? k.reservas.toLocaleString("pt-BR") : "—"} 
-              hint={k ? `Total no período · ${k.reservasVar >= 0 ? "+" : ""}${k.reservasVar.toFixed(1)}% vs. mês anterior` : "Total de reservas confirmadas"} 
-              highlight 
-            />
-            
-            <KpiCard 
-              icon={DollarSign} 
-              label="Ticket médio" 
-              value={k ? brl(k.ticket) : "—"} 
-              hint={k ? `Faturamento médio · ${k.ticketVar >= 0 ? "+" : ""}${k.ticketVar.toFixed(1)}% vs. mês anterior` : undefined} 
-              goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }}
-            />
-
-            {["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, i) => {
+            <KpiCard icon={Target} label="Oportunidades"
+              value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
+              hint={k ? comparison(k.oportunidadesVar) : undefined} />
+            <Button variant="ghost" className="block h-auto whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full" onClick={() => setNoTaskOpen(true)}>
+              <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
+                value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
+                hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight />
+            </Button>
+            <KpiCard icon={CheckCircle2} label="Reservas concluídas"
+              value={k ? k.reservas.toLocaleString("pt-BR") : "—"}
+              hint={k ? comparison(k.reservasVar) : undefined} highlight />
+            <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)"
+              value={k ? brl(k.faturamento) : "—"}
+              hint={k ? comparison(k.faturamentoVar) : undefined}
+              goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }} />
+            <KpiCard icon={DollarSign} label="Ticket médio"
+              value={k ? brl(k.ticket) : "—"}
+              hint={k ? comparison(k.ticketVar) : undefined}
+              goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }} />
+            <KpiCard icon={Percent} label="Desconto médio"
+              value={k ? pct(k.descontoPct) : "—"}
+              hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
+              goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount) }} />
+            {["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, i) => {
               const m = occ?.months[i];
               const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === m?.label.split("/").reverse().join("-"))?.discount_goal;
-              return (
-                <KpiCard
-                  key={label}
-                  icon={CarFront}
-                  label={label}
-                  value={m ? pct(m.rate) : "—"}
-                  hint={m && occ ? `${m.label} · ${Math.round(m.carDays).toLocaleString("pt-BR")} de ${m.capacity.toLocaleString("pt-BR")} diárias (${occ.vehicles} carros)` : undefined}
-                  highlight={i === 0}
-                  goal={i < 2 ? { actual: m?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) } : undefined}
-                />
-              );
+              return <KpiCard key={label} icon={CarFront} label={label} value={m ? pct(m.rate) : "—"}
+                highlight={i === 0}
+                goal={{ actual: m?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} />;
             })}
+            <KpiCard icon={UserCheck} label="Taxa de conversão"
+              value={k ? pct(k.conversao) : "—"}
+              hint={k ? comparison(k.conversaoVar) : undefined} highlight
+              goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }} />
           </section>
 
           <section className="grid gap-4 xl:grid-cols-1">
@@ -422,7 +396,7 @@ function GoalsDialog({
 }: {
   sellers: SellerRow[];
   month: string;
-  goals: { seller_name: string; month: string; revenue_goal: number; ticket_goal: number; discount_goal?: number }[];
+  goals: Goal[];
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -430,7 +404,7 @@ function GoalsDialog({
   const [m, setM] = useState(month);
   
   // Estado para metas por vendedor (Aba Comercial)
-  const [vals, setVals] = useState<Record<string, { r: string; t: string; d: string }>>({});
+  const [vals, setVals] = useState<Record<string, { r: string; t: string; d: string; c: string }>>({});
   
   // Estado para a aba Meta Geral (Ocupação e Metas Globais)
   const [generalVals, setGeneralVals] = useState({
@@ -439,16 +413,18 @@ function GoalsDialog({
     revenue: "",
     ticket: "",
     discount: "",
+    conversion: "",
   });
 
   const load = (mm: string) => {
-    const next: Record<string, { r: string; t: string; d: string }> = {};
+    const next: Record<string, { r: string; t: string; d: string; c: string }> = {};
     sellers.forEach((s) => {
       const g = goals.find((x) => x.month === mm && x.seller_name === s.name);
       next[s.name] = { 
         r: g ? String(g.revenue_goal) : "", 
         t: g ? String(g.ticket_goal) : "",
-        d: g && g.discount_goal !== undefined ? String(g.discount_goal) : "" 
+        d: g && g.discount_goal !== undefined ? String(g.discount_goal * 100) : "",
+        c: g?.conversion_goal != null ? String(g.conversion_goal * 100) : "" 
       };
     });
     setVals(next);
@@ -458,6 +434,7 @@ function GoalsDialog({
     setGeneralVals({
       revenue: general ? String(general.revenue_goal) : "",
       ticket: general ? String(general.ticket_goal) : "",
+      conversion: general?.conversion_goal != null ? String(general.conversion_goal * 100) : "",
       discount: general?.discount_goal != null ? String(general.discount_goal * 100) : "",
       occupancyCurrent: current?.discount_goal != null ? String(current.discount_goal * 100) : "",
       occupancyNext: following?.discount_goal != null ? String(following.discount_goal * 100) : "",
@@ -466,16 +443,23 @@ function GoalsDialog({
 
   const mut = useMutation({
     mutationFn: () => {
+      const percentageValues = activeTab === "commercial"
+        ? Object.values(vals).flatMap((v) => [v.d, v.c])
+        : [generalVals.discount, generalVals.conversion, generalVals.occupancyCurrent, generalVals.occupancyNext];
+      if (percentageValues.some((v) => v !== "" && (!Number.isFinite(Number(v)) || Number(v) < 0 || Number(v) > 100))) {
+        return Promise.reject(new Error("Informe percentuais entre 0 e 100%."));
+      }
       if (activeTab === "commercial") {
         return saveGoals(
           Object.entries(vals)
-            .filter(([, v]) => v.r !== "" || v.t !== "" || v.d !== "")
+            .filter(([, v]) => v.r !== "" || v.t !== "" || v.d !== "" || v.c !== "")
             .map(([name, v]) => ({ 
               seller_name: name, 
               month: m, 
               revenue_goal: Number(v.r) || 0, 
               ticket_goal: Number(v.t) || 0,
-              discount_goal: Number(v.d) || 0, 
+              discount_goal: (Number(v.d) || 0) / 100,
+              conversion_goal: (Number(v.c) || 0) / 100, 
             })),
         );
       } else {
@@ -484,7 +468,7 @@ function GoalsDialog({
           return Promise.reject(new Error("Informe metas válidas; ocupação deve estar entre 0 e 100%."));
         }
         return saveGoals([
-          { seller_name: GLOBAL_GOAL, month: m, revenue_goal: Number(generalVals.revenue) || 0, ticket_goal: Number(generalVals.ticket) || 0, discount_goal: (Number(generalVals.discount) || 0) / 100 },
+          { seller_name: GLOBAL_GOAL, month: m, revenue_goal: Number(generalVals.revenue) || 0, ticket_goal: Number(generalVals.ticket) || 0, discount_goal: (Number(generalVals.discount) || 0) / 100, conversion_goal: (Number(generalVals.conversion) || 0) / 100 },
           { seller_name: OCCUPANCY_GOAL, month: m, revenue_goal: 0, ticket_goal: 0, discount_goal: (Number(generalVals.occupancyCurrent) || 0) / 100 },
           { seller_name: OCCUPANCY_GOAL, month: nextGoalMonth(m), revenue_goal: 0, ticket_goal: 0, discount_goal: (Number(generalVals.occupancyNext) || 0) / 100 },
         ]);
@@ -552,14 +536,15 @@ function GoalsDialog({
 
         {activeTab === "commercial" ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 text-xs font-medium text-muted-foreground px-1">
+            <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_5rem_5rem] gap-2 text-xs font-medium text-muted-foreground px-1">
               <span>Vendedor</span>
               <span className="text-right">Receita (US$)</span>
               <span className="text-right">Ticket (US$)</span>
               <span className="text-right">Desconto (%)</span>
+              <span className="text-right">Conversão (%)</span>
             </div>
             {sellers.map((s: SellerRow) => (
-              <div key={s.key} className="grid grid-cols-[1fr_6rem_6rem_6rem] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
+              <div key={s.key} className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_5rem_5rem] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
                 <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
                 <Input 
                   type="number"
@@ -567,7 +552,7 @@ function GoalsDialog({
                   step="any"
                   placeholder="0"
                   value={vals[s.name]?.r ?? ""} 
-                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: e.target.value, t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "" } }))} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { c: v[s.name]?.c ?? "", r: e.target.value, t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "" } }))} 
                 />
                 <Input 
                   type="number"
@@ -575,7 +560,7 @@ function GoalsDialog({
                   step="any"
                   placeholder="0"
                   value={vals[s.name]?.t ?? ""} 
-                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: e.target.value, d: v[s.name]?.d ?? "" } }))} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { c: v[s.name]?.c ?? "", r: v[s.name]?.r ?? "", t: e.target.value, d: v[s.name]?.d ?? "" } }))} 
                 />
                 <Input 
                   type="number"
@@ -583,8 +568,12 @@ function GoalsDialog({
                   step="any"
                   placeholder="0"
                   value={vals[s.name]?.d ?? ""} 
-                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: e.target.value } }))} 
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { c: v[s.name]?.c ?? "", r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: e.target.value } }))} 
                 />
+                <Input type="number" inputMode="decimal" step="any" min="0" max="100" placeholder="0"
+                  aria-label={`Meta de conversão de ${s.name} (%)`}
+                  value={vals[s.name]?.c ?? ""}
+                  onChange={(e) => setVals((v) => ({ ...v, [s.name]: { r: v[s.name]?.r ?? "", t: v[s.name]?.t ?? "", d: v[s.name]?.d ?? "", c: e.target.value } }))} />
               </div>
             ))}
           </div>
@@ -633,6 +622,12 @@ function GoalsDialog({
                 value={generalVals.ticket}
                 onChange={(e) => setGeneralVals((prev) => ({ ...prev, ticket: e.target.value }))}
               />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="global-conversion" className="text-sm font-medium">Meta Geral de Conversão (%)</label>
+              <Input id="global-conversion" type="number" inputMode="decimal" step="any" min="0" max="100"
+                value={generalVals.conversion}
+                onChange={(e) => setGeneralVals((prev) => ({ ...prev, conversion: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Meta Geral de Desconto (%)</label>
