@@ -370,7 +370,7 @@ function MonthlyBarChart({
   integerAxis = false,
 }: {
   title: string;
-  data: Array<Record<string, string | number>>;
+  data: object[];
   dataKey: string;
   valueName: string;
   formatter: (value: number) => string;

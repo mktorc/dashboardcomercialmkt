@@ -112,7 +112,7 @@ export async function fetchComercial(from: string, to: string) {
         .from("crm_opportunities")
         .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
         .eq("pipeline_name", "Comercial")
-        .gte("created_at", startIso(from))
+        .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
     ),
