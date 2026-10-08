@@ -1,5 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { goalProgress } from "@/lib/commercial-goals";
 
 export function KpiCard({
   label,
@@ -7,13 +9,16 @@ export function KpiCard({
   hint,
   icon: Icon,
   highlight,
+  goal,
 }: {
   label: string;
   value: string;
   hint?: string | undefined;
   icon: LucideIcon;
   highlight?: boolean | undefined;
+  goal?: { actual: number; target?: number | undefined; label: string } | undefined;
 }) {
+  const progress = goal ? goalProgress(goal.actual, goal.target) : null;
   return (
     <Card className="relative overflow-hidden border-border bg-card p-5">
       <div
@@ -34,6 +39,15 @@ export function KpiCard({
           <Icon className="size-5" />
         </span>
       </div>
+      {goal ? (
+        <div className="mt-4 space-y-2">
+          <div className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs">
+            <span className="text-muted-foreground">{progress ? `Meta: ${goal.label}` : "Meta não definida"}</span>
+            {progress ? <span className="font-medium text-accent">{progress.percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% da meta</span> : null}
+          </div>
+          <Progress aria-label={`${label} — progresso da meta`} value={progress?.bar ?? 0} className="bg-secondary [&>div]:bg-accent" />
+        </div>
+      ) : null}
     </Card>
   );
 }

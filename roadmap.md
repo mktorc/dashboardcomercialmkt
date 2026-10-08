@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Comparar faturamento, ticket médio e ocupação do mês atual e seguinte com metas nos cartões, e verificar salvamento e leitura.
+
 - [x] Adicionar os cards de SLA e execução de tarefas em uma grade 3 × 3.
 - [x] Tornar o webhook ClickMassa tolerante a qualquer payload/erro e sempre confirmar o recebimento.
 - [x] Registrar tentativas do webhook em `webhook_logs` para auditoria.
