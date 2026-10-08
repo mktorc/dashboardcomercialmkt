@@ -286,6 +286,7 @@ export type Database = {
       }
       sales_goals: {
         Row: {
+          discount_goal: number | null
           id: string
           month: string
           revenue_goal: number
@@ -294,6 +295,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          discount_goal?: number | null
           id?: string
           month: string
           revenue_goal?: number
@@ -302,6 +304,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          discount_goal?: number | null
           id?: string
           month?: string
           revenue_goal?: number

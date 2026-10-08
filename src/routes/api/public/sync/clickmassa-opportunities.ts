@@ -56,22 +56,29 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
 
         const rows: ReturnType<typeof toRow>[] = [];
         let errors = 0;
+        const notFound: string[] = []; // excluídas no ClickMassa
         const ids = Array.from({ length: to - from + 1 }, (_, i) => from + i);
         const worker = async () => {
           while (ids.length) {
             const id = ids.shift()!;
-            try {
-              const r = await fetch(`${base}/opportunity/${id}`, {
-                headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-              });
-              if (r.status === 404) continue;
-              if (!r.ok) { errors++; continue; }
-              const p = (await r.json()) as Obj;
-              if (p["id"] != null) rows.push(toRow(p));
-            } catch { errors++; }
+            // Retenta falhas temporárias (limite de requisições / erro do servidor)
+            let ok = false;
+            for (let attempt = 0; attempt < 4 && !ok; attempt++) {
+              try {
+                const r = await fetch(`${base}/opportunity/${id}`, {
+                  headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+                });
+                if (r.status === 404 || r.status === 400) { notFound.push(String(id)); ok = true; break; }
+                if (!r.ok) { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); continue; }
+                const p = (await r.json()) as Obj;
+                if (p["id"] != null) rows.push(toRow(p));
+                ok = true;
+              } catch { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); }
+            }
+            if (!ok) errors++;
           }
         };
-        await Promise.all(Array.from({ length: 15 }, worker));
+        await Promise.all(Array.from({ length: 8 }, worker));
 
         for (let i = 0; i < rows.length; i += 500) {
           const { error } = await supabaseAdmin
@@ -79,7 +86,11 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
             .upsert(rows.slice(i, i + 500), { onConflict: "opportunity_id" });
           if (error) return Response.json({ error: error.message }, { status: 500 });
         }
-        return Response.json({ ok: true, from, to, found: rows.length, errors });
+        // Remove oportunidades que foram excluídas no ClickMassa
+        for (let i = 0; i < notFound.length; i += 500) {
+          await supabaseAdmin.from("crm_opportunities").delete().in("opportunity_id", notFound.slice(i, i + 500));
+        }
+        return Response.json({ ok: true, from, to, found: rows.length, removed: notFound.length, errors });
       },
     },
   },
