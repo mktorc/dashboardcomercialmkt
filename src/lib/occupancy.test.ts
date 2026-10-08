@@ -12,4 +12,15 @@ describe("computeOccupancy", () => {
     expect(m[1]!.rate).toBeCloseTo(4 / 300);
     expect(m[2]!.carDays).toBe(0);
   });
+
+  it("gera os cinco meses de mês -2 a mês +2 com nome e ano", () => {
+    const months = computeOccupancy([], 10, new Date("2026-10-08T12:00:00Z"), 5, -2);
+    expect(months.map((month) => month.label)).toEqual([
+      "ago/2026",
+      "set/2026",
+      "out/2026",
+      "nov/2026",
+      "dez/2026",
+    ]);
+  });
 });
