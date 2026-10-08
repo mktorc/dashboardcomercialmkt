@@ -67,7 +67,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
                 const r = await fetch(`${base}/opportunity/${id}`, {
                   headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
                 });
-                if (r.status === 404) { ok = true; break; }
+                if (r.status === 404 || r.status === 400) { ok = true; break; }
                 if (!r.ok) { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); continue; }
                 const p = (await r.json()) as Obj;
                 if (p["id"] != null) rows.push(toRow(p));
