@@ -52,6 +52,7 @@ import {
   type SellerRow,
 } from "@/lib/comercial";
 import { fetchOccupancy } from "@/lib/occupancy";
+import { GLOBAL_GOAL, OCCUPANCY_GOAL, isGeneralGoal, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
 
 export const Route = createFileRoute("/_authenticated/comercial")({
   head: () => ({
@@ -101,9 +102,10 @@ function Comercial() {
     queryKey: ["comercial", from, to],
     queryFn: () => fetchComercial(from, to),
   });
-  const view = useMemo(() => (data ? computeComercial(data, from, to, seller) : null), [data, from, to, seller]);
+  const view = useMemo(() => (data ? computeComercial({ ...data, goals: data.goals.filter((g) => !isGeneralGoal(g)) }, from, to, seller) : null), [data, from, to, seller]);
   const { data: occ } = useQuery({ queryKey: ["occupancy"], queryFn: fetchOccupancy });
   const k = view?.kpis;
+  const cardGoals = revenueAndTicketGoals(data?.goals ?? [], from, to, seller === "all" ? undefined : (view?.sellers ?? []).filter((s) => s.key === seller).map((s) => s.name));
 
   const tableRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -209,6 +211,7 @@ function Comercial() {
               label="Faturamento (Rack Rate)" 
               value={k ? brl(k.faturamento) : "—"} 
               hint={k ? `Valor líquido · ${k.faturamentoVar >= 0 ? "+" : ""}${k.faturamentoVar.toFixed(1)}% vs. mês anterior` : "Valor líquido (já com descontos)"} 
+              goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }}
             />
 
             <KpiCard 
@@ -224,10 +227,12 @@ function Comercial() {
               label="Ticket médio" 
               value={k ? brl(k.ticket) : "—"} 
               hint={k ? `Faturamento médio · ${k.ticketVar >= 0 ? "+" : ""}${k.ticketVar.toFixed(1)}% vs. mês anterior` : undefined} 
+              goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }}
             />
 
             {["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, i) => {
               const m = occ?.months[i];
+              const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === m?.label.split("/").reverse().join("-"))?.discount_goal;
               return (
                 <KpiCard
                   key={label}
@@ -236,6 +241,7 @@ function Comercial() {
                   value={m ? pct(m.rate) : "—"}
                   hint={m && occ ? `${m.label} · ${Math.round(m.carDays).toLocaleString("pt-BR")} de ${m.capacity.toLocaleString("pt-BR")} diárias (${occ.vehicles} carros)` : undefined}
                   highlight={i === 0}
+                  goal={i < 2 ? { actual: m?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) } : undefined}
                 />
               );
             })}
@@ -446,6 +452,16 @@ function GoalsDialog({
       };
     });
     setVals(next);
+    const general = goals.find((g) => g.seller_name === GLOBAL_GOAL && g.month === mm);
+    const current = goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === mm);
+    const following = goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === nextGoalMonth(mm));
+    setGeneralVals({
+      revenue: general ? String(general.revenue_goal) : "",
+      ticket: general ? String(general.ticket_goal) : "",
+      discount: general?.discount_goal != null ? String(general.discount_goal * 100) : "",
+      occupancyCurrent: current?.discount_goal != null ? String(current.discount_goal * 100) : "",
+      occupancyNext: following?.discount_goal != null ? String(following.discount_goal * 100) : "",
+    });
   };
 
   const mut = useMutation({
@@ -463,7 +479,15 @@ function GoalsDialog({
             })),
         );
       } else {
-        return Promise.resolve();
+        const values = Object.values(generalVals).filter((v) => v !== "").map(Number);
+        if (values.some((v) => !Number.isFinite(v) || v < 0) || Number(generalVals.occupancyCurrent) > 100 || Number(generalVals.occupancyNext) > 100) {
+          return Promise.reject(new Error("Informe metas válidas; ocupação deve estar entre 0 e 100%."));
+        }
+        return saveGoals([
+          { seller_name: GLOBAL_GOAL, month: m, revenue_goal: Number(generalVals.revenue) || 0, ticket_goal: Number(generalVals.ticket) || 0, discount_goal: (Number(generalVals.discount) || 0) / 100 },
+          { seller_name: OCCUPANCY_GOAL, month: m, revenue_goal: 0, ticket_goal: 0, discount_goal: (Number(generalVals.occupancyCurrent) || 0) / 100 },
+          { seller_name: OCCUPANCY_GOAL, month: nextGoalMonth(m), revenue_goal: 0, ticket_goal: 0, discount_goal: (Number(generalVals.occupancyNext) || 0) / 100 },
+        ]);
       }
     },
     onSuccess: () => {
