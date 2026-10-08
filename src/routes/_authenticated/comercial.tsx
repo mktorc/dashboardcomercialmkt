@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Legend,
+  LabelList,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +21,7 @@ import {
   Clock,
   ClipboardX,
   DollarSign,
+  Maximize2,
   Search,
   CarFront,
   Target,
@@ -40,13 +43,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { brl, pct } from "@/lib/analytics";
 import {
   computeComercial,
@@ -104,7 +100,6 @@ export function ComercialPage({
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
-  const [seller, setSeller] = useState("all");
   const [search, setSearch] = useState("");
   const [noTaskOpen, setNoTaskOpen] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "faturamento", dir: -1 });
@@ -113,10 +108,10 @@ export function ComercialPage({
     queryKey: ["comercial", from, to],
     queryFn: () => fetchComercial(from, to),
   });
-  const view = useMemo(() => (data ? computeComercial({ ...data, goals: data.goals.filter((g) => !isGeneralGoal(g)) }, from, to, seller) : null), [data, from, to, seller]);
-  const { data: occ } = useQuery({ queryKey: ["occupancy"], queryFn: fetchOccupancy });
+  const view = useMemo(() => (data ? computeComercial({ ...data, goals: data.goals.filter((g) => !isGeneralGoal(g)) }, from, to, "all") : null), [data, from, to]);
+  const { data: occ } = useQuery({ queryKey: ["occupancy"], queryFn: fetchOccupancy, enabled: active === "comercial" });
   const k = view?.kpis;
-  const cardGoals = revenueAndTicketGoals(data?.goals ?? [], from, to, seller === "all" ? undefined : (view?.sellers ?? []).filter((s) => s.key === seller).map((s) => s.name));
+  const cardGoals = revenueAndTicketGoals(data?.goals ?? [], from, to);
 
   const tableRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -131,6 +126,54 @@ export function ComercialPage({
 
   const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.faturamento || r.revenueGoal));
   const chartH = Math.max(220, goalRows.length * 34);
+  const opportunityRows = (view?.rows ?? [])
+    .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.oportunidades > 0 || r.reservas > 0))
+    .sort((a, b) => b.oportunidades - a.oportunidades);
+  const opportunityChartH = Math.max(220, opportunityRows.length * 34);
+  const noTaskRows = (view?.rows ?? [])
+    .filter((r) => r.key !== "venda_direta" && r.noTask > 0)
+    .sort((a, b) => b.noTask - a.noTask);
+  const conversionRows = (view?.rows ?? [])
+    .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && r.oportunidades > 0)
+    .sort((a, b) => b.conversao - a.conversao);
+  const operationalCardClass = active === "comercial-operacional" ? "h-[208px] w-full" : undefined;
+  const operationalSellerChartHeight = Math.max(
+    220,
+    Math.max(opportunityRows.length, noTaskRows.length, conversionRows.length) * 34,
+  );
+
+  const opportunityCard = <KpiCard icon={Target} label="Oportunidades"
+    value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
+    hint={k ? comparison(k.oportunidadesVar) : undefined} className={operationalCardClass} />;
+  const noTaskCard = <Button variant="ghost" className={`block w-full ${active === "comercial-operacional" ? "h-[208px]" : "h-auto"} whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full`} onClick={() => setNoTaskOpen(true)}>
+    <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
+      value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
+      hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight className={operationalCardClass} />
+  </Button>;
+  const revenueCard = <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)"
+    value={k ? brl(k.faturamento) : "—"}
+    hint={k ? comparison(k.faturamentoVar) : undefined}
+    goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }} className={operationalCardClass} />;
+  const ticketCard = <KpiCard icon={DollarSign} label="Ticket médio"
+    value={k ? brl(k.ticket) : "—"}
+    hint={k ? comparison(k.ticketVar) : undefined}
+    goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }} className={operationalCardClass} />;
+  const discountCard = <KpiCard icon={Percent} label="Desconto médio"
+    value={k ? pct(k.descontoPct) : "—"}
+    hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
+    goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount) }} className={operationalCardClass} />;
+  const conversionCard = <KpiCard icon={UserCheck} label="Taxa de conversão"
+    value={k ? pct(k.conversao) : "—"}
+    hint={k ? comparison(k.conversaoVar) : undefined} highlight
+    goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }} className={operationalCardClass} />;
+  const occupancyCards = active === "comercial" ? ["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, index) => {
+    const month = occ?.months[index + 2];
+    const occupancyMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index, 1)).toISOString().slice(0, 7);
+    const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth)?.discount_goal;
+    return <KpiCard key={label} icon={CarFront} label={label} value={month ? pct(month.rate) : "—"}
+      highlight={index === 0}
+      goal={{ actual: month?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} />;
+  }) : null;
 
   const Th = ({ k: key, label, left }: { k: SortKey; label: string; left?: boolean }) => (
     <th className={`px-4 py-3 font-medium ${left ? "text-left" : "text-right"}`}>
@@ -165,22 +208,6 @@ export function ComercialPage({
               Até
               <Input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
             </label>
-            <div className="text-xs text-foreground/70">
-              Vendedor
-              <Select value={seller} onValueChange={setSeller}>
-                <SelectTrigger className="mt-1 h-9 w-48 bg-card">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Visão global (equipe)</SelectItem>
-                  {view?.sellers.map((s) => (
-                    <SelectItem key={s.key} value={s.key}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             {view ? <GoalsDialog sellers={view.sellers} month={view.goalMonth} goals={data?.goals ?? []} /> : null}
           </div>
         </header>
@@ -192,95 +219,123 @@ export function ComercialPage({
             </Card>
           ) : null}
 
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard icon={Target} label="Oportunidades"
-              value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
-              hint={k ? comparison(k.oportunidadesVar) : undefined} />
-            <Button variant="ghost" className="block h-auto whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full" onClick={() => setNoTaskOpen(true)}>
-              <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
-                value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
-                hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight />
-            </Button>
-            <KpiCard icon={CheckCircle2} label="Reservas concluídas"
-              value={k ? k.reservas.toLocaleString("pt-BR") : "—"}
-              hint={k ? comparison(k.reservasVar) : undefined} highlight />
-            <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)"
-              value={k ? brl(k.faturamento) : "—"}
-              hint={k ? comparison(k.faturamentoVar) : undefined}
-              goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }} />
-            <KpiCard icon={DollarSign} label="Ticket médio"
-              value={k ? brl(k.ticket) : "—"}
-              hint={k ? comparison(k.ticketVar) : undefined}
-              goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }} />
-            <KpiCard icon={Percent} label="Desconto médio"
-              value={k ? pct(k.descontoPct) : "—"}
-              hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
-              goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount) }} />
-            {["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, i) => {
-              const m = occ?.months[i + 2];
-              const occupancyMonth = m ? `${m.label.slice(-4)}-${String(["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"].indexOf(m.label.slice(0, 3)) + 1).padStart(2, "0")}` : "";
-              const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth)?.discount_goal;
-              return <KpiCard key={label} icon={CarFront} label={label} value={m ? pct(m.rate) : "—"}
-                highlight={i === 0}
-                goal={{ actual: m?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} />;
-            })}
-            <KpiCard icon={UserCheck} label="Taxa de conversão"
-              value={k ? pct(k.conversao) : "—"}
-              hint={k ? comparison(k.conversaoVar) : undefined} highlight
-              goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }} />
-          </section>
+          {active === "comercial-operacional" ? (
+            <section className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-4">
+                {opportunityCard}
+                <OpportunitySellerChart data={opportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} compare expandable />
+              </div>
+              <div className="space-y-4">
+                {noTaskCard}
+                <NoTaskBySellerChart data={noTaskRows} height={operationalSellerChartHeight} expandable />
+              </div>
+              <div className="space-y-4">
+                {conversionCard}
+                <ConversionBySellerChart data={conversionRows} height={operationalSellerChartHeight} total={k?.conversao ?? 0} expandable />
+              </div>
+              <div className="space-y-4">
+                {revenueCard}
+                <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} expandable />
+              </div>
+              <div className="space-y-4">
+                {ticketCard}
+                <GoalChart title="Ticket médio" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="ticket" b="ticketGoal" fmt={brl} expandable />
+              </div>
+              <div className="space-y-4">
+                {discountCard}
+                <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" fmt={pct} expandable />
+              </div>
+            </section>
+          ) : (
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {opportunityCard}
+              {noTaskCard}
+              <KpiCard icon={CheckCircle2} label="Reservas concluídas"
+                value={k ? k.reservas.toLocaleString("pt-BR") : "—"}
+                hint={k ? comparison(k.reservasVar) : undefined} highlight />
+              {revenueCard}
+              {ticketCard}
+              {discountCard}
+              {conversionCard}
+              {occupancyCards}
+            </section>
+          )}
 
-          <section className="grid gap-4 xl:grid-cols-1">
+          {active === "comercial-operacional" ? (
+            <DailyStackedChart
+              title="Oportunidades por vendedor por dia"
+              data={view?.dailyOpportunitiesBySeller ?? []}
+              series={view?.dailyOpportunityKeys ?? []}
+              expandable
+            />
+          ) : (
+            <section className="grid gap-4 xl:grid-cols-1">
+              <Card className="p-5">
+                <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
+                <p className="text-xs text-muted-foreground">Atendimentos ativos no funil — equipe inteira</p>
+                <div className="mt-4 h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={view?.daily ?? []}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                      <XAxis dataKey="dia" {...axis} />
+                      <YAxis {...axis} allowDecimals={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Bar dataKey="oportunidades" name="Oportunidades" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+              <OpportunitySellerChart data={opportunityRows} height={opportunityChartH} loading={isLoading && !error} />
+            </section>
+          )}
+
+          {active === "comercial" ? (
+            <section className="grid gap-4 xl:grid-cols-2">
+              <MonthlyBarChart title="Taxa de ocupação mensal" data={occ?.months ?? []} dataKey="rate" valueName="Ocupação" formatter={pct} />
+              <MonthlyBarChart title="Taxa de conversão mensal" data={view?.monthlyKpis ?? []} dataKey="conversao" valueName="Conversão" formatter={pct} />
+              <MonthlyBarChart title="Faturamento mensal" data={view?.monthlyKpis ?? []} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis />
+              <MonthlyBarChart title="Reservas mensais" data={view?.monthlyKpis ?? []} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis />
+              <MonthlyLineChart title="Ticket médio mensal" data={view?.monthlyKpis ?? []} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis />
+              <MonthlyLineChart title="Desconto médio mensal" data={view?.monthlyKpis ?? []} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis />
+            </section>
+          ) : null}
+
+          {active === "comercial-operacional" ? (
+            <DailyStackedChart
+              title="Valor fechado por vendedor por dia"
+              data={view?.dailyRevenueBySeller ?? []}
+              series={view?.dailyRevenueKeys ?? []}
+              currency
+              expandable
+            />
+          ) : (
             <Card className="p-5">
-              <h2 className="text-sm font-semibold text-foreground">Oportunidades criadas por dia</h2>
-              <p className="text-xs text-muted-foreground">Atendimentos ativos no funil — {seller === "all" ? "equipe inteira" : "vendedor selecionado"}</p>
-              <div className="mt-4 h-64">
+              <h2 className="text-sm font-semibold text-foreground">Valor fechado por vendedor ao mês</h2>
+              <p className="text-xs text-muted-foreground">Últimos 5 meses até o fim do período, pela data de criação da reserva</p>
+              <div className="mt-4 h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={view?.daily ?? []}>
+                  <BarChart data={view?.monthly ?? []}>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                    <XAxis dataKey="dia" {...axis} />
-                    <YAxis {...axis} allowDecimals={false} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Bar dataKey="oportunidades" name="Oportunidades" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="mes" {...axis} />
+                    <YAxis {...axis} tickFormatter={(v: number) => `$${Math.round(v / 1000)}k`} />
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
+                    <Legend />
+                    {view?.stackKeys.map((n, i) => (
+                      <Bar key={n} dataKey={n} stackId="a" fill={COLORS[i % COLORS.length]} />
+                    ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Card>
-          </section>
+          )}
 
-          <section className="grid gap-4 xl:grid-cols-2">
-            <MonthlyBarChart title="Taxa de ocupação mensal" data={occ?.months ?? []} dataKey="rate" valueName="Ocupação" formatter={pct} />
-            <MonthlyBarChart title="Taxa de conversão mensal" data={view?.monthlyKpis ?? []} dataKey="conversao" valueName="Conversão" formatter={pct} />
-            <MonthlyBarChart title="Faturamento mensal" data={view?.monthlyKpis ?? []} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis />
-            <MonthlyBarChart title="Reservas mensais" data={view?.monthlyKpis ?? []} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis />
-            <MonthlyLineChart title="Ticket médio mensal" data={view?.monthlyKpis ?? []} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis />
-            <MonthlyLineChart title="Desconto médio mensal" data={view?.monthlyKpis ?? []} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis />
-          </section>
-
-          <Card className="p-5">
-            <h2 className="text-sm font-semibold text-foreground">Valor fechado por vendedor ao mês</h2>
-            <p className="text-xs text-muted-foreground">Últimos 5 meses até o fim do período, pela data de criação da reserva</p>
-            <div className="mt-4 h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={view?.monthly ?? []}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                  <XAxis dataKey="mes" {...axis} />
-                  <YAxis {...axis} tickFormatter={(v: number) => `$${Math.round(v / 1000)}k`} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                  <Legend />
-                  {view?.stackKeys.map((n, i) => (
-                    <Bar key={n} dataKey={n} stackId="a" fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          <section className="grid gap-4 xl:grid-cols-3">
-            <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} />
-            <GoalChart title="Ticket médio" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="ticket" b="ticketGoal" fmt={brl} />
-            <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" fmt={pct} />
-          </section>
+          {active === "comercial" ? (
+            <section className="grid gap-4 xl:grid-cols-3">
+              <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} />
+              <GoalChart title="Ticket médio" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="ticket" b="ticketGoal" fmt={brl} />
+              <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" fmt={pct} />
+            </section>
+          ) : null}
 
           <Card className="overflow-hidden">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
@@ -446,6 +501,207 @@ function MonthlyLineChart({
   );
 }
 
+function OpportunitySellerChart({
+  data,
+  height,
+  loading,
+  compare = false,
+  expandable = false,
+}: {
+  data: SellerRow[];
+  height: number;
+  loading: boolean;
+  compare?: boolean;
+  expandable?: boolean;
+}) {
+  const chartData = data.map((row) => ({
+    ...row,
+    reservasPct: row.oportunidades ? pct(row.reservas / row.oportunidades) : "—",
+  }));
+  return (
+    <ExpandableChartPanel
+      title={compare ? "Oportunidades vs. reservas por vendedor" : "Oportunidades por vendedor"}
+      expandable={expandable}
+      render={(expanded) => data.length ? (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 48 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+              <XAxis type="number" {...axis} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
+              <Bar dataKey="oportunidades" name="Oportunidades" fill={compare ? "#44E500" : "#2f9c5a"} radius={[0, 4, 4, 0]} />
+              {compare ? (
+                <Bar dataKey="reservas" name="Reservas concluídas" fill="#2f9c5a" radius={[0, 4, 4, 0]}>
+                  <LabelList dataKey="reservasPct" position="right" formatter={(value: string) => value} />
+                </Bar>
+              ) : null}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground" style={{ height: expanded ? "70vh" : 220 }}>
+          {loading ? "Carregando..." : "Nenhuma oportunidade no período."}
+        </div>
+      )}
+    />
+  );
+}
+
+function NoTaskBySellerChart({
+  data,
+  height,
+  expandable = false,
+}: {
+  data: Pick<SellerRow, "name" | "noTask">[];
+  height: number;
+  expandable?: boolean;
+}) {
+  return (
+    <ExpandableChartPanel
+      title="Oportunidades sem tarefas por vendedor"
+      expandable={expandable}
+      render={(expanded) => data.length ? (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ left: 8, right: 36 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+              <XAxis type="number" {...axis} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
+              <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground" style={{ height: expanded ? "70vh" : 220 }}>
+          Nenhuma oportunidade sem tarefas no período.
+        </div>
+      )}
+    />
+  );
+}
+
+function ConversionBySellerChart({
+  data,
+  height,
+  total,
+  expandable = false,
+}: {
+  data: Pick<SellerRow, "name" | "conversao">[];
+  height: number;
+  total: number;
+  expandable?: boolean;
+}) {
+  return (
+    <ExpandableChartPanel
+      title="Taxa de conversão por vendedor"
+      expandable={expandable}
+      render={(expanded) => data.length ? (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ left: 8, right: 36 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+              <XAxis type="number" {...axis} tickFormatter={(value: number) => pct(value)} />
+              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => pct(value)} />
+              <ReferenceLine x={total} stroke="#f2b84b" strokeDasharray="4 4" />
+              <Bar dataKey="conversao" name="Conversão" fill="#44E500" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center justify-center text-sm text-muted-foreground" style={{ height: expanded ? "70vh" : 220 }}>
+          Nenhuma oportunidade no período.
+        </div>
+      )}
+    />
+  );
+}
+
+function DailyStackedChart({
+  title,
+  data,
+  series,
+  currency = false,
+  expandable = false,
+}: {
+  title: string;
+  data: Record<string, string | number>[];
+  series: string[];
+  currency?: boolean;
+  expandable?: boolean;
+}) {
+  return (
+    <ExpandableChartPanel title={title} subtitle="Cada barra representa um dia do período selecionado." expandable={expandable} render={(expanded) => (
+      data.length && series.length ? (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : 320 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+              <XAxis dataKey="dia" {...axis} minTickGap={8} />
+              <YAxis {...axis} allowDecimals={!currency} tickFormatter={(value: number) => currency ? `$${Math.round(value / 1000)}k` : value.toLocaleString("pt-BR")} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                itemSorter={(item) => -Number(item.value ?? 0)}
+                formatter={(value: number) => currency ? brl(value) : value.toLocaleString("pt-BR")}
+              />
+              <Legend />
+              {series.map((name, index) => (
+                <Bar key={name} dataKey={name} stackId="daily" fill={COLORS[index % COLORS.length]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="mt-4 flex h-64 items-center justify-center text-sm text-muted-foreground">
+          Nenhum dado no período.
+        </div>
+      )
+    )} />
+  );
+}
+
+function ExpandableChartPanel({
+  title,
+  subtitle,
+  expandable = false,
+  render,
+}: {
+  title: string;
+  subtitle?: string;
+  expandable?: boolean;
+  render: (expanded: boolean) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-h-10">
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+          {subtitle ? <p className="text-xs text-muted-foreground">{subtitle}</p> : null}
+        </div>
+        {expandable ? (
+          <Button variant="ghost" size="icon" aria-label={`Expandir gráfico: ${title}`} title="Expandir gráfico" onClick={() => setOpen(true)}>
+            <Maximize2 className="size-4" />
+          </Button>
+        ) : null}
+      </div>
+      {render(false)}
+      {expandable ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="w-[min(96vw,1200px)] max-w-none">
+            <DialogHeader>
+              <DialogTitle>{title}</DialogTitle>
+            </DialogHeader>
+            {render(true)}
+          </DialogContent>
+        </Dialog>
+      ) : null}
+    </Card>
+  );
+}
+
 function GoalChart({
   title,
   subtitle,
@@ -454,6 +710,7 @@ function GoalChart({
   a,
   b,
   fmt,
+  expandable = false,
 }: {
   title: string;
   subtitle: string;
@@ -462,12 +719,11 @@ function GoalChart({
   a: keyof SellerRow;
   b?: keyof SellerRow;
   fmt: (v: number) => string;
+  expandable?: boolean;
 }) {
   return (
-    <Card className="p-5">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-      <div className="mt-4" style={{ height: h }}>
+    <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
+      <div className="mt-4" style={{ height: expanded ? "70vh" : h }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
@@ -480,7 +736,7 @@ function GoalChart({
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </Card>
+    )} />
   );
 }
 

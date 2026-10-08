@@ -10,6 +10,7 @@ export function KpiCard({
   icon: Icon,
   highlight,
   goal,
+  className,
 }: {
   label: string;
   value: string;
@@ -17,10 +18,11 @@ export function KpiCard({
   icon: LucideIcon;
   highlight?: boolean | undefined;
   goal?: { actual: number; target?: number | undefined; label: string } | undefined;
+  className?: string | undefined;
 }) {
   const progress = goal ? goalProgress(goal.actual, goal.target) : null;
   return (
-    <Card className="relative overflow-hidden border-border bg-card p-5">
+    <Card className={`relative overflow-hidden border-border bg-card p-5 ${className ?? ""}`}>
       <div
         className="absolute inset-x-0 top-0 h-0.5"
         style={{ background: highlight ? "var(--brand-vivid)" : "var(--brand-dark)" }}

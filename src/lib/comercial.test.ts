@@ -39,4 +39,34 @@ describe("computeComercial", () => {
     expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
     expect(view.monthly[4]?.["Naty"]).toBe(2000);
   });
+
+  it("agrupa oportunidades e faturamento por vendedor e dia dentro do período", () => {
+    const data = {
+      ...stackedData,
+      opportunities: [
+        { opportunity_id: "1", lead_id: "1", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-09-30T12:00:00Z" },
+        { opportunity_id: "2", lead_id: "2", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-01T12:00:00Z" },
+        { opportunity_id: "3", lead_id: "3", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
+        { opportunity_id: "4", lead_id: "4", name: null, stage_name: null, status: "open", seller_name: "Bia", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
+      ],
+      reservations: [
+        { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
+        { created_at: "2026-10-02T12:00:00Z", total_amount: 200, discount_amount: 0, status: "confirmed", seller_name: "Bia" },
+        { created_at: "2026-10-03T12:00:00Z", total_amount: 300, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
+      ],
+    } as unknown as ComercialData;
+
+    const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
+    expect(view.dailyOpportunityKeys).toEqual(["Ana", "Bia"]);
+    expect(view.dailyOpportunitiesBySeller.map((day) => [day.dia, day.Ana ?? 0, day.Bia ?? 0])).toEqual([
+      ["01/10", 1, 0],
+      ["02/10", 1, 1],
+    ]);
+    expect(view.dailyRevenueBySeller.map((day) => [day.dia, day.Ana ?? 0, day.Bia ?? 0])).toEqual([
+      ["01/10", 100, 0],
+      ["02/10", 0, 200],
+    ]);
+    expect(view.kpis.conversao).toBe(0.5);
+    expect(view.kpis.leadsNoTask).toBe(3);
+  });
 });

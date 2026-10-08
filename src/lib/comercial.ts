@@ -368,9 +368,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const leadsNoTask = noTaskList.length;
 
   const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
+  const dailyOpportunitiesBySeller = new Map<string, Record<string, string | number>>();
+  const dailyRevenueBySeller = new Map<string, Record<string, string | number>>();
   for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
     const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
-    daily.set(key, { dia: `${key.slice(8)}/${key.slice(5, 7)}`, leads: 0, oportunidades: 0 });
+    const dia = `${key.slice(8)}/${key.slice(5, 7)}`;
+    daily.set(key, { dia, leads: 0, oportunidades: 0 });
+    dailyOpportunitiesBySeller.set(key, { dia });
+    dailyRevenueBySeller.set(key, { dia });
   }
   const dayKey = (iso: string) => {
     const dt = new Date(iso);
@@ -381,8 +386,27 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (b) b.leads++;
   });
   sellerOpps.forEach((o) => {
-    const b = daily.get(dayKey(o.created_at));
+    const key = dayKey(o.created_at);
+    const b = daily.get(key);
     if (b) b.oportunidades++;
+    const sellerName = names.get(nameOf(o.seller_name)) ?? UNASSIGNED_LABEL;
+    const stacked = dailyOpportunitiesBySeller.get(key);
+    if (stacked) stacked[sellerName] = Number(stacked[sellerName] ?? 0) + 1;
+  });
+
+  const dailyRevenueKeys = new Set<string>();
+  confirmed.filter((r) => inPeriod(r.created_at)).forEach((r) => {
+    const key = dayKey(r.created_at);
+    const sellerKeyValue = nameOf(r.seller_name);
+    const effectiveSeller = sellerKeyValue === "sem_vendedor" ? "venda_direta" : sellerKeyValue;
+    if (seller !== "all" && effectiveSeller !== seller) return;
+    if (effectiveSeller === "venda_direta") names.set(effectiveSeller, DIRECT_SALE_LABEL);
+    const sellerName = names.get(effectiveSeller) ?? effectiveSeller;
+    const stacked = dailyRevenueBySeller.get(key);
+    if (stacked) {
+      stacked[sellerName] = Number(stacked[sellerName] ?? 0) + r.total_amount;
+      dailyRevenueKeys.add(sellerName);
+    }
   });
 
   const leads = sum((r) => r.leads);
@@ -512,6 +536,10 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 
   return {
     daily: [...daily.values()],
+    dailyOpportunitiesBySeller: [...dailyOpportunitiesBySeller.values()],
+    dailyOpportunityKeys: [...new Set(sellerOpps.map((o) => names.get(nameOf(o.seller_name)) ?? UNASSIGNED_LABEL))],
+    dailyRevenueBySeller: [...dailyRevenueBySeller.values()],
+    dailyRevenueKeys: [...dailyRevenueKeys],
     noTaskList,
     kpis,
     rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
