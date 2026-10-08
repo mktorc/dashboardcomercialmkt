@@ -14,7 +14,15 @@ const oauth = () => (supabase.auth as unknown as { oauth: OAuthApi }).oauth;
 
 export const Route = createFileRoute("/.lovable/oauth/consent")({
   ssr: false,
-  head: () => ({ meta: [{ title: "Autorizar acesso | Orlando Rent Car" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [
+    { title: "Autorizar acesso | Orlando Rent Car" },
+    { name: "description", content: "Autorize aplicativos a consultar os indicadores da Orlando Rent Car com sua conta." },
+    { property: "og:title", content: "Autorizar acesso | Orlando Rent Car" },
+    { property: "og:description", content: "Gerencie a autorização de acesso aos indicadores da Orlando Rent Car." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   validateSearch: (s: Record<string, unknown>) => ({
     authorization_id: typeof s["authorization_id"] === "string" ? s["authorization_id"] : "",
   }),
