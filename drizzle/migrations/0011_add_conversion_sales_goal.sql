@@ -1,0 +1,2 @@
+ALTER TABLE public.sales_goals ADD COLUMN conversion_goal numeric DEFAULT 0;
+COMMENT ON COLUMN public.sales_goals.conversion_goal IS 'Conversion target as a ratio (0 to 1), for individual sellers and the reserved global goal.';
