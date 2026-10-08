@@ -60,18 +60,24 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         const worker = async () => {
           while (ids.length) {
             const id = ids.shift()!;
-            try {
-              const r = await fetch(`${base}/opportunity/${id}`, {
-                headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-              });
-              if (r.status === 404) continue;
-              if (!r.ok) { errors++; continue; }
-              const p = (await r.json()) as Obj;
-              if (p["id"] != null) rows.push(toRow(p));
-            } catch { errors++; }
+            // Retenta falhas temporárias (limite de requisições / erro do servidor)
+            let ok = false;
+            for (let attempt = 0; attempt < 4 && !ok; attempt++) {
+              try {
+                const r = await fetch(`${base}/opportunity/${id}`, {
+                  headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+                });
+                if (r.status === 404) { ok = true; break; }
+                if (!r.ok) { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); continue; }
+                const p = (await r.json()) as Obj;
+                if (p["id"] != null) rows.push(toRow(p));
+                ok = true;
+              } catch { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); }
+            }
+            if (!ok) errors++;
           }
         };
-        await Promise.all(Array.from({ length: 15 }, worker));
+        await Promise.all(Array.from({ length: 8 }, worker));
 
         for (let i = 0; i < rows.length; i += 500) {
           const { error } = await supabaseAdmin
