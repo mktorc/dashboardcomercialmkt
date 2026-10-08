@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
+import { Route as AuthenticatedComercialOperacionalRouteImport } from './routes/_authenticated/comercial-operacional'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
@@ -54,6 +55,12 @@ const AuthenticatedComercialRoute = AuthenticatedComercialRouteImport.update({
   path: '/comercial',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComercialOperacionalRoute =
+  AuthenticatedComercialOperacionalRouteImport.update({
+    id: '/comercial-operacional',
+    path: '/comercial-operacional',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
+  '/comercial-operacional': typeof AuthenticatedComercialOperacionalRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
+  '/comercial-operacional': typeof AuthenticatedComercialOperacionalRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -135,6 +144,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
+  '/_authenticated/comercial-operacional': typeof AuthenticatedComercialOperacionalRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
+    | '/comercial-operacional'
     | '/dashboard'
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
+    | '/comercial-operacional'
     | '/dashboard'
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
@@ -183,6 +195,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/comercial'
+    | '/_authenticated/comercial-operacional'
     | '/_authenticated/dashboard'
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedComercialRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/comercial-operacional': {
+      id: '/_authenticated/comercial-operacional'
+      path: '/comercial-operacional'
+      fullPath: '/comercial-operacional'
+      preLoaderRoute: typeof AuthenticatedComercialOperacionalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -313,11 +333,14 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
+  AuthenticatedComercialOperacionalRoute: typeof AuthenticatedComercialOperacionalRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComercialRoute: AuthenticatedComercialRoute,
+  AuthenticatedComercialOperacionalRoute:
+    AuthenticatedComercialOperacionalRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
 }
 

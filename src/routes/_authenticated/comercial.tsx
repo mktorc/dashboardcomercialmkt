@@ -61,12 +61,12 @@ import { GLOBAL_GOAL, OCCUPANCY_GOAL, isGeneralGoal, nextGoalMonth, revenueAndTi
 export const Route = createFileRoute("/_authenticated/comercial")({
   head: () => ({
     meta: [
-      { title: "Comercial | Orlando Rent Car Analytics" },
+      { title: "Gerencial | Orlando Rent Car Analytics" },
       {
         name: "description",
         content: "Desempenho individual e da equipe de vendas: oportunidades, conversão, ticket, tarefas e metas.",
       },
-      { property: "og:title", content: "Comercial | Orlando Rent Car Analytics" },
+      { property: "og:title", content: "Gerencial | Orlando Rent Car Analytics" },
       {
         property: "og:description",
         content: "Vendas por vendedor cruzando ClickMassa e HQ Rentals.",
@@ -75,7 +75,7 @@ export const Route = createFileRoute("/_authenticated/comercial")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: Comercial,
+  component: () => <ComercialPage />,
 });
 
 const COLORS = ["#44E500", "#2f9c5a", "#9be870", "#0f7a3d", "#c6f5a8", "#5fbf86", "#e8f9d9", "#1d5e38", "#7ad64a", "#3fae6a"];
@@ -94,7 +94,13 @@ const duration = (minutes: number) =>
 
 type SortKey = keyof Pick<SellerRow, "name" | "oportunidades" | "tasksTotal" | "overdue" | "done" | "noTask" | "reservas" | "conversao" | "ticket" | "faturamento">;
 
-function Comercial() {
+export function ComercialPage({
+  title = "Gerencial",
+  active = "comercial",
+}: {
+  title?: string;
+  active?: "comercial" | "comercial-operacional";
+} = {}) {
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
   const [to, setTo] = useState(ymd(now));
@@ -140,14 +146,14 @@ function Comercial() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar active="comercial" />
+      <Sidebar active={active} />
       <main className="flex-1 overflow-x-hidden">
         <header
           className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-6 py-5"
           style={{ background: "var(--gradient-brand)" }}
         >
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Comercial</h1>
+            <h1 className="text-xl font-semibold text-foreground">{title}</h1>
             <p className="text-sm text-foreground/70">Equipe de vendas — ClickMassa + HQ Rentals</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
