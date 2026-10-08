@@ -384,11 +384,11 @@ function MonthlyBarChart({
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} {...axis} />
+            <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} interval={0} minTickGap={0} {...axis} />
             <YAxis
               {...axis}
               allowDecimals={!integerAxis}
-              tickFormatter={(value: number) => currencyAxis ? `$${Math.round(value / 1000)}k` : dataKey === "rate" || dataKey === "conversao" ? `${Math.round(value * 100)}%` : value.toLocaleString("pt-BR")}
+              tickFormatter={(value: number) => currencyAxis && dataKey === "faturamento" ? `$${Math.round(value / 1000)}k` : currencyAxis ? `$${Math.round(value).toLocaleString("pt-BR")}` : dataKey === "rate" || dataKey === "conversao" ? `${Math.round(value * 100)}%` : value.toLocaleString("pt-BR")}
             />
             <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatter(value), valueName]} />
             <Bar dataKey={dataKey} name={valueName} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
