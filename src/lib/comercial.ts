@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { averageDiscount, previousYearDate, yearOverYearDiscount } from "@/lib/commercial-goals";
 
 export type CLead = {
   lead_id: string | null;
@@ -40,7 +41,8 @@ export type Goal = {
   month: string; 
   revenue_goal: number; 
   ticket_goal: number; 
-  discount_goal?: number; 
+  discount_goal?: number;
+  conversion_goal?: number; 
 };
 
 // Apelidos usados no HQ Rentals -> nome do usuário no ClickMassa
@@ -80,7 +82,7 @@ export async function fetchComercial(from: string, to: string) {
   sixFrom.setMonth(sixFrom.getMonth() - 5, 1);
   const histFrom = sixFrom < new Date(from + "T00:00:00") ? sixFrom.toISOString() : startIso(prevFrom);
 
-  const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps] = await Promise.all([
+  const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps, yearRes] = await Promise.all([
     // Período atual
     fetchAll((a, b) =>
       supabase
@@ -104,7 +106,7 @@ export async function fetchComercial(from: string, to: string) {
         .select("lead_id, user_name, completed, due_date, created_at")
         .range(a, b),
     ),
-    supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal, discount_goal"),
+    supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal, discount_goal, conversion_goal"),
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
@@ -140,9 +142,17 @@ export async function fetchComercial(from: string, to: string) {
         .lte("created_at", endIso(prevTo))
         .range(a, b),
     ),
+    fetchAll((a, b) =>
+      supabase.from("reservations")
+        .select("created_at, total_amount, discount_amount, status, seller_name")
+        .eq("status", "confirmed")
+        .gte("created_at", startIso(previousYearDate(from)))
+        .lte("created_at", endIso(previousYearDate(to)))
+        .range(a, b),
+    ),
   ]);
 
-  const err = leads.error || res.error || tasks.error || goals.error || opps.error || prevLeads.error || prevRes.error || prevOpps.error;
+  const err = leads.error || res.error || tasks.error || goals.error || opps.error || prevLeads.error || prevRes.error || prevOpps.error || yearRes.error;
   if (err) throw err;
 
   return {
@@ -159,7 +169,9 @@ export async function fetchComercial(from: string, to: string) {
       revenue_goal: Number(g.revenue_goal),
       ticket_goal: Number(g.ticket_goal),
       discount_goal: Number(g.discount_goal ?? 0),
+      conversion_goal: Number(g.conversion_goal ?? 0),
     })),
+    yearReservations: (yearRes.data ?? []).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount) })),
     prevData: {
       leads: prevLeads.data ?? [],
       reservations: (prevRes.data ?? []).map((r: any) => ({ ...r, total_amount: Number(r.total_amount) })),
@@ -383,7 +395,13 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const currentConversao = oportunidades ? reservas / oportunidades : 0;
   const currentTicket = reservas ? faturamento / reservas : 0;
 
+  const belongsToSeller = (r: { seller_name: string | null }) => seller === "all" ||
+    (sellerKey(r.seller_name) === "sem_vendedor" ? "venda_direta" : sellerKey(r.seller_name)) === seller;
+  const currentDiscount = averageDiscount(confirmed.filter((r) => inPeriod(r.created_at) && belongsToSeller(r)));
+  const priorYear = d.yearReservations.filter(belongsToSeller);
   const kpis = {
+    descontoPct: currentDiscount,
+    descontoYearDiff: yearOverYearDiscount(currentDiscount, averageDiscount(priorYear), priorYear.length > 0),
     leads,
     oportunidades,
     oportunidadesVar: calcVariation(oportunidades, prevOppsCount),
