@@ -180,21 +180,51 @@ function Comercial() {
           ) : null}
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <KpiCard icon={Target} label="Oportunidades" value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} hint="Oportunidades criadas no funil do ClickMassa" />
-            <KpiCard icon={UserCheck} label="Taxa de conversão" value={k ? pct(k.conversao) : "—"} hint={k ? `${k.reservas} reservas concluídas` : undefined} highlight />
+            <KpiCard 
+              icon={Target} 
+              label="Oportunidades" 
+              value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"} 
+              hint={k ? `Criadas no funil · ${k.oportunidadesVar >= 0 ? "+" : ""}${k.oportunidadesVar.toFixed(1)}% vs. mês anterior` : "Oportunidades criadas no funil do ClickMassa"} 
+            />
+            <KpiCard 
+              icon={UserCheck} 
+              label="Taxa de conversão" 
+              value={k ? pct(k.conversao) : "—"} 
+              hint={k ? `${k.reservas} reservas concluídas · ${k.conversaoVar >= 0 ? "+" : ""}${k.conversaoVar.toFixed(1)}% vs. mês anterior` : undefined} 
+              highlight 
+            />
             
-            {/* Oportunidades sem tarefa agora no lugar do Ticket Médio */}
             <button type="button" className="text-left" onClick={() => setNoTaskOpen(true)}>
-              <KpiCard icon={ClipboardX} label="Oportunidades sem tarefa" value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} hint="Clique para ver a lista" highlight />
+              <KpiCard 
+                icon={ClipboardX} 
+                label="Oportunidades sem tarefa" 
+                value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"} 
+                hint={k ? `Clique para ver a lista · ${k.leadsNoTaskVar <= 0 ? "" : "+"}${k.leadsNoTaskVar.toFixed(1)}% vs. mês anterior` : "Clique para ver a lista"} 
+                highlight 
+              />
             </button>
             
-            {/* Faturamento (Rack Rate) */}
-            <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)" value={k ? brl(k.faturamento) : "—"} hint="Valor líquido (já com descontos)" />
+            <KpiCard 
+              icon={DollarSign} 
+              label="Faturamento (Rack Rate)" 
+              value={k ? brl(k.faturamento) : "—"} 
+              hint={k ? `Valor líquido · ${k.faturamentoVar >= 0 ? "+" : ""}${k.faturamentoVar.toFixed(1)}% vs. mês anterior` : "Valor líquido (já com descontos)"} 
+            />
 
-            <KpiCard icon={CheckCircle2} label="Reservas concluídas" value={k ? k.reservas.toLocaleString("pt-BR") : "—"} hint="Total de reservas confirmadas no período" highlight />
+            <KpiCard 
+              icon={CheckCircle2} 
+              label="Reservas concluídas" 
+              value={k ? k.reservas.toLocaleString("pt-BR") : "—"} 
+              hint={k ? `Total no período · ${k.reservasVar >= 0 ? "+" : ""}${k.reservasVar.toFixed(1)}% vs. mês anterior` : "Total de reservas confirmadas"} 
+              highlight 
+            />
             
-            {/* Ticket médio agora no lugar de Oportunidades sem tarefa */}
-            <KpiCard icon={DollarSign} label="Ticket médio" value={k ? brl(k.ticket) : "—"} hint={k ? `Faturamento ${brl(k.faturamento)}` : undefined} />
+            <KpiCard 
+              icon={DollarSign} 
+              label="Ticket médio" 
+              value={k ? brl(k.ticket) : "—"} 
+              hint={k ? `Faturamento médio · ${k.ticketVar >= 0 ? "+" : ""}${k.ticketVar.toFixed(1)}% vs. mês anterior` : undefined} 
+            />
 
             {["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, i) => {
               const m = occ?.months[i];

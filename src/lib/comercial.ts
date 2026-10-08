@@ -42,6 +42,7 @@ export type Goal = {
   ticket_goal: number; 
   discount_goal?: number; 
 };
+
 // Apelidos usados no HQ Rentals -> nome do usuário no ClickMassa
 const ALIASES: Record<string, string> = { naty: "nathalia", thay: "thayanne" };
 
@@ -58,12 +59,29 @@ export const sellerKey = (n: string | null | undefined) => {
 const startIso = (d: string) => new Date(d + "T00:00:00").toISOString();
 const endIso = (d: string) => new Date(d + "T23:59:59.999").toISOString();
 
+// Calcula o período homólogo no mês anterior mantendo a mesma janela de dias
+function getPreviousPeriod(from: string, to: string) {
+  const fDate = new Date(from + "T00:00:00");
+  const tDate = new Date(to + "T00:00:00");
+  
+  fDate.setMonth(fDate.getMonth() - 1);
+  tDate.setMonth(tDate.getMonth() - 1);
+
+  const ymdFormat = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  return { prevFrom: ymdFormat(fDate), prevTo: ymdFormat(tDate) };
+}
+
 export async function fetchComercial(from: string, to: string) {
+  const { prevFrom, prevTo } = getPreviousPeriod(from, to);
+
   const sixFrom = new Date(to + "T00:00:00");
   sixFrom.setMonth(sixFrom.getMonth() - 5, 1);
-  const histFrom = sixFrom < new Date(from + "T00:00:00") ? sixFrom.toISOString() : startIso(from);
+  const histFrom = sixFrom < new Date(from + "T00:00:00") ? sixFrom.toISOString() : startIso(prevFrom);
 
-  const [leads, res, tasks, goals, opps] = await Promise.all([
+  const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps] = await Promise.all([
+    // Período atual
     fetchAll((a, b) =>
       supabase
         .from("crm_leads")
@@ -96,9 +114,37 @@ export async function fetchComercial(from: string, to: string) {
         .lte("created_at", endIso(to))
         .range(a, b),
     ),
+    // Período anterior (para comparação)
+    fetchAll((a, b) =>
+      supabase
+        .from("crm_leads")
+        .select("lead_id, created_at, seller_name")
+        .gte("created_at", startIso(prevFrom))
+        .lte("created_at", endIso(prevTo))
+        .range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase
+        .from("reservations")
+        .select("created_at, total_amount, status, seller_name")
+        .gte("created_at", startIso(prevFrom))
+        .lte("created_at", endIso(prevTo))
+        .range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase
+        .from("crm_opportunities")
+        .select("opportunity_id, lead_id, status, seller_name, pending_tasks, created_at")
+        .eq("pipeline_name", "Comercial")
+        .gte("created_at", startIso(prevFrom))
+        .lte("created_at", endIso(prevTo))
+        .range(a, b),
+    ),
   ]);
-  const err = leads.error || res.error || tasks.error || goals.error || opps.error;
+
+  const err = leads.error || res.error || tasks.error || goals.error || opps.error || prevLeads.error || prevRes.error || prevOpps.error;
   if (err) throw err;
+
   return {
     leads: leads.data as CLead[],
     opportunities: (opps.data ?? []) as COpp[],
@@ -114,6 +160,11 @@ export async function fetchComercial(from: string, to: string) {
       ticket_goal: Number(g.ticket_goal),
       discount_goal: Number(g.discount_goal ?? 0),
     })),
+    prevData: {
+      leads: prevLeads.data ?? [],
+      reservations: (prevRes.data ?? []).map((r: any) => ({ ...r, total_amount: Number(r.total_amount) })),
+      opportunities: prevOpps.data ?? [],
+    },
   };
 }
 
@@ -162,13 +213,12 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (!rows.has(k))
       rows.set(k, {
         key: k, name: "", leads: 0, oportunidades: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
-        ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, discountGoal: 0, gross: 0, disc: 0, // <--- Adicionado discountGoal: 0
+        ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, discountGoal: 0, gross: 0, disc: 0,
       });
     return rows.get(k)!;
   };
 
   const leadIdsWithTask = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
-  // Oportunidades = cards do funil do ClickMassa (não atendimentos)
   const isOpen = (o: COpp) => (o.status ?? "open").toLowerCase() === "open";
   const hasNoTask = (o: COpp) => isOpen(o) && o.pending_tasks === 0 && !leadIdsWithTask.has(o.lead_id);
   const opps = d.opportunities.filter((o) => inPeriod(o.created_at));
@@ -212,7 +262,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       const row = touch(nameOf(g.seller_name));
       row.revenueGoal += g.revenue_goal;
       row.ticketGoal += g.ticket_goal;
-      row.discountGoal += g.discount_goal; // <--- Adicionado
+      row.discountGoal += g.discount_goal;
       goalCount.set(row.key, (goalCount.get(row.key) ?? 0) + 1);
     });
 
@@ -223,7 +273,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     ticket: r.reservas ? r.faturamento / r.reservas : 0,
     descontoPct: r.gross ? r.disc / r.gross : 0,
     ticketGoal: goalCount.get(r.key) ? r.ticketGoal / goalCount.get(r.key)! : 0,
-    discountGoal: goalCount.get(r.key) ? r.discountGoal / goalCount.get(r.key)! : 0, // <--- Adicionado
+    discountGoal: goalCount.get(r.key) ? r.discountGoal / goalCount.get(r.key)! : 0,
   }));
 
   const sellers = all
@@ -266,13 +316,11 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const pendingTasks = sum((r) => r.pending);
   const tasksTotal = sum((r) => r.tasksTotal);
 
-  // 1. Cálculo Ultradefensivo: Taxa de Execução de Tarefas (%)
   const totalTasksUnfiltered = pendingTasks + doneTasks;
   const taskExecutionRateFormatted = totalTasksUnfiltered > 0
     ? `${((doneTasks / totalTasksUnfiltered) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
     : '0%';
 
-  // 2. Cálculo Ultradefensivo: SLA (Tempo Médio entre Lead criado e 1ª tarefa criada)
   const filteredTasks = d.tasks.filter((t) => seller === "all" || sellerKey(t.user_name) === seller);
   const leadFirstTaskMap = new Map<string, number>();
 
@@ -313,15 +361,44 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     }
   }
 
+  // --- CÁLCULO DO PERÍODO ANTERIOR E VARIAÇÕES PERCENTUAIS ---
+  const prevConfirmed = d.prevData.reservations.filter((r: any) => r.status === "confirmed");
+  const prevFilteredRes = seller === "all" ? prevConfirmed : prevConfirmed.filter((r: any) => sellerKey(r.seller_name) === seller);
+  const prevFilteredOpps = seller === "all" ? d.prevData.opportunities : d.prevData.opportunities.filter((o: any) => sellerKey(o.seller_name) === seller);
+
+  const prevOppsCount = prevFilteredOpps.length;
+  const prevReservasCount = prevFilteredRes.length;
+  const prevFaturamento = prevFilteredRes.reduce((acc: number, r: any) => acc + r.total_amount, 0);
+  const prevConversao = prevOppsCount ? prevReservasCount / prevOppsCount : 0;
+  const prevTicket = prevReservasCount ? prevFaturamento / prevReservasCount : 0;
+  
+  const leadIdsWithTaskPrev = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
+  const prevNoTaskCount = prevFilteredOpps.filter((o: any) => (o.status ?? "open").toLowerCase() === "open" && o.pending_tasks === 0 && !leadIdsWithTaskPrev.has(o.lead_id)).length;
+
+  const calcVariation = (curr: number, prev: number) => {
+    if (!prev) return curr ? 100 : 0;
+    return ((curr - prev) / prev) * 100;
+  };
+
+  const currentConversao = oportunidades ? reservas / oportunidades : 0;
+  const currentTicket = reservas ? faturamento / reservas : 0;
+
   const kpis = {
     leads,
     oportunidades,
-    reservas,                   // Já temos o total de reservas aqui
+    oportunidadesVar: calcVariation(oportunidades, prevOppsCount),
+    reservas,
+    reservasVar: calcVariation(reservas, prevReservasCount),
     faturamento,
+    faturamentoVar: calcVariation(faturamento, prevFaturamento),
     rackRate: faturamento,
-    conversao: oportunidades ? reservas / oportunidades : 0,
-    ticket: reservas ? faturamento / reservas : 0,
+    rackRateVar: calcVariation(faturamento, prevFaturamento),
+    conversao: currentConversao,
+    conversaoVar: calcVariation(currentConversao, prevConversao),
+    ticket: currentTicket,
+    ticketVar: calcVariation(currentTicket, prevTicket),
     leadsNoTask,
+    leadsNoTaskVar: calcVariation(leadsNoTask, prevNoTaskCount),
     overdue: sum((r) => r.overdue),
     pending: pendingTasks,
     done: doneTasks,
@@ -330,7 +407,6 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     slaFormatted,
   };
 
-  // Barras empilhadas: últimos 6 meses até o fim do período
   const monthly = new Map<string, Record<string, number | string>>();
   const end = new Date(to + "T00:00:00");
   for (let i = 5; i >= 0; i--) {
