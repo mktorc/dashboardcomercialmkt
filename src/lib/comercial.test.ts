@@ -36,7 +36,7 @@ const stackedData = {
 describe("computeComercial", () => {
   it("agrupa o valor fechado por vendedor em cinco meses", () => {
     const view = computeComercial(stackedData, "2026-10-01", "2026-10-08", "all");
-    expect(view.monthly.map((month) => month.mes)).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
-    expect(view.monthly[4]["Naty"]).toBe(2000);
+    expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
+    expect(view.monthly[4]?.["Naty"]).toBe(2000);
   });
 });
