@@ -253,7 +253,7 @@ function Comercial() {
 
           <Card className="p-5">
             <h2 className="text-sm font-semibold text-foreground">Valor fechado por vendedor ao mês</h2>
-            <p className="text-xs text-muted-foreground">Últimos 6 meses até o fim do período, pela data de criação da reserva</p>
+            <p className="text-xs text-muted-foreground">Últimos 5 meses até o fim do período, pela data de criação da reserva</p>
             <div className="mt-4 h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={view?.monthly ?? []}>
