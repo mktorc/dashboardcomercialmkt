@@ -171,7 +171,7 @@ export async function fetchComercial(from: string, to: string) {
       discount_goal: Number(g.discount_goal ?? 0),
       conversion_goal: Number(g.conversion_goal ?? 0),
     })),
-    yearReservations: (yearRes.data ?? []).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount) })),
+    yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount) })),
     prevData: {
       leads: prevLeads.data ?? [],
       reservations: (prevRes.data ?? []).map((r: any) => ({ ...r, total_amount: Number(r.total_amount) })),
