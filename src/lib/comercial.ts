@@ -316,9 +316,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const kpis = {
     leads,
     oportunidades,
-    reservas,
+    reservas,                   // Já temos o total de reservas aqui
     faturamento,
-    rackRate: faturamento,      // <--- Rack Rate agora usa o faturamento líquido (com desconto)
+    rackRate: faturamento,
     conversao: oportunidades ? reservas / oportunidades : 0,
     ticket: reservas ? faturamento / reservas : 0,
     leadsNoTask,
