@@ -16,7 +16,7 @@ export function KpiCard({
   hint?: string | undefined;
   icon: LucideIcon;
   highlight?: boolean | undefined;
-  goal?: { actual: number; target?: number; label: string };
+  goal?: { actual: number; target?: number | undefined; label: string } | undefined;
 }) {
   const progress = goal ? goalProgress(goal.actual, goal.target) : null;
   return (

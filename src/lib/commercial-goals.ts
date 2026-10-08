@@ -6,13 +6,14 @@ export const isGeneralGoal = (g: Goal) => g.seller_name === GLOBAL_GOAL || g.sel
 
 export function nextGoalMonth(month: string) {
   const [year, m] = month.split("-").map(Number);
+  if (year === undefined || m === undefined || !Number.isFinite(year) || !Number.isFinite(m)) return "";
   const date = new Date(Date.UTC(year, m, 1));
   return date.toISOString().slice(0, 7);
 }
 
 export function goalProgress(actual: number, target: number | undefined) {
   if (!target || target <= 0 || !Number.isFinite(target)) return null;
-  const percent = Math.max(0, actual / target * 100);
+  const percent = Math.max(0, Math.round(actual / target * 10000) / 100);
   return { percent, bar: Math.min(100, percent) };
 }
 
