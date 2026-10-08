@@ -202,6 +202,59 @@ export type SellerRow = {
   discountGoal: number;
 };
 
+export type MonthlyCommercial = {
+  mes: string;
+  oportunidades: number;
+  reservas: number;
+  faturamento: number;
+  conversao: number;
+  ticket: number;
+};
+
+const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+export function computeMonthlyCommercial(
+  opportunities: Pick<COpp, "created_at" | "seller_name">[],
+  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "total_amount">[],
+  seller: string,
+  today: Date,
+): MonthlyCommercial[] {
+  const buckets = new Map<string, MonthlyCommercial>();
+  for (let offset = -5; offset <= 0; offset++) {
+    const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1));
+    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    buckets.set(key, {
+      mes: `${MONTHS_PT[date.getUTCMonth()]}/${date.getUTCFullYear()}`,
+      oportunidades: 0,
+      reservas: 0,
+      faturamento: 0,
+      conversao: 0,
+      ticket: 0,
+    });
+  }
+
+  opportunities.forEach((opportunity) => {
+    if (seller !== "all" && sellerKey(opportunity.seller_name) !== seller) return;
+    const bucket = buckets.get(opportunity.created_at.slice(0, 7));
+    if (bucket) bucket.oportunidades++;
+  });
+  reservations.forEach((reservation) => {
+    if (reservation.status !== "confirmed") return;
+    const reservationSeller = sellerKey(reservation.seller_name);
+    const effectiveSeller = reservationSeller === "sem_vendedor" ? "venda_direta" : reservationSeller;
+    if (seller !== "all" && effectiveSeller !== seller) return;
+    const bucket = buckets.get(reservation.created_at.slice(0, 7));
+    if (!bucket) return;
+    bucket.reservas++;
+    bucket.faturamento += reservation.total_amount;
+  });
+  buckets.forEach((bucket) => {
+    bucket.conversao = bucket.oportunidades ? bucket.reservas / bucket.oportunidades : 0;
+    bucket.ticket = bucket.reservas ? bucket.faturamento / bucket.reservas : 0;
+  });
+  return [...buckets.values()];
+}
+
 export function computeComercial(d: ComercialData, from: string, to: string, seller: string) {
   const today = new Date().toISOString().slice(0, 10);
   const inPeriod = (iso: string) => iso >= startIso(from) && iso <= endIso(to);
@@ -452,6 +505,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
     sellers,
     monthly: [...monthly.values()],
+    monthlyKpis: computeMonthlyCommercial(d.opportunities, d.reservations, seller, end),
     stackKeys: [...stackKeys],
     goalMonth: [...months][0] ?? "",
   };

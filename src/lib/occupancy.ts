@@ -7,11 +7,14 @@ export type OccMonth = { label: string; rate: number; carDays: number; capacity:
 const DAY = 86400000;
 
 /** Ocupação = dias-carro reservados dentro do mês ÷ (frota × dias do mês). */
-export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, count = 3): OccMonth[] {
+const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, count = 3, startOffset = 0): OccMonth[] {
   const out: OccMonth[] = [];
   for (let i = 0; i < count; i++) {
-    const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + i, 1);
-    const end = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + i + 1, 1);
+    const offset = startOffset + i;
+    const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1);
+    const end = Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset + 1, 1);
     const days = (end - start) / DAY;
     let ms = 0;
     for (const r of res) {
@@ -24,7 +27,7 @@ export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, c
     const capacity = vehicles * days;
     const d = new Date(start);
     out.push({
-      label: `${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`,
+      label: `${MONTHS_PT[d.getUTCMonth()]}/${d.getUTCFullYear()}`,
       rate: capacity ? carDays / capacity : 0,
       carDays,
       capacity,
@@ -35,7 +38,7 @@ export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, c
 
 export async function fetchOccupancy() {
   const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString();
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 3, 1)).toISOString();
   const [res, fleet] = await Promise.all([
     fetchAll((a, b) =>
@@ -51,5 +54,5 @@ export async function fetchOccupancy() {
   ]);
   if (res.error) throw res.error;
   const vehicles = fleet.data?.vehicles ?? 0;
-  return { vehicles, months: computeOccupancy(res.data as OccRes[], vehicles, now) };
+  return { vehicles, months: computeOccupancy(res.data as OccRes[], vehicles, now, 5, -2) };
 }

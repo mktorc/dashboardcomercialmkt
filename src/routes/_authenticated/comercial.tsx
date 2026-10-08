@@ -209,8 +209,9 @@ function Comercial() {
               hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
               goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount) }} />
             {["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, i) => {
-              const m = occ?.months[i];
-              const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === m?.label.split("/").reverse().join("-"))?.discount_goal;
+              const m = occ?.months[i + 2];
+              const occupancyMonth = m ? `${m.label.slice(-4)}-${String(["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"].indexOf(m.label.slice(0, 3)) + 1).padStart(2, "0")}` : "";
+              const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth)?.discount_goal;
               return <KpiCard key={label} icon={CarFront} label={label} value={m ? pct(m.rate) : "—"}
                 highlight={i === 0}
                 goal={{ actual: m?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} />;
@@ -237,6 +238,14 @@ function Comercial() {
                 </ResponsiveContainer>
               </div>
             </Card>
+          </section>
+
+          <section className="grid gap-4 xl:grid-cols-2">
+            <MonthlyBarChart title="Taxa de ocupação mensal" data={occ?.months ?? []} dataKey="rate" valueName="Ocupação" formatter={pct} />
+            <MonthlyBarChart title="Taxa de conversão mensal" data={view?.monthlyKpis ?? []} dataKey="conversao" valueName="Conversão" formatter={pct} />
+            <MonthlyBarChart title="Faturamento mensal" data={view?.monthlyKpis ?? []} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis />
+            <MonthlyBarChart title="Reservas mensais" data={view?.monthlyKpis ?? []} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis />
+            <MonthlyBarChart title="Ticket médio mensal" data={view?.monthlyKpis ?? []} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis />
           </section>
 
           <Card className="p-5">
@@ -348,6 +357,45 @@ function Comercial() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function MonthlyBarChart({
+  title,
+  data,
+  dataKey,
+  valueName,
+  formatter,
+  currencyAxis = false,
+  integerAxis = false,
+}: {
+  title: string;
+  data: Array<Record<string, string | number>>;
+  dataKey: string;
+  valueName: string;
+  formatter: (value: number) => string;
+  currencyAxis?: boolean;
+  integerAxis?: boolean;
+}) {
+  return (
+    <Card className="p-5">
+      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      <div className="mt-4 h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} {...axis} />
+            <YAxis
+              {...axis}
+              allowDecimals={!integerAxis}
+              tickFormatter={(value: number) => currencyAxis ? `$${Math.round(value / 1000)}k` : dataKey === "rate" || dataKey === "conversao" ? `${Math.round(value * 100)}%` : value.toLocaleString("pt-BR")}
+            />
+            <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [formatter(value), valueName]} />
+            <Bar dataKey={dataKey} name={valueName} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
   );
 }
 
