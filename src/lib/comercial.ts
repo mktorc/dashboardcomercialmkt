@@ -62,17 +62,16 @@ const startIso = (d: string) => new Date(d + "T00:00:00").toISOString();
 const endIso = (d: string) => new Date(d + "T23:59:59.999").toISOString();
 
 // Calcula o período homólogo no mês anterior mantendo a mesma janela de dias
-function getPreviousPeriod(from: string, to: string) {
-  const fDate = new Date(from + "T00:00:00");
-  const tDate = new Date(to + "T00:00:00");
-  
-  fDate.setMonth(fDate.getMonth() - 1);
-  tDate.setMonth(tDate.getMonth() - 1);
+export function getPreviousPeriod(from: string, to: string) {
+  const previousMonthDate = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year!, month! - 2, 1));
+    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+    date.setUTCDate(Math.min(day!, lastDay));
+    return date.toISOString().slice(0, 10);
+  };
 
-  const ymdFormat = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  return { prevFrom: ymdFormat(fDate), prevTo: ymdFormat(tDate) };
+  return { prevFrom: previousMonthDate(from), prevTo: previousMonthDate(to) };
 }
 
 export async function fetchComercial(from: string, to: string) {
@@ -474,8 +473,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const prevConversao = prevOppsCount ? prevReservasCount / prevOppsCount : 0;
   const prevTicket = prevReservasCount ? prevFaturamento / prevReservasCount : 0;
   
-  const leadIdsWithTaskPrev = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
-  const prevNoTaskCount = prevFilteredOpps.filter((o: any) => (o.status ?? "open").toLowerCase() === "open" && o.pending_tasks === 0 && !leadIdsWithTaskPrev.has(o.lead_id)).length;
+  const currentPeriodNoTaskCount = sellerOpps.filter(hasNoTask).length;
+  const prevNoTaskCount = prevFilteredOpps.filter(hasNoTask).length;
 
   const calcVariation = (curr: number, prev: number) => {
     if (!prev) return curr ? 100 : 0;
@@ -506,7 +505,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     ticket: currentTicket,
     ticketVar: calcVariation(currentTicket, prevTicket),
     leadsNoTask,
-    leadsNoTaskVar: calcVariation(leadsNoTask, prevNoTaskCount),
+    leadsNoTaskVar: calcVariation(currentPeriodNoTaskCount, prevNoTaskCount),
     overdue: sum((r) => r.overdue),
     pending: pendingTasks,
     done: doneTasks,

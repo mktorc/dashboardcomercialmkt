@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeComercial, computeMonthlyCommercial, type ComercialData } from "./comercial";
+import { computeComercial, computeMonthlyCommercial, getPreviousPeriod, type ComercialData } from "./comercial";
 
 describe("computeMonthlyCommercial", () => {
   it("calcula conversão, faturamento, reservas, ticket e desconto nos cinco meses", () => {
@@ -34,6 +34,44 @@ const stackedData = {
 } as unknown as ComercialData;
 
 describe("computeComercial", () => {
+  it("compara oportunidades sem tarefas nos mesmos dias do mês anterior", () => {
+    const makeOpportunity = (opportunity_id: string, created_at: string) => ({
+      opportunity_id,
+      lead_id: opportunity_id,
+      name: null,
+      stage_name: null,
+      status: "open",
+      seller_name: "Ana",
+      pending_tasks: 0,
+      created_at,
+    });
+    const data = {
+      ...stackedData,
+      opportunities: [
+        makeOpportunity("old", "2026-08-31T12:00:00Z"),
+        makeOpportunity("current-1", "2026-10-01T12:00:00Z"),
+        makeOpportunity("current-2", "2026-10-02T12:00:00Z"),
+        makeOpportunity("current-3", "2026-10-02T13:00:00Z"),
+      ],
+      prevData: {
+        ...stackedData.prevData,
+        opportunities: [
+          makeOpportunity("previous-1", "2026-09-01T12:00:00Z"),
+          makeOpportunity("previous-2", "2026-09-02T12:00:00Z"),
+        ],
+      },
+    } as unknown as ComercialData;
+
+    const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
+    expect(view.kpis.leadsNoTask).toBe(4);
+    expect(view.kpis.leadsNoTaskVar).toBe(50);
+  });
+
+  it("mantém as datas equivalentes ao mover a janela para o mês anterior", () => {
+    expect(getPreviousPeriod("2026-10-01", "2026-10-09")).toEqual({ prevFrom: "2026-09-01", prevTo: "2026-09-09" });
+    expect(getPreviousPeriod("2026-03-31", "2026-03-31")).toEqual({ prevFrom: "2026-02-28", prevTo: "2026-02-28" });
+  });
+
   it("agrupa o valor fechado por vendedor em cinco meses", () => {
     const view = computeComercial(stackedData, "2026-10-01", "2026-10-08", "all");
     expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
