@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GLOBAL_GOAL, averageDiscount, previousYearDate, yearOverYearDiscount, goalProgress, nextGoalMonth, revenueAndTicketGoals } from "./commercial-goals";
+import { GLOBAL_GOAL, averageDiscount, expectedRevenueByDate, monthProgress, previousYearDate, yearOverYearDiscount, goalProgress, nextGoalMonth, revenueAndTicketGoals } from "./commercial-goals";
 
 describe("comparação com metas", () => {
   it("compara o realizado à meta sem limitar o percentual atingido", () => {
@@ -9,6 +9,14 @@ describe("comparação com metas", () => {
   it("não inventa progresso sem meta definida", () => {
     expect(goalProgress(500, 0)).toBeNull();
     expect(goalProgress(500, undefined)).toBeNull();
+  });
+  it("calcula o ritmo mensal e a receita esperada até a data final", () => {
+    const goals = [
+      { seller_name: GLOBAL_GOAL, month: "2026-10", revenue_goal: 50000, ticket_goal: 750 },
+      { seller_name: GLOBAL_GOAL, month: "2026-11", revenue_goal: 60000, ticket_goal: 850 },
+    ];
+    expect(monthProgress("2026-10-09")).toBeCloseTo(9 / 31);
+    expect(expectedRevenueByDate(goals, "2026-10-01", "2026-11-09")).toBeCloseTo(50000 + 60000 * 9 / 30);
   });
   it("separa metas globais das individuais e respeita o período", () => {
     const goals = [

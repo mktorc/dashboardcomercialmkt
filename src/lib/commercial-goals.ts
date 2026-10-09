@@ -17,6 +17,24 @@ export function goalProgress(actual: number, target: number | undefined) {
   return { percent, bar: Math.min(100, percent) };
 }
 
+export function monthProgress(to: string) {
+  const [year, month, day] = to.split("-").map(Number);
+  if (year === undefined || month === undefined || day === undefined || month < 1 || month > 12) return 0;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > daysInMonth) return 0;
+  return day / daysInMonth;
+}
+
+export function expectedRevenueByDate(goals: Goal[], from: string, to: string) {
+  const fromMonth = from.slice(0, 7);
+  const toMonth = to.slice(0, 7);
+  const currentMonthProgress = monthProgress(to);
+  return goals.reduce((expected, goal) => {
+    if (goal.seller_name !== GLOBAL_GOAL || goal.month < fromMonth || goal.month > toMonth) return expected;
+    return expected + goal.revenue_goal * (goal.month === toMonth ? currentMonthProgress : 1);
+  }, 0);
+}
+
 export function revenueAndTicketGoals(goals: Goal[], from: string, to: string, sellerNames?: string[]) {
   const selected = goals.filter((g) => g.month >= from.slice(0, 7) && g.month <= to.slice(0, 7) &&
     (sellerNames ? sellerNames.includes(g.seller_name) : g.seller_name === GLOBAL_GOAL));

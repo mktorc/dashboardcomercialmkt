@@ -52,7 +52,7 @@ import {
   type Goal,
 } from "@/lib/comercial";
 import { fetchOccupancy } from "@/lib/occupancy";
-import { GLOBAL_GOAL, OCCUPANCY_GOAL, isGeneralGoal, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
+import { GLOBAL_GOAL, OCCUPANCY_GOAL, expectedRevenueByDate, isGeneralGoal, monthProgress, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
 
 export const Route = createFileRoute("/_authenticated/comercial")({
   head: () => ({
@@ -112,6 +112,14 @@ export function ComercialPage({
   const { data: occ } = useQuery({ queryKey: ["occupancy"], queryFn: fetchOccupancy, enabled: active === "comercial" });
   const k = view?.kpis;
   const cardGoals = revenueAndTicketGoals(data?.goals ?? [], from, to);
+  const revenuePace = expectedRevenueByDate(data?.goals ?? [], from, to);
+  const monthProgressPercent = monthProgress(to) * 100;
+  const ticketGoalDelta = (k?.ticket ?? 0) - cardGoals.ticket;
+  const discountLimitDeltaPp = (cardGoals.discount - (k?.descontoPct ?? 0)) * 100;
+  const selectedPeriodDays = Math.max(
+    1,
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 + 1,
+  );
 
   const tableRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -125,54 +133,72 @@ export function ComercialPage({
   }, [view, search, sort]);
 
   const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.faturamento || r.revenueGoal));
-  const chartH = Math.max(220, goalRows.length * 34);
+  const chartH = Math.min(420, Math.max(220, goalRows.length * 34));
   const opportunityRows = (view?.rows ?? [])
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.oportunidades > 0 || r.reservas > 0))
     .sort((a, b) => b.oportunidades - a.oportunidades);
-  const opportunityChartH = Math.max(220, opportunityRows.length * 34);
+  const opportunityChartH = Math.min(420, Math.max(220, opportunityRows.length * 34));
   const noTaskRows = (view?.rows ?? [])
     .filter((r) => r.key !== "venda_direta" && r.noTask > 0)
     .sort((a, b) => b.noTask - a.noTask);
   const conversionRows = (view?.rows ?? [])
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && r.oportunidades > 0)
     .sort((a, b) => b.conversao - a.conversao);
-  const operationalCardClass = active === "comercial-operacional" ? "h-[208px] w-full" : undefined;
-  const operationalSellerChartHeight = Math.max(
-    220,
-    Math.max(opportunityRows.length, noTaskRows.length, conversionRows.length) * 34,
+  const operationalCardClass = `min-h-[190px] flex flex-col justify-between ${active === "comercial-operacional" ? "h-full w-full" : ""}`;
+  const compactOperationalCardClass = active === "comercial-operacional"
+    ? "h-[160px] w-full px-3 py-2 flex flex-col justify-between"
+    : operationalCardClass;
+  const goalOperationalCardClass = active === "comercial-operacional"
+    ? "h-[224px] w-full py-3 flex flex-col justify-between"
+    : operationalCardClass;
+  const operationalSellerChartHeight = Math.min(
+    420,
+    Math.max(220, Math.max(opportunityRows.length, noTaskRows.length, conversionRows.length) * 34),
   );
 
   const opportunityCard = <KpiCard icon={Target} label="Oportunidades"
     value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
-    hint={k ? comparison(k.oportunidadesVar) : undefined} className={operationalCardClass} />;
-  const noTaskCard = <Button variant="ghost" className={`block w-full ${active === "comercial-operacional" ? "h-[208px]" : "h-auto"} whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full`} onClick={() => setNoTaskOpen(true)}>
+    hint={k ? comparison(k.oportunidadesVar) : undefined}
+    footer={k ? `Média de ${(k.oportunidades / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia` : undefined}
+    compact={active === "comercial-operacional"}
+    className={compactOperationalCardClass} />;
+  const noTaskCard = <Button variant="ghost" className={`block w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full ${active === "comercial-operacional" ? "h-[160px]" : "min-h-[190px]"}`} onClick={() => setNoTaskOpen(true)}>
     <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
       value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
-      hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight className={operationalCardClass} />
+      hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight
+      footer={k ? `Média de ${(k.leadsNoTask / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia sem tarefas` : undefined}
+      compact={active === "comercial-operacional"}
+        className={compactOperationalCardClass} />
   </Button>;
   const revenueCard = <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)"
     value={k ? brl(k.faturamento) : "—"}
     hint={k ? comparison(k.faturamentoVar) : undefined}
-    goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }} className={operationalCardClass} />;
+    goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }}
+    pace={{ expected: brl(revenuePace), actual: brl(k?.faturamento ?? 0), monthPercent: monthProgressPercent }} className={goalOperationalCardClass} />;
   const ticketCard = <KpiCard icon={DollarSign} label="Ticket médio"
     value={k ? brl(k.ticket) : "—"}
     hint={k ? comparison(k.ticketVar) : undefined}
-    goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }} className={operationalCardClass} />;
+    goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }}
+    footer={k && cardGoals.ticket > 0 ? `${ticketGoalDelta >= 0 ? "+" : ""}${brl(ticketGoalDelta)} da meta` : undefined}
+    className={goalOperationalCardClass} />;
   const discountCard = <KpiCard icon={Percent} label="Desconto médio"
     value={k ? pct(k.descontoPct) : "—"}
     hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
-    goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount) }} className={operationalCardClass} />;
+    goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount), kind: "limit" }}
+    footer={k && cardGoals.discount > 0 ? `${discountLimitDeltaPp >= 0 ? "+" : ""}${discountLimitDeltaPp.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p. do limite` : undefined}
+    className={goalOperationalCardClass} />;
   const conversionCard = <KpiCard icon={UserCheck} label="Taxa de conversão"
     value={k ? pct(k.conversao) : "—"}
     hint={k ? comparison(k.conversaoVar) : undefined} highlight
-    goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }} className={operationalCardClass} />;
+    goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }}
+    compact={active === "comercial-operacional"} className={compactOperationalCardClass} />;
   const occupancyCards = active === "comercial" ? ["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, index) => {
     const month = occ?.months[index + 2];
     const occupancyMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index, 1)).toISOString().slice(0, 7);
     const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth)?.discount_goal;
     return <KpiCard key={label} icon={CarFront} label={label} value={month ? pct(month.rate) : "—"}
       highlight={index === 0}
-      goal={{ actual: month?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} />;
+      goal={{ actual: month?.rate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} className={operationalCardClass} />;
   }) : null;
 
   const Th = ({ k: key, label, left }: { k: SortKey; label: string; left?: boolean }) => (
@@ -220,7 +246,7 @@ export function ComercialPage({
           ) : null}
 
           {active === "comercial-operacional" ? (
-            <section className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <section className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-4">
                 {opportunityCard}
                 <OpportunitySellerChart data={opportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} compare expandable />
@@ -247,12 +273,12 @@ export function ComercialPage({
               </div>
             </section>
           ) : (
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {opportunityCard}
               {noTaskCard}
               <KpiCard icon={CheckCircle2} label="Reservas concluídas"
                 value={k ? k.reservas.toLocaleString("pt-BR") : "—"}
-                hint={k ? comparison(k.reservasVar) : undefined} highlight />
+                hint={k ? comparison(k.reservasVar) : undefined} highlight className={operationalCardClass} />
               {revenueCard}
               {ticketCard}
               {discountCard}
