@@ -148,8 +148,8 @@ export function ComercialPage({
   const compactOperationalCardClass = active === "comercial-operacional"
     ? "h-[160px] w-full px-3 py-2 flex flex-col justify-between"
     : operationalCardClass;
-  const goalOperationalCardClass = active === "comercial-operacional"
-    ? "h-[224px] w-full py-3 flex flex-col justify-between"
+  const firstRowOperationalCardClass = active === "comercial-operacional"
+    ? "h-[144px] w-full p-3 flex flex-col justify-start"
     : operationalCardClass;
   const operationalSellerChartHeight = Math.min(
     420,
@@ -160,38 +160,40 @@ export function ComercialPage({
     value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
     hint={k ? comparison(k.oportunidadesVar) : undefined}
     footer={k ? `Média de ${(k.oportunidades / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia` : undefined}
-    compact={active === "comercial-operacional"}
-    className={compactOperationalCardClass} />;
-  const noTaskCard = <Button variant="ghost" className={`block w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full ${active === "comercial-operacional" ? "h-[160px]" : "min-h-[190px]"}`} onClick={() => setNoTaskOpen(true)}>
+    compact={active === "comercial-operacional"} tight={active === "comercial-operacional"}
+    className={firstRowOperationalCardClass} />;
+  const noTaskCard = <Button variant="ghost" className={`block w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full ${active === "comercial-operacional" ? "h-[144px]" : "min-h-[190px]"}`} onClick={() => setNoTaskOpen(true)}>
     <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
       value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
       hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight
       footer={k ? `Média de ${(k.leadsNoTask / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia sem tarefas` : undefined}
-      compact={active === "comercial-operacional"}
-        className={compactOperationalCardClass} />
+      compact={active === "comercial-operacional"} tight={active === "comercial-operacional"}
+        className={firstRowOperationalCardClass} />
   </Button>;
   const revenueCard = <KpiCard icon={DollarSign} label="Faturamento (Rack Rate)"
     value={k ? brl(k.faturamento) : "—"}
     hint={k ? comparison(k.faturamentoVar) : undefined}
     goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }}
-    pace={{ expected: brl(revenuePace), actual: brl(k?.faturamento ?? 0), monthPercent: monthProgressPercent }} className={goalOperationalCardClass} />;
+    pace={{ expected: brl(revenuePace), actual: brl(k?.faturamento ?? 0), monthPercent: monthProgressPercent }}
+    compact={active === "comercial-operacional"} aligned={active === "comercial-operacional"} className={compactOperationalCardClass} />;
   const ticketCard = <KpiCard icon={DollarSign} label="Ticket médio"
     value={k ? brl(k.ticket) : "—"}
     hint={k ? comparison(k.ticketVar) : undefined}
     goal={{ actual: k?.ticket ?? 0, target: cardGoals.ticket, label: brl(cardGoals.ticket) }}
     footer={k && cardGoals.ticket > 0 ? `${ticketGoalDelta >= 0 ? "+" : ""}${brl(ticketGoalDelta)} da meta` : undefined}
-    className={goalOperationalCardClass} />;
+    compact={active === "comercial-operacional"} aligned={active === "comercial-operacional"} className={compactOperationalCardClass} />;
   const discountCard = <KpiCard icon={Percent} label="Desconto médio"
     value={k ? pct(k.descontoPct) : "—"}
     hint={k ? k.descontoYearDiff === null ? "Sem base de comparação vs. ano anterior" : `${k.descontoYearDiff >= 0 ? "+" : ""}${k.descontoYearDiff.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} p.p. vs. ano anterior` : undefined}
     goal={{ actual: k?.descontoPct ?? 0, target: cardGoals.discount, label: pct(cardGoals.discount), kind: "limit" }}
     footer={k && cardGoals.discount > 0 ? `${discountLimitDeltaPp >= 0 ? "+" : ""}${discountLimitDeltaPp.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p. do limite` : undefined}
-    className={goalOperationalCardClass} />;
+    compact={active === "comercial-operacional"} aligned={active === "comercial-operacional"} className={compactOperationalCardClass} />;
   const conversionCard = <KpiCard icon={UserCheck} label="Taxa de conversão"
     value={k ? pct(k.conversao) : "—"}
     hint={k ? comparison(k.conversaoVar) : undefined} highlight
     goal={{ actual: k?.conversao ?? 0, target: cardGoals.conversion, label: pct(cardGoals.conversion) }}
-    compact={active === "comercial-operacional"} className={compactOperationalCardClass} />;
+    compact={active === "comercial-operacional"} tight={active === "comercial-operacional"}
+    className={firstRowOperationalCardClass} />;
   const occupancyCards = active === "comercial" ? ["Ocupação do mês atual", "Ocupação do mês seguinte"].map((label, index) => {
     const month = occ?.months[index + 2];
     const occupancyMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index, 1)).toISOString().slice(0, 7);
@@ -547,14 +549,15 @@ function OpportunitySellerChart({
   return (
     <ExpandableChartPanel
       title={compare ? "Oportunidades vs. reservas por vendedor" : "Oportunidades por vendedor"}
+      subtitle={compare ? "Volume de oportunidades e conversão em reservas por vendedor." : ""}
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 48 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
               <Bar dataKey="oportunidades" name="Oportunidades" fill={compare ? "#44E500" : "#2f9c5a"} radius={[0, 4, 4, 0]} />
               {compare ? (
@@ -586,14 +589,15 @@ function NoTaskBySellerChart({
   return (
     <ExpandableChartPanel
       title="Oportunidades sem tarefas por vendedor"
+      subtitle="Oportunidades abertas sem tarefas por vendedor no período."
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ left: 8, right: 36 }}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
               <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -622,14 +626,15 @@ function ConversionBySellerChart({
   return (
     <ExpandableChartPanel
       title="Taxa de conversão por vendedor"
+      subtitle="Reservas concluídas ÷ oportunidades de cada vendedor no período."
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ left: 8, right: 36 }}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} tickFormatter={(value: number) => pct(value)} />
-              <YAxis type="category" dataKey="name" width={120} {...axis} />
+              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => pct(value)} />
               <ReferenceLine x={total} stroke="#f2b84b" strokeDasharray="4 4" />
               <Bar dataKey="conversao" name="Conversão" fill="#44E500" radius={[0, 4, 4, 0]} />
@@ -728,6 +733,11 @@ function ExpandableChartPanel({
   );
 }
 
+function sellerAxisWidth(data: Pick<SellerRow, "name">[], maxWidth = 120) {
+  const longestName = data.reduce((length, row) => Math.max(length, row.name.length), 0);
+  return Math.min(maxWidth, Math.max(52, Math.ceil(longestName * 6.5 + 12)));
+}
+
 function GoalChart({
   title,
   subtitle,
@@ -751,10 +761,18 @@ function GoalChart({
     <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
       <div className="mt-4" style={{ height: expanded ? "70vh" : h }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ left: 8 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-            <XAxis type="number" {...axis} tickFormatter={(v: number) => (a === "descontoPct" ? pct(v) : `$${Math.round(v / 1000)}k`)} />
-            <YAxis type="category" dataKey="name" width={90} {...axis} />
+            <XAxis
+              type="number"
+              {...axis}
+              tickFormatter={(value: number) => {
+                if (a === "descontoPct") return pct(value);
+                if (a === "ticket") return value >= 1000 ? `$${(value / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k` : `$${Math.round(value)}`;
+                return `$${Math.round(value / 1000)}k`;
+              }}
+            />
+            <YAxis type="category" dataKey="name" width={sellerAxisWidth(data, 90)} {...axis} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
             <Legend />
             <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]} />
