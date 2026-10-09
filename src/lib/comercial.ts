@@ -359,8 +359,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
   const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
   const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
-  // Oportunidades sem tarefas: todas as abertas sem tarefa, sem filtro de data de criação
+  // Oportunidades sem tarefas: todas as abertas sem tarefa criadas até o fim do período
   const noTaskList = d.opportunities
+    .filter((o) => o.created_at <= endIso(to))
     .filter((o) => seller === "all" || sellerKey(o.seller_name) === seller)
     .filter(hasNoTask)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
