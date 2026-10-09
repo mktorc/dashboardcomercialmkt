@@ -66,7 +66,8 @@ describe("computeComercial", () => {
       ["01/10", 100, 0],
       ["02/10", 0, 200],
     ]);
-    expect(view.kpis.conversao).toBe(0.5);
-    expect(view.kpis.leadsNoTask).toBe(3);
+    expect(view.kpis.conversao).toBe(2 / 3);
+    // Inclui a oportunidade de 30/09: sem tarefas ignora a data de criação
+    expect(view.kpis.leadsNoTask).toBe(4);
   });
 });
