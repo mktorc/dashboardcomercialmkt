@@ -112,8 +112,6 @@ export async function fetchComercial(from: string, to: string) {
         .from("crm_opportunities")
         .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
         .eq("pipeline_name", "Comercial")
-        .gte("created_at", histFrom)
-        .lte("created_at", endIso(to))
         .range(a, b),
     ),
     // Período anterior (para comparação)
@@ -361,7 +359,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
   const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
   const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
-  const noTaskList = sellerOpps
+  // Oportunidades sem tarefas: todas as abertas sem tarefa, sem filtro de data de criação
+  const noTaskList = d.opportunities
+    .filter((o) => seller === "all" || sellerKey(o.seller_name) === seller)
     .filter(hasNoTask)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => ({ ...o, owner: o.seller_name?.trim() || UNASSIGNED_LABEL }));
