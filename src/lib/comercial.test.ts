@@ -58,15 +58,16 @@ describe("computeComercial", () => {
 
     const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
     expect(view.dailyOpportunityKeys).toEqual(["Ana", "Bia"]);
-    expect(view.dailyOpportunitiesBySeller.map((day) => [day.dia, day.Ana ?? 0, day.Bia ?? 0])).toEqual([
+    expect(view.dailyOpportunitiesBySeller.map((day) => [day["dia"], day["Ana"] ?? 0, day["Bia"] ?? 0])).toEqual([
       ["01/10", 1, 0],
       ["02/10", 1, 1],
     ]);
-    expect(view.dailyRevenueBySeller.map((day) => [day.dia, day.Ana ?? 0, day.Bia ?? 0])).toEqual([
+    expect(view.dailyRevenueBySeller.map((day) => [day["dia"], day["Ana"] ?? 0, day["Bia"] ?? 0])).toEqual([
       ["01/10", 100, 0],
       ["02/10", 0, 200],
     ]);
-    expect(view.kpis.conversao).toBe(0.5);
-    expect(view.kpis.leadsNoTask).toBe(3);
+    expect(view.kpis.conversao).toBe(2 / 3);
+    // Inclui a oportunidade de 30/09: sem tarefas ignora a data de criação
+    expect(view.kpis.leadsNoTask).toBe(4);
   });
 });
