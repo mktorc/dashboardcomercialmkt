@@ -48,6 +48,7 @@ describe("computeComercial", () => {
         { opportunity_id: "2", lead_id: "2", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-01T12:00:00Z" },
         { opportunity_id: "3", lead_id: "3", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
         { opportunity_id: "4", lead_id: "4", name: null, stage_name: null, status: "open", seller_name: "Bia", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
+        { opportunity_id: "5", lead_id: "5", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-05T12:00:00Z" },
       ],
       reservations: [
         { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
@@ -67,7 +68,7 @@ describe("computeComercial", () => {
       ["02/10", 0, 200],
     ]);
     expect(view.kpis.conversao).toBe(2 / 3);
-    // Inclui a oportunidade de 30/09: sem tarefas ignora a data de criação
+    // Inclui a de 30/09 (criada antes do período) e exclui a de 05/10 (criada depois do fim)
     expect(view.kpis.leadsNoTask).toBe(4);
   });
 });
