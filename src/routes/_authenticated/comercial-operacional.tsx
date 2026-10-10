@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { guardPage } from "@/lib/roles";
 import { ComercialPage } from "./comercial";
 
 export const Route = createFileRoute("/_authenticated/comercial-operacional")({
+  beforeLoad: () => guardPage("comercial-operacional"),
   head: () => ({
     meta: [
       { title: "Operacional | Orlando Rent Car Analytics" },

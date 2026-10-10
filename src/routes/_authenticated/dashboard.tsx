@@ -23,6 +23,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
@@ -40,6 +41,7 @@ import {
 } from "@/lib/analytics";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  beforeLoad: () => guardPage("dashboard"),
   head: () => ({
     meta: [
       { title: "Orlando Rent Car | Analytics, BI e Growth" },

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
@@ -55,6 +56,7 @@ import { fetchOccupancy } from "@/lib/occupancy";
 import { GLOBAL_GOAL, OCCUPANCY_GOAL, expectedRevenueByDate, isGeneralGoal, monthProgress, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
 
 export const Route = createFileRoute("/_authenticated/comercial")({
+  beforeLoad: () => guardPage("comercial"),
   head: () => ({
     meta: [
       { title: "Gerencial | Orlando Rent Car Analytics" },
