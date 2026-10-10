@@ -27,7 +27,6 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const { next } = Route.useSearch();
-  const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,21 +35,10 @@ function AuthPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      if (mode === "in") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        if (next) window.location.assign(next);
-        else navigate({ to: "/dashboard" });
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: window.location.origin + (next ?? "/dashboard") },
-        });
-        if (error) throw error;
-        toast.success("Conta criada. Confirme pelo link enviado ao seu e-mail.");
-        setMode("in");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error("E-mail ou senha inválidos.");
+      if (next) window.location.assign(next);
+      else navigate({ to: "/dashboard" });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -71,7 +59,7 @@ function AuthPage() {
           <div>
             <p className="text-sm font-semibold text-foreground">Orlando Rent Car</p>
             <p className="text-xs text-muted-foreground">
-              {mode === "in" ? "Entre para ver o painel" : "Criar acesso"}
+              Entre para ver o painel
             </p>
           </div>
         </div>
@@ -92,15 +80,10 @@ function AuthPage() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={busy}>
-            {mode === "in" ? "Entrar" : "Criar conta"}
+            Entrar
           </Button>
         </form>
-        <button
-          className="mt-4 w-full text-center text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setMode(mode === "in" ? "up" : "in")}
-        >
-          {mode === "in" ? "Não tem acesso? Criar conta" : "Já tem conta? Entrar"}
-        </button>
+        <p className="mt-4 text-center text-xs text-muted-foreground">Acesso apenas para usuários cadastrados pelo administrador.</p>
       </Card>
     </div>
   );

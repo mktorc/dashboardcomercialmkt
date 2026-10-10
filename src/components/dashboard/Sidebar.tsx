@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { canAccess, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { Briefcase, ChevronDown, LayoutDashboard, LogOut, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Briefcase, ChevronDown, LayoutDashboard, LogOut, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,12 +15,15 @@ const items = [
   { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/dashboard" },
 ] as const;
 
-type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional";
+type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional" | "configuracoes";
 
 export function Sidebar({ active }: { active: ActivePage }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
+  const { data: role = null } = useQuery({ queryKey: ["my-role"], queryFn: getMyRole });
+  const showGer = canAccess(role, "comercial");
+  const showOp = canAccess(role, "comercial-operacional");
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -54,7 +58,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
         </button>
       </div>
       <nav className="flex flex-col gap-1">
-        {items.map((item) => (
+        {items.filter((i) => canAccess(role, i.key)).map((item) => (
           <Link
             key={item.key}
             to={item.to}
@@ -69,7 +73,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
             {!collapsed ? item.label : null}
           </Link>
         ))}
-        <DropdownMenu>
+        {showGer || showOp ? <DropdownMenu>
           <DropdownMenuTrigger
             title={collapsed ? "Comercial" : undefined}
             className={`flex w-full items-center gap-3 rounded-lg py-2 text-left text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring ${collapsed ? "justify-center px-0" : "px-3"} ${
@@ -86,15 +90,15 @@ export function Sidebar({ active }: { active: ActivePage }) {
             side="right"
             className="min-w-48 border-sidebar-border bg-[var(--brand-dark)] text-sidebar-foreground"
           >
-            <DropdownMenuItem asChild>
+            {showGer ? <DropdownMenuItem asChild>
               <Link
                 to="/comercial"
                 className={active === "comercial" ? "bg-sidebar-accent font-semibold" : ""}
               >
                 Gerencial
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
+            </DropdownMenuItem> : null}
+            {showOp ? <DropdownMenuItem asChild>
               <Link
                 to="/comercial-operacional"
                 className={
@@ -103,9 +107,23 @@ export function Sidebar({ active }: { active: ActivePage }) {
               >
                 Operacional
               </Link>
-            </DropdownMenuItem>
+            </DropdownMenuItem> : null}
           </DropdownMenuContent>
-        </DropdownMenu>
+        </DropdownMenu> : null}
+        {canAccess(role, "configuracoes") ? (
+          <Link
+            to="/configuracoes"
+            title={collapsed ? "Configurações" : undefined}
+            className={`flex items-center gap-3 rounded-lg py-2 text-sm transition-colors ${collapsed ? "justify-center px-0" : "px-3"} ${
+              active === "configuracoes"
+                ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
+            }`}
+          >
+            <Settings className="size-4" />
+            {!collapsed ? "Configurações" : null}
+          </Link>
+        ) : null}
       </nav>
       <button
         onClick={signOut}

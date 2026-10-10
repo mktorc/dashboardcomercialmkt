@@ -474,7 +474,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const prevTicket = prevReservasCount ? prevFaturamento / prevReservasCount : 0;
   
   const currentPeriodNoTaskCount = sellerOpps.filter(hasNoTask).length;
-  const prevNoTaskCount = prevFilteredOpps.filter(hasNoTask).length;
+  const prevNoTaskCount = (prevFilteredOpps as COpp[]).filter(hasNoTask).length;
 
   const calcVariation = (curr: number, prev: number) => {
     if (!prev) return curr ? 100 : 0;
