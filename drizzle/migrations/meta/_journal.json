@@ -99,6 +99,13 @@
       "when": 1791900776556,
       "tag": "0013_role_based_data_access",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791921000000,
+      "tag": "0014_marketing_opportunity_access",
+      "breakpoints": true
     }
   ]
 }
