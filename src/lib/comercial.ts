@@ -77,9 +77,7 @@ export function getPreviousPeriod(from: string, to: string) {
 export async function fetchComercial(from: string, to: string) {
   const { prevFrom, prevTo } = getPreviousPeriod(from, to);
 
-  const fiveFrom = new Date(to + "T00:00:00");
-  fiveFrom.setMonth(fiveFrom.getMonth() - 4, 1);
-  const histFrom = fiveFrom < new Date(from + "T00:00:00") ? fiveFrom.toISOString() : startIso(prevFrom);
+  const histFrom = startIso(prevFrom);
 
   const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps, yearRes] = await Promise.all([
     // Período atual
@@ -201,6 +199,7 @@ export type SellerRow = {
 
 export type MonthlyCommercial = {
   mes: string;
+  monthKey: string;
   oportunidades: number;
   reservas: number;
   faturamento: number;
@@ -215,15 +214,18 @@ export function computeMonthlyCommercial(
   opportunities: Pick<COpp, "created_at" | "seller_name">[],
   reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "total_amount" | "discount_amount">[],
   seller: string,
-  today: Date,
+  from: string,
+  to: string,
 ): MonthlyCommercial[] {
   const buckets = new Map<string, MonthlyCommercial>();
   const monthlyDiscounts = new Map<string, { net: number; discount: number }>();
-  for (let offset = -4; offset <= 0; offset++) {
-    const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1));
+  const firstMonth = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
+  const lastMonth = new Date(`${to.slice(0, 7)}-01T00:00:00Z`);
+  for (const date = firstMonth; date <= lastMonth; date.setUTCMonth(date.getUTCMonth() + 1)) {
     const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
     buckets.set(key, {
       mes: `${MONTHS_PT[date.getUTCMonth()]}/${date.getUTCFullYear()}`,
+      monthKey: key,
       oportunidades: 0,
       reservas: 0,
       faturamento: 0,
@@ -515,10 +517,10 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   };
 
   const monthly = new Map<string, Record<string, number | string>>();
-  const end = new Date(to + "T00:00:00");
-  for (let i = 4; i >= 0; i--) {
-    const m = new Date(end.getFullYear(), end.getMonth() - i, 1);
-    const label = `${m.getFullYear()}/${String(m.getMonth() + 1).padStart(2, "0")}`;
+  const firstMonth = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
+  const lastMonth = new Date(`${to.slice(0, 7)}-01T00:00:00Z`);
+  for (const month = firstMonth; month <= lastMonth; month.setUTCMonth(month.getUTCMonth() + 1)) {
+    const label = `${month.getUTCFullYear()}/${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
     monthly.set(label, { mes: label });
   }
 
@@ -545,7 +547,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
     sellers,
     monthly: [...monthly.values()],
-    monthlyKpis: computeMonthlyCommercial(d.opportunities, d.reservations, seller, end),
+    monthlyKpis: computeMonthlyCommercial(d.opportunities, d.reservations, seller, from, to),
     stackKeys: [...stackKeys],
     goalMonth: [...months][0] ?? "",
   };

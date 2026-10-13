@@ -2,7 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 
 export type OccRes = { pick_up_at: string | null; return_at: string | null };
-export type OccMonth = { label: string; rate: number; carDays: number; capacity: number };
+export type OccMonth = { label: string; month: string; rate: number; carDays: number; capacity: number };
 
 const DAY = 86400000;
 
@@ -28,6 +28,7 @@ export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, c
     const d = new Date(start);
     out.push({
       label: `${MONTHS_PT[d.getUTCMonth()]}/${d.getUTCFullYear()}`,
+      month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
       rate: capacity ? carDays / capacity : 0,
       carDays,
       capacity,
@@ -36,10 +37,24 @@ export function computeOccupancy(res: OccRes[], vehicles: number, today: Date, c
   return out;
 }
 
-export async function fetchOccupancy() {
+export function occupancyMonthVariation(current?: OccMonth, previous?: OccMonth) {
+  if (!current || !previous) return undefined;
+  return previous.rate ? ((current.rate - previous.rate) / previous.rate) * 100 : current.rate ? 100 : 0;
+}
+
+export async function fetchOccupancy(from?: string, to?: string) {
   const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 2, 1)).toISOString();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 3, 1)).toISOString();
+  const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const periodFrom = from ?? `${currentMonth.getUTCFullYear()}-${String(currentMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  const periodTo = to ?? now.toISOString().slice(0, 10);
+  const monthOffset = (value: string) => {
+    const [year, month] = value.slice(0, 7).split("-").map(Number);
+    return (year! - currentMonth.getUTCFullYear()) * 12 + month! - 1 - currentMonth.getUTCMonth();
+  };
+  const firstOffset = Math.min(-2, monthOffset(periodFrom) - 1);
+  const lastOffset = Math.max(2, monthOffset(periodTo) + 2);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + firstOffset, 1)).toISOString();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + lastOffset + 1, 1)).toISOString();
   const [res, fleet] = await Promise.all([
     fetchAll((a, b) =>
       supabase
@@ -54,5 +69,9 @@ export async function fetchOccupancy() {
   ]);
   if (res.error) throw res.error;
   const vehicles = fleet.data?.vehicles ?? 0;
-  return { vehicles, months: computeOccupancy(res.data as OccRes[], vehicles, now, 5, -2) };
+  const reservations = res.data as OccRes[];
+  return {
+    vehicles,
+    months: computeOccupancy(reservations, vehicles, now, lastOffset - firstOffset + 1, firstOffset),
+  };
 }

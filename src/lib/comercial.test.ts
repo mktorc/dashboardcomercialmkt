@@ -13,7 +13,7 @@ describe("computeMonthlyCommercial", () => {
       { created_at: "2026-10-06T12:00:00Z", seller_name: "Naty", status: "confirmed", total_amount: 1100, discount_amount: 100 },
       { created_at: "2026-10-07T12:00:00Z", seller_name: "Naty", status: "cancelled", total_amount: 500, discount_amount: 500 },
     ];
-    const months = computeMonthlyCommercial(opportunities, reservations, "nathalia", new Date("2026-10-08T12:00:00Z"));
+    const months = computeMonthlyCommercial(opportunities, reservations, "nathalia", "2026-06-01", "2026-10-08");
     const october = months[4];
     expect(months.map((month) => month.mes)).toEqual(["jun/2026", "jul/2026", "ago/2026", "set/2026", "out/2026"]);
     expect(october).toMatchObject({ oportunidades: 2, reservas: 2, faturamento: 2000, conversao: 1, ticket: 1000, descontoPct: 200 / 2200 });
@@ -73,9 +73,16 @@ describe("computeComercial", () => {
   });
 
   it("agrupa o valor fechado por vendedor em cinco meses", () => {
-    const view = computeComercial(stackedData, "2026-10-01", "2026-10-08", "all");
+    const view = computeComercial(stackedData, "2026-06-01", "2026-10-08", "all");
     expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
     expect(view.monthly[4]?.["Naty"]).toBe(2000);
+  });
+
+  it("limita as séries mensais aos meses do período selecionado", () => {
+    const view = computeComercial(stackedData, "2026-10-01", "2026-10-08", "all");
+    expect(view.monthlyKpis.map((month) => month.mes)).toEqual(["out/2026"]);
+    expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/10"]);
+    expect(view.monthly[0]?.["Naty"]).toBe(2000);
   });
 
   it("agrupa oportunidades e faturamento por vendedor e dia dentro do período", () => {

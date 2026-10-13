@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeOccupancy } from "./occupancy";
+import { computeOccupancy, occupancyMonthVariation } from "./occupancy";
 
 describe("computeOccupancy", () => {
   it("conta só os dias da reserva dentro de cada mês", () => {
@@ -22,5 +22,17 @@ describe("computeOccupancy", () => {
       "nov/2026",
       "dez/2026",
     ]);
+  });
+
+  it("compara meses-calendário completos", () => {
+    const reservations = [
+      { pick_up_at: "2026-06-01T00:00:00Z", return_at: "2026-06-16T00:00:00Z" },
+      { pick_up_at: "2026-07-01T00:00:00Z", return_at: "2026-08-01T00:00:00Z" },
+    ];
+    const months = computeOccupancy(reservations, 1, new Date("2026-07-15T12:00:00Z"), 2, -1);
+
+    expect(months[0]?.rate).toBe(0.5);
+    expect(months[1]?.rate).toBe(1);
+    expect(occupancyMonthVariation(months[1], months[0])).toBe(100);
   });
 });
