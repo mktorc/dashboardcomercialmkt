@@ -301,10 +301,12 @@ export function computeAttribution(d: AnalyticsData) {
   d.reservations
     .filter((r) => r.status === "confirmed")
     .forEach((r) => {
-      const campaign = r.utm_campaign?.trim() || "sem_utm";
-      const sources = campaignSources.get(campaign.toLowerCase());
+      const tagged = r.utm_campaign?.trim();
+      // Sem UTM não há como saber a origem: nunca herdar a origem de outra linha.
+      const campaign = tagged || "sem_utm";
+      const sources = tagged ? campaignSources.get(tagged.toLowerCase()) : undefined;
       const source = sources?.size === 1 ? [...sources][0]! : "sem_origem";
-      const row = touch(source, campaign);
+      const row = tagged ? touch(source, campaign) : touch("sem_origem", "sem_utm", "sem rastreamento");
       row.reservas += 1;
       row.faturamento += r.total_amount;
     });
@@ -318,10 +320,14 @@ export function computeAttribution(d: AnalyticsData) {
       faturamento: r.faturamento,
       cpl: r.leads ? r.investimento / r.leads : 0,
       conversao: r.leads ? r.reservas / r.leads : 0,
-      roi: r.investimento ? (r.faturamento - r.investimento) / r.investimento : 0,
-      roas: r.investimento ? r.faturamento / r.investimento : 0,
+      // Sem leads/reservas rastreados, ROI é desconhecido (não -100%).
+      roi:
+        r.investimento && (r.leads || r.reservas)
+          ? (r.faturamento - r.investimento) / r.investimento
+          : null,
+      roas: r.investimento && (r.leads || r.reservas) ? r.faturamento / r.investimento : null,
     }))
-    .sort((a, b) => b.faturamento - a.faturamento);
+    .sort((a, b) => b.investimento - a.investimento || b.faturamento - a.faturamento);
 }
 
 export type OpportunityOriginAnalytics = {
@@ -333,6 +339,7 @@ export type OpportunityOriginAnalytics = {
   funnel: { key: string; origin: string; stages: { count: number; conversion: number | null }[] }[];
 };
 
+const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const originKey = (value: string | null) => {
   const source = (value ?? "").trim().toLowerCase();
   if (["meta", "facebook", "fb", "instagram", "ig"].some((alias) => source.includes(alias)))
@@ -364,7 +371,10 @@ export function computeOpportunityOrigins(
   const lastMonth = new Date(Date.UTC(toYear!, toMonth! - 1, 1));
   for (; month <= lastMonth; month.setUTCMonth(month.getUTCMonth() + 1)) {
     const key = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-    months.push({ key, label: key.replace("-", "/") });
+    months.push({
+      key,
+      label: `${MONTH_ABBR[month.getUTCMonth()]}/${month.getUTCFullYear()}`,
+    });
   }
 
   const sourceKeys = [
