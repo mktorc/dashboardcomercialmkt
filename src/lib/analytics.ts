@@ -37,6 +37,7 @@ export type LeadRow = {
   stage_name: string | null;
   utm_source: string | null;
   utm_campaign: string | null;
+  lead_origin?: string | null;
 };
 export type ReservationRow = {
   created_at: string;
@@ -45,6 +46,7 @@ export type ReservationRow = {
   total_amount: number;
   status: string;
   utm_campaign: string | null;
+  commission_partner?: string | null;
 };
 export type OpportunityOriginRow = {
   opportunity_id: string;
@@ -89,7 +91,7 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
       fetchAll((a, b) =>
         supabase
           .from("crm_leads")
-          .select("created_at, stage_name, utm_source, utm_campaign")
+          .select("created_at, stage_name, utm_source, utm_campaign, lead_origin")
           .gte("created_at", iso(from))
           .lte("created_at", iso(to))
           .range(a, b),
@@ -97,7 +99,7 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
       fetchAll((a, b) =>
         supabase
           .from("reservations")
-          .select("created_at, car_category, rental_days, total_amount, status, utm_campaign")
+          .select("created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner")
           .gte("created_at", iso(from))
           .lte("created_at", iso(to))
           .range(a, b),
@@ -155,7 +157,7 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
       fetchAll((a, b) =>
         supabase
           .from("crm_leads")
-          .select("lead_id, utm_source")
+          .select("lead_id, utm_source, lead_origin")
           .in("lead_id", leadIds.slice(index * 400, (index + 1) * 400))
           .range(a, b),
       ),
@@ -165,8 +167,8 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
   if (originLeadError) throw originLeadError;
   const sourceByLeadId = new Map<string, string | null>();
   originLeadPages.forEach((page) => {
-    (page.data as { lead_id: string | null; utm_source: string | null }[]).forEach((lead) => {
-      if (lead.lead_id) sourceByLeadId.set(lead.lead_id, lead.utm_source);
+    (page.data as { lead_id: string | null; utm_source: string | null; lead_origin: string | null }[]).forEach((lead) => {
+      if (lead.lead_id) sourceByLeadId.set(lead.lead_id, lead.lead_origin || lead.utm_source);
     });
   });
   const attachOrigin = (rows: Omit<OpportunityOriginRow, "utm_source">[]): OpportunityOriginRow[] =>
@@ -240,22 +242,37 @@ const isMetaSource = (source: string) => {
   );
 };
 
+const stripAccents = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const ORIGIN_LABELS = new Map<string, string>();
+/** Normaliza a origem (Origem do Lead do ClickMassa / Commission Partner do HQ / utm_source). */
+export const normalizeOrigin = (value: string | null | undefined) => {
+  const raw = (value ?? "").trim();
+  const source = stripAccents(raw).toLowerCase();
+  if (!source || source === "sem_origem" || source === "sem origem") return "sem_origem";
+  if (isMetaSource(source)) return "meta";
+  if (["google", "adwords", "gclid"].some((alias) => source.includes(alias))) return "google";
+  if (source === "whatsapp") {
+    ORIGIN_LABELS.set("whatsapp", "WhatsApp");
+    return "whatsapp";
+  }
+  const key = source.replace(/\s+/g, " ");
+  if (!ORIGIN_LABELS.has(key)) ORIGIN_LABELS.set(key, raw.replace(/\s+/g, " "));
+  return key;
+};
+export const originDisplay = (key: string) =>
+  key === "meta"
+    ? "Meta Ads"
+    : key === "google"
+      ? "Google Ads"
+      : key === "sem_origem"
+        ? "Sem origem"
+        : (ORIGIN_LABELS.get(key) ?? key);
+const leadOrigin = (lead: LeadRow) => lead.lead_origin || lead.utm_source;
+const reservationOrigin = (r: ReservationRow) => r.commission_partner || null;
+
 export function computeAttribution(d: AnalyticsData) {
-  const normalizeSource = (value: string | null | undefined) => {
-    const source = (value ?? "").trim().toLowerCase();
-    if (isMetaSource(source))
-      return "meta";
-    if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
-    return source || "sem_origem";
-  };
-  const sourceLabel = (source: string) =>
-    source === "meta"
-      ? "Meta"
-      : source === "google"
-        ? "Google"
-        : source === "sem_origem"
-          ? "Sem origem"
-          : source;
+  const normalizeSource = normalizeOrigin;
+  const sourceLabel = originDisplay;
   const campaignSources = new Map<string, Set<string>>();
   const addCampaignSource = (campaign: string | null, source: string) => {
     const key = campaign?.trim().toLowerCase();
@@ -264,7 +281,7 @@ export function computeAttribution(d: AnalyticsData) {
     sources.add(source);
     campaignSources.set(key, sources);
   };
-  d.leads.forEach((lead) => addCampaignSource(lead.utm_campaign, normalizeSource(lead.utm_source)));
+  d.leads.forEach((lead) => addCampaignSource(lead.utm_campaign, normalizeSource(leadOrigin(lead))));
   d.meta.forEach((ad) => addCampaignSource(ad.utm_campaign, "meta"));
   d.google.forEach((ad) => addCampaignSource(ad.utm_campaign, "google"));
 
@@ -295,8 +312,9 @@ export function computeAttribution(d: AnalyticsData) {
   };
   const addAds = (rows: AdRow[], source: string) =>
     rows.forEach((ad) => {
-      const campaign = ad.utm_campaign?.trim() || `sem_utm:${ad.campaign_name}`;
-      const label = ad.utm_campaign?.trim() || `sem_utm · ${ad.campaign_name}`;
+      // Campanhas sem UTM somam no canal, onde caem os leads/reservas pela origem do CRM/HQ.
+      const campaign = ad.utm_campaign?.trim() || "sem_utm";
+      const label = ad.utm_campaign?.trim() || "todas as campanhas (por origem)";
       const row = touch(source, campaign, label);
       row.investimento += ad.spend;
       row.cliques += ad.clicks;
@@ -304,8 +322,13 @@ export function computeAttribution(d: AnalyticsData) {
   addAds(d.meta, "meta");
   addAds(d.google, "google");
   d.leads.forEach((lead) => {
-    const campaign = lead.utm_campaign?.trim() || "sem_utm";
-    touch(lead.utm_source ?? "sem_origem", campaign).leads += 1;
+    const tagged = lead.utm_campaign?.trim();
+    const source = leadOrigin(lead) ?? "sem_origem";
+    const paid = ["meta", "google"].includes(normalizeSource(source));
+    const row = tagged
+      ? touch(source, tagged)
+      : touch(source, "sem_utm", paid ? "todas as campanhas (por origem)" : "por origem");
+    row.leads += 1;
   });
   d.reservations
     .filter((r) => r.status === "confirmed")
@@ -314,8 +337,14 @@ export function computeAttribution(d: AnalyticsData) {
       // Sem UTM não há como saber a origem: nunca herdar a origem de outra linha.
       const campaign = tagged || "sem_utm";
       const sources = tagged ? campaignSources.get(tagged.toLowerCase()) : undefined;
-      const source = sources?.size === 1 ? [...sources][0]! : "sem_origem";
-      const row = tagged ? touch(source, campaign) : touch("sem_origem", "sem_utm", "sem rastreamento");
+      const partner = reservationOrigin(r);
+      const source = sources?.size === 1 ? [...sources][0]! : (partner ?? "sem_origem");
+      const paid = ["meta", "google"].includes(normalizeSource(partner));
+      const row = tagged
+        ? touch(source, campaign)
+        : partner
+          ? touch(partner, "sem_utm", paid ? "todas as campanhas (por origem)" : "por origem")
+          : touch("sem_origem", "sem_utm", "sem rastreamento");
       row.reservas += 1;
       row.faturamento += r.total_amount;
     });
@@ -349,15 +378,8 @@ export type OpportunityOriginAnalytics = {
 };
 
 const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const originKey = (value: string | null) => {
-  const source = (value ?? "").trim().toLowerCase();
-  if (isMetaSource(source))
-    return "meta";
-  if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
-  return source || "sem_origem";
-};
-const originLabel = (key: string) =>
-  key === "meta" ? "Meta" : key === "google" ? "Google" : key === "sem_origem" ? "Sem origem" : key === "whatsapp" ? "WhatsApp" : key;
+const originKey = (value: string | null) => normalizeOrigin(value);
+const originLabel = originDisplay;
 const isWonOpportunity = (opportunity: OpportunityOriginRow) => {
   const value = `${opportunity.status ?? ""} ${opportunity.stage_name ?? ""}`
     .normalize("NFD")
