@@ -208,7 +208,7 @@ export function ComercialPage({
   }
   const occupancyMonths = (occ?.months ?? []).filter((month) => selectedMonths.has(month.month));
   const monthlyKpis = (view?.monthlyKpis ?? []).filter((month) => selectedMonths.has(month.monthKey));
-  const monthlyRevenue = (view?.monthly ?? []).filter((month) => selectedMonths.has(String(month.mes).replace("/", "-")));
+  const monthlyRevenue = (view?.monthly ?? []).filter((month) => selectedMonths.has(String(month["mes"]).replace("/", "-")));
 
   const Th = ({ k: key, label, left }: { k: SortKey; label: string; left?: boolean }) => (
     <th className={`px-4 py-3 font-medium ${left ? "text-left" : "text-right"}`}>

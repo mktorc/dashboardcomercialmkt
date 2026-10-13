@@ -231,10 +231,19 @@ export function computeTimeseries(d: AnalyticsData) {
     .map((r) => ({ ...r, label: r.date.slice(8) + "/" + r.date.slice(5, 7) }));
 }
 
+// Compara por palavra: "ig"/"fb" não podem casar com trechos como "sem_orIGem".
+const isMetaSource = (source: string) => {
+  const tokens = source.split(/[^a-z0-9]+/).filter(Boolean);
+  return (
+    ["meta", "facebook", "instagram"].some((alias) => source.includes(alias)) ||
+    tokens.some((token) => token === "fb" || token === "ig")
+  );
+};
+
 export function computeAttribution(d: AnalyticsData) {
   const normalizeSource = (value: string | null | undefined) => {
     const source = (value ?? "").trim().toLowerCase();
-    if (["meta", "facebook", "fb", "instagram", "ig"].some((alias) => source.includes(alias)))
+    if (isMetaSource(source))
       return "meta";
     if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
     return source || "sem_origem";
@@ -301,10 +310,12 @@ export function computeAttribution(d: AnalyticsData) {
   d.reservations
     .filter((r) => r.status === "confirmed")
     .forEach((r) => {
-      const campaign = r.utm_campaign?.trim() || "sem_utm";
-      const sources = campaignSources.get(campaign.toLowerCase());
+      const tagged = r.utm_campaign?.trim();
+      // Sem UTM não há como saber a origem: nunca herdar a origem de outra linha.
+      const campaign = tagged || "sem_utm";
+      const sources = tagged ? campaignSources.get(tagged.toLowerCase()) : undefined;
       const source = sources?.size === 1 ? [...sources][0]! : "sem_origem";
-      const row = touch(source, campaign);
+      const row = tagged ? touch(source, campaign) : touch("sem_origem", "sem_utm", "sem rastreamento");
       row.reservas += 1;
       row.faturamento += r.total_amount;
     });
@@ -318,10 +329,14 @@ export function computeAttribution(d: AnalyticsData) {
       faturamento: r.faturamento,
       cpl: r.leads ? r.investimento / r.leads : 0,
       conversao: r.leads ? r.reservas / r.leads : 0,
-      roi: r.investimento ? (r.faturamento - r.investimento) / r.investimento : 0,
-      roas: r.investimento ? r.faturamento / r.investimento : 0,
+      // Sem leads/reservas rastreados, ROI é desconhecido (não -100%).
+      roi:
+        r.investimento && (r.leads || r.reservas)
+          ? (r.faturamento - r.investimento) / r.investimento
+          : null,
+      roas: r.investimento && (r.leads || r.reservas) ? r.faturamento / r.investimento : null,
     }))
-    .sort((a, b) => b.faturamento - a.faturamento);
+    .sort((a, b) => b.investimento - a.investimento || b.faturamento - a.faturamento);
 }
 
 export type OpportunityOriginAnalytics = {
@@ -333,15 +348,16 @@ export type OpportunityOriginAnalytics = {
   funnel: { key: string; origin: string; stages: { count: number; conversion: number | null }[] }[];
 };
 
+const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const originKey = (value: string | null) => {
   const source = (value ?? "").trim().toLowerCase();
-  if (["meta", "facebook", "fb", "instagram", "ig"].some((alias) => source.includes(alias)))
+  if (isMetaSource(source))
     return "meta";
   if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
   return source || "sem_origem";
 };
 const originLabel = (key: string) =>
-  key === "meta" ? "Meta" : key === "google" ? "Google" : key === "sem_origem" ? "Sem origem" : key;
+  key === "meta" ? "Meta" : key === "google" ? "Google" : key === "sem_origem" ? "Sem origem" : key === "whatsapp" ? "WhatsApp" : key;
 const isWonOpportunity = (opportunity: OpportunityOriginRow) => {
   const value = `${opportunity.status ?? ""} ${opportunity.stage_name ?? ""}`
     .normalize("NFD")
@@ -364,7 +380,10 @@ export function computeOpportunityOrigins(
   const lastMonth = new Date(Date.UTC(toYear!, toMonth! - 1, 1));
   for (; month <= lastMonth; month.setUTCMonth(month.getUTCMonth() + 1)) {
     const key = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-    months.push({ key, label: key.replace("-", "/") });
+    months.push({
+      key,
+      label: `${MONTH_ABBR[month.getUTCMonth()]}/${month.getUTCFullYear()}`,
+    });
   }
 
   const sourceKeys = [
