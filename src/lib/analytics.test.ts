@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeAttribution,
+  computeKpis,
   computeOpportunityOrigins,
   type AnalyticsData,
   type OpportunityOriginRow,
@@ -45,16 +46,26 @@ describe("computeAttribution", () => {
           utm_campaign: "verao",
         },
       ],
-      leads: [
+      opportunities: [
         {
+          opportunity_id: "opp-meta",
+          lead_id: "lead-meta",
           created_at: "2026-10-01T12:00:00Z",
+          updated_at: "2026-10-01T12:00:00Z",
           stage_name: "Novo",
+          status: "open",
+          pipeline_step_id: 1,
           utm_source: "facebook",
           utm_campaign: "verao",
         },
         {
+          opportunity_id: "opp-google",
+          lead_id: "lead-google",
           created_at: "2026-10-01T13:00:00Z",
+          updated_at: "2026-10-01T13:00:00Z",
           stage_name: "Novo",
+          status: "open",
+          pipeline_step_id: 1,
           utm_source: "google",
           utm_campaign: "verao",
         },
@@ -69,11 +80,11 @@ describe("computeAttribution", () => {
           utm_campaign: "verao",
         },
       ],
-      opportunities: [],
       updatedOpportunities: [],
     } satisfies AnalyticsData;
 
     const rows = computeAttribution(data);
+    const kpis = computeKpis(data);
 
     expect(rows.map((row) => row.utm)).toEqual(
       expect.arrayContaining([
@@ -86,6 +97,8 @@ describe("computeAttribution", () => {
     );
     expect(rows.find((row) => row.utm === "Meta Ads / verao")?.leads).toBe(1);
     expect(rows.find((row) => row.utm === "Google Ads / verao")?.leads).toBe(1);
+    expect(kpis.leads).toBe(2);
+    expect(kpis.conversion).toBe(0.5);
     expect(rows.find((row) => row.utm === "Sem origem / verao")?.faturamento).toBe(500);
   });
 
@@ -93,7 +106,6 @@ describe("computeAttribution", () => {
     const rows = computeAttribution({
       meta: [],
       google: [],
-      leads: [],
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
@@ -129,9 +141,9 @@ describe("computeOpportunityOrigins", () => {
         lead_id: "lead-2",
         created_at: "2026-10-02T12:00:00Z",
         updated_at: "2026-10-02T12:00:00Z",
-        stage_name: "Proposta",
-        status: "open",
-        pipeline_step_id: 2,
+        stage_name: "Ganho",
+        status: "closed",
+        pipeline_step_id: 3,
         utm_source: "meta",
       },
       {
@@ -168,6 +180,7 @@ describe("computeOpportunityOrigins", () => {
     );
     const meta = result.sources.find((source) => source.label === "Meta Ads")!;
     const metaFunnel = result.funnel.find((row) => row.key === meta.key)!;
+    const allFunnel = result.funnel.find((row) => row.key === "all")!;
 
     expect(result.byOrigin.find((row) => row.origin === "Meta Ads")?.opportunities).toBe(2);
     expect(result.createdMonthly[0]?.[meta.key]).toBe(2);
@@ -175,29 +188,84 @@ describe("computeOpportunityOrigins", () => {
     expect(metaFunnel.stages.map((stage) => [stage.count, stage.conversion])).toEqual([
       [2, null],
       [1, 0.5],
+      [1, 1],
+    ]);
+    expect(allFunnel.stages.map((stage) => [stage.count, stage.conversion])).toEqual([
+      [3, null],
+      [1, 1 / 3],
+      [1, 1],
     ]);
     expect(
-      result.closedMonthly[0]?.[result.sources.find((source) => source.label === "Google Ads")!.key],
+      result.closedMonthly[0]?.[
+        result.sources.find((source) => source.label === "Google Ads")!.key
+      ],
     ).toBeUndefined();
   });
 
   it("sem UTM, usa Origem do Lead e Commission Partner para atribuir ao canal", () => {
     const rows = computeAttribution({
-      meta: [{ date: "2026-10-01", campaign_name: "A", spend: 100, clicks: 1, impressions: 1, utm_campaign: null }],
+      meta: [
+        {
+          date: "2026-10-01",
+          campaign_name: "A",
+          spend: 100,
+          clicks: 1,
+          impressions: 1,
+          utm_campaign: null,
+        },
+      ],
       google: [],
-      leads: [
-        { created_at: "2026-10-01T12:00:00Z", stage_name: null, utm_source: "whatsapp", utm_campaign: null, lead_origin: "Meta Ads" },
-        { created_at: "2026-10-01T12:00:00Z", stage_name: null, utm_source: null, utm_campaign: null, lead_origin: "Turistorlando" },
+      opportunities: [
+        {
+          opportunity_id: "opp-meta",
+          lead_id: "lead-meta",
+          created_at: "2026-10-01T12:00:00Z",
+          updated_at: "2026-10-01T12:00:00Z",
+          stage_name: null,
+          status: "open",
+          pipeline_step_id: 1,
+          utm_source: "Meta Ads",
+          utm_campaign: null,
+        },
+        {
+          opportunity_id: "opp-partner",
+          lead_id: "lead-partner",
+          created_at: "2026-10-01T12:00:00Z",
+          updated_at: "2026-10-01T12:00:00Z",
+          stage_name: null,
+          status: "open",
+          pipeline_step_id: 1,
+          utm_source: "Turistorlando",
+          utm_campaign: null,
+        },
       ],
       reservations: [
-        { created_at: "2026-10-01T14:00:00Z", car_category: null, rental_days: 2, total_amount: 300, status: "confirmed", utm_campaign: null, commission_partner: "Meta ADS" },
-        { created_at: "2026-10-01T14:00:00Z", car_category: null, rental_days: 2, total_amount: 200, status: "confirmed", utm_campaign: null, commission_partner: "Turistorlando" },
+        {
+          created_at: "2026-10-01T14:00:00Z",
+          car_category: null,
+          rental_days: 2,
+          total_amount: 300,
+          status: "confirmed",
+          utm_campaign: null,
+          commission_partner: "Meta ADS",
+        },
+        {
+          created_at: "2026-10-01T14:00:00Z",
+          car_category: null,
+          rental_days: 2,
+          total_amount: 200,
+          status: "confirmed",
+          utm_campaign: null,
+          commission_partner: "Turistorlando",
+        },
       ],
-      opportunities: [],
       updatedOpportunities: [],
     });
     const meta = rows.find((r) => r.utm === "Meta Ads / todas as campanhas (por origem)");
     expect(meta).toMatchObject({ investimento: 100, leads: 1, reservas: 1, faturamento: 300 });
-    expect(rows.find((r) => r.utm === "Turistorlando / por origem")).toMatchObject({ leads: 1, faturamento: 200 });
+    expect(rows.find((r) => r.utm === "Turistorlando / por origem")).toMatchObject({
+      leads: 1,
+      faturamento: 200,
+    });
   });
 });

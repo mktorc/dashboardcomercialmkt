@@ -1,26 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 
-export type RangeKey = "today" | "7d" | "month" | "30d";
-
-export const RANGE_LABELS: Record<RangeKey, string> = {
-  today: "Hoje",
-  "7d": "Últimos 7 dias",
-  month: "Este mês",
-  "30d": "Últimos 30 dias",
-};
-
-export function rangeToDates(range: RangeKey): { from: Date; to: Date } {
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  if (range === "7d") from.setDate(from.getDate() - 6);
-  if (range === "30d") from.setDate(from.getDate() - 29);
-  if (range === "month") from.setDate(1);
-  return { from, to };
-}
-
 const iso = (d: Date) => d.toISOString();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -31,13 +11,6 @@ export type AdRow = {
   clicks: number;
   impressions: number;
   utm_campaign: string | null;
-};
-export type LeadRow = {
-  created_at: string;
-  stage_name: string | null;
-  utm_source: string | null;
-  utm_campaign: string | null;
-  lead_origin?: string | null;
 };
 export type ReservationRow = {
   created_at: string;
@@ -57,51 +30,46 @@ export type OpportunityOriginRow = {
   status: string | null;
   pipeline_step_id: number | null;
   utm_source: string | null;
+  utm_campaign?: string | null;
 };
 
 export type AnalyticsData = {
   meta: AdRow[];
   google: AdRow[];
-  leads: LeadRow[];
   reservations: ReservationRow[];
   opportunities: OpportunityOriginRow[];
   updatedOpportunities: OpportunityOriginRow[];
 };
 
-export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
-  const { from, to } = rangeToDates(range);
-  const [meta, google, leads, reservations, createdOpportunities, updatedOpportunities] =
+export async function fetchAnalytics(from: string, to: string): Promise<AnalyticsData> {
+  const fromDate = new Date(`${from}T00:00:00`);
+  const toDate = new Date(`${to}T23:59:59.999`);
+  const [meta, google, reservations, createdOpportunities, updatedOpportunities] =
     await Promise.all([
       fetchAll((a, b) =>
         supabase
           .from("meta_ads_metrics")
           .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
-          .gte("date", isoDay(from))
-          .lte("date", isoDay(to))
+          .gte("date", from)
+          .lte("date", to)
           .range(a, b),
       ),
       fetchAll((a, b) =>
         supabase
           .from("google_ads_metrics")
           .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
-          .gte("date", isoDay(from))
-          .lte("date", isoDay(to))
-          .range(a, b),
-      ),
-      fetchAll((a, b) =>
-        supabase
-          .from("crm_leads")
-          .select("created_at, stage_name, utm_source, utm_campaign, lead_origin")
-          .gte("created_at", iso(from))
-          .lte("created_at", iso(to))
+          .gte("date", from)
+          .lte("date", to)
           .range(a, b),
       ),
       fetchAll((a, b) =>
         supabase
           .from("reservations")
-          .select("created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner")
-          .gte("created_at", iso(from))
-          .lte("created_at", iso(to))
+          .select(
+            "created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner",
+          )
+          .gte("created_at", iso(fromDate))
+          .lte("created_at", iso(toDate))
           .range(a, b),
       ),
       fetchAll((a, b) =>
@@ -111,8 +79,8 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
             "opportunity_id, lead_id, created_at, updated_at, stage_name, status, pipeline_step_id",
           )
           .eq("pipeline_name", "Comercial")
-          .gte("created_at", iso(from))
-          .lte("created_at", iso(to))
+          .gte("created_at", iso(fromDate))
+          .lte("created_at", iso(toDate))
           .range(a, b),
       ),
       fetchAll((a, b) =>
@@ -122,8 +90,8 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
             "opportunity_id, lead_id, created_at, updated_at, stage_name, status, pipeline_step_id",
           )
           .eq("pipeline_name", "Comercial")
-          .gte("updated_at", iso(from))
-          .lte("updated_at", iso(to))
+          .gte("updated_at", iso(fromDate))
+          .lte("updated_at", iso(toDate))
           .range(a, b),
       ),
     ]);
@@ -131,7 +99,6 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
   const err =
     meta.error ||
     google.error ||
-    leads.error ||
     reservations.error ||
     createdOpportunities.error ||
     updatedOpportunities.error;
@@ -139,11 +106,11 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
 
   const createdRows = (createdOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
-    "utm_source"
+    "utm_source" | "utm_campaign"
   >[];
   const updatedRows = (updatedOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
-    "utm_source"
+    "utm_source" | "utm_campaign"
   >[];
   const leadIds = [
     ...new Set(
@@ -157,7 +124,7 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
       fetchAll((a, b) =>
         supabase
           .from("crm_leads")
-          .select("lead_id, utm_source, lead_origin")
+          .select("lead_id, utm_source, lead_origin, utm_campaign")
           .in("lead_id", leadIds.slice(index * 400, (index + 1) * 400))
           .range(a, b),
       ),
@@ -165,16 +132,34 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
   );
   const originLeadError = originLeadPages.find((page) => page.error)?.error;
   if (originLeadError) throw originLeadError;
-  const sourceByLeadId = new Map<string, string | null>();
+  const leadAttributionById = new Map<string, { source: string | null; campaign: string | null }>();
   originLeadPages.forEach((page) => {
-    (page.data as { lead_id: string | null; utm_source: string | null; lead_origin: string | null }[]).forEach((lead) => {
-      if (lead.lead_id) sourceByLeadId.set(lead.lead_id, lead.lead_origin || lead.utm_source);
+    (
+      page.data as {
+        lead_id: string | null;
+        utm_source: string | null;
+        lead_origin: string | null;
+        utm_campaign: string | null;
+      }[]
+    ).forEach((lead) => {
+      if (lead.lead_id)
+        leadAttributionById.set(lead.lead_id, {
+          source: lead.lead_origin || lead.utm_source,
+          campaign: lead.utm_campaign,
+        });
     });
   });
-  const attachOrigin = (rows: Omit<OpportunityOriginRow, "utm_source">[]): OpportunityOriginRow[] =>
+  const attachOrigin = (
+    rows: Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[],
+  ): OpportunityOriginRow[] =>
     rows.map((opportunity) => ({
       ...opportunity,
-      utm_source: opportunity.lead_id ? (sourceByLeadId.get(opportunity.lead_id) ?? null) : null,
+      utm_source: opportunity.lead_id
+        ? (leadAttributionById.get(opportunity.lead_id)?.source ?? null)
+        : null,
+      utm_campaign: opportunity.lead_id
+        ? (leadAttributionById.get(opportunity.lead_id)?.campaign ?? null)
+        : null,
     }));
 
   const num = <T extends { spend: unknown }>(rows: T[]) =>
@@ -183,7 +168,6 @@ export async function fetchAnalytics(range: RangeKey): Promise<AnalyticsData> {
   return {
     meta: num((meta.data ?? []) as never[]),
     google: num((google.data ?? []) as never[]),
-    leads: (leads.data ?? []) as LeadRow[],
     reservations: ((reservations.data ?? []) as ReservationRow[]).map((r) => ({
       ...r,
       total_amount: Number(r.total_amount),
@@ -201,7 +185,7 @@ export function computeKpis(d: AnalyticsData) {
   const metaSpend = d.meta.reduce((s, r) => s + r.spend, 0);
   const googleSpend = d.google.reduce((s, r) => s + r.spend, 0);
   const spend = metaSpend + googleSpend;
-  const leads = d.leads.length;
+  const leads = d.opportunities.length;
   const confirmed = d.reservations.filter((r) => r.status === "confirmed");
   const revenue = confirmed.reduce((s, r) => s + r.total_amount, 0);
   const days = confirmed.reduce((s, r) => s + r.rental_days, 0);
@@ -267,7 +251,6 @@ export const originDisplay = (key: string) =>
       : key === "sem_origem"
         ? "Sem origem"
         : (ORIGIN_LABELS.get(key) ?? key);
-const leadOrigin = (lead: LeadRow) => lead.lead_origin || lead.utm_source;
 const reservationOrigin = (r: ReservationRow) => r.commission_partner || null;
 
 export function computeAttribution(d: AnalyticsData) {
@@ -281,7 +264,9 @@ export function computeAttribution(d: AnalyticsData) {
     sources.add(source);
     campaignSources.set(key, sources);
   };
-  d.leads.forEach((lead) => addCampaignSource(lead.utm_campaign, normalizeSource(leadOrigin(lead))));
+  d.opportunities.forEach((opportunity) =>
+    addCampaignSource(opportunity.utm_campaign, normalizeSource(opportunity.utm_source)),
+  );
   d.meta.forEach((ad) => addCampaignSource(ad.utm_campaign, "meta"));
   d.google.forEach((ad) => addCampaignSource(ad.utm_campaign, "google"));
 
@@ -321,9 +306,9 @@ export function computeAttribution(d: AnalyticsData) {
     });
   addAds(d.meta, "meta");
   addAds(d.google, "google");
-  d.leads.forEach((lead) => {
-    const tagged = lead.utm_campaign?.trim();
-    const source = leadOrigin(lead) ?? "sem_origem";
+  d.opportunities.forEach((opportunity) => {
+    const tagged = opportunity.utm_campaign?.trim();
+    const source = opportunity.utm_source ?? "sem_origem";
     const paid = ["meta", "google"].includes(normalizeSource(source));
     const row = tagged
       ? touch(source, tagged)
@@ -373,11 +358,24 @@ export type OpportunityOriginAnalytics = {
   byOrigin: { key: string; origin: string; opportunities: number }[];
   createdMonthly: Record<string, string | number>[];
   closedMonthly: Record<string, string | number>[];
-  stages: { key: string; label: string; id: number | null }[];
+  stages: { key: string; label: string; id: number | null; isFinal?: boolean }[];
   funnel: { key: string; origin: string; stages: { count: number; conversion: number | null }[] }[];
 };
 
-const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTH_ABBR = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 const originKey = (value: string | null) => normalizeOrigin(value);
 const originLabel = originDisplay;
 const isWonOpportunity = (opportunity: OpportunityOriginRow) => {
@@ -464,6 +462,10 @@ export function computeOpportunityOrigins(
           ? 1
           : a.label.localeCompare(b.label),
   );
+  const funnelStages = [
+    ...stages,
+    { key: "won", label: "Ganhos / Reservas Fechadas", id: null, isFinal: true },
+  ];
   const stagePosition = new Map(stages.map((stage, index) => [stage.key, index]));
   const positionFor = (opportunity: OpportunityOriginRow) => {
     const stageKey =
@@ -480,10 +482,11 @@ export function computeOpportunityOrigins(
     return {
       key: `origin_${originIndex}`,
       origin: labelByOrigin.get(key)!,
-      stages: stages.map((stage, stageIndex) => {
-        const count = sourceOpportunities.filter(
-          (opportunity) => positionFor(opportunity) >= stageIndex,
-        ).length;
+      stages: funnelStages.map((stage, stageIndex) => {
+        const count = stage.isFinal
+          ? sourceOpportunities.filter(isWonOpportunity).length
+          : sourceOpportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex)
+              .length;
         const conversion =
           previousCount === null ? null : previousCount ? count / previousCount : 0;
         previousCount = count;
@@ -491,6 +494,19 @@ export function computeOpportunityOrigins(
       }),
     };
   });
+  let previousCount: number | null = null;
+  const allOriginsFunnel = {
+    key: "all",
+    origin: "Todas as origens",
+    stages: funnelStages.map((stage, stageIndex) => {
+      const count = stage.isFinal
+        ? opportunities.filter(isWonOpportunity).length
+        : opportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex).length;
+      const conversion = previousCount === null ? null : previousCount ? count / previousCount : 0;
+      previousCount = count;
+      return { count, conversion };
+    }),
+  };
 
   return {
     sources,
@@ -504,21 +520,6 @@ export function computeOpportunityOrigins(
     createdMonthly,
     closedMonthly,
     stages,
-    funnel,
+    funnel: [allOriginsFunnel, ...funnel],
   };
-}
-
-export function computeCategories(d: AnalyticsData) {
-  const map = new Map<string, number>();
-  d.reservations
-    .filter((r) => r.status === "confirmed")
-    .forEach((r) =>
-      map.set(
-        r.car_category ?? "Outros",
-        (map.get(r.car_category ?? "Outros") ?? 0) + r.total_amount,
-      ),
-    );
-  return [...map.entries()]
-    .map(([categoria, faturamento]) => ({ categoria, faturamento }))
-    .sort((a, b) => b.faturamento - a.faturamento);
 }

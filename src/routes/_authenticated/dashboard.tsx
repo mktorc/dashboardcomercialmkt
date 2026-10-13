@@ -20,19 +20,16 @@ import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  RANGE_LABELS,
   brl,
   computeAttribution,
-  computeCategories,
   computeKpis,
   computeOpportunityOrigins,
   computeTimeseries,
   fetchAnalytics,
   pct,
-  rangeToDates,
-  type RangeKey,
 } from "@/lib/analytics";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -57,8 +54,6 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: Dashboard,
 });
 
-const RANGES: RangeKey[] = ["today", "7d", "month", "30d"];
-
 const axis = { stroke: "oklch(0.74 0.03 150)", fontSize: 12 };
 const tooltipStyle = {
   background: "oklch(0.22 0.03 155)",
@@ -80,28 +75,29 @@ const localDateInput = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
 function Dashboard() {
-  const [range, setRange] = useState<RangeKey>("30d");
+  const today = new Date();
+  const [from, setFrom] = useState(
+    localDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
+  );
+  const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
   const { data, isLoading, isFetching, refetch, error } = useQuery({
-    queryKey: ["analytics", range],
-    queryFn: () => fetchAnalytics(range),
+    queryKey: ["analytics", from, to],
+    queryFn: () => fetchAnalytics(from, to),
   });
 
   const kpis = data ? computeKpis(data) : null;
   const series = data ? computeTimeseries(data) : [];
-  const attribution = data ? computeAttribution(data) : [];
-  const categories = data ? computeCategories(data) : [];
-  const rangeDates = rangeToDates(range);
-  const originAnalytics = data
-    ? computeOpportunityOrigins(
-        data.opportunities,
-        data.updatedOpportunities,
-        localDateInput(rangeDates.from),
-        localDateInput(rangeDates.to),
+  const attribution = data
+    ? computeAttribution(data).filter(
+        (row) => row.utm.startsWith("Meta Ads /") || row.utm.startsWith("Google Ads /"),
       )
+    : [];
+  const originAnalytics = data
+    ? computeOpportunityOrigins(data.opportunities, data.updatedOpportunities, from, to)
     : null;
   const funnelRows = (originAnalytics?.funnel ?? []).filter(
-    (row) => originFilter === "all" || row.key === originFilter,
+    (row) => row.key === (originFilter === "all" ? "all" : originFilter),
   );
 
   return (
@@ -114,25 +110,29 @@ function Dashboard() {
         >
           <div>
             <h1 className="text-xl font-semibold text-foreground">Painel de Performance</h1>
-            <p className="text-sm text-foreground/70">
-              Mídia paga, CRM e reservas em um só lugar — {RANGE_LABELS[range]}
-            </p>
+            <p className="text-sm text-foreground/70">Mídia paga, CRM e reservas em um só lugar</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {RANGES.map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                  range === r
-                    ? "text-[color:var(--brand-dark)]"
-                    : "border border-border bg-card text-muted-foreground hover:text-foreground"
-                }`}
-                style={range === r ? { background: "var(--brand-vivid)" } : undefined}
-              >
-                {RANGE_LABELS[r]}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs text-foreground/70">
+              De
+              <Input
+                type="date"
+                value={from}
+                max={to}
+                onChange={(event) => event.target.value && setFrom(event.target.value)}
+                className="mt-1 h-9 w-40 bg-card"
+              />
+            </label>
+            <label className="text-xs text-foreground/70">
+              Até
+              <Input
+                type="date"
+                value={to}
+                min={from}
+                onChange={(event) => event.target.value && setTo(event.target.value)}
+                className="mt-1 h-9 w-40 bg-card"
+              />
+            </label>
             <button
               onClick={() => refetch()}
               className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-dark)]"
@@ -167,7 +167,7 @@ function Dashboard() {
               icon={Target}
               label="CPL global"
               value={kpis ? brl(kpis.cpl) : "—"}
-              hint={kpis ? `${kpis.leads} leads no CRM` : undefined}
+              hint={kpis ? `${kpis.leads} oportunidades no CRM` : undefined}
               compact
               aligned
               className="h-[160px]"
@@ -212,8 +212,8 @@ function Dashboard() {
             />
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-3">
-            <Card className="p-5 xl:col-span-2">
+          <section className="grid gap-4">
+            <Card className="p-5">
               <h2 className="text-sm font-semibold text-foreground">
                 Evolução diária — Investimento x Faturamento
               </h2>
@@ -268,36 +268,6 @@ function Dashboard() {
                 </ResponsiveContainer>
               </div>
             </Card>
-
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold text-foreground">Faturamento por categoria</h2>
-              <div className="mt-4 h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={categories}
-                    layout="vertical"
-                    margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                    <XAxis type="number" {...axis} />
-                    <YAxis
-                      type="category"
-                      dataKey="categoria"
-                      width={140}
-                      tick={{ fontSize: 11 }}
-                      {...axis}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                    <Bar
-                      dataKey="faturamento"
-                      name="Faturamento"
-                      fill="#44E500"
-                      radius={[0, 6, 6, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
           </section>
 
           <Card className="overflow-hidden">
@@ -307,8 +277,8 @@ function Dashboard() {
                   Atribuição e ROI por UTM / Campanha
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Mídia paga → leads no CRM → reservas confirmadas. ROI "—" = nenhum lead ou
-                  reserva chegou com a UTM desta campanha.
+                  Mídia paga → leads no CRM → reservas confirmadas. ROI "—" = nenhum lead ou reserva
+                  chegou com a UTM desta campanha.
                 </p>
               </div>
               {isLoading ? (
@@ -321,7 +291,7 @@ function Dashboard() {
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">UTM / Campanha</th>
                     <th className="px-4 py-3 text-right font-medium">Investimento</th>
-                    <th className="px-4 py-3 text-right font-medium">Leads</th>
+                    <th className="px-4 py-3 text-right font-medium">Leads / Oportunidades</th>
                     <th className="px-4 py-3 text-right font-medium">CPL</th>
                     <th className="px-4 py-3 text-right font-medium">Reservas</th>
                     <th className="px-4 py-3 text-right font-medium">Conversão</th>
@@ -354,11 +324,18 @@ function Dashboard() {
                       </td>
                       <td className="px-5 py-2.5 text-right">
                         {row.roi === null ? (
-                          <span className="text-muted-foreground" title="Sem leads ou reservas com esta UTM">—</span>
+                          <span
+                            className="text-muted-foreground"
+                            title="Sem leads ou reservas com esta UTM"
+                          >
+                            —
+                          </span>
                         ) : (
                           <Badge
                             variant={(row.roi ?? 0) >= 0 ? "default" : "destructive"}
-                            className={(row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""}
+                            className={
+                              (row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""
+                            }
                           >
                             {(row.roi * 100).toFixed(0)}%
                           </Badge>
@@ -378,49 +355,7 @@ function Dashboard() {
             </div>
           </Card>
 
-          <section className="grid gap-4 xl:grid-cols-2">
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold text-foreground">
-                Oportunidades criadas por origem do lead
-              </h2>
-              <div
-                className="mt-4"
-                style={{ height: Math.max(120, (originAnalytics?.byOrigin.length ?? 2) * 44 + 40) }}
-              >
-                {originAnalytics?.byOrigin.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={originAnalytics.byOrigin}
-                      layout="vertical"
-                      margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                      <XAxis type="number" {...axis} allowDecimals={false} />
-                      <YAxis
-                        type="category"
-                        dataKey="origin"
-                        width={104}
-                        tick={{ fontSize: 11 }}
-                        {...axis}
-                      />
-                      <Tooltip
-                        contentStyle={tooltipStyle}
-                        formatter={(value: number) => value.toLocaleString("pt-BR")}
-                      />
-                      <Bar
-                        dataKey="opportunities"
-                        name="Oportunidades"
-                        fill="#44E500"
-                        maxBarSize={28}
-                        radius={[0, 4, 4, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <EmptyOriginChart loading={isLoading} />
-                )}
-              </div>
-            </Card>
+          <section className="grid min-w-0 gap-4 xl:grid-cols-2">
             <OriginMonthlyChart
               title="Evolução mensal de oportunidades criadas por origem"
               subtitle="Oportunidades agrupadas pelo mês de criação."
@@ -461,44 +396,48 @@ function Dashboard() {
                   </select>
                 </label>
               </div>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
-                  <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2.5 text-left font-medium">Origem</th>
-                      {(originAnalytics?.stages ?? []).map((stage) => (
-                        <th key={stage.key} className="px-3 py-2.5 text-right font-medium">
-                          {stage.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {funnelRows.map((row) => (
-                      <tr key={row.key} className="border-t border-border">
-                        <td className="px-3 py-2.5 font-medium">{row.origin}</td>
-                        {row.stages.map((stage, index) => (
-                          <td key={`${row.key}-${index}`} className="px-3 py-2.5 text-right">
-                            <span className="block">{stage.count.toLocaleString("pt-BR")}</span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {stage.conversion === null ? "Base" : pct(stage.conversion)}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    {!funnelRows.length ? (
-                      <tr>
-                        <td
-                          colSpan={Math.max(1, (originAnalytics?.stages.length ?? 0) + 1)}
-                          className="px-3 py-8 text-center text-muted-foreground"
-                        >
-                          {isLoading ? "Carregando…" : "Nenhuma oportunidade por etapa no período."}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+              <div className="mt-6 space-y-7">
+                {funnelRows.map((row) => {
+                  const firstStageCount = row.stages[0]?.count ?? 0;
+                  return (
+                    <div key={row.key}>
+                      <h3 className="text-sm font-medium text-foreground">{row.origin}</h3>
+                      <div className="mt-3 flex flex-col items-center gap-2">
+                        {row.stages.map((stage, index) => {
+                          const stageWidth = firstStageCount
+                            ? Math.max(45, (stage.count / firstStageCount) * 100)
+                            : 45;
+                          return (
+                            <div
+                              key={`${row.key}-${index}`}
+                              className="flex min-h-14 max-w-full flex-col justify-center rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
+                              style={{ width: `${stageWidth}%` }}
+                            >
+                              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                                <span className="text-xs font-medium">
+                                  {originAnalytics?.stages[index]?.label}
+                                </span>
+                                <span className="text-sm font-semibold text-accent">
+                                  {stage.count.toLocaleString("pt-BR")}
+                                </span>
+                                <span className="text-[11px] text-muted-foreground">
+                                  {stage.conversion === null
+                                    ? "Base"
+                                    : `${pct(stage.conversion)} de passagem`}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {!funnelRows.length ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    {isLoading ? "Carregando…" : "Nenhuma oportunidade por etapa no período."}
+                  </p>
+                ) : null}
               </div>
             </Card>
           </section>
@@ -530,15 +469,27 @@ function OriginMonthlyChart({
   loading: boolean;
 }) {
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 overflow-hidden p-5">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="text-xs text-muted-foreground">{subtitle}</p>
-      <div className="mt-4 h-52">
+      <div className="mt-4 h-52 min-w-0">
         {data.length && sources.length ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} maxBarSize={48} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <BarChart
+              data={data}
+              maxBarSize={48}
+              barCategoryGap="14%"
+              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+            >
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-              <XAxis dataKey="month" {...axis} />
+              <XAxis
+                dataKey="month"
+                interval="preserveStartEnd"
+                minTickGap={12}
+                tick={{ fontSize: 10 }}
+                height={36}
+                {...axis}
+              />
               <YAxis {...axis} allowDecimals={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
