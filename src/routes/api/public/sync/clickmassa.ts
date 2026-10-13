@@ -98,6 +98,10 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                   (t ? `Atendimento: ${s(t["status"])}` : "Novo contato"),
                 seller_name: s(c["wallet"]),
                 utm_source: utm.source ?? s(c["channel"]),
+                lead_origin:
+                  s((c["leadOrigin"] as Obj | null)?.["name"]) ??
+                  s((c["customFields"] as Obj | null)?.["Origem do Lead"]) ??
+                  s((c["customFields"] as Obj | null)?.["origem_do_lead"]),
                 utm_medium: utm.medium,
                 utm_campaign: utm.campaign,
                 created_at: s(c["createdAt"]) ?? new Date().toISOString(),

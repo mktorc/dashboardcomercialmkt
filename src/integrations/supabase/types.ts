@@ -21,6 +21,7 @@ export type Database = {
           first_response_at: string | null
           id: string
           lead_id: string | null
+          lead_origin: string | null
           name: string | null
           phone: string | null
           seller_name: string | null
@@ -36,6 +37,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
+          lead_origin?: string | null
           name?: string | null
           phone?: string | null
           seller_name?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
+          lead_origin?: string | null
           name?: string | null
           phone?: string | null
           seller_name?: string | null
@@ -236,6 +239,7 @@ export type Database = {
       reservations: {
         Row: {
           car_category: string | null
+          commission_partner: string | null
           created_at: string
           customer_email: string | null
           customer_phone: string | null
@@ -252,6 +256,7 @@ export type Database = {
         }
         Insert: {
           car_category?: string | null
+          commission_partner?: string | null
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null
@@ -268,6 +273,7 @@ export type Database = {
         }
         Update: {
           car_category?: string | null
+          commission_partner?: string | null
           created_at?: string
           customer_email?: string | null
           customer_phone?: string | null

@@ -85,7 +85,17 @@ const TICKET_EVENTS = /ticket|message/i;
 async function processPayload(payload: ClickmassaPayload): Promise<void> {
   const event = str(payload["event"]) ?? "";
   if (/^opportunity$/i.test(event)) return processOpportunity(payload);
-  if (TICKET_EVENTS.test(event)) return;
+  if (TICKET_EVENTS.test(event)) {
+    // Atendimentos trazem o contato com a "Origem do Lead": guarda no lead.
+    const contact = ((payload["ticket"] as Record<string, unknown> | undefined)?.["contact"] ??
+      null) as Record<string, unknown> | null;
+    const origin = str((contact?.["leadOrigin"] as Record<string, unknown> | null)?.["name"]);
+    if (contact?.["id"] != null && origin) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("crm_leads").update({ lead_origin: origin }).eq("lead_id", `cm-${contact["id"]}`);
+    }
+    return;
+  }
   const p = unwrap(payload);
 
 
@@ -98,6 +108,9 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
     email: pick(p, ["email", "e_mail", "mail"]),
     phone: pick(p, ["phone", "telefone", "phone_number", "celular", "whatsapp"]),
     stage_name: pick(p, ["stage_name", "stage", "etapa", "funil_etapa", "status", "funnel_stage"]),
+    lead_origin:
+      str((p["leadOrigin"] as Record<string, unknown> | null | undefined)?.["name"]) ??
+      pick(p, ["origem_do_lead", "Origem do Lead", "lead_origin"]),
     utm_source: pick(p, ["utm_source", "source", "origem"]),
     utm_medium: pick(p, ["utm_medium", "medium", "canal"]),
     utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),

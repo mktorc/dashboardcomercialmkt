@@ -27,6 +27,11 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     total_amount: Number(r["total_price"]) || 0,
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
+    // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)
+    commission_partner:
+      ((((r["commission"] ?? {}) as HqReservation)["tour_operator"] ?? {}) as HqReservation)["name"] != null
+        ? String((((r["commission"] as HqReservation)["tour_operator"]) as HqReservation)["name"]).trim() || null
+        : (r["referral"] as string | null) ?? null,
     seller_name: users.get(String(r["created_by"] ?? "")) ?? null,
     discount_amount: Number(r["discounts_amount"]) || 0,
     pick_up_at: (r["pick_up_date"] as string | null) ?? null,
