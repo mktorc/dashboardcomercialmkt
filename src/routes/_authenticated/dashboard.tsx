@@ -357,8 +357,8 @@ function Dashboard() {
                           <span className="text-muted-foreground" title="Sem leads ou reservas com esta UTM">—</span>
                         ) : (
                           <Badge
-                            variant={row.roi >= 0 ? "default" : "destructive"}
-                            className={row.roi >= 0 ? "bg-accent text-accent-foreground" : ""}
+                            variant={(row.roi ?? 0) >= 0 ? "default" : "destructive"}
+                            className={(row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""}
                           >
                             {(row.roi * 100).toFixed(0)}%
                           </Badge>

@@ -231,10 +231,19 @@ export function computeTimeseries(d: AnalyticsData) {
     .map((r) => ({ ...r, label: r.date.slice(8) + "/" + r.date.slice(5, 7) }));
 }
 
+// Compara por palavra: "ig"/"fb" não podem casar com trechos como "sem_orIGem".
+const isMetaSource = (source: string) => {
+  const tokens = source.split(/[^a-z0-9]+/).filter(Boolean);
+  return (
+    ["meta", "facebook", "instagram"].some((alias) => source.includes(alias)) ||
+    tokens.some((token) => token === "fb" || token === "ig")
+  );
+};
+
 export function computeAttribution(d: AnalyticsData) {
   const normalizeSource = (value: string | null | undefined) => {
     const source = (value ?? "").trim().toLowerCase();
-    if (["meta", "facebook", "fb", "instagram", "ig"].some((alias) => source.includes(alias)))
+    if (isMetaSource(source))
       return "meta";
     if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
     return source || "sem_origem";
@@ -342,7 +351,7 @@ export type OpportunityOriginAnalytics = {
 const MONTH_ABBR = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const originKey = (value: string | null) => {
   const source = (value ?? "").trim().toLowerCase();
-  if (["meta", "facebook", "fb", "instagram", "ig"].some((alias) => source.includes(alias)))
+  if (isMetaSource(source))
     return "meta";
   if (["google", "adwords"].some((alias) => source.includes(alias))) return "google";
   return source || "sem_origem";
