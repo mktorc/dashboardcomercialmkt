@@ -88,6 +88,27 @@ describe("computeAttribution", () => {
     expect(rows.find((row) => row.utm === "Google / verao")?.leads).toBe(1);
     expect(rows.find((row) => row.utm === "Sem origem / verao")?.faturamento).toBe(500);
   });
+
+  it("reservas sem UTM não são atribuídas à Meta", () => {
+    const rows = computeAttribution({
+      meta: [],
+      google: [],
+      leads: [],
+      reservations: [
+        {
+          created_at: "2026-10-01T14:00:00Z",
+          car_category: "SUV",
+          rental_days: 2,
+          total_amount: 500,
+          status: "confirmed",
+          utm_campaign: null,
+        },
+      ],
+      opportunities: [],
+      updatedOpportunities: [],
+    });
+    expect(rows.map((row) => row.utm)).toEqual(["Sem origem / sem rastreamento"]);
+  });
 });
 
 describe("computeOpportunityOrigins", () => {
