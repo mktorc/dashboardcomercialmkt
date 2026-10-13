@@ -348,7 +348,7 @@ const originKey = (value: string | null) => {
   return source || "sem_origem";
 };
 const originLabel = (key: string) =>
-  key === "meta" ? "Meta" : key === "google" ? "Google" : key === "sem_origem" ? "Sem origem" : key;
+  key === "meta" ? "Meta" : key === "google" ? "Google" : key === "sem_origem" ? "Sem origem" : key === "whatsapp" ? "WhatsApp" : key;
 const isWonOpportunity = (opportunity: OpportunityOriginRow) => {
   const value = `${opportunity.status ?? ""} ${opportunity.stage_name ?? ""}`
     .normalize("NFD")

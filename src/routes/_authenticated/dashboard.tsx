@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   Area,
-  AreaChart,
+  ComposedChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -219,7 +219,7 @@ function Dashboard() {
               </h2>
               <div className="mt-4 h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#44E500" stopOpacity={0.5} />
@@ -260,11 +260,11 @@ function Dashboard() {
                       dataKey="investimento"
                       yAxisId="spend"
                       name="Investimento"
-                      stroke="#2f9c5a"
-                      strokeWidth={2}
+                      stroke="#ffd23f"
+                      strokeWidth={2.5}
                       dot={false}
                     />
-                  </AreaChart>
+                  </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </Card>
@@ -307,7 +307,8 @@ function Dashboard() {
                   Atribuição e ROI por UTM / Campanha
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Mídia paga → leads no CRM → reservas confirmadas
+                  Mídia paga → leads no CRM → reservas confirmadas. ROI "—" = nenhum lead ou
+                  reserva chegou com a UTM desta campanha.
                 </p>
               </div>
               {isLoading ? (
@@ -348,14 +349,20 @@ function Dashboard() {
                       <td className="px-4 py-2.5 text-right font-medium text-accent">
                         {brl(row.faturamento)}
                       </td>
-                      <td className="px-4 py-2.5 text-right">{row.roas.toFixed(2)}x</td>
+                      <td className="px-4 py-2.5 text-right">
+                        {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                      </td>
                       <td className="px-5 py-2.5 text-right">
-                        <Badge
-                          variant={row.roi >= 0 ? "default" : "destructive"}
-                          className={row.roi >= 0 ? "bg-accent text-accent-foreground" : ""}
-                        >
-                          {(row.roi * 100).toFixed(0)}%
-                        </Badge>
+                        {row.roi === null ? (
+                          <span className="text-muted-foreground" title="Sem leads ou reservas com esta UTM">—</span>
+                        ) : (
+                          <Badge
+                            variant={row.roi >= 0 ? "default" : "destructive"}
+                            className={row.roi >= 0 ? "bg-accent text-accent-foreground" : ""}
+                          >
+                            {(row.roi * 100).toFixed(0)}%
+                          </Badge>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -376,7 +383,10 @@ function Dashboard() {
               <h2 className="text-sm font-semibold text-foreground">
                 Oportunidades criadas por origem do lead
               </h2>
-              <div className="mt-4 h-72">
+              <div
+                className="mt-4"
+                style={{ height: Math.max(120, (originAnalytics?.byOrigin.length ?? 2) * 44 + 40) }}
+              >
                 {originAnalytics?.byOrigin.length ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
@@ -401,6 +411,7 @@ function Dashboard() {
                         dataKey="opportunities"
                         name="Oportunidades"
                         fill="#44E500"
+                        maxBarSize={28}
                         radius={[0, 4, 4, 0]}
                       />
                     </BarChart>
@@ -522,10 +533,10 @@ function OriginMonthlyChart({
     <Card className="p-5">
       <h2 className="text-sm font-semibold text-foreground">{title}</h2>
       <p className="text-xs text-muted-foreground">{subtitle}</p>
-      <div className="mt-4 h-72">
+      <div className="mt-4 h-52">
         {data.length && sources.length ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <BarChart data={data} maxBarSize={48} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis dataKey="month" {...axis} />
               <YAxis {...axis} allowDecimals={false} />
