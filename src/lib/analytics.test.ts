@@ -223,7 +223,7 @@ describe("computeOpportunityOrigins", () => {
     ]);
     expect(allFunnel.stages.map((stage) => [stage.count, stage.conversion])).toEqual([
       [5, null],
-      [2, 0.5],
+      [2, 0.4],
       [3, 0.6],
     ]);
     expect(
