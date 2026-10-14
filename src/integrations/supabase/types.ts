@@ -385,6 +385,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cohort_reservations: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          car_category: string
+          commission_partner: string
+          created_at: string
+          lead_created_at: string
+          lead_id: string
+          lead_origin: string
+          rental_days: number
+          reservation_id: string
+          status: string
+          total_amount: number
+          utm_campaign: string
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
