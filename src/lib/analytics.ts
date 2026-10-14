@@ -20,6 +20,9 @@ export type ReservationRow = {
   status: string;
   utm_campaign: string | null;
   commission_partner?: string | null;
+  reservation_id?: string | null;
+  /** Origem do lead vinculado (telefone/e-mail); tem prioridade sobre o Commission Partner. */
+  lead_origin?: string | null;
 };
 export type OpportunityOriginRow = {
   opportunity_id: string;
@@ -66,7 +69,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         supabase
           .from("reservations")
           .select(
-            "created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner",
+            "reservation_id, created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner",
           )
           .gte("created_at", iso(fromDate))
           .lte("created_at", iso(toDate))
@@ -103,6 +106,24 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     createdOpportunities.error ||
     updatedOpportunities.error;
   if (err) throw err;
+
+  // Vincula cada reserva ao lead do mesmo cliente (telefone ou e-mail).
+  const matches = await supabase.rpc("reservation_lead_matches", {
+    _from: iso(fromDate),
+    _to: iso(toDate),
+  });
+  if (matches.error) throw matches.error;
+  const matchByReservation = new Map<string, { lead_id: string | null; lead_origin: string | null }>();
+  const partnerByLead = new Map<string, string>();
+  const reservationRows = (reservations.data ?? []) as ReservationRow[];
+  const partnerByReservation = new Map(
+    reservationRows.map((r) => [r.reservation_id ?? "", r.commission_partner ?? null]),
+  );
+  (matches.data ?? []).forEach((m) => {
+    matchByReservation.set(m.reservation_id, m);
+    const partner = partnerByReservation.get(m.reservation_id);
+    if (m.lead_id && partner && !partnerByLead.has(m.lead_id)) partnerByLead.set(m.lead_id, partner);
+  });
 
   const createdRows = (createdOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
@@ -144,7 +165,8 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     ).forEach((lead) => {
       if (lead.lead_id)
         leadAttributionById.set(lead.lead_id, {
-          source: lead.lead_origin || lead.utm_source,
+          source:
+            lead.lead_origin?.trim() || partnerByLead.get(lead.lead_id) || lead.utm_source,
           campaign: lead.utm_campaign,
         });
     });
@@ -168,8 +190,11 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   return {
     meta: num((meta.data ?? []) as never[]),
     google: num((google.data ?? []) as never[]),
-    reservations: ((reservations.data ?? []) as ReservationRow[]).map((r) => ({
+    reservations: reservationRows.map((r) => ({
       ...r,
+      lead_origin: r.reservation_id
+        ? matchByReservation.get(r.reservation_id)?.lead_origin?.trim() || null
+        : null,
       total_amount: Number(r.total_amount),
     })),
     opportunities: attachOrigin(createdRows),
@@ -251,7 +276,8 @@ export const originDisplay = (key: string) =>
       : key === "sem_origem"
         ? "Sem origem"
         : (ORIGIN_LABELS.get(key) ?? key);
-const reservationOrigin = (r: ReservationRow) => r.commission_partner || null;
+export const reservationOrigin = (r: ReservationRow) =>
+  r.lead_origin?.trim() || r.commission_partner || null;
 
 export function computeAttribution(d: AnalyticsData) {
   const normalizeSource = normalizeOrigin;

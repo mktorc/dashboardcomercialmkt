@@ -300,3 +300,27 @@ describe("computeOpportunityOrigins", () => {
     });
   });
 });
+
+describe("vínculo reserva → lead", () => {
+  it("a origem do lead vinculado tem prioridade sobre o Commission Partner", () => {
+    const rows = computeAttribution({
+      meta: [],
+      google: [],
+      opportunities: [],
+      updatedOpportunities: [],
+      reservations: [
+        {
+          created_at: "2026-10-01T14:00:00Z",
+          car_category: null,
+          rental_days: 2,
+          total_amount: 400,
+          status: "confirmed",
+          utm_campaign: null,
+          commission_partner: "Google ADS",
+          lead_origin: "Meta Ads",
+        },
+      ],
+    });
+    expect(rows.map((r) => r.utm)).toEqual(["Meta Ads / todas as campanhas (por origem)"]);
+  });
+});
