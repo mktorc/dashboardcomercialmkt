@@ -35,7 +35,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
       POST: async ({ request }) => {
         if (!isSyncAuthorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
         const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
-        const token = process.env["CLICKMASSA_API_KEY"];
+        const token = (process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"]);
         if (!base || !token) return Response.json({ error: "ClickMassa não configurado" }, { status: 500 });
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -55,6 +55,13 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         if (to - from > 5000) return Response.json({ error: "Faixa máxima: 5000 IDs" }, { status: 400 });
 
         const rows: ReturnType<typeof toRow>[] = [];
+        // Origem do Lead: o contato da oportunidade traz leadOriginId; o nome vem de /lead-origin
+        const originNames = new Map<number, string>();
+        try {
+          const lo = await fetch(`${base}/lead-origin`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/json" } });
+          if (lo.ok) for (const o of (await lo.json()) as Obj[]) originNames.set(Number(o["id"]), String(o["name"]).trim());
+        } catch { /* segue sem origem */ }
+        const originByLead = new Map<string, string>();
         let errors = 0;
         const notFound: string[] = []; // excluídas no ClickMassa
         const ids = Array.from({ length: to - from + 1 }, (_, i) => from + i);
@@ -71,7 +78,12 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
                 if (r.status === 404 || r.status === 400) { notFound.push(String(id)); ok = true; break; }
                 if (!r.ok) { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); continue; }
                 const p = (await r.json()) as Obj;
-                if (p["id"] != null) rows.push(toRow(p));
+                if (p["id"] != null) {
+                  rows.push(toRow(p));
+                  const oid = Number(obj(p["contact"])["leadOriginId"]);
+                  const name = originNames.get(oid);
+                  if (p["contactId"] && name) originByLead.set(`cm-${p["contactId"]}`, name);
+                }
                 ok = true;
               } catch { await new Promise((res) => setTimeout(res, 500 * 2 ** attempt)); }
             }
@@ -86,11 +98,21 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
             .upsert(rows.slice(i, i + 500), { onConflict: "opportunity_id" });
           if (error) return Response.json({ error: error.message }, { status: 500 });
         }
+        // Grava a Origem do Lead nos leads do ClickMassa
+        const byOrigin = new Map<string, string[]>();
+        originByLead.forEach((name, lead) => byOrigin.set(name, [...(byOrigin.get(name) ?? []), lead]));
+        let originsUpdated = 0;
+        for (const [name, leads] of byOrigin) {
+          for (let i = 0; i < leads.length; i += 300) {
+            const { error } = await supabaseAdmin.from("crm_leads").update({ lead_origin: name }).in("lead_id", leads.slice(i, i + 300));
+            if (!error) originsUpdated += Math.min(300, leads.length - i);
+          }
+        }
         // Remove oportunidades que foram excluídas no ClickMassa
         for (let i = 0; i < notFound.length; i += 500) {
           await supabaseAdmin.from("crm_opportunities").delete().in("opportunity_id", notFound.slice(i, i + 500));
         }
-        return Response.json({ ok: true, from, to, found: rows.length, removed: notFound.length, errors });
+        return Response.json({ ok: true, from, to, found: rows.length, originsUpdated, removed: notFound.length, errors });
       },
     },
   },
