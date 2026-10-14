@@ -44,8 +44,9 @@ export type AnalyticsData = {
   updatedOpportunities: OpportunityOriginRow[];
 };
 
+// "Origem do Lead" do ClickMassa vem primeiro: utm_source quase sempre é só o canal ("whatsapp").
 export const resolveLeadSource = (utmSource: string | null, leadOrigin: string | null) =>
-  utmSource?.trim() || leadOrigin?.trim() || null;
+  leadOrigin?.trim() || utmSource?.trim() || null;
 
 export async function fetchAnalytics(from: string, to: string): Promise<AnalyticsData> {
   const fromDate = new Date(`${from}T00:00:00`);
