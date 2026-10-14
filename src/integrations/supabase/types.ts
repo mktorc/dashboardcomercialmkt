@@ -399,6 +399,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      reservation_lead_matches: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          lead_id: string
+          lead_origin: string
+          reservation_id: string
+        }[]
+      }
       seller_key: { Args: { _name: string }; Returns: string }
     }
     Enums: {
