@@ -359,7 +359,11 @@ export type OpportunityOriginAnalytics = {
   createdMonthly: Record<string, string | number>[];
   closedMonthly: Record<string, string | number>[];
   stages: { key: string; label: string; id: number | null; isFinal?: boolean }[];
-  funnel: { key: string; origin: string; stages: { count: number; conversion: number | null }[] }[];
+  funnel: {
+    key: string;
+    origin: string;
+    stages: { count: number; conversion: number | null; isFinal: boolean }[];
+  }[];
 };
 
 const MONTH_ABBR = [
@@ -444,14 +448,30 @@ export function computeOpportunityOrigins(
       closedMonthly[index]![chartKey] = Number(closedMonthly[index]![chartKey] ?? 0) + 1;
   });
 
+  const combinedStageLabel = "Agência de viagem / Proposta enviada";
+  const stageKeyFor = (opportunity: OpportunityOriginRow, label: string) => {
+    const normalizedLabel = stripAccents(label).toLowerCase().replace(/\s+/g, " ").trim();
+    if (normalizedLabel === "agencia de viagem" || normalizedLabel === "proposta enviada") {
+      return "group:travel_agency_proposal";
+    }
+    return opportunity.pipeline_step_id === null
+      ? `name:${normalizedLabel}`
+      : `id:${opportunity.pipeline_step_id}`;
+  };
   const stagesByKey = new Map<string, { key: string; label: string; id: number | null }>();
   opportunities.forEach((opportunity) => {
     const label =
       opportunity.stage_name?.trim() ||
       (opportunity.pipeline_step_id ? `Etapa ${opportunity.pipeline_step_id}` : "Sem etapa");
     const id = opportunity.pipeline_step_id;
-    const key = id === null ? `name:${label.toLowerCase()}` : `id:${id}`;
-    stagesByKey.set(key, { key, label, id });
+    const key = stageKeyFor(opportunity, label);
+    const displayLabel = key === "group:travel_agency_proposal" ? combinedStageLabel : label;
+    const existing = stagesByKey.get(key);
+    if (!existing) {
+      stagesByKey.set(key, { key, label: displayLabel, id });
+    } else if (key === "group:travel_agency_proposal" && id !== null) {
+      existing.id = existing.id === null ? id : Math.min(existing.id, id);
+    }
   });
   const stages = [...stagesByKey.values()].sort((a, b) =>
     a.id !== null && b.id !== null
@@ -468,10 +488,10 @@ export function computeOpportunityOrigins(
   ];
   const stagePosition = new Map(stages.map((stage, index) => [stage.key, index]));
   const positionFor = (opportunity: OpportunityOriginRow) => {
-    const stageKey =
-      opportunity.pipeline_step_id === null
-        ? `name:${(opportunity.stage_name?.trim() || "Sem etapa").toLowerCase()}`
-        : `id:${opportunity.pipeline_step_id}`;
+    const label =
+      opportunity.stage_name?.trim() ||
+      (opportunity.pipeline_step_id ? `Etapa ${opportunity.pipeline_step_id}` : "Sem etapa");
+    const stageKey = stageKeyFor(opportunity, label);
     return stagePosition.get(stageKey) ?? -1;
   };
   const funnel = sourceKeys.map((key, originIndex) => {
@@ -479,6 +499,7 @@ export function computeOpportunityOrigins(
       (opportunity) => originKey(opportunity.utm_source) === key,
     );
     let previousCount: number | null = null;
+    let baseCount = 0;
     return {
       key: `origin_${originIndex}`,
       origin: labelByOrigin.get(key)!,
@@ -487,14 +508,23 @@ export function computeOpportunityOrigins(
           ? sourceOpportunities.filter(isWonOpportunity).length
           : sourceOpportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex)
               .length;
-        const conversion =
-          previousCount === null ? null : previousCount ? count / previousCount : 0;
+        const conversion = stage.isFinal
+          ? baseCount
+            ? count / baseCount
+            : 0
+          : previousCount === null
+            ? null
+            : previousCount
+              ? count / previousCount
+              : 0;
+        if (stageIndex === 0) baseCount = count;
         previousCount = count;
-        return { count, conversion };
+        return { count, conversion, isFinal: Boolean(stage.isFinal) };
       }),
     };
   });
   let previousCount: number | null = null;
+  let baseCount = 0;
   const allOriginsFunnel = {
     key: "all",
     origin: "Todas as origens",
@@ -502,9 +532,18 @@ export function computeOpportunityOrigins(
       const count = stage.isFinal
         ? opportunities.filter(isWonOpportunity).length
         : opportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex).length;
-      const conversion = previousCount === null ? null : previousCount ? count / previousCount : 0;
+      const conversion = stage.isFinal
+        ? baseCount
+          ? count / baseCount
+          : 0
+        : previousCount === null
+          ? null
+          : previousCount
+            ? count / previousCount
+            : 0;
+      if (stageIndex === 0) baseCount = count;
       previousCount = count;
-      return { count, conversion };
+      return { count, conversion, isFinal: Boolean(stage.isFinal) };
     }),
   };
 
@@ -519,7 +558,7 @@ export function computeOpportunityOrigins(
       .sort((a, b) => b.opportunities - a.opportunities),
     createdMonthly,
     closedMonthly,
-    stages,
+    stages: funnelStages,
     funnel: [allOriginsFunnel, ...funnel],
   };
 }

@@ -422,8 +422,10 @@ function Dashboard() {
                                 </span>
                                 <span className="text-[11px] text-muted-foreground">
                                   {stage.conversion === null
-                                    ? "Base"
-                                    : `${pct(stage.conversion)} de passagem`}
+                                    ? `Base inicial (${stage.count.toLocaleString("pt-BR")})`
+                                    : stage.isFinal
+                                      ? `${pct(stage.conversion)} de conversão total (${stage.count.toLocaleString("pt-BR")} / ${(row.stages[0]?.count ?? 0).toLocaleString("pt-BR")})`
+                                      : `${pct(stage.conversion)} de passagem`}
                                 </span>
                               </div>
                             </div>

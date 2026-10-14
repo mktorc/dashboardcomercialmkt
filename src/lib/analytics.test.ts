@@ -141,16 +141,36 @@ describe("computeOpportunityOrigins", () => {
         lead_id: "lead-2",
         created_at: "2026-10-02T12:00:00Z",
         updated_at: "2026-10-02T12:00:00Z",
-        stage_name: "Ganho",
-        status: "closed",
+        stage_name: "Agência de viagem",
+        status: "open",
+        pipeline_step_id: 2,
+        utm_source: "meta",
+      },
+      {
+        opportunity_id: "4",
+        lead_id: "lead-4",
+        created_at: "2026-10-03T12:00:00Z",
+        updated_at: "2026-10-03T12:00:00Z",
+        stage_name: "Proposta enviada",
+        status: "open",
         pipeline_step_id: 3,
         utm_source: "meta",
       },
       {
         opportunity_id: "3",
         lead_id: "lead-3",
-        created_at: "2026-10-03T12:00:00Z",
-        updated_at: "2026-10-03T12:00:00Z",
+        created_at: "2026-10-04T12:00:00Z",
+        updated_at: "2026-10-04T12:00:00Z",
+        stage_name: "Novo",
+        status: "open",
+        pipeline_step_id: 1,
+        utm_source: "google",
+      },
+      {
+        opportunity_id: "5",
+        lead_id: "lead-5",
+        created_at: "2026-10-05T12:00:00Z",
+        updated_at: "2026-10-05T12:00:00Z",
         stage_name: "Novo",
         status: "open",
         pipeline_step_id: 1,
@@ -159,15 +179,21 @@ describe("computeOpportunityOrigins", () => {
     ];
     const updatedOpportunities: OpportunityOriginRow[] = [
       {
-        ...opportunities[1]!,
+        ...opportunities[2]!,
         updated_at: "2026-10-15T12:00:00Z",
         stage_name: "Ganho",
         status: "closed",
       },
       {
-        ...opportunities[2]!,
+        ...opportunities[3]!,
         updated_at: "2026-10-20T12:00:00Z",
-        stage_name: "Perdido",
+        stage_name: "Ganho",
+        status: "closed",
+      },
+      {
+        ...opportunities[4]!,
+        updated_at: "2026-10-20T12:00:00Z",
+        stage_name: "Ganho",
         status: "closed",
       },
     ];
@@ -182,24 +208,29 @@ describe("computeOpportunityOrigins", () => {
     const metaFunnel = result.funnel.find((row) => row.key === meta.key)!;
     const allFunnel = result.funnel.find((row) => row.key === "all")!;
 
-    expect(result.byOrigin.find((row) => row.origin === "Meta Ads")?.opportunities).toBe(2);
-    expect(result.createdMonthly[0]?.[meta.key]).toBe(2);
+    expect(result.byOrigin.find((row) => row.origin === "Meta Ads")?.opportunities).toBe(3);
+    expect(result.createdMonthly[0]?.[meta.key]).toBe(3);
     expect(result.closedMonthly[0]?.[meta.key]).toBe(1);
+    expect(result.stages.map((stage) => stage.label)).toEqual([
+      "Novo",
+      "Agência de viagem / Proposta enviada",
+      "Ganhos / Reservas Fechadas",
+    ]);
     expect(metaFunnel.stages.map((stage) => [stage.count, stage.conversion])).toEqual([
-      [2, null],
-      [1, 0.5],
-      [1, 1],
+      [3, null],
+      [2, 2 / 3],
+      [1, 1 / 3],
     ]);
     expect(allFunnel.stages.map((stage) => [stage.count, stage.conversion])).toEqual([
-      [3, null],
-      [1, 1 / 3],
-      [1, 1],
+      [5, null],
+      [2, 0.5],
+      [3, 0.6],
     ]);
     expect(
       result.closedMonthly[0]?.[
         result.sources.find((source) => source.label === "Google Ads")!.key
       ],
-    ).toBeUndefined();
+    ).toBe(2);
   });
 
   it("sem UTM, usa Origem do Lead e Commission Partner para atribuir ao canal", () => {
