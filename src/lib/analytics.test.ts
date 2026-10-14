@@ -10,11 +10,10 @@ import {
 } from "./analytics";
 
 describe("origem de lead ClickMassa", () => {
-  it("prioriza UTM/canal sobre Origem do Lead e usa a origem como fallback", () => {
-    const source = resolveLeadSource("instagram", "Indicação");
-    expect(source).toBe("instagram");
-    expect(normalizeOrigin(source)).toBe("meta");
-    expect(resolveLeadSource(null, "Meta Ads")).toBe("Meta Ads");
+  it("prioriza Origem do Lead sobre o canal e usa o canal como fallback", () => {
+    expect(resolveLeadSource("whatsapp", "Google Ads")).toBe("Google Ads");
+    expect(normalizeOrigin(resolveLeadSource("whatsapp", "Meta Ads"))).toBe("meta");
+    expect(resolveLeadSource("instagram", null)).toBe("instagram");
   });
 });
 
@@ -267,7 +266,6 @@ describe("computeOpportunityOrigins", () => {
           stage_name: null,
           status: "open",
           pipeline_step_id: 1,
-          value: 0,
           utm_source: "Meta Ads",
           utm_campaign: null,
         },
@@ -279,7 +277,6 @@ describe("computeOpportunityOrigins", () => {
           stage_name: null,
           status: "open",
           pipeline_step_id: 1,
-          value: 0,
           utm_source: "Turistorlando",
           utm_campaign: null,
         },
