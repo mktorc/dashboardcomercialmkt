@@ -23,6 +23,8 @@ export type ReservationRow = {
   reservation_id?: string | null;
   /** Origem do lead vinculado (telefone/e-mail); tem prioridade sobre o Commission Partner. */
   lead_origin?: string | null;
+  /** Criação do lead da safra ao qual a reserva pertence. */
+  lead_created_at?: string | null;
 };
 export type OpportunityOriginRow = {
   opportunity_id: string;
@@ -68,12 +70,11 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
           .lte("date", to)
           .range(a, b),
       ),
+      // Visão de safra: reservas (em qualquer data) dos leads criados no período.
       fetchAll((a, b) =>
         supabase
-          .from("reservations")
-          .select("reservation_id, created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner")
-          .gte("created_at", iso(fromDate))
-          .lte("created_at", iso(toDate))
+          .rpc("cohort_reservations", { _from: iso(fromDate), _to: iso(toDate) })
+          .order("reservation_id")
           .range(a, b),
       ),
       fetchAll((a, b) =>
@@ -216,7 +217,10 @@ export function computeTimeseries(d: AnalyticsData) {
     return map.get(key)!;
   };
   [...d.meta, ...d.google].forEach((r) => (touch(r.date).investimento += r.spend));
-  d.reservations.forEach((r) => (touch(r.created_at.slice(0, 10)).faturamento += r.total_amount));
+  // Safra: faturamento cai no dia de criação do lead, alinhado ao investimento.
+  d.reservations.forEach(
+    (r) => (touch((r.lead_created_at ?? r.created_at).slice(0, 10)).faturamento += r.total_amount),
+  );
   return [...map.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((r) => ({ ...r, label: r.date.slice(8) + "/" + r.date.slice(5, 7) }));
