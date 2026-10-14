@@ -265,7 +265,7 @@ export function computeAttribution(d: AnalyticsData) {
     campaignSources.set(key, sources);
   };
   d.opportunities.forEach((opportunity) =>
-    addCampaignSource(opportunity.utm_campaign, normalizeSource(opportunity.utm_source)),
+    addCampaignSource(opportunity.utm_campaign ?? null, normalizeSource(opportunity.utm_source)),
   );
   d.meta.forEach((ad) => addCampaignSource(ad.utm_campaign, "meta"));
   d.google.forEach((ad) => addCampaignSource(ad.utm_campaign, "google"));
@@ -482,7 +482,7 @@ export function computeOpportunityOrigins(
           ? 1
           : a.label.localeCompare(b.label),
   );
-  const funnelStages = [
+  const funnelStages: { key: string; label: string; id: number | null; isFinal?: boolean }[] = [
     ...stages,
     { key: "won", label: "Ganhos / Reservas Fechadas", id: null, isFinal: true },
   ];
