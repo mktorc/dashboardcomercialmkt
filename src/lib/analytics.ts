@@ -520,6 +520,8 @@ export function computeOpportunityOrigins(
     const stageKey = stageKeyFor(opportunity, label);
     return stagePosition.get(stageKey) ?? -1;
   };
+  const latestById = new Map(updatedOpportunities.map((o) => [o.opportunity_id, o]));
+  const isWonNow = (o: OpportunityOriginRow) => isWonOpportunity(latestById.get(o.opportunity_id) ?? o);
   const funnel = sourceKeys.map((key, originIndex) => {
     const sourceOpportunities = opportunities.filter(
       (opportunity) => originKey(opportunity.utm_source) === key,
@@ -531,7 +533,7 @@ export function computeOpportunityOrigins(
       origin: labelByOrigin.get(key)!,
       stages: funnelStages.map((stage, stageIndex) => {
         const count = stage.isFinal
-          ? sourceOpportunities.filter(isWonOpportunity).length
+          ? sourceOpportunities.filter(isWonNow).length
           : sourceOpportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex)
               .length;
         const conversion = stage.isFinal
@@ -556,7 +558,7 @@ export function computeOpportunityOrigins(
     origin: "Todas as origens",
     stages: funnelStages.map((stage, stageIndex) => {
       const count = stage.isFinal
-        ? opportunities.filter(isWonOpportunity).length
+        ? opportunities.filter(isWonNow).length
         : opportunities.filter((opportunity) => positionFor(opportunity) >= stageIndex).length;
       const conversion = stage.isFinal
         ? baseCount
