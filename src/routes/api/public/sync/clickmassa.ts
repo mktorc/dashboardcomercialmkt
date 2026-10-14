@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
-        const token = process.env["CLICKMASSA_API_KEY"];
+        const token = (process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"]);
         if (!base || !token) {
           return Response.json({ error: "ClickMassa não configurado" }, { status: 500 });
         }
@@ -110,11 +110,19 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             });
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          for (let i = 0; i < rows.length; i += 500) {
-            const { error } = await supabaseAdmin
-              .from("crm_leads")
-              .upsert(rows.slice(i, i + 500), { onConflict: "lead_id" });
-            if (error) return Response.json({ error: error.message }, { status: 500 });
+          // A lista de contatos não traz a Origem do Lead: nunca apaga a origem já gravada
+          // (ela vem da sincronização de oportunidades e do webhook).
+          const withOrigin = rows.filter((r) => r.lead_origin);
+          const withoutOrigin = rows
+            .filter((r) => !r.lead_origin)
+            .map(({ lead_origin: _omit, ...rest }) => rest);
+          for (const group of [withOrigin, withoutOrigin] as Obj[][]) {
+            for (let i = 0; i < group.length; i += 500) {
+              const { error } = await supabaseAdmin
+                .from("crm_leads")
+                .upsert(group.slice(i, i + 500) as never, { onConflict: "lead_id" });
+              if (error) return Response.json({ error: error.message }, { status: 500 });
+            }
           }
 
           // Tarefas + usuários (aba Comercial)
