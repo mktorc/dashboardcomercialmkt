@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
       { property: "og:title", content: "Orlando Rent Car | Analytics, BI e Growth" },
       {
         property: "og:description",
-        content: "ROI por UTM cruzando Meta Ads, Google Ads, leads do CRM e reservas confirmadas.",
+        content: "ROI por UTM cruzando mídia paga, oportunidades do ClickMassa e reservas do HQ.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -110,7 +110,7 @@ function Dashboard() {
         >
           <div>
             <h1 className="text-xl font-semibold text-foreground">Painel de Performance</h1>
-            <p className="text-sm text-foreground/70">Mídia paga, CRM e reservas em um só lugar</p>
+            <p className="text-sm text-foreground/70">Mídia paga, oportunidades ClickMassa e reservas HQ</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs text-foreground/70">
@@ -167,7 +167,7 @@ function Dashboard() {
               icon={Target}
               label="CPL global"
               value={kpis ? brl(kpis.cpl) : "—"}
-              hint={kpis ? `${kpis.leads} oportunidades no CRM` : undefined}
+              hint={kpis ? `${kpis.leads} oportunidades no ClickMassa` : undefined}
               compact
               aligned
               className="h-[160px]"
@@ -176,7 +176,7 @@ function Dashboard() {
               icon={UserCheck}
               label="Conversão comercial"
               value={kpis ? pct(kpis.conversion) : "—"}
-              hint={kpis ? `${kpis.reservations} reservas confirmadas` : undefined}
+              hint={kpis ? `${kpis.reservations} reservas fechadas no HQ` : undefined}
               highlight
               compact
               aligned
@@ -186,16 +186,16 @@ function Dashboard() {
               icon={DollarSign}
               label="Ticket médio"
               value={kpis ? brl(kpis.ticket) : "—"}
-              hint="Por reserva confirmada"
+              hint="Valor médio por reserva HQ"
               compact
               aligned
               className="h-[160px]"
             />
             <KpiCard
               icon={Gauge}
-              label="Diária média por veículo"
-              value={kpis ? brl(kpis.dailyRate) : "—"}
-              hint="Faturamento ÷ diárias locadas"
+              label="Custo de aquisição de clientes"
+              value={kpis?.cac == null ? "—" : brl(kpis.cac)}
+              hint={kpis ? `Somente mídia · Meta + Google ÷ ${kpis.reservations} reservas HQ` : undefined}
               compact
               aligned
               className="h-[160px]"
@@ -277,7 +277,7 @@ function Dashboard() {
                   Atribuição e ROI por UTM / Campanha
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Mídia paga → leads no CRM → reservas confirmadas. ROI "—" = nenhum lead ou reserva
+                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. ROI "—" = nenhum lead ou reserva
                   chegou com a UTM desta campanha.
                 </p>
               </div>

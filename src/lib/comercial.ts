@@ -2,14 +2,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { averageDiscount, previousYearDate, yearOverYearDiscount } from "@/lib/commercial-goals";
 
-export type CLead = {
-  lead_id: string | null;
-  created_at: string;
-  seller_name: string | null;
-  name?: string | null;
-  stage_name?: string | null;
-};
-
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
 export type COpp = {
   opportunity_id: string;
@@ -79,16 +71,7 @@ export async function fetchComercial(from: string, to: string) {
 
   const histFrom = startIso(prevFrom);
 
-  const [leads, res, tasks, goals, opps, prevLeads, prevRes, prevOpps, yearRes] = await Promise.all([
-    // Período atual
-    fetchAll((a, b) =>
-      supabase
-        .from("crm_leads")
-        .select("lead_id, created_at, seller_name, name, stage_name")
-        .gte("created_at", startIso(from))
-        .lte("created_at", endIso(to))
-        .range(a, b),
-    ),
+  const [res, tasks, goals, opps, prevRes, prevOpps, yearRes] = await Promise.all([
     fetchAll((a, b) =>
       supabase
         .from("reservations")
@@ -112,14 +95,6 @@ export async function fetchComercial(from: string, to: string) {
         .range(a, b),
     ),
     // Período anterior (para comparação)
-    fetchAll((a, b) =>
-      supabase
-        .from("crm_leads")
-        .select("lead_id, created_at, seller_name")
-        .gte("created_at", startIso(prevFrom))
-        .lte("created_at", endIso(prevTo))
-        .range(a, b),
-    ),
     fetchAll((a, b) =>
       supabase
         .from("reservations")
@@ -147,11 +122,10 @@ export async function fetchComercial(from: string, to: string) {
     ),
   ]);
 
-  const err = leads.error || res.error || tasks.error || goals.error || opps.error || prevLeads.error || prevRes.error || prevOpps.error || yearRes.error;
+  const err = res.error || tasks.error || goals.error || opps.error || prevRes.error || prevOpps.error || yearRes.error;
   if (err) throw err;
 
   return {
-    leads: leads.data as CLead[],
     opportunities: (opps.data ?? []) as COpp[],
     reservations: (res.data as CRes[]).map((r) => ({
       ...r,
@@ -168,7 +142,6 @@ export async function fetchComercial(from: string, to: string) {
     })),
     yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount) })),
     prevData: {
-      leads: prevLeads.data ?? [],
       reservations: (prevRes.data ?? []).map((r: any) => ({ ...r, total_amount: Number(r.total_amount) })),
       opportunities: prevOpps.data ?? [],
     },
@@ -298,12 +271,11 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const isOpen = (o: COpp) => (o.status ?? "open").toLowerCase() === "open";
   const hasNoTask = (o: COpp) => isOpen(o) && o.pending_tasks === 0 && !leadIdsWithTask.has(o.lead_id);
   const opps = d.opportunities.filter((o) => inPeriod(o.created_at));
+  const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
 
-  d.leads.forEach((l) => {
-    touch(nameOf(l.seller_name)).leads++;
-  });
   opps.forEach((o) => {
     const r = touch(nameOf(o.seller_name));
+    r.leads++;
     r.oportunidades++;
     if (hasNoTask(o)) r.noTask++;
   });
@@ -358,8 +330,6 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const visible = seller === "all" ? all : all.filter((r) => r.key === seller);
 
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
-  const sellerLeads = d.leads.filter((l) => seller === "all" || sellerKey(l.seller_name) === seller);
-  const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
   // Oportunidades sem tarefas: todas as abertas sem tarefa criadas até o fim do período
   const noTaskList = d.opportunities
     .filter((o) => o.created_at <= endIso(to))
@@ -383,14 +353,13 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     const dt = new Date(iso);
     return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
   };
-  sellerLeads.forEach((l) => {
-    const b = daily.get(dayKey(l.created_at));
-    if (b) b.leads++;
-  });
   sellerOpps.forEach((o) => {
     const key = dayKey(o.created_at);
     const b = daily.get(key);
-    if (b) b.oportunidades++;
+    if (b) {
+      b.leads++;
+      b.oportunidades++;
+    }
     const sellerName = names.get(nameOf(o.seller_name)) ?? UNASSIGNED_LABEL;
     const stacked = dailyOpportunitiesBySeller.get(key);
     if (stacked) stacked[sellerName] = Number(stacked[sellerName] ?? 0) + 1;
@@ -439,12 +408,16 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   });
 
   const responseTimesInMinutes: number[] = [];
-  sellerLeads.forEach((l) => {
-    if (!l.lead_id || !l.created_at) return;
-    const leadTime = new Date(l.created_at).getTime();
-    if (isNaN(leadTime)) return;
-
-    const firstTaskTime = leadFirstTaskMap.get(l.lead_id);
+  const leadCreatedAt = new Map<string, number>();
+  sellerOpps.forEach((opportunity) => {
+    if (!opportunity.lead_id) return;
+    const createdAt = new Date(opportunity.created_at).getTime();
+    if (isNaN(createdAt)) return;
+    const existing = leadCreatedAt.get(opportunity.lead_id);
+    if (existing === undefined || createdAt < existing) leadCreatedAt.set(opportunity.lead_id, createdAt);
+  });
+  leadCreatedAt.forEach((leadTime, leadId) => {
+    const firstTaskTime = leadFirstTaskMap.get(leadId);
     if (firstTaskTime && firstTaskTime >= leadTime) {
       responseTimesInMinutes.push((firstTaskTime - leadTime) / (1000 * 60));
     }

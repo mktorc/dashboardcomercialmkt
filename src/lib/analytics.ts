@@ -44,11 +44,13 @@ export type AnalyticsData = {
   updatedOpportunities: OpportunityOriginRow[];
 };
 
+export const resolveLeadSource = (utmSource: string | null, leadOrigin: string | null) =>
+  utmSource?.trim() || leadOrigin?.trim() || null;
+
 export async function fetchAnalytics(from: string, to: string): Promise<AnalyticsData> {
   const fromDate = new Date(`${from}T00:00:00`);
   const toDate = new Date(`${to}T23:59:59.999`);
-  const [meta, google, reservations, createdOpportunities, updatedOpportunities] =
-    await Promise.all([
+  const [meta, google, reservations, createdOpportunities, updatedOpportunities] = await Promise.all([
       fetchAll((a, b) =>
         supabase
           .from("meta_ads_metrics")
@@ -68,9 +70,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       fetchAll((a, b) =>
         supabase
           .from("reservations")
-          .select(
-            "reservation_id, created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner",
-          )
+          .select("reservation_id, created_at, car_category, rental_days, total_amount, status, utm_campaign, commission_partner")
           .gte("created_at", iso(fromDate))
           .lte("created_at", iso(toDate))
           .range(a, b),
@@ -106,24 +106,6 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     createdOpportunities.error ||
     updatedOpportunities.error;
   if (err) throw err;
-
-  // Vincula cada reserva ao lead do mesmo cliente (telefone ou e-mail).
-  const matches = await supabase.rpc("reservation_lead_matches", {
-    _from: iso(fromDate),
-    _to: iso(toDate),
-  });
-  if (matches.error) throw matches.error;
-  const matchByReservation = new Map<string, { lead_id: string | null; lead_origin: string | null }>();
-  const partnerByLead = new Map<string, string>();
-  const reservationRows = (reservations.data ?? []) as ReservationRow[];
-  const partnerByReservation = new Map(
-    reservationRows.map((r) => [r.reservation_id ?? "", r.commission_partner ?? null]),
-  );
-  (matches.data ?? []).forEach((m) => {
-    matchByReservation.set(m.reservation_id, m);
-    const partner = partnerByReservation.get(m.reservation_id);
-    if (m.lead_id && partner && !partnerByLead.has(m.lead_id)) partnerByLead.set(m.lead_id, partner);
-  });
 
   const createdRows = (createdOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
@@ -165,8 +147,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     ).forEach((lead) => {
       if (lead.lead_id)
         leadAttributionById.set(lead.lead_id, {
-          source:
-            lead.lead_origin?.trim() || partnerByLead.get(lead.lead_id) || lead.utm_source,
+          source: resolveLeadSource(lead.utm_source, lead.lead_origin),
           campaign: lead.utm_campaign,
         });
     });
@@ -186,19 +167,18 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
 
   const num = <T extends { spend: unknown }>(rows: T[]) =>
     rows.map((r) => ({ ...r, spend: Number(r.spend) })) as unknown as AdRow[];
+  const opportunities = attachOrigin(createdRows);
+  const updated = attachOrigin(updatedRows);
 
   return {
     meta: num((meta.data ?? []) as never[]),
     google: num((google.data ?? []) as never[]),
-    reservations: reservationRows.map((r) => ({
-      ...r,
-      lead_origin: r.reservation_id
-        ? matchByReservation.get(r.reservation_id)?.lead_origin?.trim() || null
-        : null,
-      total_amount: Number(r.total_amount),
+    reservations: ((reservations.data ?? []) as ReservationRow[]).map((reservation) => ({
+      ...reservation,
+      total_amount: Number(reservation.total_amount),
     })),
-    opportunities: attachOrigin(createdRows),
-    updatedOpportunities: attachOrigin(updatedRows),
+    opportunities,
+    updatedOpportunities: updated,
   };
 }
 
@@ -213,7 +193,6 @@ export function computeKpis(d: AnalyticsData) {
   const leads = d.opportunities.length;
   const confirmed = d.reservations.filter((r) => r.status === "confirmed");
   const revenue = confirmed.reduce((s, r) => s + r.total_amount, 0);
-  const days = confirmed.reduce((s, r) => s + r.rental_days, 0);
   return {
     metaSpend,
     googleSpend,
@@ -224,7 +203,7 @@ export function computeKpis(d: AnalyticsData) {
     reservations: confirmed.length,
     revenue,
     ticket: confirmed.length ? revenue / confirmed.length : 0,
-    dailyRate: days ? revenue / days : 0,
+    cac: confirmed.length ? spend / confirmed.length : null,
     roas: spend ? revenue / spend : 0,
   };
 }

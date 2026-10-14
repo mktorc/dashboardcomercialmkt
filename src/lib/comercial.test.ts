@@ -34,6 +34,29 @@ const stackedData = {
 } as unknown as ComercialData;
 
 describe("computeComercial", () => {
+  it("usa oportunidades abertas e ganhas do pipeline como base dos leads", () => {
+    const data = {
+      ...stackedData,
+      leads: [
+        { lead_id: "outside-pipeline", created_at: "2026-10-01T12:00:00Z", seller_name: "Ana" },
+      ],
+      opportunities: [
+        { opportunity_id: "open", lead_id: "cm-open", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-01T12:00:00Z" },
+        { opportunity_id: "won", lead_id: "cm-won", name: null, stage_name: null, status: "won", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
+      ],
+      tasks: [
+        { lead_id: "cm-open", user_name: "Ana", completed: false, due_date: null, created_at: "2026-10-01T12:05:00Z" },
+        { lead_id: "cm-won", user_name: "Ana", completed: false, due_date: null, created_at: "2026-10-02T12:15:00Z" },
+      ],
+    } as unknown as ComercialData;
+
+    const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
+    expect(view.kpis.leads).toBe(2);
+    expect(view.kpis.oportunidades).toBe(2);
+    expect(view.daily.reduce((total, day) => total + day.leads, 0)).toBe(2);
+    expect(view.kpis.slaFormatted).toBe("10 min");
+  });
+
   it("compara oportunidades sem tarefas nos mesmos dias do mês anterior", () => {
     const makeOpportunity = (opportunity_id: string, created_at: string) => ({
       opportunity_id,
