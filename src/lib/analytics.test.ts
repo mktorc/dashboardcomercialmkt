@@ -10,11 +10,10 @@ import {
 } from "./analytics";
 
 describe("origem de lead ClickMassa", () => {
-  it("prioriza UTM/canal sobre Origem do Lead e usa a origem como fallback", () => {
-    const source = resolveLeadSource("instagram", "Indicação");
-    expect(source).toBe("instagram");
-    expect(normalizeOrigin(source)).toBe("meta");
-    expect(resolveLeadSource(null, "Meta Ads")).toBe("Meta Ads");
+  it("prioriza Origem do Lead sobre o canal e usa o canal como fallback", () => {
+    expect(resolveLeadSource("whatsapp", "Google Ads")).toBe("Google Ads");
+    expect(normalizeOrigin(resolveLeadSource("whatsapp", "Meta Ads"))).toBe("meta");
+    expect(resolveLeadSource("instagram", null)).toBe("instagram");
   });
 });
 
