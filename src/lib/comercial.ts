@@ -21,6 +21,8 @@ export type CRes = {
   status: string;
   seller_name: string | null;
 };
+const reservationRackRate = (reservation: Pick<CRes, "total_amount" | "discount_amount">) =>
+  reservation.total_amount - reservation.discount_amount;
 export type CTask = {
   lead_id: string | null;
   user_name: string | null;
@@ -98,7 +100,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, status, seller_name")
+        .select("created_at, total_amount, discount_amount, status, seller_name")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
         .range(a, b),
@@ -142,7 +144,11 @@ export async function fetchComercial(from: string, to: string) {
     })),
     yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount) })),
     prevData: {
-      reservations: (prevRes.data ?? []).map((r: any) => ({ ...r, total_amount: Number(r.total_amount) })),
+      reservations: (prevRes.data ?? []).map((r: any) => ({
+        ...r,
+        total_amount: Number(r.total_amount),
+        discount_amount: Number(r.discount_amount ?? 0),
+      })),
       opportunities: prevOpps.data ?? [],
     },
   };
@@ -222,7 +228,7 @@ export function computeMonthlyCommercial(
     const bucket = buckets.get(reservation.created_at.slice(0, 7));
     if (!bucket) return;
     bucket.reservas++;
-    bucket.faturamento += reservation.total_amount;
+    bucket.faturamento += reservationRackRate(reservation);
     const discount = monthlyDiscounts.get(reservation.created_at.slice(0, 7));
     if (discount) {
       discount.net += reservation.total_amount;
@@ -298,7 +304,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       if (k === "venda_direta") names.set(k, DIRECT_SALE_LABEL);
       const row = touch(k);
       row.reservas++;
-      row.faturamento += r.total_amount;
+      row.faturamento += reservationRackRate(r);
       row.disc += r.discount_amount;
       row.gross += r.total_amount + r.discount_amount;
     });
@@ -375,7 +381,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     const sellerName = names.get(effectiveSeller) ?? effectiveSeller;
     const stacked = dailyRevenueBySeller.get(key);
     if (stacked) {
-      stacked[sellerName] = Number(stacked[sellerName] ?? 0) + r.total_amount;
+      stacked[sellerName] = Number(stacked[sellerName] ?? 0) + reservationRackRate(r);
       dailyRevenueKeys.add(sellerName);
     }
   });
@@ -444,7 +450,13 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 
   const prevOppsCount = prevFilteredOpps.length;
   const prevReservasCount = prevFilteredRes.length;
-  const prevFaturamento = prevFilteredRes.reduce((acc: number, r: any) => acc + r.total_amount, 0);
+  const prevFaturamento = prevFilteredRes.reduce(
+    (acc: number, r: any) => acc + reservationRackRate({
+      total_amount: r.total_amount,
+      discount_amount: r.discount_amount ?? 0,
+    }),
+    0,
+  );
   const prevConversao = prevOppsCount ? prevReservasCount / prevOppsCount : 0;
   const prevTicket = prevReservasCount ? prevFaturamento / prevReservasCount : 0;
   
@@ -506,7 +518,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (seller !== "all" && k !== seller) return;
     const n = k === "sem_vendedor" ? DIRECT_SALE_LABEL : names.get(k)!;
     stackKeys.add(n);
-    bucket[n] = ((bucket[n] as number | undefined) ?? 0) + r.total_amount;
+    bucket[n] = ((bucket[n] as number | undefined) ?? 0) + reservationRackRate(r);
   });
 
   return {

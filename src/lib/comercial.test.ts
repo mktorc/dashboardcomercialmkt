@@ -16,7 +16,7 @@ describe("computeMonthlyCommercial", () => {
     const months = computeMonthlyCommercial(opportunities, reservations, "nathalia", "2026-06-01", "2026-10-08");
     const october = months[4];
     expect(months.map((month) => month.mes)).toEqual(["jun/2026", "jul/2026", "ago/2026", "set/2026", "out/2026"]);
-    expect(october).toMatchObject({ oportunidades: 2, reservas: 2, faturamento: 2000, conversao: 1, ticket: 1000, descontoPct: 200 / 2200 });
+    expect(october).toMatchObject({ oportunidades: 2, reservas: 2, faturamento: 1800, conversao: 1, ticket: 900, descontoPct: 200 / 2200 });
   });
 });
 
@@ -95,7 +95,7 @@ describe("computeComercial", () => {
     expect(getPreviousPeriod("2026-03-31", "2026-03-31")).toEqual({ prevFrom: "2026-02-28", prevTo: "2026-02-28" });
   });
 
-  it("agrupa o valor fechado por vendedor em cinco meses", () => {
+  it("agrupa o rack rate por vendedor em cinco meses", () => {
     const view = computeComercial(stackedData, "2026-06-01", "2026-10-08", "all");
     expect(view.monthly.map((month) => month["mes"])).toEqual(["2026/06", "2026/07", "2026/08", "2026/09", "2026/10"]);
     expect(view.monthly[4]?.["Naty"]).toBe(2000);
@@ -119,10 +119,16 @@ describe("computeComercial", () => {
         { opportunity_id: "5", lead_id: "5", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-05T12:00:00Z" },
       ],
       reservations: [
-        { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
-        { created_at: "2026-10-02T12:00:00Z", total_amount: 200, discount_amount: 0, status: "confirmed", seller_name: "Bia" },
+        { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 10, status: "confirmed", seller_name: "Ana" },
+        { created_at: "2026-10-02T12:00:00Z", total_amount: 200, discount_amount: 20, status: "confirmed", seller_name: "Bia" },
         { created_at: "2026-10-03T12:00:00Z", total_amount: 300, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
       ],
+      prevData: {
+        ...stackedData.prevData,
+        reservations: [
+          { created_at: "2026-09-01T12:00:00Z", total_amount: 100, discount_amount: 10, status: "confirmed", seller_name: "Ana" },
+        ],
+      },
     } as unknown as ComercialData;
 
     const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
@@ -132,9 +138,14 @@ describe("computeComercial", () => {
       ["02/10", 1, 1],
     ]);
     expect(view.dailyRevenueBySeller.map((day) => [day["dia"], day["Ana"] ?? 0, day["Bia"] ?? 0])).toEqual([
-      ["01/10", 100, 0],
-      ["02/10", 0, 200],
+      ["01/10", 90, 0],
+      ["02/10", 0, 180],
     ]);
+    expect(view.kpis.faturamento).toBe(270);
+    expect(view.kpis.faturamentoVar).toBe(200);
+    expect(view.rows.find((row) => row.key === "ana")?.faturamento).toBe(90);
+    expect(view.monthlyKpis[0]?.faturamento).toBe(570);
+    expect(view.monthly[0]?.["Ana"]).toBe(390);
     expect(view.kpis.conversao).toBe(2 / 3);
     // Inclui a de 30/09 (criada antes do período) e exclui a de 05/10 (criada depois do fim)
     expect(view.kpis.leadsNoTask).toBe(4);
