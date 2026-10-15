@@ -682,7 +682,6 @@ function OriginMonthlyChart({
                 contentStyle={tooltipStyle}
                 formatter={(value: number) => value.toLocaleString("pt-BR")}
               />
-              <Legend />
               {sources.map((source, index) => {
                 const color = ORIGIN_COLORS[index % ORIGIN_COLORS.length];
                 if (isYoY) {
