@@ -101,6 +101,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
           .range(a, b),
       ),
     ]);
+  const kommoLeads = await fetchKommoLeads(iso(fromDate), iso(toDate));
 
   const err =
     meta.error ||
@@ -110,10 +111,10 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     updatedOpportunities.error;
   if (err) throw err;
 
-  const createdRows = (createdOpportunities.data ?? []) as Omit<
-    OpportunityOriginRow,
-    "utm_source" | "utm_campaign"
-  >[];
+  const createdRows = [
+    ...((createdOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
+    ...kommoLeads.map(kommoAsOpportunity),
+  ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
   const updatedRows = (updatedOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
     "utm_source" | "utm_campaign"
