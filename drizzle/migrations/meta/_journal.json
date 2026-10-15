@@ -134,6 +134,13 @@
       "when": 1792070400000,
       "tag": "0018_reservation_rack_rate",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792063748648,
+      "tag": "0019_rack_rate_and_fast_role_policies",
+      "breakpoints": true
     }
   ]
 }
