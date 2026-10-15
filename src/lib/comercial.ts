@@ -421,10 +421,15 @@ export function computeDailyRevenueBreakdown(
 
   console.log(`Revenue breakdown: processed=${processedCount}, skippedStatus=${skippedStatus}, skippedTeam=${skippedTeam}, skippedDate=${skippedDate}, totalReservations=${reservations.length}`);
 
-  return [...buckets.values()].map((b) => ({
+  const result = [...buckets.values()].map((b) => ({
     ...b,
     total: b.rackRate + b.miscellaneousPrice + b.additionalChargesPrice,
   }));
+
+  const withData = result.filter(r => r.total > 0);
+  console.log(`Days with data: ${withData.length}/${result.length}, sample:`, withData.slice(0, 3));
+
+  return result;
 }
 
 export function computeComercial(d: ComercialData, from: string, to: string, seller: string, useHqRackRate = false) {
