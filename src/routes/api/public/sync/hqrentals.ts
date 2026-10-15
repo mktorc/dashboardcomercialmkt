@@ -100,10 +100,13 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           });
           if (!ur.ok) break;
           const uj = (await ur.json()) as { data?: { data?: HqReservation[]; last_page?: number } };
-          (uj.data?.data ?? []).forEach((u) =>
+          const pageUsers = uj.data?.data ?? [];
+          pageUsers.forEach((u) =>
             users.set(String(u["id"]), String(u["full_name"] ?? u["first_name"] ?? "").trim()),
           );
-          if (up >= (uj.data?.last_page ?? 1)) break;
+          // HQ does not always return last_page: keep paging until an empty page.
+          if (!pageUsers.length) break;
+          if (uj.data?.last_page && up >= uj.data.last_page) break;
         }
         const rows = all.map((r) => mapReservation(r, users)).filter((r) => r.reservation_id !== "");
 
