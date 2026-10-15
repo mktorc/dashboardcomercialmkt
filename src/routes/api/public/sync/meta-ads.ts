@@ -124,6 +124,10 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
 
           const rows: Obj[] = [];
           const range = encodeURIComponent(JSON.stringify({ since: d(since), until: d(until) }));
+
+          console.log(`[Meta Ads Sync] Iniciando sincronização para período: ${d(since)} a ${d(until)}`);
+          console.log(`[Meta Ads Sync] Conta: ${usedAccount}`);
+
           next = `${GRAPH}/${usedAccount}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions,actions&limit=500&access_token=${token}`;
           while (next) {
             const j: Obj = await call(next);
@@ -143,19 +147,54 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
             next = ((j["paging"] as Obj | undefined)?.["next"] as string) ?? null;
           }
 
+          const totalSpend = rows.reduce((sum, r) => sum + (Number(r.spend) || 0), 0);
+          console.log(`[Meta Ads Sync] Registros recuperados da API: ${rows.length}`);
+          console.log(`[Meta Ads Sync] Gasto total na API: US$ ${totalSpend.toFixed(2)}`);
+
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          for (let i = 0; i < rows.length; i += 500) {
-            const { error } = await supabaseAdmin
-              .from("meta_ads_metrics")
-              .upsert(rows.slice(i, i + 500) as never, { onConflict: "date,campaign_id" });
-            if (error) return Response.json({ error: error.message }, { status: 500 });
+
+          // 1. LIMPAR período anterior para evitar duplicação
+          console.log(`[Meta Ads Sync] Limpando registos anteriores do período ${d(since)} a ${d(until)}...`);
+          const { error: deleteError } = await supabaseAdmin
+            .from("meta_ads_metrics")
+            .delete()
+            .gte("date", d(since))
+            .lte("date", d(until));
+
+          if (deleteError) {
+            console.error(`[Meta Ads Sync] Erro ao limpar período:`, deleteError);
+            return Response.json({ error: `Erro ao limpar dados: ${deleteError.message}` }, { status: 500 });
           }
+
+          let totalInserted = 0;
+
+          // 2. INSERIR novos dados (sem conflito agora que limpamos)
+          for (let i = 0; i < rows.length; i += 500) {
+            const batch = rows.slice(i, i + 500);
+            const { error, count } = await supabaseAdmin
+              .from("meta_ads_metrics")
+              .insert(batch as never);
+
+            if (error) {
+              console.error(`[Meta Ads Sync] Erro ao inserir lote ${Math.floor(i / 500) + 1}:`, error);
+              return Response.json({ error: error.message }, { status: 500 });
+            }
+
+            totalInserted += batch.length;
+            console.log(`[Meta Ads Sync] Lote ${Math.floor(i / 500) + 1}: ${batch.length} registos inseridos`);
+          }
+
+          console.log(`[Meta Ads Sync] ✅ Sincronização concluída com sucesso`);
+          console.log(`[Meta Ads Sync] Total de registos inseridos: ${totalInserted}`);
+          console.log(`[Meta Ads Sync] Valor total em base de dados: US$ ${totalSpend.toFixed(2)}`);
+
           return Response.json({
             ok: true,
-            synced: rows.length,
+            synced: totalInserted,
             since: d(since),
             until: d(until),
             account: usedAccount,
+            totalSpend: parseFloat(totalSpend.toFixed(2)),
             ...(accountNote ? { note: accountNote } : {}),
           });
         } catch (e) {
