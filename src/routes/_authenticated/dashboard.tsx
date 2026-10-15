@@ -93,7 +93,7 @@ function Dashboard() {
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data, selectedOrigin) : null;
   const kpis = originData ? computeKpis(originData) : null;
-  const series = originData ? computeTimeseries(originData) : [];
+  const series = originData ? computeTimeseries(originData, from) : [];
   const attribution = originData
     ? computeAttribution(originData).filter(
         (row) =>

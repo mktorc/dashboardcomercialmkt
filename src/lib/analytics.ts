@@ -210,7 +210,7 @@ export function computeKpis(d: AnalyticsData) {
   };
 }
 
-export function computeTimeseries(d: AnalyticsData) {
+export function computeTimeseries(d: AnalyticsData, from?: string) {
   const map = new Map<string, { date: string; investimento: number; faturamento: number }>();
   const touch = (key: string) => {
     if (!map.has(key)) map.set(key, { date: key, investimento: 0, faturamento: 0 });
@@ -219,7 +219,11 @@ export function computeTimeseries(d: AnalyticsData) {
   [...d.meta, ...d.google].forEach((r) => (touch(r.date).investimento += r.spend));
   // Safra: faturamento cai no dia de criação do lead, alinhado ao investimento.
   d.reservations.forEach(
-    (r) => (touch((r.lead_created_at ?? r.created_at).slice(0, 10)).faturamento += r.total_amount),
+    (r) => {
+      // Contato antigo com oportunidade nova no período: conta no primeiro dia do período.
+      const day = (r.lead_created_at ?? r.created_at).slice(0, 10);
+      touch(from && day < from ? from : day).faturamento += r.total_amount;
+    },
   );
   return [...map.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
