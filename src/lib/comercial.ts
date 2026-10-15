@@ -327,20 +327,20 @@ export function computeMonthlyCommercial(
   return [...buckets.values()];
 }
 
-export function computeMonthlyRevenueBreakdown(
+const COMMERCIAL_TEAM = new Set(["thalita", "mauro", "nathalia", "gessica"]);
+const isCommercialTeam = (name: string | null | undefined) => COMMERCIAL_TEAM.has(sellerKey(name));
+
+export function computeDailyRevenueBreakdown(
   reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[],
-  seller: string,
   from: string,
   to: string,
-): Array<{ mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }> {
-  const buckets = new Map<string, { mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }>();
-  const firstMonth = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
-  const lastMonth = new Date(`${to.slice(0, 7)}-01T00:00:00Z`);
-  for (const date = firstMonth; date <= lastMonth; date.setUTCMonth(date.getUTCMonth() + 1)) {
-    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+): Array<{ dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }> {
+  const buckets = new Map<string, { dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }>();
+  for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
+    const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
+    const dia = `${key.slice(8)}/${key.slice(5, 7)}`;
     buckets.set(key, {
-      mes: `${MONTHS_PT[date.getUTCMonth()]}/${date.getUTCFullYear()}`,
-      monthKey: key,
+      dia,
       rackRate: 0,
       miscellaneousPrice: 0,
       additionalChargesPrice: 0,
@@ -349,10 +349,9 @@ export function computeMonthlyRevenueBreakdown(
 
   reservations.forEach((reservation) => {
     if (reservation.status !== "confirmed") return;
-    const reservationSeller = sellerKey(reservation.seller_name);
-    const effectiveSeller = reservationSeller === "sem_vendedor" ? "venda_direta" : reservationSeller;
-    if (seller !== "all" && effectiveSeller !== seller) return;
-    const bucket = buckets.get(reservation.created_at.slice(0, 7));
+    if (!isCommercialTeam(reservation.seller_name)) return;
+    const key = reservation.created_at.slice(0, 10);
+    const bucket = buckets.get(key);
     if (!bucket) return;
     bucket.rackRate += reservation.rack_rate ?? 0;
     bucket.miscellaneousPrice += reservation.miscellaneous_price ?? 0;
@@ -642,8 +641,6 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     bucket[n] = ((bucket[n] as number | undefined) ?? 0) + reservationRackRate(r, useHqRackRate);
   });
 
-  const revenueBreakdown = computeMonthlyRevenueBreakdown(d.reservations, seller, from, to);
-
   return {
     daily: [...daily.values()],
     dailyOpportunitiesBySeller: [...dailyOpportunitiesBySeller.values()],
@@ -664,7 +661,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       previousYearDate(to),
       useHqRackRate,
     ),
-    revenueBreakdown,
+    revenueBreakdown: computeDailyRevenueBreakdown(d.reservations, from, to),
     stackKeys: [...stackKeys],
     goalMonth: [...months][0] ?? "",
   };

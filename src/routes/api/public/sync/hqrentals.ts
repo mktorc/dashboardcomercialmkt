@@ -29,8 +29,12 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     rack_rate: r["total_rack_rate"] != null
       ? Number(r["total_rack_rate"])
       : r["rack_rate"] == null ? null : Number(r["rack_rate"]),
-    miscellaneous_price: Number(r["miscellaneous_price"]) || 0,
-    additional_charges_price: Number(r["additional_charges_price"]) || 0,
+    miscellaneous_price: Number(
+      r["miscellaneous_price"] ?? r["miscellaneous"] ?? r["misc_price"] ?? r["extras"] ?? 0
+    ) || 0,
+    additional_charges_price: Number(
+      r["additional_charges_price"] ?? r["additional_charges"] ?? r["extra_charges"] ?? r["extra_price"] ?? 0
+    ) || 0,
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)

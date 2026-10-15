@@ -355,8 +355,13 @@ export function ComercialPage({
               <MonthlyBarChart title="Reservas mensais" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
               <MonthlyBarChart title="Ticket médio mensal" data={monthlyKpis} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis comparisonKey="yearAgoTicket" />
               <MonthlyBarChart title="Desconto médio mensal" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" />
-              {view?.revenueBreakdown ? <RevenueBreakdownChart data={view.revenueBreakdown} /> : null}
             </section>
+          ) : null}
+
+          {view?.revenueBreakdown ? (
+            <Card className="p-5">
+              <RevenueBreakdownChart data={view.revenueBreakdown} />
+            </Card>
           ) : null}
 
           <Card className="overflow-hidden">
@@ -1032,19 +1037,19 @@ function GoalsDialog({
 function RevenueBreakdownChart({
   data,
 }: {
-  data: Array<{ mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }>;
+  data: Array<{ dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }>;
 }) {
   return (
     <ExpandableChartPanel
-      title="Faturamento por componente"
+      title="Faturamento diário por componente (Time Comercial)"
       subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais"
       expandable
       render={(expanded) => (
-        <div className="mt-4" style={{ height: expanded ? "70vh" : 256 }}>
+        <div className="mt-4" style={{ height: expanded ? "70vh" : 320 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="mes" interval={0} minTickGap={0} {...axis} />
+              <XAxis dataKey="dia" interval={0} minTickGap={0} {...axis} />
               <YAxis
                 {...axis}
                 tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
