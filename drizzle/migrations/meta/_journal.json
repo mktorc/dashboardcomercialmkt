@@ -169,6 +169,13 @@
       "when": 1792070400004,
       "tag": "0023_apply_pending_cohort_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792066289923,
+      "tag": "0024_phone8_column_indexes",
+      "breakpoints": true
     }
   ]
 }
