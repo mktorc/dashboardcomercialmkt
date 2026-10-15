@@ -206,6 +206,36 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ads_daily: {
+        Row: {
+          campaign_id: string
+          campaign_name: string | null
+          clicks: number | null
+          conversations_started: number | null
+          date: string
+          impressions: number | null
+          spend: number | null
+        }
+        Insert: {
+          campaign_id: string
+          campaign_name?: string | null
+          clicks?: number | null
+          conversations_started?: number | null
+          date: string
+          impressions?: number | null
+          spend?: number | null
+        }
+        Update: {
+          campaign_id?: string
+          campaign_name?: string | null
+          clicks?: number | null
+          conversations_started?: number | null
+          date?: string
+          impressions?: number | null
+          spend?: number | null
+        }
+        Relationships: []
+      }
       meta_ads_metrics: {
         Row: {
           campaign_id: string | null
