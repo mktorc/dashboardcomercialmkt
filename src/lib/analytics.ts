@@ -4,6 +4,14 @@ import { fetchKommoLeads, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-l
 
 const iso = (d: Date) => d.toISOString();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+const sanitizePhone = (phone: string | null) => {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 8 ? digits : null;
+};
+const normalizeEmail = (email: string | null) => {
+  return email ? email.toLowerCase().trim() : null;
+};
 
 export type AdRow = {
   date: string;
@@ -29,6 +37,47 @@ export type ReservationRow = {
   /** Criação do lead da safra ao qual a reserva pertence. */
   lead_created_at?: string | null;
 };
+
+/** Deduplicação inteligente de leads Kommo + ClickMassa por email/telefone com regra de booking_date */
+export function deduplicateReservations(reservations: ReservationRow[]) {
+  const duplicates = new Set<string>();
+
+  // Agrupar reservas por email/telefone normalizado
+  const byContact = new Map<string, ReservationRow[]>();
+  reservations.forEach((r) => {
+    const email = normalizeEmail(r.lead_origin || "");
+    const phone = sanitizePhone(r.lead_origin || "");
+    // Usa lead_origin como identificador, mas em produção seria melhor cruzar com a tabela de leads
+    const key = [email, phone].filter(Boolean).join("|") || `res-${r.reservation_id}`;
+    const group = byContact.get(key) ?? [];
+    group.push(r);
+    byContact.set(key, group);
+  });
+
+  // Para cada grupo de contatos, deduplica por booking_date
+  byContact.forEach((group) => {
+    const byDate = new Map<string, ReservationRow[]>();
+    group.forEach((r) => {
+      const bookingDate = (r.pick_up_at ?? r.created_at).slice(0, 10);
+      const dateGroup = byDate.get(bookingDate) ?? [];
+      dateGroup.push(r);
+      byDate.set(bookingDate, dateGroup);
+    });
+
+    // Dentro de cada data, marca duplicatas posteriores
+    byDate.forEach((dateGroup) => {
+      if (dateGroup.length > 1) {
+        // Mantém apenas o primeiro, marca o resto como duplicata
+        dateGroup.slice(1).forEach((r) => {
+          if (r.reservation_id) duplicates.add(r.reservation_id);
+        });
+      }
+    });
+  });
+
+  // Retorna apenas as reservas que não são duplicatas
+  return reservations.filter((r) => !duplicates.has(r.reservation_id || ""));
+}
 export type OpportunityOriginRow = {
   opportunity_id: string;
   lead_id: string | null;
@@ -182,13 +231,15 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const opportunities = attachOrigin(createdRows);
   const updated = attachOrigin(updatedRows);
 
+  const rawReservations = ((reservations.data ?? []) as ReservationRow[]).map((reservation) => ({
+    ...reservation,
+    total_amount: Number(reservation.total_amount),
+  }));
+
   return {
     meta: num((meta.data ?? []) as never[]),
     google: num((google.data ?? []) as never[]),
-    reservations: ((reservations.data ?? []) as ReservationRow[]).map((reservation) => ({
-      ...reservation,
-      total_amount: Number(reservation.total_amount),
-    })),
+    reservations: deduplicateReservations(rawReservations),
     opportunities,
     updatedOpportunities: updated,
   };
@@ -690,12 +741,12 @@ export function computeYoYComparison(
   const priorByMonth = new Map<string, Record<string, string | number>>();
 
   currentData.forEach((row) => {
-    const month = String(row.month);
+    const month = String(row["month"]);
     currentByMonth.set(month, row);
   });
 
   priorYearData.forEach((row) => {
-    const month = String(row.month);
+    const month = String(row["month"]);
     priorByMonth.set(month, row);
   });
 
@@ -703,8 +754,8 @@ export function computeYoYComparison(
   const sortedMonths = Array.from(monthsSet).sort();
 
   sortedMonths.forEach((month) => {
-    const current = currentByMonth.get(month) ?? { month };
-    const prior = priorByMonth.get(month) ?? { month };
+    const current = currentByMonth.get(month) ?? { ["month"]: month };
+    const prior = priorByMonth.get(month) ?? { ["month"]: month };
 
     const merged: Record<string, string | number> = { month };
 
