@@ -402,10 +402,11 @@ export function computeDailyRevenueBreakdown(
       skippedStatus++;
       return;
     }
-    if (!isCommercialTeam(reservation.seller_name)) {
-      skippedTeam++;
-      return;
-    }
+    // Temporarily remove team filter to test if data exists
+    // if (!isCommercialTeam(reservation.seller_name)) {
+    //   skippedTeam++;
+    //   return;
+    // }
     const key = reservation.created_at.slice(0, 10);
     const bucket = buckets.get(key);
     if (!bucket) {
@@ -418,7 +419,7 @@ export function computeDailyRevenueBreakdown(
     bucket.additionalChargesPrice += reservation.additional_charges_price ?? 0;
   });
 
-  console.log(`Revenue breakdown: processed=${processedCount}, skippedStatus=${skippedStatus}, skippedTeam=${skippedTeam}, skippedDate=${skippedDate}`);
+  console.log(`Revenue breakdown: processed=${processedCount}, skippedStatus=${skippedStatus}, skippedTeam=${skippedTeam}, skippedDate=${skippedDate}, totalReservations=${reservations.length}`);
 
   return [...buckets.values()].map((b) => ({
     ...b,

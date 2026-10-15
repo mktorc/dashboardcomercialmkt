@@ -1041,8 +1041,8 @@ function RevenueBreakdownChart({
 }) {
   return (
     <ExpandableChartPanel
-      title="Faturamento diário por componente (Time Comercial)"
-      subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais"
+      title="Faturamento diário por componente (Todos os vendedores - DEBUG)"
+      subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais - Verifique console.log"
       expandable
       render={(expanded) => (
         <div className="mt-4" style={{ height: expanded ? "70vh" : 320 }}>
