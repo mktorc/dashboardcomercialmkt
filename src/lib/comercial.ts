@@ -89,14 +89,38 @@ async function fetchRevenueBreakdown(from: string, to: string) {
     const { data, error } = await fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
+        .select("created_at, seller_name, status, rack_rate")
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
     );
-    if (error) return [];
-    return (data ?? []) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
-  } catch {
+    if (error) {
+      console.error("fetchRevenueBreakdown error:", error);
+      return [];
+    }
+    const baseData = (data ?? []) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate">[];
+
+    // Try to fetch with new fields if they exist
+    const withNewFields = await fetchAll((a, b) =>
+      supabase
+        .from("reservations")
+        .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
+        .gte("created_at", histFrom)
+        .lte("created_at", endIso(to))
+        .range(a, b),
+    ).catch(() => ({ data: null, error: new Error("New fields not available") }));
+
+    if (!withNewFields.error && withNewFields.data) {
+      return withNewFields.data as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
+    }
+
+    return baseData.map(r => ({
+      ...r,
+      miscellaneous_price: 0,
+      additional_charges_price: 0,
+    }));
+  } catch (err) {
+    console.error("fetchRevenueBreakdown exception:", err);
     return [];
   }
 }
@@ -368,16 +392,33 @@ export function computeDailyRevenueBreakdown(
     });
   }
 
+  let processedCount = 0;
+  let skippedStatus = 0;
+  let skippedTeam = 0;
+  let skippedDate = 0;
+
   reservations.forEach((reservation) => {
-    if (reservation.status !== "confirmed") return;
-    if (!isCommercialTeam(reservation.seller_name)) return;
+    if (reservation.status !== "confirmed") {
+      skippedStatus++;
+      return;
+    }
+    if (!isCommercialTeam(reservation.seller_name)) {
+      skippedTeam++;
+      return;
+    }
     const key = reservation.created_at.slice(0, 10);
     const bucket = buckets.get(key);
-    if (!bucket) return;
+    if (!bucket) {
+      skippedDate++;
+      return;
+    }
+    processedCount++;
     bucket.rackRate += reservation.rack_rate ?? 0;
     bucket.miscellaneousPrice += reservation.miscellaneous_price ?? 0;
     bucket.additionalChargesPrice += reservation.additional_charges_price ?? 0;
   });
+
+  console.log(`Revenue breakdown: processed=${processedCount}, skippedStatus=${skippedStatus}, skippedTeam=${skippedTeam}, skippedDate=${skippedDate}`);
 
   return [...buckets.values()].map((b) => ({
     ...b,
