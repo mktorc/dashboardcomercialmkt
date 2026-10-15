@@ -25,14 +25,12 @@ export type CRes = {
   status: string;
   seller_name: string | null;
 };
-// Faturamento / receita provisionada = Rack Rate do HQ em ambas as abas comerciais.
-// O parâmetro é mantido por compatibilidade; o fallback só vale sem Rack Rate.
+// Faturamento / receita provisionada = coluna rack_rate (HQ) em ambas as abas comerciais.
+// Sem rack_rate a reserva não contribui; não há fallback para total_amount.
 const reservationRackRate = (
-  reservation: Pick<CRes, "total_amount" | "discount_amount" | "rack_rate">,
+  reservation: Pick<CRes, "rack_rate">,
   _useHqRackRate = true,
-) => reservation.rack_rate != null
-  ? reservation.rack_rate
-  : reservation.total_amount - reservation.discount_amount;
+) => reservation.rack_rate ?? 0;
 export type CTask = {
   lead_id: string | null;
   user_name: string | null;
@@ -649,11 +647,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const prevOppsCount = prevFilteredOpps.length;
   const prevReservasCount = prevFilteredRes.length;
   const prevFaturamento = prevFilteredRes.reduce(
-    (acc: number, r: any) => acc + reservationRackRate({
-      total_amount: r.total_amount,
-      discount_amount: r.discount_amount ?? 0,
-      rack_rate: r.rack_rate,
-    }, useHqRackRate),
+    (acc: number, r: any) => acc + reservationRackRate({ rack_rate: r.rack_rate }, useHqRackRate),
     0,
   );
   const prevConversao = prevOppsCount ? prevReservasCount / prevOppsCount : 0;

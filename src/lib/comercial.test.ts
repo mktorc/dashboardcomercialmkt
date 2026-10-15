@@ -9,9 +9,9 @@ describe("computeMonthlyCommercial", () => {
       { created_at: "2026-10-04T12:00:00Z", seller_name: "Thay" },
     ];
     const reservations = [
-      { created_at: "2026-10-05T12:00:00Z", seller_name: "Naty", status: "confirmed", total_amount: 900, discount_amount: 100 },
-      { created_at: "2026-10-06T12:00:00Z", seller_name: "Naty", status: "confirmed", total_amount: 1100, discount_amount: 100 },
-      { created_at: "2026-10-07T12:00:00Z", seller_name: "Naty", status: "cancelled", total_amount: 500, discount_amount: 500 },
+      { created_at: "2026-10-05T12:00:00Z", seller_name: "Naty", status: "confirmed", total_amount: 900, discount_amount: 100, rack_rate: 800 },
+      { created_at: "2026-10-06T12:00:00Z", seller_name: "Naty", status: "confirmed", total_amount: 1100, discount_amount: 100, rack_rate: 1000 },
+      { created_at: "2026-10-07T12:00:00Z", seller_name: "Naty", status: "cancelled", total_amount: 500, discount_amount: 500, rack_rate: 0 },
     ];
     const months = computeMonthlyCommercial(opportunities, reservations, "nathalia", "2026-06-01", "2026-10-08");
     const october = months[4];
@@ -24,8 +24,8 @@ const stackedData = {
   leads: [],
   opportunities: [],
   reservations: [
-    { created_at: "2026-06-15T12:00:00Z", total_amount: 1000, discount_amount: 0, status: "confirmed", seller_name: "Naty" },
-    { created_at: "2026-10-05T12:00:00Z", total_amount: 2000, discount_amount: 0, status: "confirmed", seller_name: "Naty" },
+    { created_at: "2026-06-15T12:00:00Z", total_amount: 1000, discount_amount: 0, rack_rate: 1000, status: "confirmed", seller_name: "Naty" },
+    { created_at: "2026-10-05T12:00:00Z", total_amount: 2000, discount_amount: 0, rack_rate: 2000, status: "confirmed", seller_name: "Naty" },
   ],
   tasks: [],
   goals: [],
@@ -187,14 +187,14 @@ describe("computeComercial", () => {
         { opportunity_id: "5", lead_id: "5", name: null, stage_name: null, status: "open", seller_name: "Ana", pending_tasks: 0, created_at: "2026-10-05T12:00:00Z" },
       ],
       reservations: [
-        { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 10, status: "confirmed", seller_name: "Ana" },
-        { created_at: "2026-10-02T12:00:00Z", total_amount: 200, discount_amount: 20, status: "confirmed", seller_name: "Bia" },
-        { created_at: "2026-10-03T12:00:00Z", total_amount: 300, discount_amount: 0, status: "confirmed", seller_name: "Ana" },
+        { created_at: "2026-10-01T12:00:00Z", total_amount: 100, discount_amount: 10, rack_rate: 90, status: "confirmed", seller_name: "Ana" },
+        { created_at: "2026-10-02T12:00:00Z", total_amount: 200, discount_amount: 20, rack_rate: 180, status: "confirmed", seller_name: "Bia" },
+        { created_at: "2026-10-03T12:00:00Z", total_amount: 300, discount_amount: 0, rack_rate: 300, status: "confirmed", seller_name: "Ana" },
       ],
       prevData: {
         ...stackedData.prevData,
         reservations: [
-          { created_at: "2026-09-01T12:00:00Z", total_amount: 100, discount_amount: 10, status: "confirmed", seller_name: "Ana" },
+          { created_at: "2026-09-01T12:00:00Z", total_amount: 100, discount_amount: 10, rack_rate: 90, status: "confirmed", seller_name: "Ana" },
         ],
       },
     } as unknown as ComercialData;
