@@ -278,11 +278,10 @@ export function computeTimeseries(d: AnalyticsData, from?: string) {
     return map.get(key)!;
   };
   [...d.meta, ...d.google].forEach((r) => (touch(r.date).investimento += r.spend));
-  // Faturamento alocado pela data real da reserva (pick_up_at), não pela criação do lead.
+  // Faturamento alocado pela data real de fechamento (created_at), não pela data de pick_up_at.
   d.reservations.forEach(
     (r) => {
-      // Usar data real do aluguel (pick_up_at). Se não disponível, usar created_at da reserva.
-      const day = (r.pick_up_at ?? r.created_at).slice(0, 10);
+      const day = r.created_at.slice(0, 10);
       touch(from && day < from ? from : day).faturamento += r.total_amount;
     },
   );

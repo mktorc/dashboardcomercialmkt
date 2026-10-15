@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { DollarSign, Gauge, RefreshCw, Target, TrendingUp, UserCheck, Wallet } from "lucide-react";
+import { ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet, X } from "lucide-react";
 
 import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
@@ -22,6 +22,13 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   brl,
   buildDynamicFunnel,
@@ -88,6 +95,8 @@ const getPriorYearDates = (from: string, to: string) => {
   };
 };
 
+type AttributionSortKey = "utm" | "investimento" | "leads" | "cpl" | "reservas" | "conversao" | "faturamento" | "roas" | "roi";
+
 function Dashboard() {
   const today = new Date();
   const [from, setFrom] = useState(
@@ -95,6 +104,7 @@ function Dashboard() {
   );
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
+  const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({ key: "investimento", dir: -1 });
   const priorYear = getPriorYearDates(from, to);
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["analytics", from, to],
@@ -129,7 +139,14 @@ function Dashboard() {
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   const kpis = originData ? computeKpis(originData) : null;
   const series = originData ? computeTimeseries(originData, from) : [];
-  const attribution = originData ? computeAttribution(originData) : [];
+  let attribution = originData ? computeAttribution(originData) : [];
+  attribution = attribution.sort((a, b) => {
+    const va = a[attributionSort.key];
+    const vb = b[attributionSort.key];
+    if (va === null || vb === null) return (vb === null ? 1 : 0) - (va === null ? 1 : 0);
+    const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
+    return cmp * attributionSort.dir;
+  });
   const originSources = (originAnalytics?.sources ?? []).filter(
     (source) => originFilter === "all" || source.label === originFilter,
   );
@@ -351,91 +368,6 @@ function Dashboard() {
             </Card>
           </section>
 
-          <Card className="overflow-hidden">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">
-                  Atribuição e ROI por UTM / Campanha
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. ROI "—" = nenhum lead ou reserva
-                  chegou com a UTM desta campanha.
-                </p>
-              </div>
-              {isLoading ? (
-                <span className="text-xs text-muted-foreground">Carregando…</span>
-              ) : null}
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-5 py-3 text-left font-medium">UTM / Campanha</th>
-                    <th className="px-4 py-3 text-right font-medium">Investimento</th>
-                    <th className="px-4 py-3 text-right font-medium">Leads / Oportunidades</th>
-                    <th className="px-4 py-3 text-right font-medium">CPL</th>
-                    <th className="px-4 py-3 text-right font-medium">Reservas</th>
-                    <th className="px-4 py-3 text-right font-medium">Conversão</th>
-                    <th className="px-4 py-3 text-right font-medium">Faturamento</th>
-                    <th className="px-4 py-3 text-right font-medium">ROAS</th>
-                    <th className="px-5 py-3 text-right font-medium">ROI</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attribution.map((row) => (
-                    <tr key={row.utm} className="border-t border-border">
-                      <td className="max-w-[360px] px-5 py-2.5">
-                        <p
-                          className="truncate text-[11px] font-medium text-foreground"
-                          title={row.utm}
-                        >
-                          {row.utm}
-                        </p>
-                      </td>
-                      <td className="px-4 py-2.5 text-right">{brl(row.investimento)}</td>
-                      <td className="px-4 py-2.5 text-right">{row.leads}</td>
-                      <td className="px-4 py-2.5 text-right">{brl(row.cpl)}</td>
-                      <td className="px-4 py-2.5 text-right">{row.reservas}</td>
-                      <td className="px-4 py-2.5 text-right">{pct(row.conversao)}</td>
-                      <td className="px-4 py-2.5 text-right font-medium text-accent">
-                        {brl(row.faturamento)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right">
-                        {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
-                      </td>
-                      <td className="px-5 py-2.5 text-right">
-                        {row.roi === null ? (
-                          <span
-                            className="text-muted-foreground"
-                            title="Sem leads ou reservas com esta UTM"
-                          >
-                            —
-                          </span>
-                        ) : (
-                          <Badge
-                            variant={(row.roi ?? 0) >= 0 ? "default" : "destructive"}
-                            className={
-                              (row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""
-                            }
-                          >
-                            {(row.roi * 100).toFixed(0)}%
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                  {!attribution.length && !isLoading ? (
-                    <tr>
-                      <td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">
-                        Nenhum dado no período selecionado.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
           <section className="grid min-w-0 gap-4 xl:grid-cols-2">
             <OriginMonthlyChart
               title="Oportunidades criadas (Ano Atual vs. Ano Anterior)"
@@ -493,9 +425,212 @@ function Dashboard() {
               )}
             </Card>
           </section>
+
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Atribuição e ROI por UTM / Campanha
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. ROI "—" = nenhum lead ou reserva
+                  chegou com a UTM desta campanha.
+                </p>
+              </div>
+              {isLoading ? (
+                <span className="text-xs text-muted-foreground">Carregando…</span>
+              ) : null}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="bg-secondary/60 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground"
+                        onClick={() => setAttributionSort((s) => ({ key: "utm", dir: s.key === "utm" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        UTM / Campanha
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "utm" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "investimento", dir: s.key === "investimento" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        Investimento
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "investimento" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "leads", dir: s.key === "leads" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        Leads / Oportunidades
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "leads" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "cpl", dir: s.key === "cpl" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        CPL
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "cpl" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "reservas", dir: s.key === "reservas" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        Reservas
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "reservas" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "conversao", dir: s.key === "conversao" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        Conversão
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "conversao" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "faturamento", dir: s.key === "faturamento" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        Faturamento
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "faturamento" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "roas", dir: s.key === "roas" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        ROAS
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "roas" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                    <th className="px-5 py-3 text-right font-medium">
+                      <button
+                        className="inline-flex items-center gap-1 hover:text-foreground float-right"
+                        onClick={() => setAttributionSort((s) => ({ key: "roi", dir: s.key === "roi" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                      >
+                        ROI
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "roi" ? "text-accent" : ""}`} />
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attribution.map((row) => (
+                    <tr key={row.utm} className="border-t border-border">
+                      <td className="max-w-[360px] px-5 py-2.5">
+                        <p
+                          className="truncate text-[11px] font-medium text-foreground"
+                          title={row.utm}
+                        >
+                          {row.utm}
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">{brl(row.investimento)}</td>
+                      <td className="px-4 py-2.5 text-right">{row.leads}</td>
+                      <td className="px-4 py-2.5 text-right">{brl(row.cpl)}</td>
+                      <td className="px-4 py-2.5 text-right">{row.reservas}</td>
+                      <td className="px-4 py-2.5 text-right">{pct(row.conversao)}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-accent">
+                        {brl(row.faturamento)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
+                      </td>
+                      <td className="px-5 py-2.5 text-right">
+                        {row.roi === null ? (
+                          <span
+                            className="text-muted-foreground"
+                            title="Sem leads ou reservas com esta UTM"
+                          >
+                            —
+                          </span>
+                        ) : (
+                          <Badge
+                            variant={(row.roi ?? 0) >= 0 ? "default" : "destructive"}
+                            className={
+                              (row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""
+                            }
+                          >
+                            {(row.roi * 100).toFixed(0)}%
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!attribution.length && !isLoading ? (
+                    <tr>
+                      <td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">
+                        Nenhum dado no período selecionado.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       </main>
     </div>
+  );
+}
+
+function ExpandableChartPanel({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Card className="relative min-w-0 overflow-hidden p-5">
+        <div className="absolute right-5 top-5">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setOpen(true)}
+            aria-label={`Expandir ${title}`}
+            title="Expandir gráfico"
+          >
+            <Maximize2 className="size-4" />
+          </Button>
+        </div>
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <div className="mt-4 min-w-0">
+          {children}
+        </div>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="w-[min(96vw,1200px)] max-w-none">
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
+          <div style={{ height: "70vh", overflow: "auto" }}>
+            {children}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -523,10 +658,8 @@ function OriginMonthlyChart({
   isYoY?: boolean;
 }) {
   return (
-    <Card className="min-w-0 overflow-hidden p-5">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-      <div className="mt-4 h-52 min-w-0">
+    <ExpandableChartPanel title={title} subtitle={subtitle}>
+      <div className="h-52 min-w-0">
         {data.length && sources.length ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart
@@ -592,6 +725,6 @@ function OriginMonthlyChart({
           <EmptyOriginChart loading={loading} />
         )}
       </div>
-    </Card>
+    </ExpandableChartPanel>
   );
 }
