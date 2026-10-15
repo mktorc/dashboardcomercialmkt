@@ -23,6 +23,7 @@ import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
+import { Route as ApiPublicSyncHqrentalsBackfillRouteImport } from './routes/api/public/sync/hqrentals-backfill'
 import { Route as ApiPublicSyncMetaAdsRouteImport } from './routes/api/public/sync/meta-ads'
 import { Route as ApiPublicSyncMetaAdsRetroactiveRouteImport } from './routes/api/public/sync/meta-ads-retroactive'
 import { Route as ApiPublicWebhooksClickmassaRouteImport } from './routes/api/public/webhooks/clickmassa'
@@ -100,6 +101,12 @@ const ApiPublicSyncHqrentalsRoute = ApiPublicSyncHqrentalsRouteImport.update({
   path: '/api/public/sync/hqrentals',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncHqrentalsBackfillRoute =
+  ApiPublicSyncHqrentalsBackfillRouteImport.update({
+    id: '/api/public/sync/hqrentals-backfill',
+    path: '/api/public/sync/hqrentals-backfill',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSyncMetaAdsRoute = ApiPublicSyncMetaAdsRouteImport.update({
   id: '/api/public/sync/meta-ads',
   path: '/api/public/sync/meta-ads',
@@ -132,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/sync/meta-ads-retroactive': typeof ApiPublicSyncMetaAdsRetroactiveRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
@@ -150,6 +158,7 @@ export interface FileRoutesByTo {
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/sync/meta-ads-retroactive': typeof ApiPublicSyncMetaAdsRetroactiveRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
@@ -170,6 +179,7 @@ export interface FileRoutesById {
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
+  '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/sync/meta-ads-retroactive': typeof ApiPublicSyncMetaAdsRetroactiveRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/sync/meta-ads-retroactive'
     | '/api/public/webhooks/clickmassa'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/sync/meta-ads-retroactive'
     | '/api/public/webhooks/clickmassa'
@@ -227,6 +239,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
+    | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/sync/meta-ads-retroactive'
     | '/api/public/webhooks/clickmassa'
@@ -243,6 +256,7 @@ export interface RootRouteChildren {
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
+  ApiPublicSyncHqrentalsBackfillRoute: typeof ApiPublicSyncHqrentalsBackfillRoute
   ApiPublicSyncMetaAdsRoute: typeof ApiPublicSyncMetaAdsRoute
   ApiPublicSyncMetaAdsRetroactiveRoute: typeof ApiPublicSyncMetaAdsRetroactiveRoute
   ApiPublicWebhooksClickmassaRoute: typeof ApiPublicWebhooksClickmassaRoute
@@ -348,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncHqrentalsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync/hqrentals-backfill': {
+      id: '/api/public/sync/hqrentals-backfill'
+      path: '/api/public/sync/hqrentals-backfill'
+      fullPath: '/api/public/sync/hqrentals-backfill'
+      preLoaderRoute: typeof ApiPublicSyncHqrentalsBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync/meta-ads': {
       id: '/api/public/sync/meta-ads'
       path: '/api/public/sync/meta-ads'
@@ -403,6 +424,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiPublicSyncClickmassaOpportunitiesRoute,
   ApiPublicSyncGoogleAdsRoute: ApiPublicSyncGoogleAdsRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
+  ApiPublicSyncHqrentalsBackfillRoute: ApiPublicSyncHqrentalsBackfillRoute,
   ApiPublicSyncMetaAdsRoute: ApiPublicSyncMetaAdsRoute,
   ApiPublicSyncMetaAdsRetroactiveRoute: ApiPublicSyncMetaAdsRetroactiveRoute,
   ApiPublicWebhooksClickmassaRoute: ApiPublicWebhooksClickmassaRoute,

@@ -18,6 +18,35 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
   const customer = (r["customer"] ?? {}) as HqReservation;
   const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
   const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
+  const pricing = (r["pricing"] ?? {}) as HqReservation;
+
+  // Extrai valores de taxas com fallback para múltiplos nomes de campo possíveis
+  const miscPrice = Number(
+    r["miscellaneous_price"]
+    ?? pricing["miscellaneous_price"]
+    ?? r["miscellaneous"]
+    ?? pricing["miscellaneous"]
+    ?? r["misc_price"]
+    ?? pricing["misc_price"]
+    ?? r["tax_details"]
+    ?? r["service_fee"]
+    ?? 0
+  ) || 0;
+
+  const addlCharges = Number(
+    r["additional_charges_price"]
+    ?? pricing["additional_charges_price"]
+    ?? r["additional_charges"]
+    ?? pricing["additional_charges"]
+    ?? r["extra_charges"]
+    ?? pricing["extra_charges"]
+    ?? r["extra_price"]
+    ?? pricing["extra_price"]
+    ?? r["extra_fees"]
+    ?? pricing["extra_fees"]
+    ?? 0
+  ) || 0;
+
   return {
     reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
     customer_email: (customer["email"] as string | null) ?? null,
@@ -29,12 +58,8 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     rack_rate: r["total_rack_rate"] != null
       ? Number(r["total_rack_rate"])
       : r["rack_rate"] == null ? null : Number(r["rack_rate"]),
-    miscellaneous_price: Number(
-      r["miscellaneous_price"] ?? r["miscellaneous"] ?? r["misc_price"] ?? r["extras"] ?? 0
-    ) || 0,
-    additional_charges_price: Number(
-      r["additional_charges_price"] ?? r["additional_charges"] ?? r["extra_charges"] ?? r["extra_price"] ?? 0
-    ) || 0,
+    miscellaneous_price: miscPrice,
+    additional_charges_price: addlCharges,
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)
@@ -118,6 +143,21 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           if (uj.data?.last_page && up >= uj.data.last_page) break;
         }
         const rows = all.map((r) => mapReservation(r, users)).filter((r) => r.reservation_id !== "");
+
+        // Log diagnóstico dos primeiros registos para verificar se taxas e cobranças estão a ser extraídas
+        if (rows.length > 0) {
+          const sample = rows.slice(0, 3);
+          const hasMiscellaneous = sample.some(r => r.miscellaneous_price > 0);
+          const hasAdditional = sample.some(r => r.additional_charges_price > 0);
+          console.log(`[HQ Sync] Processados ${rows.length} registos. Amostra: ${JSON.stringify(sample.map(r => ({
+            id: r.reservation_id,
+            total: r.total_amount,
+            rack_rate: r.rack_rate,
+            misc: r.miscellaneous_price,
+            addl: r.additional_charges_price,
+          })), null, 2)}`);
+          console.log(`[HQ Sync] Registos com Taxas Diversas: ${hasMiscellaneous ? 'SIM' : 'NÃO'}, com Cobranças Adicionais: ${hasAdditional ? 'SIM' : 'NÃO'}`);
+        }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         // Tamanho da frota (para a taxa de ocupação)
