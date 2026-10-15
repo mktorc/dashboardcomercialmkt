@@ -148,6 +148,13 @@
       "when": 1792065896219,
       "tag": "0020_fast_cohort_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792066023974,
+      "tag": "0021_cohort_reservations_definer",
+      "breakpoints": true
     }
   ]
 }
