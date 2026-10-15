@@ -2,7 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 
 // Sincronização Meta Ads (Graph API insights) -> tabela `meta_ads_metrics`.
-// Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>. Query opcional: ?days=30
+// Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>
+// Query params:
+//   ?days=30           (padrão: 30, máx: 365) - sincroniza últimos X dias
+//   ?since=2026-01-01  (YYYY-MM-DD) - data inicial (sobrescreve days se fornecido)
+//   ?until=2026-09-30  (YYYY-MM-DD) - data final (padrão: hoje)
 
 type Obj = Record<string, unknown>;
 const GRAPH = "https://graph.facebook.com/v19.0";
@@ -19,10 +23,58 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
         if (!account || !token) {
           return Response.json({ error: "Meta Ads não configurado" }, { status: 500 });
         }
-        const days = Math.min(365, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
-        const until = new Date();
-        const since = new Date(Date.now() - (days - 1) * 86400000);
+
+        const url = new URL(request.url);
         const d = (x: Date) => x.toISOString().slice(0, 10);
+
+        // Parsear parâmetros de data
+        const sinceParam = url.searchParams.get("since");
+        const untilParam = url.searchParams.get("until");
+
+        // Validar formato de datas (YYYY-MM-DD)
+        const isValidDate = (dateStr: string | null): boolean => {
+          if (!dateStr) return true; // null é válido
+          return /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && !isNaN(new Date(dateStr).getTime());
+        };
+
+        if (!isValidDate(sinceParam) || !isValidDate(untilParam)) {
+          return Response.json(
+            { error: 'Formato de data inválido. Use YYYY-MM-DD (ex: ?since=2026-01-01&until=2026-09-30)' },
+            { status: 400 }
+          );
+        }
+
+        // Calcular since e until
+        let since: Date;
+        let until: Date;
+
+        if (sinceParam && untilParam) {
+          // Ambos fornecidos
+          since = new Date(`${sinceParam}T00:00:00Z`);
+          until = new Date(`${untilParam}T23:59:59.999Z`);
+        } else if (sinceParam) {
+          // Apenas since fornecido
+          since = new Date(`${sinceParam}T00:00:00Z`);
+          until = new Date();
+        } else if (untilParam) {
+          // Apenas until fornecido
+          until = new Date(`${untilParam}T23:59:59.999Z`);
+          const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days")) || 30));
+          since = new Date(Date.now() - (days - 1) * 86400000);
+        } else {
+          // Nenhum fornecido, usar days
+          const days = Math.min(365, Math.max(1, Number(url.searchParams.get("days")) || 30));
+          until = new Date();
+          since = new Date(Date.now() - (days - 1) * 86400000);
+        }
+
+        // Validar se since <= until
+        if (since > until) {
+          return Response.json(
+            { error: 'Data "since" deve ser menor ou igual a "until"' },
+            { status: 400 }
+          );
+        }
 
         const call = async (url: string) => {
           const r = await fetch(url);
