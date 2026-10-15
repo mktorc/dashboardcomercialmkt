@@ -176,6 +176,13 @@
       "when": 1792070400005,
       "tag": "0024_phone8_column_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792066310411,
+      "tag": "0025_trigger_pending_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+COMMENT ON INDEX public.crm_leads_email_lc_idx IS 'Busca de lead por e-mail normalizado.';
