@@ -72,7 +72,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
 
           const rows: Obj[] = [];
           const range = encodeURIComponent(JSON.stringify({ since: d(since), until: d(until) }));
-          next = `${GRAPH}/${usedAccount}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions&limit=500&access_token=${token}`;
+          next = `${GRAPH}/${usedAccount}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions,actions&limit=500&access_token=${token}`;
           while (next) {
             const j: Obj = await call(next);
             for (const r of (j["data"] as Obj[]) ?? []) {
@@ -84,6 +84,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
                 spend: Number(r["spend"]) || 0,
                 clicks: Number(r["clicks"]) || 0,
                 impressions: Number(r["impressions"]) || 0,
+                conversations: Number(((r["actions"] as Obj[] | undefined) ?? []).find((a) => a["action_type"] === "onsite_conversion.messaging_conversation_started_7d")?.["value"]) || 0,
                 utm_campaign: utmByCampaign.get(cid) ?? null,
               });
             }

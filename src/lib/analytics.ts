@@ -8,6 +8,7 @@ export type AdRow = {
   date: string;
   campaign_name: string;
   spend: number;
+  conversations?: number;
   clicks: number;
   impressions: number;
   utm_campaign: string | null;
@@ -57,7 +58,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       fetchAll((a, b) =>
         supabase
           .from("meta_ads_metrics")
-          .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
+          .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversations")
           .gte("date", from)
           .lte("date", to)
           .range(a, b),
