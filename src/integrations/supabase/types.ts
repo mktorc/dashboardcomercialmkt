@@ -18,12 +18,14 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
+          email_lc: string | null
           first_response_at: string | null
           id: string
           lead_id: string | null
           lead_origin: string | null
           name: string | null
           phone: string | null
+          phone8: string | null
           seller_name: string | null
           stage_name: string | null
           updated_at: string
@@ -34,12 +36,14 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
+          email_lc?: string | null
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
           lead_origin?: string | null
           name?: string | null
           phone?: string | null
+          phone8?: string | null
           seller_name?: string | null
           stage_name?: string | null
           updated_at?: string
@@ -50,12 +54,14 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
+          email_lc?: string | null
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
           lead_origin?: string | null
           name?: string | null
           phone?: string | null
+          phone8?: string | null
           seller_name?: string | null
           stage_name?: string | null
           updated_at?: string
@@ -244,7 +250,9 @@ export type Database = {
           customer_email: string | null
           customer_phone: string | null
           discount_amount: number
+          email_lc: string | null
           id: string
+          phone8: string | null
           pick_up_at: string | null
           rack_rate: number | null
           rental_days: number
@@ -262,7 +270,9 @@ export type Database = {
           customer_email?: string | null
           customer_phone?: string | null
           discount_amount?: number
+          email_lc?: string | null
           id?: string
+          phone8?: string | null
           pick_up_at?: string | null
           rack_rate?: number | null
           rental_days?: number
@@ -280,7 +290,9 @@ export type Database = {
           customer_email?: string | null
           customer_phone?: string | null
           discount_amount?: number
+          email_lc?: string | null
           id?: string
+          phone8?: string | null
           pick_up_at?: string | null
           rack_rate?: number | null
           rental_days?: number

@@ -14,3 +14,4 @@
 - General commercial and monthly occupancy goals use reserved seller identifiers in sales_goals, excluded from seller analytics; percentage goals are stored as ratios and edited as percentages to keep individual and global comparisons consistent.
 - Commercial discount year-over-year comparisons query the matching prior-year reservation window separately and show no comparison when history is absent, avoiding fabricated changes.
 - Data access is enforced per role in RLS via has_any_role(); keep policies aligned with the page ACCESS map in src/lib/roles.ts so hidden tabs also mean unreadable data (incl. MCP).
+- Migration journal `when` values must stay increasing: 0018 carries a future timestamp, and Drizzle silently skips any migration whose `when` is lower than the last applied one — bump new entries above it and verify in the database after each migration.
