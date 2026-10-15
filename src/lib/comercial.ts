@@ -392,44 +392,21 @@ export function computeDailyRevenueBreakdown(
     });
   }
 
-  let processedCount = 0;
-  let skippedStatus = 0;
-  let skippedTeam = 0;
-  let skippedDate = 0;
-
   reservations.forEach((reservation) => {
-    if (reservation.status !== "confirmed") {
-      skippedStatus++;
-      return;
-    }
-    // Temporarily remove team filter to test if data exists
-    // if (!isCommercialTeam(reservation.seller_name)) {
-    //   skippedTeam++;
-    //   return;
-    // }
+    if (reservation.status !== "confirmed") return;
+    if (!isCommercialTeam(reservation.seller_name)) return;
     const key = reservation.created_at.slice(0, 10);
     const bucket = buckets.get(key);
-    if (!bucket) {
-      skippedDate++;
-      return;
-    }
-    processedCount++;
+    if (!bucket) return;
     bucket.rackRate += reservation.rack_rate ?? 0;
     bucket.miscellaneousPrice += reservation.miscellaneous_price ?? 0;
     bucket.additionalChargesPrice += reservation.additional_charges_price ?? 0;
   });
 
-  console.log(`Revenue breakdown: processed=${processedCount}, skippedStatus=${skippedStatus}, skippedTeam=${skippedTeam}, skippedDate=${skippedDate}, totalReservations=${reservations.length}`);
-
-  const result = [...buckets.values()].map((b) => ({
+  return [...buckets.values()].map((b) => ({
     ...b,
     total: b.rackRate + b.miscellaneousPrice + b.additionalChargesPrice,
   }));
-
-  const withData = result.filter(r => r.total > 0);
-  console.log(`Days with data: ${withData.length}/${result.length}, sample:`, withData.slice(0, 3));
-
-  return result;
 }
 
 export function computeComercial(d: ComercialData, from: string, to: string, seller: string, useHqRackRate = false) {
