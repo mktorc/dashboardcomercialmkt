@@ -349,7 +349,7 @@ export function ComercialPage({
 
           {active === "comercial" ? (
             <section className="grid gap-4 xl:grid-cols-2">
-              <MonthlyBarChart title="Taxa de ocupação mensal" data={occupancyComparisons} dataKey="rate" valueName="Ocupação" formatter={pct} comparisonKey="yearAgoRate" />
+              <OccupancyLineChart title="Taxa de ocupação mensal" data={occupancyComparisons} />
               <MonthlyBarChart title="Taxa de conversão mensal" data={monthlyKpis} dataKey="conversao" valueName="Conversão" formatter={pct} comparisonKey="yearAgoConversion" />
               <MonthlyBarChart title="Faturamento mensal" data={monthlyKpis} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis comparisonKey="yearAgoRevenue" />
               <MonthlyBarChart title="Reservas mensais" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
@@ -449,6 +449,62 @@ export function ComercialPage({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function OccupancyLineChart({
+  title,
+  data,
+}: {
+  title: string;
+  data: Record<string, string | number | undefined>[];
+}) {
+  return (
+    <ExpandableChartPanel
+      title={title}
+      expandable
+      render={(expanded) => (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : 256 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" {...axis} />
+              <YAxis
+                {...axis}
+                label={{ value: "Taxa de Ocupação (%)", angle: -90, position: "insideLeft" }}
+                tickFormatter={(value: number) => `${Math.round(value * 100)}%`}
+                domain={[0, 1]}
+              />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(value: number) => pct(value)}
+                labelFormatter={(label) => `Mês: ${label}`}
+              />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="rate"
+                name="Ocupação Atual"
+                stroke="#44E500"
+                strokeWidth={2.5}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="yearAgoRate"
+                name="Ocupação Ano Anterior"
+                stroke="#2f9c5a"
+                strokeWidth={2.5}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+                strokeDasharray="5 5"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    />
   );
 }
 
