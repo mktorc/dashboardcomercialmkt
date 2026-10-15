@@ -53,7 +53,7 @@ import {
   type Goal,
 } from "@/lib/comercial";
 import { fetchOccupancy, occupancyMonthVariation } from "@/lib/occupancy";
-import { GLOBAL_GOAL, OCCUPANCY_GOAL, expectedRevenueByDate, isGeneralGoal, monthProgress, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
+import { commissionFor, GLOBAL_GOAL, OCCUPANCY_GOAL, expectedRevenueByDate, isGeneralGoal, monthProgress, nextGoalMonth, revenueAndTicketGoals } from "@/lib/commercial-goals";
 
 export const Route = createFileRoute("/_authenticated/comercial")({
   beforeLoad: () => guardPage("comercial"),
@@ -411,6 +411,13 @@ export function ComercialPage({
               </table>
             </div>
           </Card>
+          {active === "comercial-operacional" && view ? (
+            <CommissionModule
+              sellers={view.sellers.filter((x) => x.revenueGoal > 0 || x.faturamento > 0)}
+              teamSold={k?.faturamento ?? 0}
+              teamGoal={cardGoals.revenue}
+            />
+          ) : null}
         </div>
       </main>
       <Dialog open={noTaskOpen} onOpenChange={setNoTaskOpen}>
@@ -1018,5 +1025,68 @@ function GoalsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: string; faturamento: number; revenueGoal: number }[]; teamSold: number; teamGoal: number }) {
+  const teamAtt = teamGoal > 0 ? teamSold / teamGoal : 0;
+  const hit = teamAtt >= 1;
+  const pctBR = (v: number) => `${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  return (
+    <Card className="overflow-hidden p-5">
+      <h2 className="text-sm font-semibold text-foreground">Simulador / Extrato de Remuneração Variável (Comissão)</h2>
+      <p className="text-xs text-muted-foreground">Calculado sobre o valor vendido individual no período selecionado.</p>
+      <div className={`mt-4 rounded-md border p-4 ${hit ? "border-accent bg-accent/10" : "border-border bg-secondary/40"}`}>
+        <p className="text-xs text-muted-foreground">Status da Meta Geral</p>
+        <p className="text-base font-semibold text-foreground">
+          {teamGoal > 0 ? `${brl(teamSold)} de ${brl(teamGoal)} (${(teamAtt * 100).toFixed(1)}%)` : "Meta geral não cadastrada"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {hit ? "Meta geral atingida — gatilho de 1,75% liberado para quem bateu 100% da meta individual." : `Faltam ${brl(Math.max(0, teamGoal - teamSold))} para liberar o gatilho de 1,75%.`}
+        </p>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="text-xs uppercase text-muted-foreground">
+            <tr>
+              <th className="py-2 text-left">Atendente</th>
+              <th className="py-2 text-right">Valor vendido</th>
+              <th className="py-2 pl-4 text-left">Atingimento</th>
+              <th className="py-2 text-left">Faixa atual</th>
+              <th className="py-2 text-right">Comissão estimada</th>
+              <th className="py-2 pl-4 text-left">Próximo nível</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sellers.map((s) => {
+              const c = commissionFor(s.faturamento, s.revenueGoal, teamAtt);
+              return (
+                <tr key={s.name} className="border-t border-border">
+                  <td className="py-2 text-foreground">{s.name}</td>
+                  <td className="py-2 text-right">{brl(s.faturamento)}</td>
+                  <td className="py-2 pl-4">
+                    {s.revenueGoal > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-28 overflow-hidden rounded-full bg-secondary">
+                          <div className="h-full bg-accent" style={{ width: `${Math.min(100, c.attainment * 100)}%` }} />
+                        </div>
+                        <span className="text-xs">{(c.attainment * 100).toFixed(1)}%</span>
+                      </div>
+                    ) : <span className="text-xs text-muted-foreground">Sem meta</span>}
+                  </td>
+                  <td className="py-2 text-xs">{c.label}</td>
+                  <td className="py-2 text-right font-semibold text-accent">{brl(c.commission)}</td>
+                  <td className="py-2 pl-4 text-xs text-muted-foreground">
+                    {s.revenueGoal <= 0 ? "Cadastre a meta individual" : c.next
+                      ? `Faltam ${brl(c.next.missing)} em vendas para atingir ${Math.round(c.next.pct * 100)}% e subir para ${pctBR(c.next.rate)}`
+                      : hit ? "Nível máximo atingido" : "Falta a meta geral para liberar 1,75%"}
+                  </td>
+                </tr>
+              );
+            })}
+            {!sellers.length ? <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Nenhum atendente no período.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }

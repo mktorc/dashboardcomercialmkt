@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   brl,
+  buildDynamicFunnel,
   computeAttribution,
   computeKpis,
   computeOpportunityOrigins,
@@ -105,12 +106,17 @@ function Dashboard() {
   const originSources = (originAnalytics?.sources ?? []).filter(
     (source) => originFilter === "all" || source.label === originFilter,
   );
-  const selectedOriginKey = originAnalytics?.sources.find(
-    (source) => source.label === originFilter,
-  )?.key;
-  const funnelRows = (originAnalytics?.funnel ?? []).filter(
-    (row) => row.key === (originFilter === "all" ? "all" : selectedOriginKey),
-  );
+  const dynamicFunnel = (() => {
+    if (!data || !kpis) return null;
+    const mk = computeKpis(filterAnalyticsByOrigin(data, "meta"));
+    const gk = computeKpis(filterAnalyticsByOrigin(data, "google"));
+    const mode = originFilter === "all" ? "all" : /meta/i.test(originFilter) ? "meta" : /google/i.test(originFilter) ? "google" : "other";
+    return buildDynamicFunnel(mode, {
+      conversations: data.meta.reduce((s, r) => s + (Number(r.conversations) || 0), 0),
+      metaLeads: mk.leads, metaRes: mk.reservations, googleLeads: gk.leads, googleRes: gk.reservations,
+      otherLeads: kpis.leads, otherRes: kpis.reservations, otherLabel: originFilter,
+    });
+  })();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -400,60 +406,43 @@ function Dashboard() {
               loading={isLoading}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Funil por origem</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Oportunidades que chegaram a cada etapa; passagem calculada em relação à etapa
-                    anterior.
-                  </p>
-                </div>
-              </div>
-              <div className="mt-6 space-y-7">
-                {funnelRows.map((row) => {
-                  const firstStageCount = row.stages[0]?.count ?? 0;
-                  return (
-                    <div key={row.key}>
-                      <h3 className="text-sm font-medium text-foreground">{row.origin}</h3>
-                      <div className="mt-3 flex flex-col items-center gap-2">
-                        {row.stages.map((stage, index) => {
-                          const stageWidth = firstStageCount
-                            ? Math.max(45, (stage.count / firstStageCount) * 100)
-                            : 45;
-                          return (
-                            <div
-                              key={`${row.key}-${index}`}
-                              className="flex min-h-14 max-w-full flex-col justify-center rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
-                              style={{ width: `${stageWidth}%` }}
-                            >
-                              <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-                                <span className="text-xs font-medium">
-                                  {originAnalytics?.stages[index]?.label}
-                                </span>
-                                <span className="text-sm font-semibold text-accent">
-                                  {stage.count.toLocaleString("pt-BR")}
-                                </span>
-                                <span className="text-[11px] text-muted-foreground">
-                                  {stage.conversion === null
-                                    ? `Base inicial (${stage.count.toLocaleString("pt-BR")})`
-                                    : stage.isFinal
-                                      ? `${pct(stage.conversion)} de conversão total (${stage.count.toLocaleString("pt-BR")} / ${(row.stages[0]?.count ?? 0).toLocaleString("pt-BR")})`
-                                      : `${pct(stage.conversion)} de passagem`}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
+              <h2 className="text-sm font-semibold text-foreground">Funil — {dynamicFunnel?.title ?? "—"}</h2>
+              <p className="text-xs text-muted-foreground">
+                Safra de leads criados no período e reservas HQ ligadas a esses leads.
+              </p>
+              {dynamicFunnel ? (
+                <>
+                  <div className="mt-6 flex flex-col items-center gap-2">
+                    {dynamicFunnel.stages.map((stage, index) => {
+                      const base = dynamicFunnel.stages[0]?.count ?? 0;
+                      const w = base ? Math.max(40, (stage.count / base) * 100) : 40;
+                      return (
+                        <div
+                          key={index}
+                          className="flex min-h-14 max-w-full items-center justify-center gap-3 rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
+                          style={{ width: `${Math.min(100, w)}%` }}
+                        >
+                          <span className="text-xs font-medium">{stage.label}</span>
+                          <span className="text-sm font-semibold text-accent">{stage.count.toLocaleString("pt-BR")}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                    {dynamicFunnel.metrics.map((m) => (
+                      <div key={m.label} className="rounded-md border border-border p-3">
+                        <p className="text-[11px] text-muted-foreground">{m.label}</p>
+                        <p className="text-lg font-semibold text-foreground">{m.value === null ? "—" : pct(m.value)}</p>
                       </div>
-                    </div>
-                  );
-                })}
-                {!funnelRows.length ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {isLoading ? "Carregando…" : "Nenhuma oportunidade por etapa no período."}
-                  </p>
-                ) : null}
-              </div>
+                    ))}
+                  </div>
+                  {originFilter !== "all" && /meta/i.test(originFilter) && !dynamicFunnel.stages[0]?.count ? (
+                    <p className="mt-3 text-xs text-muted-foreground">Conversas do Meta aparecem após a próxima sincronização do Meta Ads.</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">{isLoading ? "Carregando…" : "Sem dados."}</p>
+              )}
             </Card>
           </section>
         </div>

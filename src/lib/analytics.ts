@@ -8,6 +8,7 @@ export type AdRow = {
   date: string;
   campaign_name: string;
   spend: number;
+  conversations?: number;
   clicks: number;
   impressions: number;
   utm_campaign: string | null;
@@ -57,7 +58,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       fetchAll((a, b) =>
         supabase
           .from("meta_ads_metrics")
-          .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
+          .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversations")
           .gte("date", from)
           .lte("date", to)
           .range(a, b),
@@ -612,5 +613,60 @@ export function filterAnalyticsByOrigin(data: AnalyticsData, origin: string | nu
       const source = sources?.size === 1 ? [...sources][0]! : (partner ?? "sem_origem");
       return normalizeOrigin(source) === selectedOrigin;
     }),
+  };
+}
+
+export type DynamicFunnelStage = { label: string; count: number };
+export type DynamicFunnel = {
+  title: string;
+  stages: DynamicFunnelStage[];
+  metrics: { label: string; value: number | null }[];
+};
+const ratio = (a: number, b: number) => (b ? a / b : null);
+
+/** Funil por filtro: geral (Meta+Google, 2 etapas), Meta (3 etapas com conversas), Google (2 etapas). */
+export function buildDynamicFunnel(
+  mode: "all" | "meta" | "google" | "other",
+  input: { conversations: number; metaLeads: number; metaRes: number; googleLeads: number; googleRes: number; otherLeads?: number; otherRes?: number; otherLabel?: string },
+): DynamicFunnel {
+  if (mode === "meta") {
+    const { conversations: c, metaLeads: l, metaRes: r } = input;
+    return {
+      title: "Meta Ads",
+      stages: [
+        { label: "Mídia · Conversas iniciadas no WhatsApp", count: c },
+        { label: "CRM · Leads ClickMassa (Meta Ads)", count: l },
+        { label: "Vendas · Reservas HQ (safra Meta)", count: r },
+      ],
+      metrics: [
+        { label: "Conversas → Leads ClickMassa", value: ratio(l, c) },
+        { label: "Leads ClickMassa → Reservas", value: ratio(r, l) },
+        { label: "Conversão geral (Conversas → Reservas)", value: ratio(r, c) },
+      ],
+    };
+  }
+  if (mode === "google" || mode === "other") {
+    const isG = mode === "google";
+    const l = isG ? input.googleLeads : input.otherLeads ?? 0;
+    const r = isG ? input.googleRes : input.otherRes ?? 0;
+    const name = isG ? "Google Ads" : input.otherLabel ?? "Origem";
+    return {
+      title: name,
+      stages: [
+        { label: `CRM · Leads ClickMassa (${name})`, count: l },
+        { label: `Vendas · Reservas HQ (safra ${name})`, count: r },
+      ],
+      metrics: [{ label: "Leads ClickMassa → Reservas", value: ratio(r, l) }],
+    };
+  }
+  const l = input.metaLeads + input.googleLeads;
+  const r = input.metaRes + input.googleRes;
+  return {
+    title: "Consolidado Meta + Google",
+    stages: [
+      { label: "Leads gerados no ClickMassa", count: l },
+      { label: "Reservas fechadas no HQ (safra)", count: r },
+    ],
+    metrics: [{ label: "Conversão geral (Leads → Reservas)", value: ratio(r, l) }],
   };
 }

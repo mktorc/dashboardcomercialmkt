@@ -61,3 +61,24 @@ export function averageDiscount(rows: { total_amount: number; discount_amount: n
 export function yearOverYearDiscount(current: number, previous: number, hasHistory: boolean) {
   return hasHistory ? (current - previous) * 100 : null;
 }
+
+export type CommissionTier = { rate: number; label: string };
+/** Faixas de comissão sobre o valor vendido individual. */
+export function commissionFor(sold: number, goal: number, teamAttainment: number) {
+  const att = goal > 0 ? sold / goal : 0;
+  const teamHit = teamAttainment >= 1;
+  let rate = 0;
+  let label = "0,00% - abaixo de 75% da meta";
+  if (att >= 1 && teamHit) { rate = 0.0175; label = "1,75% - 100% individual + meta geral"; }
+  else if (att >= 1) { rate = 0.0155; label = "1,55% - 100% da meta"; }
+  else if (att >= 0.85) { rate = 0.014; label = "1,40% - 85% da meta"; }
+  else if (att >= 0.75) { rate = 0.0125; label = "1,25% - 75% da meta"; }
+  const next = att < 0.75 ? { pct: 0.75, rate: 0.0125 } : att < 0.85 ? { pct: 0.85, rate: 0.014 } : att < 1 ? { pct: 1, rate: teamHit ? 0.0175 : 0.0155 } : null;
+  return {
+    attainment: att,
+    rate,
+    label,
+    commission: sold * rate,
+    next: next && goal > 0 ? { missing: goal * next.pct - sold, pct: next.pct, rate: next.rate } : null,
+  };
+}
