@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { fetchKommoLeads, kommoAsOpportunity } from "@/lib/kommo-leads";
 import { averageDiscount, GLOBAL_GOAL, OCCUPANCY_GOAL, previousYearDate, yearOverYearDiscount } from "@/lib/commercial-goals";
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
@@ -145,11 +146,20 @@ export async function fetchComercial(from: string, to: string) {
     ),
   ]);
 
+  // Leads do Kommo (anteriores ao ClickMassa): período anterior, 5 meses dos gráficos e ano anterior.
+  const [ty, tm] = to.split("-").map(Number);
+  const chartFrom = new Date(ty!, tm! - 5, 1).toISOString();
+  const kommoFrom = chartFrom < histFrom ? chartFrom : histFrom;
+  const [kommo, kommoYear] = await Promise.all([
+    fetchKommoLeads(kommoFrom, endIso(to)),
+    fetchKommoLeads(startIso(previousYearDate(from)), endIso(previousYearDate(to))),
+  ]);
+  const kommoOpps = kommo.map(kommoAsOpportunity);
   const err = res.error || tasks.error || goals.error || opps.error || prevRes.error || prevOpps.error || yearRes.error || yearOpps.error;
   if (err) throw err;
 
   return {
-    opportunities: (opps.data ?? []) as COpp[],
+    opportunities: [...((opps.data ?? []) as COpp[]), ...kommoOpps] as COpp[],
     reservations: (res.data as CRes[]).map((r) => ({
       ...r,
       total_amount: Number(r.total_amount),
@@ -165,7 +175,7 @@ export async function fetchComercial(from: string, to: string) {
       conversion_goal: Number(g.conversion_goal ?? 0),
     })),
     yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount), rack_rate: r.rack_rate == null ? null : Number(r.rack_rate) })),
-    yearOpportunities: (yearOpps.data ?? []) as COpp[],
+    yearOpportunities: [...((yearOpps.data ?? []) as COpp[]), ...kommoYear.map(kommoAsOpportunity)] as COpp[],
     prevData: {
       reservations: (prevRes.data ?? []).map((r: any) => ({
         ...r,
@@ -173,7 +183,7 @@ export async function fetchComercial(from: string, to: string) {
         discount_amount: Number(r.discount_amount ?? 0),
         rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
       })),
-      opportunities: prevOpps.data ?? [],
+      opportunities: [...(prevOpps.data ?? []), ...kommoOpps.filter((o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo))],
     },
   };
 }

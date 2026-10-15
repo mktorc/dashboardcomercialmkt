@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { fetchKommoLeads, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-leads";
 
 const iso = (d: Date) => d.toISOString();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -101,6 +102,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
           .range(a, b),
       ),
     ]);
+  const kommoLeads = await fetchKommoLeads(iso(fromDate), iso(toDate));
 
   const err =
     meta.error ||
@@ -110,10 +112,10 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     updatedOpportunities.error;
   if (err) throw err;
 
-  const createdRows = (createdOpportunities.data ?? []) as Omit<
-    OpportunityOriginRow,
-    "utm_source" | "utm_campaign"
-  >[];
+  const createdRows = [
+    ...((createdOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
+    ...kommoLeads.map(kommoAsOpportunity),
+  ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
   const updatedRows = (updatedOpportunities.data ?? []) as Omit<
     OpportunityOriginRow,
     "utm_source" | "utm_campaign"
@@ -122,7 +124,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     ...new Set(
       [...createdRows, ...updatedRows]
         .map((opportunity) => opportunity.lead_id)
-        .filter((id): id is string => Boolean(id)),
+        .filter((id): id is string => Boolean(id) && !id!.startsWith(KOMMO_PREFIX)),
     ),
   ];
   const originLeadPages = await Promise.all(
@@ -139,6 +141,12 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const originLeadError = originLeadPages.find((page) => page.error)?.error;
   if (originLeadError) throw originLeadError;
   const leadAttributionById = new Map<string, { source: string | null; campaign: string | null }>();
+  kommoLeads.forEach((lead) =>
+    leadAttributionById.set(lead.lead_id, {
+      source: resolveLeadSource(lead.utm_source, lead.lead_origin),
+      campaign: lead.utm_campaign,
+    }),
+  );
   originLeadPages.forEach((page) => {
     (
       page.data as {
