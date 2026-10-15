@@ -127,6 +127,13 @@
       "when": 1792011881034,
       "tag": "0017_cohort_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792070400000,
+      "tag": "0018_reservation_rack_rate",
+      "breakpoints": true
     }
   ]
 }

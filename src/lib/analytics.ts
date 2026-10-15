@@ -574,3 +574,39 @@ export function computeOpportunityOrigins(
     funnel: [allOriginsFunnel, ...funnel],
   };
 }
+
+export function filterAnalyticsByOrigin(data: AnalyticsData, origin: string | null) {
+  if (!origin) return data;
+  const selectedOrigin = normalizeOrigin(origin);
+  const campaignSources = new Map<string, Set<string>>();
+  const addCampaignSource = (campaign: string | null, source: string) => {
+    const key = campaign?.trim().toLowerCase();
+    if (!key) return;
+    const sources = campaignSources.get(key) ?? new Set<string>();
+    sources.add(source);
+    campaignSources.set(key, sources);
+  };
+  data.opportunities.forEach((opportunity) =>
+    addCampaignSource(opportunity.utm_campaign ?? null, normalizeOrigin(opportunity.utm_source)),
+  );
+  data.meta.forEach((ad) => addCampaignSource(ad.utm_campaign, "meta"));
+  data.google.forEach((ad) => addCampaignSource(ad.utm_campaign, "google"));
+
+  return {
+    meta: selectedOrigin === "meta" ? data.meta : [],
+    google: selectedOrigin === "google" ? data.google : [],
+    opportunities: data.opportunities.filter(
+      (opportunity) => normalizeOrigin(opportunity.utm_source) === selectedOrigin,
+    ),
+    updatedOpportunities: data.updatedOpportunities.filter(
+      (opportunity) => normalizeOrigin(opportunity.utm_source) === selectedOrigin,
+    ),
+    reservations: data.reservations.filter((reservation) => {
+      const campaign = reservation.utm_campaign?.trim();
+      const sources = campaign ? campaignSources.get(campaign.toLowerCase()) : undefined;
+      const partner = reservationOrigin(reservation);
+      const source = sources?.size === 1 ? [...sources][0]! : (partner ?? "sem_origem");
+      return normalizeOrigin(source) === selectedOrigin;
+    }),
+  };
+}

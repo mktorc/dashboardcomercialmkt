@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeComercial, computeMonthlyCommercial, getPreviousPeriod, type ComercialData } from "./comercial";
+import { computeComercial, computeMonthlyCommercial, computeOpportunityTotalsBySeller, filterOperationalData, getPreviousPeriod, type ComercialData } from "./comercial";
 
 describe("computeMonthlyCommercial", () => {
   it("calcula conversão, faturamento, reservas, ticket e desconto nos cinco meses", () => {
@@ -30,10 +30,78 @@ const stackedData = {
   tasks: [],
   goals: [],
   yearReservations: [],
+  yearOpportunities: [],
   prevData: { leads: [], reservations: [], opportunities: [] },
 } as unknown as ComercialData;
 
 describe("computeComercial", () => {
+  it("counts seller opportunities across all dates", () => {
+    expect(computeOpportunityTotalsBySeller([
+      { seller_name: "Thalita Lima" },
+      { seller_name: "Thalita Lima" },
+      { seller_name: "Mauro Silva" },
+    ])).toEqual([
+      { key: "thalita", name: "Thalita Lima", oportunidades: 2, reservas: 0 },
+      { key: "mauro", name: "Mauro Silva", oportunidades: 1, reservas: 0 },
+    ]);
+  });
+
+  it("computes monthly comparison values for the same months in the prior year", () => {
+    const data = {
+      ...stackedData,
+      yearOpportunities: [
+        { opportunity_id: "prior", lead_id: "prior", name: null, stage_name: null, status: "open", seller_name: "Naty", pending_tasks: 0, created_at: "2025-10-03T12:00:00Z" },
+      ],
+      yearReservations: [
+        { created_at: "2025-10-04T12:00:00Z", total_amount: 300, discount_amount: 20, rack_rate: 280, status: "confirmed", seller_name: "Naty" },
+      ],
+    } as unknown as ComercialData;
+
+    const view = computeComercial(data, "2026-10-01", "2026-10-15", "all");
+
+    expect(view.monthlyKpisPreviousYear[0]).toMatchObject({
+      monthKey: "2025-10",
+      oportunidades: 1,
+      reservas: 1,
+      faturamento: 280,
+      ticket: 280,
+    });
+  });
+
+  it("filters Operational data to the commercial team and uses HQ rack rate", () => {
+    const data = {
+      ...stackedData,
+      opportunities: [
+        { opportunity_id: "nathy", lead_id: "nathy", name: null, stage_name: null, status: "open", seller_name: "Nathy Lima", pending_tasks: 0, created_at: "2026-10-02T09:00:00Z" },
+        { opportunity_id: "mauro", lead_id: "mauro", name: null, stage_name: null, status: "open", seller_name: "Mauro Silva", pending_tasks: 0, created_at: "2026-10-02T10:00:00Z" },
+        { opportunity_id: "gessica", lead_id: "gessica", name: null, stage_name: null, status: "open", seller_name: "Gessica Souza", pending_tasks: 0, created_at: "2026-10-02T11:00:00Z" },
+        { opportunity_id: "thalita", lead_id: "thalita", name: null, stage_name: null, status: "open", seller_name: "Thalita Lima", pending_tasks: 0, created_at: "2026-10-02T12:00:00Z" },
+        { opportunity_id: "external", lead_id: "external", name: null, stage_name: null, status: "open", seller_name: "Ana Souza", pending_tasks: 0, created_at: "2026-10-02T13:00:00Z" },
+      ],
+      reservations: [
+        { created_at: "2026-10-02T09:30:00Z", total_amount: 500, discount_amount: 50, rack_rate: 50, status: "confirmed", seller_name: "Nathy Lima" },
+        { created_at: "2026-10-02T10:30:00Z", total_amount: 500, discount_amount: 50, rack_rate: 60, status: "confirmed", seller_name: "Mauro Silva" },
+        { created_at: "2026-10-02T11:30:00Z", total_amount: 500, discount_amount: 50, rack_rate: 70, status: "confirmed", seller_name: "Gessica Souza" },
+        { created_at: "2026-10-02T14:00:00Z", total_amount: 500, discount_amount: 50, rack_rate: 321, status: "confirmed", seller_name: "Thalita Lima" },
+        { created_at: "2026-10-02T15:00:00Z", total_amount: 900, discount_amount: 0, rack_rate: 777, status: "confirmed", seller_name: "Ana Souza" },
+      ],
+    } as unknown as ComercialData;
+
+    const operationalData = filterOperationalData(data);
+    const view = computeComercial(operationalData, "2026-10-01", "2026-10-03", "all", true);
+
+    expect(operationalData.opportunities.map((opportunity) => opportunity.seller_name)).toEqual([
+      "Nathy Lima",
+      "Mauro Silva",
+      "Gessica Souza",
+      "Thalita Lima",
+    ]);
+    expect(view.kpis.faturamento).toBe(501);
+    expect(view.dailyRevenueBySeller[1]?.["Thalita Lima"]).toBe(321);
+    expect(view.rows.map((row) => row.name)).toContain("Thalita Lima");
+    expect(view.rows.map((row) => row.name)).not.toContain("Ana Souza");
+  });
+
   it("usa oportunidades abertas e ganhas do pipeline como base dos leads", () => {
     const data = {
       ...stackedData,

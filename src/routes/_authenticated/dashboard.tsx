@@ -28,6 +28,7 @@ import {
   computeKpis,
   computeOpportunityOrigins,
   computeTimeseries,
+  filterAnalyticsByOrigin,
   fetchAnalytics,
   pct,
 } from "@/lib/analytics";
@@ -86,18 +87,29 @@ function Dashboard() {
     queryFn: () => fetchAnalytics(from, to),
   });
 
-  const kpis = data ? computeKpis(data) : null;
-  const series = data ? computeTimeseries(data) : [];
-  const attribution = data
-    ? computeAttribution(data).filter(
-        (row) => row.utm.startsWith("Meta Ads /") || row.utm.startsWith("Google Ads /"),
-      )
-    : [];
   const originAnalytics = data
     ? computeOpportunityOrigins(data.opportunities, data.updatedOpportunities, from, to)
     : null;
+  const selectedOrigin = originFilter === "all" ? null : originFilter;
+  const originData = data ? filterAnalyticsByOrigin(data, selectedOrigin) : null;
+  const kpis = originData ? computeKpis(originData) : null;
+  const series = originData ? computeTimeseries(originData) : [];
+  const attribution = originData
+    ? computeAttribution(originData).filter(
+        (row) =>
+          originFilter !== "all" ||
+          row.utm.startsWith("Meta Ads /") ||
+          row.utm.startsWith("Google Ads /"),
+      )
+    : [];
+  const originSources = (originAnalytics?.sources ?? []).filter(
+    (source) => originFilter === "all" || source.label === originFilter,
+  );
+  const selectedOriginKey = originAnalytics?.sources.find(
+    (source) => source.label === originFilter,
+  )?.key;
   const funnelRows = (originAnalytics?.funnel ?? []).filter(
-    (row) => row.key === (originFilter === "all" ? "all" : originFilter),
+    (row) => row.key === (originFilter === "all" ? "all" : selectedOriginKey),
   );
 
   return (
@@ -133,6 +145,22 @@ function Dashboard() {
                 className="mt-1 h-9 w-40 bg-card"
               />
             </label>
+            <label className="text-xs text-foreground/70">
+              Origem
+              <select
+                aria-label="Filtrar página por origem"
+                className="mt-1 block h-9 min-w-40 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                value={originFilter}
+                onChange={(event) => setOriginFilter(event.target.value)}
+              >
+                <option value="all">Todas as origens</option>
+                {(originAnalytics?.sources ?? []).map((source) => (
+                  <option key={source.key} value={source.label}>
+                    {source.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               onClick={() => refetch()}
               className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-dark)]"
@@ -148,6 +176,7 @@ function Dashboard() {
           {error ? (
             <Card className="border-destructive/40 p-4 text-sm text-destructive">
               Não foi possível carregar os dados agora. Tente sincronizar novamente.
+              {error instanceof Error ? <p className="mt-1 break-words text-xs">{error.message}</p> : null}
             </Card>
           ) : null}
 
@@ -360,14 +389,14 @@ function Dashboard() {
               title="Evolução mensal de oportunidades criadas por origem"
               subtitle="Oportunidades agrupadas pelo mês de criação."
               data={originAnalytics?.createdMonthly ?? []}
-              sources={originAnalytics?.sources ?? []}
+              sources={originSources}
               loading={isLoading}
             />
             <OriginMonthlyChart
               title="Evolução mensal de oportunidades ganhas por origem"
               subtitle="Mês da última atualização registrada para oportunidades ganhas."
               data={originAnalytics?.closedMonthly ?? []}
-              sources={originAnalytics?.sources ?? []}
+              sources={originSources}
               loading={isLoading}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
@@ -379,22 +408,6 @@ function Dashboard() {
                     anterior.
                   </p>
                 </div>
-                <label className="text-xs text-muted-foreground">
-                  Origem
-                  <select
-                    aria-label="Filtrar funil por origem"
-                    className="mt-1 block h-9 min-w-40 rounded-md border border-input bg-background px-3 text-sm text-foreground"
-                    value={originFilter}
-                    onChange={(event) => setOriginFilter(event.target.value)}
-                  >
-                    <option value="all">Todas as origens</option>
-                    {(originAnalytics?.sources ?? []).map((source) => (
-                      <option key={source.key} value={source.key}>
-                        {source.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
               <div className="mt-6 space-y-7">
                 {funnelRows.map((row) => {

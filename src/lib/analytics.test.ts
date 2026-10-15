@@ -3,6 +3,7 @@ import {
   computeAttribution,
   computeKpis,
   computeOpportunityOrigins,
+  filterAnalyticsByOrigin,
   normalizeOrigin,
   resolveLeadSource,
   type AnalyticsData,
@@ -131,6 +132,84 @@ describe("computeAttribution", () => {
       updatedOpportunities: [],
     });
     expect(rows.map((row) => row.utm)).toEqual(["Sem origem / sem rastreamento"]);
+  });
+});
+
+describe("filterAnalyticsByOrigin", () => {
+  it("filters media, opportunities, and reservations by the selected origin", () => {
+    const data: AnalyticsData = {
+      meta: [],
+      google: [
+        {
+          date: "2026-10-01",
+          campaign_name: "Search",
+          spend: 25,
+          clicks: 5,
+          impressions: 50,
+          utm_campaign: "fall",
+        },
+      ],
+      opportunities: [
+        {
+          opportunity_id: "google-opp",
+          lead_id: "google-lead",
+          created_at: "2026-10-01T12:00:00Z",
+          updated_at: "2026-10-01T12:00:00Z",
+          stage_name: "Novo",
+          status: "open",
+          pipeline_step_id: 1,
+          utm_source: "Google Ads",
+          utm_campaign: "fall",
+        },
+        {
+          opportunity_id: "meta-opp",
+          lead_id: "meta-lead",
+          created_at: "2026-10-01T13:00:00Z",
+          updated_at: "2026-10-01T13:00:00Z",
+          stage_name: "Novo",
+          status: "open",
+          pipeline_step_id: 1,
+          utm_source: "Meta Ads",
+        },
+      ],
+      updatedOpportunities: [],
+      reservations: [
+        {
+          created_at: "2026-10-01T14:00:00Z",
+          car_category: "SUV",
+          rental_days: 2,
+          total_amount: 250,
+          status: "confirmed",
+          utm_campaign: "fall",
+        },
+        {
+          created_at: "2026-10-01T15:00:00Z",
+          car_category: "SUV",
+          rental_days: 2,
+          total_amount: 500,
+          status: "confirmed",
+          utm_campaign: null,
+          lead_origin: "Meta Ads",
+        },
+      ],
+    };
+
+    const filtered = filterAnalyticsByOrigin(data, "Google Ads");
+    const kpis = computeKpis(filtered);
+
+    expect(filtered.google).toHaveLength(1);
+    expect(filtered.meta).toHaveLength(0);
+    expect(filtered.opportunities.map((opportunity) => opportunity.opportunity_id)).toEqual([
+      "google-opp",
+    ]);
+    expect(filtered.reservations).toHaveLength(1);
+    expect(kpis).toMatchObject({
+      googleSpend: 25,
+      metaSpend: 0,
+      leads: 1,
+      reservations: 1,
+      revenue: 250,
+    });
   });
 });
 

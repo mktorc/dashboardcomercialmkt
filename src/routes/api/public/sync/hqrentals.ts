@@ -25,6 +25,7 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     car_category: (vehicleClass["name"] as string | null) ?? null,
     rental_days: Number(r["total_days"]) || 1,
     total_amount: Number(r["total_price"]) || 0,
+    rack_rate: r["rack_rate"] == null ? null : Number(r["rack_rate"]),
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)
