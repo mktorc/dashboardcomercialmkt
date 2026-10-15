@@ -1,0 +1,1 @@
+ALTER TABLE public.meta_ads_metrics ADD COLUMN IF NOT EXISTS conversations integer NOT NULL DEFAULT 0;
