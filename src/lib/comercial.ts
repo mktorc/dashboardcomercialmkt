@@ -83,6 +83,24 @@ export function getPreviousPeriod(from: string, to: string) {
   return { prevFrom: previousMonthDate(from), prevTo: previousMonthDate(to) };
 }
 
+async function fetchRevenueBreakdown(from: string, to: string) {
+  try {
+    const histFrom = startIso(from);
+    const { data, error } = await fetchAll((a, b) =>
+      supabase
+        .from("reservations")
+        .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
+        .gte("created_at", histFrom)
+        .lte("created_at", endIso(to))
+        .range(a, b),
+    );
+    if (error) return [];
+    return (data ?? []) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchComercial(from: string, to: string) {
   const { prevFrom, prevTo } = getPreviousPeriod(from, to);
 
@@ -92,7 +110,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -115,7 +133,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
         .range(a, b),
@@ -131,7 +149,7 @@ export async function fetchComercial(from: string, to: string) {
     ),
     fetchAll((a, b) =>
       supabase.from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
         .eq("status", "confirmed")
         .gte("created_at", startIso(previousYearDate(from)))
         .lte("created_at", endIso(previousYearDate(to)))
@@ -147,6 +165,8 @@ export async function fetchComercial(from: string, to: string) {
         .range(a, b),
     ),
   ]);
+
+  const revenueBreakdownData = await fetchRevenueBreakdown(from, to);
 
   // Leads do Kommo (anteriores ao ClickMassa): período anterior, 5 meses dos gráficos e ano anterior.
   const [ty, tm] = to.split("-").map(Number);
@@ -191,6 +211,7 @@ export async function fetchComercial(from: string, to: string) {
       })),
       opportunities: [...(prevOpps.data ?? []), ...kommoOpps.filter((o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo))],
     },
+    revenueBreakdownData,
   };
 }
 
@@ -661,7 +682,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       previousYearDate(to),
       useHqRackRate,
     ),
-    revenueBreakdown: computeDailyRevenueBreakdown(d.reservations, from, to),
+    revenueBreakdown: computeDailyRevenueBreakdown((d as any).revenueBreakdownData ?? [], from, to),
     stackKeys: [...stackKeys],
     goalMonth: [...months][0] ?? "",
   };
