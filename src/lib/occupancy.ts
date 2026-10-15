@@ -51,7 +51,7 @@ export async function fetchOccupancy(from?: string, to?: string) {
     const [year, month] = value.slice(0, 7).split("-").map(Number);
     return (year! - currentMonth.getUTCFullYear()) * 12 + month! - 1 - currentMonth.getUTCMonth();
   };
-  const firstOffset = Math.min(-14, monthOffset(periodFrom) - 1);
+  const firstOffset = monthOffset(periodFrom) - 13;
   const lastOffset = Math.max(2, monthOffset(periodTo) + 2);
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + firstOffset, 1)).toISOString();
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + lastOffset + 1, 1)).toISOString();
