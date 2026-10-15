@@ -162,6 +162,13 @@
       "when": 1792070400003,
       "tag": "0022_cohort_reservations_fix_ambiguity",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792066164843,
+      "tag": "0023_apply_pending_cohort_changes",
+      "breakpoints": true
     }
   ]
 }

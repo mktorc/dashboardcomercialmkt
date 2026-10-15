@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.cohort_reservations(timestamptz, timestamptz) IS 'Reservas da safra de leads (visão de safra da aba Marketing).';
