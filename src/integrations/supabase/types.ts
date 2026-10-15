@@ -246,7 +246,6 @@ export type Database = {
           discount_amount: number
           id: string
           pick_up_at: string | null
-          rack_rate: number | null
           rental_days: number
           reservation_id: string | null
           return_at: string | null
@@ -264,7 +263,6 @@ export type Database = {
           discount_amount?: number
           id?: string
           pick_up_at?: string | null
-          rack_rate?: number | null
           rental_days?: number
           reservation_id?: string | null
           return_at?: string | null
@@ -282,7 +280,6 @@ export type Database = {
           discount_amount?: number
           id?: string
           pick_up_at?: string | null
-          rack_rate?: number | null
           rental_days?: number
           reservation_id?: string | null
           return_at?: string | null
