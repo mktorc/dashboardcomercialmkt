@@ -16,6 +16,7 @@ export type AdRow = {
 };
 export type ReservationRow = {
   created_at: string;
+  pick_up_at: string | null;
   car_category: string | null;
   rental_days: number;
   total_amount: number;
@@ -226,11 +227,11 @@ export function computeTimeseries(d: AnalyticsData, from?: string) {
     return map.get(key)!;
   };
   [...d.meta, ...d.google].forEach((r) => (touch(r.date).investimento += r.spend));
-  // Safra: faturamento cai no dia de criação do lead, alinhado ao investimento.
+  // Faturamento alocado pela data real da reserva (pick_up_at), não pela criação do lead.
   d.reservations.forEach(
     (r) => {
-      // Contato antigo com oportunidade nova no período: conta no primeiro dia do período.
-      const day = (r.lead_created_at ?? r.created_at).slice(0, 10);
+      // Usar data real do aluguel (pick_up_at). Se não disponível, usar created_at da reserva.
+      const day = (r.pick_up_at ?? r.created_at).slice(0, 10);
       touch(from && day < from ? from : day).faturamento += r.total_amount;
     },
   );
@@ -677,4 +678,45 @@ export function buildDynamicFunnel(
     ],
     metrics: [{ label: "Conversão geral (Leads → Reservas)", value: ratio(r, l) }],
   };
+}
+
+export function computeYoYComparison(
+  currentData: Record<string, string | number>[],
+  priorYearData: Record<string, string | number>[],
+  sourceKeys: string[],
+) {
+  const result: Record<string, string | number>[] = [];
+  const currentByMonth = new Map<string, Record<string, string | number>>();
+  const priorByMonth = new Map<string, Record<string, string | number>>();
+
+  currentData.forEach((row) => {
+    const month = String(row.month);
+    currentByMonth.set(month, row);
+  });
+
+  priorYearData.forEach((row) => {
+    const month = String(row.month);
+    priorByMonth.set(month, row);
+  });
+
+  const monthsSet = new Set([...currentByMonth.keys(), ...priorByMonth.keys()]);
+  const sortedMonths = Array.from(monthsSet).sort();
+
+  sortedMonths.forEach((month) => {
+    const current = currentByMonth.get(month) ?? { month };
+    const prior = priorByMonth.get(month) ?? { month };
+
+    const merged: Record<string, string | number> = { month };
+
+    sourceKeys.forEach((key) => {
+      const current_key = `${key}_current`;
+      const prior_key = `${key}_prior`;
+      merged[current_key] = (current[key] as number) ?? 0;
+      merged[prior_key] = (prior[key] as number) ?? 0;
+    });
+
+    result.push(merged);
+  });
+
+  return result;
 }

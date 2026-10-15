@@ -29,6 +29,7 @@ import {
   computeKpis,
   computeOpportunityOrigins,
   computeTimeseries,
+  computeYoYComparison,
   filterAnalyticsByOrigin,
   fetchAnalytics,
   pct,
@@ -76,6 +77,17 @@ const ORIGIN_COLORS = [
 const localDateInput = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+const getPriorYearDates = (from: string, to: string) => {
+  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = to.split("-").map(Number);
+  const priorFromDate = new Date(fromYear! - 1, fromMonth! - 1, fromDay!);
+  const priorToDate = new Date(toYear! - 1, toMonth! - 1, toDay!);
+  return {
+    from: localDateInput(priorFromDate),
+    to: localDateInput(priorToDate),
+  };
+};
+
 function Dashboard() {
   const today = new Date();
   const [from, setFrom] = useState(
@@ -83,36 +95,70 @@ function Dashboard() {
   );
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
+  const priorYear = getPriorYearDates(from, to);
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["analytics", from, to],
-    queryFn: () => fetchAnalytics(from, to),
+    queryFn: async () => {
+      const [current, prior] = await Promise.all([
+        fetchAnalytics(from, to),
+        fetchAnalytics(priorYear.from, priorYear.to),
+      ]);
+      return { current, prior };
+    },
   });
 
   const originAnalytics = data
-    ? computeOpportunityOrigins(data.opportunities, data.updatedOpportunities, from, to)
+    ? computeOpportunityOrigins(
+        data.current.opportunities,
+        data.current.updatedOpportunities,
+        from,
+        to,
+      )
     : null;
+
+  const priorYearAnalytics = data
+    ? computeOpportunityOrigins(
+        data.prior.opportunities,
+        data.prior.updatedOpportunities,
+        priorYear.from,
+        priorYear.to,
+      )
+    : null;
+
   const selectedOrigin = originFilter === "all" ? null : originFilter;
-  const originData = data ? filterAnalyticsByOrigin(data, selectedOrigin) : null;
+  const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   const kpis = originData ? computeKpis(originData) : null;
   const series = originData ? computeTimeseries(originData, from) : [];
-  const attribution = originData
-    ? computeAttribution(originData).filter(
-        (row) =>
-          originFilter !== "all" ||
-          row.utm.startsWith("Meta Ads /") ||
-          row.utm.startsWith("Google Ads /"),
-      )
-    : [];
+  const attribution = originData ? computeAttribution(originData) : [];
   const originSources = (originAnalytics?.sources ?? []).filter(
     (source) => originFilter === "all" || source.label === originFilter,
   );
+
+  const yoyCreatedMonthly =
+    originAnalytics && priorYearAnalytics
+      ? computeYoYComparison(
+          originAnalytics.createdMonthly,
+          priorYearAnalytics.createdMonthly,
+          originAnalytics.sources.map((s) => s.key),
+        )
+      : [];
+
+  const yoyClosedMonthly =
+    originAnalytics && priorYearAnalytics
+      ? computeYoYComparison(
+          originAnalytics.closedMonthly,
+          priorYearAnalytics.closedMonthly,
+          originAnalytics.sources.map((s) => s.key),
+        )
+      : [];
+
   const dynamicFunnel = (() => {
     if (!data || !kpis) return null;
-    const mk = computeKpis(filterAnalyticsByOrigin(data, "meta"));
-    const gk = computeKpis(filterAnalyticsByOrigin(data, "google"));
+    const mk = computeKpis(filterAnalyticsByOrigin(data.current, "meta"));
+    const gk = computeKpis(filterAnalyticsByOrigin(data.current, "google"));
     const mode = originFilter === "all" ? "all" : /meta/i.test(originFilter) ? "meta" : /google/i.test(originFilter) ? "google" : "other";
     return buildDynamicFunnel(mode, {
-      conversations: data.meta.reduce((s, r) => s + (Number(r.conversations) || 0), 0),
+      conversations: data.current.meta.reduce((s, r) => s + (Number(r.conversations) || 0), 0),
       metaLeads: mk.leads, metaRes: mk.reservations, googleLeads: gk.leads, googleRes: gk.reservations,
       otherLeads: kpis.leads, otherRes: kpis.reservations, otherLabel: originFilter,
     });
@@ -392,18 +438,20 @@ function Dashboard() {
 
           <section className="grid min-w-0 gap-4 xl:grid-cols-2">
             <OriginMonthlyChart
-              title="Evolução mensal de oportunidades criadas por origem"
-              subtitle="Oportunidades agrupadas pelo mês de criação."
-              data={originAnalytics?.createdMonthly ?? []}
+              title="Oportunidades criadas (Ano Atual vs. Ano Anterior)"
+              subtitle="Comparação YoY para o período selecionado."
+              data={yoyCreatedMonthly}
               sources={originSources}
               loading={isLoading}
+              isYoY={true}
             />
             <OriginMonthlyChart
-              title="Evolução mensal de oportunidades ganhas por origem"
-              subtitle="Mês da última atualização registrada para oportunidades ganhas."
-              data={originAnalytics?.closedMonthly ?? []}
+              title="Oportunidades ganhas (Ano Atual vs. Ano Anterior)"
+              subtitle="Comparação YoY para o período selecionado."
+              data={yoyClosedMonthly}
               sources={originSources}
               loading={isLoading}
+              isYoY={true}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil — {dynamicFunnel?.title ?? "—"}</h2>
@@ -465,12 +513,14 @@ function OriginMonthlyChart({
   data,
   sources,
   loading,
+  isYoY,
 }: {
   title: string;
   subtitle: string;
   data: Record<string, string | number>[];
   sources: { key: string; label: string }[];
   loading: boolean;
+  isYoY?: boolean;
 }) {
   return (
     <Card className="min-w-0 overflow-hidden p-5">
@@ -481,8 +531,8 @@ function OriginMonthlyChart({
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart
               data={data}
-              maxBarSize={48}
-              barCategoryGap="14%"
+              maxBarSize={isYoY ? 24 : 48}
+              barCategoryGap={isYoY ? "20%" : "14%"}
               margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
@@ -500,15 +550,42 @@ function OriginMonthlyChart({
                 formatter={(value: number) => value.toLocaleString("pt-BR")}
               />
               <Legend />
-              {sources.map((source, index) => (
-                <Bar
-                  key={source.key}
-                  dataKey={source.key}
-                  name={source.label}
-                  stackId="origins"
-                  fill={ORIGIN_COLORS[index % ORIGIN_COLORS.length]}
-                />
-              ))}
+              {sources.map((source, index) => {
+                const color = ORIGIN_COLORS[index % ORIGIN_COLORS.length];
+                if (isYoY) {
+                  return (
+                    <Bar
+                      key={`${source.key}_group`}
+                      dataKey={`${source.key}_current`}
+                      name={`${source.label} (Atual)`}
+                      fill={color}
+                      opacity={1}
+                    />
+                  );
+                }
+                return (
+                  <Bar
+                    key={source.key}
+                    dataKey={source.key}
+                    name={source.label}
+                    stackId="origins"
+                    fill={color}
+                  />
+                );
+              })}
+              {isYoY &&
+                sources.map((source, index) => {
+                  const color = ORIGIN_COLORS[index % ORIGIN_COLORS.length];
+                  return (
+                    <Bar
+                      key={`${source.key}_prior`}
+                      dataKey={`${source.key}_prior`}
+                      name={`${source.label} (Anterior)`}
+                      fill={color}
+                      opacity={0.5}
+                    />
+                  );
+                })}
             </BarChart>
           </ResponsiveContainer>
         ) : (

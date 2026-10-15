@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION public.cohort_reservations(_from timestamp with time zone, _to timestamp with time zone)
-RETURNS TABLE(reservation_id text, created_at timestamp with time zone, car_category text, rental_days integer, total_amount numeric, status text, utm_campaign text, commission_partner text, lead_id text, lead_origin text, lead_created_at timestamp with time zone)
+RETURNS TABLE(reservation_id text, created_at timestamp with time zone, pick_up_at timestamp with time zone, car_category text, rental_days integer, total_amount numeric, status text, utm_campaign text, commission_partner text, lead_id text, lead_origin text, lead_created_at timestamp with time zone)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public
 AS $fn$
 #variable_conflict use_column
@@ -24,7 +24,7 @@ BEGIN
     SELECT r.reservation_id FROM public.reservations r JOIN cl ON r.email_lc = cl.em
       WHERE r.created_at >= cl.created_at - interval '1 day'
   )
-  SELECT r.reservation_id, r.created_at, r.car_category, r.rental_days, r.total_amount, r.status, r.utm_campaign, r.commission_partner, m.lead_id, m.lead_origin, m.created_at
+  SELECT r.reservation_id, r.created_at, r.pick_up_at, r.car_category, r.rental_days, r.total_amount, r.status, r.utm_campaign, r.commission_partner, m.lead_id, m.lead_origin, m.created_at
   FROM public.reservations r JOIN cand ON cand.reservation_id = r.reservation_id
   CROSS JOIN LATERAL (
     SELECT c.lead_id, c.lead_origin, c.created_at FROM (
