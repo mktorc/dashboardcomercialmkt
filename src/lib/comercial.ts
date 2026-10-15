@@ -22,10 +22,12 @@ export type CRes = {
   status: string;
   seller_name: string | null;
 };
+// Faturamento / receita provisionada = Rack Rate do HQ em ambas as abas comerciais.
+// O parâmetro é mantido por compatibilidade; o fallback só vale sem Rack Rate.
 const reservationRackRate = (
   reservation: Pick<CRes, "total_amount" | "discount_amount" | "rack_rate">,
-  useHqRackRate = false,
-) => useHqRackRate && reservation.rack_rate != null
+  _useHqRackRate = true,
+) => reservation.rack_rate != null
   ? reservation.rack_rate
   : reservation.total_amount - reservation.discount_amount;
 export type CTask = {
