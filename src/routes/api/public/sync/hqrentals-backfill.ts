@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { extractAdditionalChargesPrice, extractMiscellaneousPrice } from "@/lib/hq-charges";
 
 // Edge Function para re-sincronizar reservas existentes com os campos de taxas e cobranças
 // GET /api/public/sync/hqrentals-backfill?days=N&limit=500
@@ -7,38 +8,6 @@ import { isSyncAuthorized } from "@/lib/sync-auth";
 // miscellaneous_price e additional_charges_price a partir da API do HQ
 
 type HqReservation = Record<string, unknown>;
-
-function extractMiscPrice(r: HqReservation): number {
-  const pricing = (r["pricing"] ?? {}) as HqReservation;
-  return Number(
-    r["miscellaneous_price"]
-    ?? pricing["miscellaneous_price"]
-    ?? r["miscellaneous"]
-    ?? pricing["miscellaneous"]
-    ?? r["misc_price"]
-    ?? pricing["misc_price"]
-    ?? r["tax_details"]
-    ?? r["service_fee"]
-    ?? 0
-  ) || 0;
-}
-
-function extractAddlCharges(r: HqReservation): number {
-  const pricing = (r["pricing"] ?? {}) as HqReservation;
-  return Number(
-    r["additional_charges_price"]
-    ?? pricing["additional_charges_price"]
-    ?? r["additional_charges"]
-    ?? pricing["additional_charges"]
-    ?? r["extra_charges"]
-    ?? pricing["extra_charges"]
-    ?? r["extra_price"]
-    ?? pricing["extra_price"]
-    ?? r["extra_fees"]
-    ?? pricing["extra_fees"]
-    ?? 0
-  ) || 0;
-}
 
 export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
   server: {
@@ -98,8 +67,8 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
         // Limita ao número máximo de registos para não sobrecarregar
         const rows = all.slice(0, limitParam).map((r) => ({
           reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
-          miscellaneous_price: extractMiscPrice(r),
-          additional_charges_price: extractAddlCharges(r),
+          miscellaneous_price: extractMiscellaneousPrice(r),
+          additional_charges_price: extractAdditionalChargesPrice(r),
         })).filter((r) => r.reservation_id !== "");
 
         console.log(`[HQ Backfill] Encontrados ${rows.length} registos para backfill`);

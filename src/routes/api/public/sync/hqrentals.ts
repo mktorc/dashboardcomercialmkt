@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { extractAdditionalChargesPrice, extractMiscellaneousPrice } from "@/lib/hq-charges";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
@@ -18,35 +19,6 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
   const customer = (r["customer"] ?? {}) as HqReservation;
   const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
   const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
-  const pricing = (r["pricing"] ?? {}) as HqReservation;
-
-  // Extrai valores de taxas com fallback para múltiplos nomes de campo possíveis
-  const miscPrice = Number(
-    r["miscellaneous_price"]
-    ?? pricing["miscellaneous_price"]
-    ?? r["miscellaneous"]
-    ?? pricing["miscellaneous"]
-    ?? r["misc_price"]
-    ?? pricing["misc_price"]
-    ?? r["tax_details"]
-    ?? r["service_fee"]
-    ?? 0
-  ) || 0;
-
-  const addlCharges = Number(
-    r["additional_charges_price"]
-    ?? pricing["additional_charges_price"]
-    ?? r["additional_charges"]
-    ?? pricing["additional_charges"]
-    ?? r["extra_charges"]
-    ?? pricing["extra_charges"]
-    ?? r["extra_price"]
-    ?? pricing["extra_price"]
-    ?? r["extra_fees"]
-    ?? pricing["extra_fees"]
-    ?? 0
-  ) || 0;
-
   return {
     reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
     customer_email: (customer["email"] as string | null) ?? null,
@@ -58,8 +30,8 @@ function mapReservation(r: HqReservation, users: Map<string, string>) {
     rack_rate: r["total_rack_rate"] != null
       ? Number(r["total_rack_rate"])
       : r["rack_rate"] == null ? null : Number(r["rack_rate"]),
-    miscellaneous_price: miscPrice,
-    additional_charges_price: addlCharges,
+    miscellaneous_price: extractMiscellaneousPrice(r),
+    additional_charges_price: extractAdditionalChargesPrice(r),
     status: normalizeStatus(r["status"]),
     utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
     // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)
