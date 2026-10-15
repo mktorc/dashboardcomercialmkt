@@ -486,11 +486,11 @@ function MonthlyBarChart({
       title={title}
       expandable
       render={(expanded) => (
-      <div className="mt-4" style={{ height: expanded ? "70vh" : 256 }}>
+      <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 256, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8 }}>
+          <BarChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} interval={0} minTickGap={0} {...axis} />
+            <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} interval={0} minTickGap={8} {...axis} />
             <YAxis
               {...axis}
               allowDecimals={!integerAxis}
@@ -531,9 +531,9 @@ function OpportunitySellerChart({
       subtitle={compare ? "Oportunidades e conversão em reservas por vendedor." : "Todos os períodos, sem filtro de datas."}
       expandable={expandable}
       render={(expanded) => data.length ? (
-        <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
+        <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
@@ -571,9 +571,9 @@ function NoTaskBySellerChart({
       subtitle="Oportunidades abertas sem tarefas por vendedor no período."
       expandable={expandable}
       render={(expanded) => data.length ? (
-        <div className="mt-4" style={{ height: expanded ? "70vh" : height }}>
+        <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
@@ -619,9 +619,9 @@ function SellerLineChart({
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
       data.length && series.length ? (
-        <div className="mt-4" style={{ height: expanded ? "70vh" : 320 }}>
+        <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 320, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data}>
+            <LineChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis dataKey={dataKey} {...axis} minTickGap={8} />
               <YAxis {...axis} allowDecimals={!currency} tickFormatter={(value: number) => currency ? `$${Math.round(value / 1000)}k` : value.toLocaleString("pt-BR")} />
@@ -745,9 +745,9 @@ function GoalChart({
 }) {
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
-      <div className="mt-4" style={{ height: expanded ? "70vh" : h }}>
+      <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : h, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
             <XAxis
               type="number"
@@ -1045,17 +1045,17 @@ function RevenueBreakdownChart({
       subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais"
       expandable
       render={(expanded) => (
-        <div className="mt-4" style={{ height: expanded ? "70vh" : 320 }}>
+        <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 320, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8 }}>
+            <BarChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="dia" interval={0} minTickGap={0} {...axis} />
+              <XAxis dataKey="dia" interval={0} minTickGap={8} {...axis} angle={-45} textAnchor="end" height={80} />
               <YAxis
                 {...axis}
                 tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
               />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => brl(value)} />
-              <Legend />
+              <Legend wrapperStyle={{ paddingTop: '16px' }} />
               <Bar dataKey="rackRate" name="Rack Rate" fill="#44E500" stackId="a" radius={[4, 4, 0, 0]} />
               <Bar dataKey="miscellaneousPrice" name="Taxas Diversas" fill="#2f9c5a" stackId="a" />
               <Bar dataKey="additionalChargesPrice" name="Cobranças Adicionais" fill="#9be870" stackId="a" radius={[0, 0, 4, 4]} />
