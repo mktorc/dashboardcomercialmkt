@@ -86,39 +86,54 @@ export function getPreviousPeriod(from: string, to: string) {
 async function fetchRevenueBreakdown(from: string, to: string) {
   try {
     const histFrom = startIso(from);
-    const { data, error } = await fetchAll((a, b) =>
-      supabase
-        .from("reservations")
-        .select("created_at, seller_name, status, rack_rate")
-        .gte("created_at", histFrom)
-        .lte("created_at", endIso(to))
-        .range(a, b),
-    );
-    if (error) {
-      console.error("fetchRevenueBreakdown error:", error);
-      return [];
-    }
-    const baseData = (data ?? []) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate">[];
 
-    // Try to fetch with new fields if they exist
-    const withNewFields = await fetchAll((a, b) =>
+    // Fetch all required columns in a single query
+    const { data, error } = await fetchAll((a, b) =>
       supabase
         .from("reservations")
         .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
-    ).catch(() => ({ data: null, error: new Error("New fields not available") }));
+    );
 
-    if (!withNewFields.error && withNewFields.data) {
-      return withNewFields.data as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
+    if (error) {
+      console.warn("fetchRevenueBreakdown error (trying with basic fields):", error);
+      // Fallback to basic query without the new fields
+      const { data: baseData, error: baseError } = await fetchAll((a, b) =>
+        supabase
+          .from("reservations")
+          .select("created_at, seller_name, status, rack_rate")
+          .gte("created_at", histFrom)
+          .lte("created_at", endIso(to))
+          .range(a, b),
+      );
+
+      if (baseError) {
+        console.error("fetchRevenueBreakdown fallback error:", baseError);
+        return [];
+      }
+
+      // Add zero values for missing fields
+      return (baseData ?? []).map((r: any) => ({
+        created_at: r.created_at,
+        seller_name: r.seller_name,
+        status: r.status,
+        rack_rate: r.rack_rate ?? 0,
+        miscellaneous_price: 0,
+        additional_charges_price: 0,
+      }));
     }
 
-    return baseData.map(r => ({
-      ...r,
-      miscellaneous_price: 0,
-      additional_charges_price: 0,
-    }));
+    // Ensure all values are numbers, not null
+    return (data ?? []).map((r: any) => ({
+      created_at: r.created_at,
+      seller_name: r.seller_name,
+      status: r.status,
+      rack_rate: r.rack_rate ?? 0,
+      miscellaneous_price: r.miscellaneous_price ?? 0,
+      additional_charges_price: r.additional_charges_price ?? 0,
+    })) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
   } catch (err) {
     console.error("fetchRevenueBreakdown exception:", err);
     return [];
@@ -392,16 +407,35 @@ export function computeDailyRevenueBreakdown(
     });
   }
 
+  let totalRackRate = 0;
+  let totalMiscellaneous = 0;
+  let totalAdditionalCharges = 0;
+  let processedCount = 0;
+
   reservations.forEach((reservation) => {
     if (reservation.status !== "confirmed") return;
     if (!isCommercialTeam(reservation.seller_name)) return;
     const key = reservation.created_at.slice(0, 10);
     const bucket = buckets.get(key);
     if (!bucket) return;
-    bucket.rackRate += reservation.rack_rate ?? 0;
-    bucket.miscellaneousPrice += reservation.miscellaneous_price ?? 0;
-    bucket.additionalChargesPrice += reservation.additional_charges_price ?? 0;
+
+    const rr = reservation.rack_rate ?? 0;
+    const mp = reservation.miscellaneous_price ?? 0;
+    const acp = reservation.additional_charges_price ?? 0;
+
+    bucket.rackRate += rr;
+    bucket.miscellaneousPrice += mp;
+    bucket.additionalChargesPrice += acp;
+
+    totalRackRate += rr;
+    totalMiscellaneous += mp;
+    totalAdditionalCharges += acp;
+    processedCount++;
   });
+
+  if (processedCount > 0) {
+    console.debug("[RevenueBreakdown] Processados:", { processedCount, totalRackRate, totalMiscellaneous, totalAdditionalCharges });
+  }
 
   return [...buckets.values()].map((b) => ({
     ...b,
