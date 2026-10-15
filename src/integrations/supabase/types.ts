@@ -247,6 +247,7 @@ export type Database = {
       }
       reservations: {
         Row: {
+          additional_charges_price: number | null
           car_category: string | null
           commission_partner: string | null
           created_at: string
@@ -255,6 +256,7 @@ export type Database = {
           discount_amount: number
           email_lc: string | null
           id: string
+          miscellaneous_price: number | null
           phone8: string | null
           pick_up_at: string | null
           rack_rate: number | null
@@ -267,6 +269,7 @@ export type Database = {
           utm_campaign: string | null
         }
         Insert: {
+          additional_charges_price?: number | null
           car_category?: string | null
           commission_partner?: string | null
           created_at?: string
@@ -275,6 +278,7 @@ export type Database = {
           discount_amount?: number
           email_lc?: string | null
           id?: string
+          miscellaneous_price?: number | null
           phone8?: string | null
           pick_up_at?: string | null
           rack_rate?: number | null
@@ -287,6 +291,7 @@ export type Database = {
           utm_campaign?: string | null
         }
         Update: {
+          additional_charges_price?: number | null
           car_category?: string | null
           commission_partner?: string | null
           created_at?: string
@@ -295,6 +300,7 @@ export type Database = {
           discount_amount?: number
           email_lc?: string | null
           id?: string
+          miscellaneous_price?: number | null
           phone8?: string | null
           pick_up_at?: string | null
           rack_rate?: number | null

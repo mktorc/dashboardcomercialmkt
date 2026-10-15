@@ -20,6 +20,8 @@ export type CRes = {
   total_amount: number;
   discount_amount: number;
   rack_rate?: number | null;
+  miscellaneous_price?: number | null;
+  additional_charges_price?: number | null;
   status: string;
   seller_name: string | null;
 };
@@ -90,7 +92,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -113,7 +115,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
         .range(a, b),
@@ -129,7 +131,7 @@ export async function fetchComercial(from: string, to: string) {
     ),
     fetchAll((a, b) =>
       supabase.from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, miscellaneous_price, additional_charges_price, status, seller_name")
         .eq("status", "confirmed")
         .gte("created_at", startIso(previousYearDate(from)))
         .lte("created_at", endIso(previousYearDate(to)))
@@ -165,6 +167,8 @@ export async function fetchComercial(from: string, to: string) {
       total_amount: Number(r.total_amount),
       discount_amount: Number(r.discount_amount),
       rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
+      miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price),
+      additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
     })),
     tasks: tasks.data as CTask[],
     goals: ((goals.data ?? []) as any[]).map((g) => ({
@@ -174,7 +178,7 @@ export async function fetchComercial(from: string, to: string) {
       discount_goal: Number(g.discount_goal ?? 0),
       conversion_goal: Number(g.conversion_goal ?? 0),
     })),
-    yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount), rack_rate: r.rack_rate == null ? null : Number(r.rack_rate) })),
+    yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount), rack_rate: r.rack_rate == null ? null : Number(r.rack_rate), miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price), additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price) })),
     yearOpportunities: [...((yearOpps.data ?? []) as COpp[]), ...kommoYear.map(kommoAsOpportunity)] as COpp[],
     prevData: {
       reservations: (prevRes.data ?? []).map((r: any) => ({
@@ -182,6 +186,8 @@ export async function fetchComercial(from: string, to: string) {
         total_amount: Number(r.total_amount),
         discount_amount: Number(r.discount_amount ?? 0),
         rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
+        miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price),
+        additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
       })),
       opportunities: [...(prevOpps.data ?? []), ...kommoOpps.filter((o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo))],
     },
@@ -319,6 +325,44 @@ export function computeMonthlyCommercial(
     bucket.descontoPct = gross ? (discount?.discount ?? 0) / gross : 0;
   });
   return [...buckets.values()];
+}
+
+export function computeMonthlyRevenueBreakdown(
+  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[],
+  seller: string,
+  from: string,
+  to: string,
+): Array<{ mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }> {
+  const buckets = new Map<string, { mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }>();
+  const firstMonth = new Date(`${from.slice(0, 7)}-01T00:00:00Z`);
+  const lastMonth = new Date(`${to.slice(0, 7)}-01T00:00:00Z`);
+  for (const date = firstMonth; date <= lastMonth; date.setUTCMonth(date.getUTCMonth() + 1)) {
+    const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    buckets.set(key, {
+      mes: `${MONTHS_PT[date.getUTCMonth()]}/${date.getUTCFullYear()}`,
+      monthKey: key,
+      rackRate: 0,
+      miscellaneousPrice: 0,
+      additionalChargesPrice: 0,
+    });
+  }
+
+  reservations.forEach((reservation) => {
+    if (reservation.status !== "confirmed") return;
+    const reservationSeller = sellerKey(reservation.seller_name);
+    const effectiveSeller = reservationSeller === "sem_vendedor" ? "venda_direta" : reservationSeller;
+    if (seller !== "all" && effectiveSeller !== seller) return;
+    const bucket = buckets.get(reservation.created_at.slice(0, 7));
+    if (!bucket) return;
+    bucket.rackRate += reservation.rack_rate ?? 0;
+    bucket.miscellaneousPrice += reservation.miscellaneous_price ?? 0;
+    bucket.additionalChargesPrice += reservation.additional_charges_price ?? 0;
+  });
+
+  return [...buckets.values()].map((b) => ({
+    ...b,
+    total: b.rackRate + b.miscellaneousPrice + b.additionalChargesPrice,
+  }));
 }
 
 export function computeComercial(d: ComercialData, from: string, to: string, seller: string, useHqRackRate = false) {
@@ -598,6 +642,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     bucket[n] = ((bucket[n] as number | undefined) ?? 0) + reservationRackRate(r, useHqRackRate);
   });
 
+  const revenueBreakdown = computeMonthlyRevenueBreakdown(d.reservations, seller, from, to);
+
   return {
     daily: [...daily.values()],
     dailyOpportunitiesBySeller: [...dailyOpportunitiesBySeller.values()],
@@ -618,6 +664,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       previousYearDate(to),
       useHqRackRate,
     ),
+    revenueBreakdown,
     stackKeys: [...stackKeys],
     goalMonth: [...months][0] ?? "",
   };

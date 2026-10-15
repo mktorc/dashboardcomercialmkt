@@ -355,6 +355,7 @@ export function ComercialPage({
               <MonthlyBarChart title="Reservas mensais" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
               <MonthlyBarChart title="Ticket médio mensal" data={monthlyKpis} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis comparisonKey="yearAgoTicket" />
               <MonthlyBarChart title="Desconto médio mensal" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" />
+              {view?.revenueBreakdown ? <RevenueBreakdownChart data={view.revenueBreakdown} /> : null}
             </section>
           ) : null}
 
@@ -1027,6 +1028,40 @@ function GoalsDialog({
     </Dialog>
   );
 }
+
+function RevenueBreakdownChart({
+  data,
+}: {
+  data: Array<{ mes: string; monthKey: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }>;
+}) {
+  return (
+    <ExpandableChartPanel
+      title="Faturamento por componente"
+      subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais"
+      expandable
+      render={(expanded) => (
+        <div className="mt-4" style={{ height: expanded ? "70vh" : 256 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="mes" interval={0} minTickGap={0} {...axis} />
+              <YAxis
+                {...axis}
+                tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
+              />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => brl(value)} />
+              <Legend />
+              <Bar dataKey="rackRate" name="Rack Rate" fill="#44E500" stackId="a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="miscellaneousPrice" name="Taxas Diversas" fill="#2f9c5a" stackId="a" />
+              <Bar dataKey="additionalChargesPrice" name="Cobranças Adicionais" fill="#9be870" stackId="a" radius={[0, 0, 4, 4]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    />
+  );
+}
+
 function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: string; faturamento: number; revenueGoal: number }[]; teamSold: number; teamGoal: number }) {
   const teamAtt = teamGoal > 0 ? teamSold / teamGoal : 0;
   const hit = teamAtt >= 1;
