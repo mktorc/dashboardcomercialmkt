@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet, X } from "lucide-react";
+import { ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet } from "lucide-react";
 
 import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
@@ -343,7 +343,6 @@ function Dashboard() {
                       tickFormatter={(value: number) => `$${Math.round(value)}`}
                     />
                     <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                    <Legend />
                     <Area
                       type="monotone"
                       dataKey="faturamento"
