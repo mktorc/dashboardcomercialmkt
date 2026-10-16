@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
-import { extractAdditionalChargesPrice, extractMiscellaneousPrice } from "@/lib/hq-charges";
+import { extractFinancials } from "@/lib/hq-charges";
 
-// Edge Function para re-sincronizar reservas existentes com os campos de taxas e cobranças
+// Edge Function para re-sincronizar reservas existentes (valores, rack rate, desconto, status, taxas e cobranças)
 // GET /api/public/sync/hqrentals-backfill?days=N&limit=500
 // Busca as últimas N dias (ou todas se não especificado) e re-sincroniza as colunas
-// miscellaneous_price e additional_charges_price a partir da API do HQ
+// total_amount, rack_rate, discount_amount, status, miscellaneous_price e additional_charges_price a partir da API do HQ.
+// Reservas que não existem no banco não são criadas aqui (use o sync principal); o total é devolvido em missing_in_db.
 
 type HqReservation = Record<string, unknown>;
 
@@ -67,8 +68,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
         // Limita ao número máximo de registos para não sobrecarregar
         const rows = all.slice(0, limitParam).map((r) => ({
           reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
-          miscellaneous_price: extractMiscellaneousPrice(r),
-          additional_charges_price: extractAdditionalChargesPrice(r),
+          ...extractFinancials(r),
         })).filter((r) => r.reservation_id !== "");
 
         console.log(`[HQ Backfill] Encontrados ${rows.length} registos para backfill`);
@@ -91,40 +91,26 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
         let updated = 0;
         let failed = 0;
 
-        // Atualiza em lotes para melhor performance
-        const BATCH = 100;
-        for (let i = 0; i < rows.length; i += BATCH) {
-          const batch = rows.slice(i, i + BATCH);
-          const { error, count } = await supabaseAdmin
+        const existing = new Set<string>();
+        for (let i = 0; i < rows.length; i += 200) {
+          const { data } = await supabaseAdmin
             .from("reservations")
-            .update({
-              miscellaneous_price: null, // Will be set by the batch below
-              additional_charges_price: null,
-            })
-            .in("reservation_id", batch.map(r => r.reservation_id));
+            .select("reservation_id")
+            .in("reservation_id", rows.slice(i, i + 200).map((r) => r.reservation_id));
+          (data ?? []).forEach((d) => existing.add(String(d.reservation_id)));
+        }
+        const missingInDb = rows.filter((r) => !existing.has(r.reservation_id)).map((r) => r.reservation_id);
 
-          if (error) {
-            console.error(`[HQ Backfill] Erro ao atualizar lote ${i / BATCH + 1}:`, error);
-            failed += batch.length;
-            continue;
-          }
-
-          // Agora atualiza com os valores reais
-          for (const row of batch) {
-            const { error: updateError } = await supabaseAdmin
-              .from("reservations")
-              .update({
-                miscellaneous_price: row.miscellaneous_price,
-                additional_charges_price: row.additional_charges_price,
-              })
-              .eq("reservation_id", row.reservation_id);
-
-            if (updateError) {
-              console.error(`[HQ Backfill] Erro ao atualizar ${row.reservation_id}:`, updateError);
-              failed++;
-            } else {
-              updated++;
-            }
+        for (const { reservation_id, ...values } of rows.filter((r) => existing.has(r.reservation_id))) {
+          const { error: updateError } = await supabaseAdmin
+            .from("reservations")
+            .update(values)
+            .eq("reservation_id", reservation_id);
+          if (updateError) {
+            console.error(`[HQ Backfill] Erro ao atualizar ${reservation_id}:`, updateError);
+            failed++;
+          } else {
+            updated++;
           }
         }
 
@@ -135,6 +121,8 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
           updated,
           failed,
           total: rows.length,
+          missing_in_db: missingInDb.length,
+          missing_ids: missingInDb.slice(0, 50),
           period_days: daysParam,
           with_miscellaneous: withMisc,
           with_additional_charges: withAddl,

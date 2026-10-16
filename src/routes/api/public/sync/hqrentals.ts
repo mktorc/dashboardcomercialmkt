@@ -1,19 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
-import { extractAdditionalChargesPrice, extractMiscellaneousPrice } from "@/lib/hq-charges";
+import { extractAdditionalChargesPrice, extractMiscellaneousPrice, normalizeStatus } from "@/lib/hq-charges";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
 // Proteção do endpoint: header Authorization: Bearer <LOVABLE_CRON_SECRET>.
 
 type HqReservation = Record<string, unknown>;
-
-function normalizeStatus(v: unknown): string {
-  const s = String(v ?? "").toLowerCase();
-  if (["open", "rental", "completed", "confirmed"].includes(s)) return "confirmed";
-  if (["cancelled", "canceled", "no_show"].includes(s)) return "cancelled";
-  return s || "pending";
-}
 
 function mapReservation(r: HqReservation, users: Map<string, string>) {
   const customer = (r["customer"] ?? {}) as HqReservation;

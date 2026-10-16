@@ -37,3 +37,27 @@ export function extractAdditionalChargesPrice(r: HqReservation): number {
   }
   return 0;
 }
+
+export function normalizeStatus(v: unknown): string {
+  const s = String(v ?? "").toLowerCase();
+  if (["open", "rental", "completed", "confirmed"].includes(s)) return "confirmed";
+  if (["cancelled", "canceled", "no_show"].includes(s)) return "cancelled";
+  return s || "pending";
+}
+
+/** Colunas financeiras e de status que podem mudar no HQ depois da criação da reserva. */
+export function extractFinancials(r: HqReservation) {
+  return {
+    total_amount: Number(r["total_price"]) || 0,
+    rack_rate:
+      r["total_rack_rate"] != null
+        ? Number(r["total_rack_rate"])
+        : r["rack_rate"] == null
+          ? null
+          : Number(r["rack_rate"]),
+    discount_amount: Number(r["discounts_amount"]) || 0,
+    status: normalizeStatus(r["status"]),
+    miscellaneous_price: extractMiscellaneousPrice(r),
+    additional_charges_price: extractAdditionalChargesPrice(r),
+  };
+}
