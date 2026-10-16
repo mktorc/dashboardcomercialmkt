@@ -885,7 +885,7 @@ function GoalsPanel({
   }, [m, goals, sellers]);
 
   return (
-    <Card className="max-w-2xl p-5">
+    <Card className="w-full p-4 sm:p-6">
       <h2 className="mb-3 text-base font-semibold">Definição de Metas</h2>
       <div>
         {/* Seletor de Abas */}
@@ -907,7 +907,7 @@ function GoalsPanel({
         </div>
 
         {/* Seletor de Mês comum */}
-        <div className="mb-4">
+        <div className="mb-4 w-full sm:w-56">
           <label className="text-xs text-muted-foreground block mb-1">Mês de referência:</label>
           <Input
             type="month"
@@ -921,7 +921,7 @@ function GoalsPanel({
 
         {activeTab === "commercial" ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_5rem_5rem] gap-2 text-xs font-medium text-muted-foreground px-1">
+            <div className="grid grid-cols-2 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(5rem,1fr))] gap-2 text-xs font-medium text-muted-foreground px-1">
               <span>Vendedor</span>
               <span className="text-right">Receita (US$)</span>
               <span className="text-right">Ticket (US$)</span>
@@ -929,7 +929,7 @@ function GoalsPanel({
               <span className="text-right">Conversão (%)</span>
             </div>
             {sellers.map((s: SellerRow) => (
-              <div key={s.key} className="grid grid-cols-2 sm:grid-cols-[minmax(0,1fr)_5rem_5rem_5rem_5rem] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
+              <div key={s.key} className="grid grid-cols-2 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(5rem,1fr))] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
                 <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
                 <Input 
                   type="number"
@@ -963,7 +963,7 @@ function GoalsPanel({
             ))}
           </div>
         ) : (
-          <div className="space-y-4 py-2">
+          <div className="grid grid-cols-1 gap-4 py-2 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium">Meta de Ocupação - Mês Atual (%)</label>
               <Input
