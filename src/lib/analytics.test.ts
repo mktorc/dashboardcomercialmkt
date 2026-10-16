@@ -84,6 +84,7 @@ describe("computeAttribution", () => {
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: "SUV",
           rental_days: 2,
           total_amount: 500,
@@ -121,6 +122,7 @@ describe("computeAttribution", () => {
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: "SUV",
           rental_days: 2,
           total_amount: 500,
@@ -176,6 +178,7 @@ describe("filterAnalyticsByOrigin", () => {
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: "SUV",
           rental_days: 2,
           total_amount: 250,
@@ -184,6 +187,7 @@ describe("filterAnalyticsByOrigin", () => {
         },
         {
           created_at: "2026-10-01T15:00:00Z",
+          pick_up_at: null,
           car_category: "SUV",
           rental_days: 2,
           total_amount: 500,
@@ -363,6 +367,7 @@ describe("computeOpportunityOrigins", () => {
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: null,
           rental_days: 2,
           total_amount: 300,
@@ -372,6 +377,7 @@ describe("computeOpportunityOrigins", () => {
         },
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: null,
           rental_days: 2,
           total_amount: 200,
@@ -401,6 +407,7 @@ describe("origem das reservas do HQ", () => {
       reservations: [
         {
           created_at: "2026-10-01T14:00:00Z",
+          pick_up_at: null,
           car_category: null,
           rental_days: 2,
           total_amount: 400,

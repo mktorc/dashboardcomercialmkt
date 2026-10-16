@@ -16,6 +16,10 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
     meta: [
       { title: "Configurações | Orlando Rent Car Analytics" },
       { name: "description", content: "Gerenciamento de usuários e permissões do painel." },
+      { property: "og:title", content: "Configurações | Orlando Rent Car Analytics" },
+      { property: "og:description", content: "Gerenciamento de usuários e permissões do painel." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   beforeLoad: () => guardPage("configuracoes"),
