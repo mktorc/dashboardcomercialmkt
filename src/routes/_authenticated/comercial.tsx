@@ -921,12 +921,12 @@ function GoalsPanel({
 
         {activeTab === "commercial" ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(5rem,1fr))] gap-2 text-xs font-medium text-muted-foreground px-1">
+            <div className="grid grid-cols-2 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(5rem,1fr))] gap-2 text-xs font-medium text-muted-foreground px-[calc(0.5rem+1px)]">
               <span>Vendedor</span>
-              <span className="text-right">Receita (US$)</span>
-              <span className="text-right">Ticket (US$)</span>
-              <span className="text-right">Desconto (%)</span>
-              <span className="text-right">Conversão (%)</span>
+              <span className="text-center">Receita (US$)</span>
+              <span className="text-center">Ticket (US$)</span>
+              <span className="text-center">Desconto (%)</span>
+              <span className="text-center">Conversão (%)</span>
             </div>
             {sellers.map((s: SellerRow) => (
               <div key={s.key} className="grid grid-cols-2 sm:grid-cols-[minmax(8rem,1.5fr)_repeat(4,minmax(5rem,1fr))] gap-2 items-center bg-card/40 p-2 rounded-lg border border-border/50">
