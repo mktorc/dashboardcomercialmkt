@@ -31,7 +31,8 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   brl,
-  buildDynamicFunnel,
+  ALL_ORIGINS_KEY,
+  buildMarketingFunnel,
   computeAttribution,
   computeKpis,
   computeOpportunityOrigins,
@@ -147,9 +148,11 @@ function Dashboard() {
     const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
     return cmp * attributionSort.dir;
   });
-  const originSources = (originAnalytics?.sources ?? []).filter(
-    (source) => originFilter === "all" || source.label === originFilter,
-  );
+  // "Todas as Origens": uma única série consolidada (atual vs. anterior), sem barras por origem.
+  const originSources =
+    originFilter === "all"
+      ? [{ key: ALL_ORIGINS_KEY, label: "Todas as origens" }]
+      : (originAnalytics?.sources ?? []).filter((source) => source.label === originFilter);
 
   const yoyCreatedMonthly =
     originAnalytics && priorYearAnalytics
@@ -169,17 +172,7 @@ function Dashboard() {
         )
       : [];
 
-  const dynamicFunnel = (() => {
-    if (!data || !kpis) return null;
-    const mk = computeKpis(filterAnalyticsByOrigin(data.current, "meta"));
-    const gk = computeKpis(filterAnalyticsByOrigin(data.current, "google"));
-    const mode = originFilter === "all" ? "all" : /meta/i.test(originFilter) ? "meta" : /google/i.test(originFilter) ? "google" : "other";
-    return buildDynamicFunnel(mode, {
-      conversations: data.current.meta.reduce((s, r) => s + (Number(r.conversations) || 0), 0),
-      metaLeads: mk.leads, metaRes: mk.reservations, googleLeads: gk.leads, googleRes: gk.reservations,
-      otherLeads: kpis.leads, otherRes: kpis.reservations, otherLabel: originFilter,
-    });
-  })();
+  const dynamicFunnel = originData ? buildMarketingFunnel(originData, selectedOrigin) : null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -385,9 +378,9 @@ function Dashboard() {
               isYoY={true}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
-              <h2 className="text-sm font-semibold text-foreground">Funil — {dynamicFunnel?.title ?? "—"}</h2>
+              <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
               <p className="text-xs text-muted-foreground">
-                Safra de leads criados no período e reservas HQ ligadas a esses leads.
+                Contatos ClickMassa, oportunidades e reservas confirmadas criados no período; a etapa de leads de mídia aparece só para Meta Ads.
               </p>
               {dynamicFunnel ? (
                 <>
@@ -403,11 +396,12 @@ function Dashboard() {
                         >
                           <span className="text-xs font-medium">{stage.label}</span>
                           <span className="text-sm font-semibold text-accent">{stage.count.toLocaleString("pt-BR")}</span>
+                          {stage.hint ? <span className="text-xs text-muted-foreground">{stage.hint}</span> : null}
                         </div>
                       );
                     })}
                   </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {dynamicFunnel.metrics.map((m) => (
                       <div key={m.label} className="rounded-md border border-border p-3">
                         <p className="text-[11px] text-muted-foreground">{m.label}</p>
@@ -415,8 +409,8 @@ function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  {originFilter !== "all" && /meta/i.test(originFilter) && !dynamicFunnel.stages[0]?.count ? (
-                    <p className="mt-3 text-xs text-muted-foreground">Conversas do Meta aparecem após a próxima sincronização do Meta Ads.</p>
+                  {selectedOrigin && /meta/i.test(selectedOrigin) && !dynamicFunnel.stages[0]?.count ? (
+                    <p className="mt-3 text-xs text-muted-foreground">Leads do Meta aparecem após a próxima sincronização do Meta Ads.</p>
                   ) : null}
                 </>
               ) : (

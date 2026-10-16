@@ -141,6 +141,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
                 clicks: Number(r["clicks"]) || 0,
                 impressions: Number(r["impressions"]) || 0,
                 conversations: Number(((r["actions"] as Obj[] | undefined) ?? []).find((a) => a["action_type"] === "onsite_conversion.messaging_conversation_started_7d")?.["value"]) || 0,
+                leads: Number(((r["actions"] as Obj[] | undefined) ?? []).find((a) => a["action_type"] === "lead")?.["value"]) || 0,
                 utm_campaign: utmByCampaign.get(cid) ?? null,
               });
             }

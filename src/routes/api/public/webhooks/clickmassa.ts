@@ -111,6 +111,7 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
     lead_origin:
       str((p["leadOrigin"] as Record<string, unknown> | null | undefined)?.["name"]) ??
       pick(p, ["origem_do_lead", "Origem do Lead", "lead_origin"]),
+    first_connection_name: pick(p, ["firstConnectionName", "first_connection_name"]),
     utm_source: pick(p, ["utm_source", "source", "origem"]),
     utm_medium: pick(p, ["utm_medium", "medium", "canal"]),
     utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),
