@@ -116,7 +116,6 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
               .update({
                 miscellaneous_price: row.miscellaneous_price,
                 additional_charges_price: row.additional_charges_price,
-                updated_at: new Date().toISOString(),
               })
               .eq("reservation_id", row.reservation_id);
 

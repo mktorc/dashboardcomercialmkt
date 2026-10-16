@@ -2,6 +2,7 @@
 type HqReservation = Record<string, unknown>;
 
 const num = (v: unknown) => {
+  if (v == null || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
@@ -19,8 +20,10 @@ export function extractMiscellaneousPrice(r: HqReservation): number {
   return num(miscValue(r, "miscellaneous_price") ?? r["miscellaneous_price"]) ?? 0;
 }
 
-/** Cobranças Adicionais: `additional_charges_price`; senão `total_extras`; senão soma dos itens. */
+/** Cobranças Adicionais: `total_extras` na raiz; senão `additional_charges_price`; senão `total_extras` do array; senão soma dos itens. */
 export function extractAdditionalChargesPrice(r: HqReservation): number {
+  const rootExtras = num(r["total_extras"]);
+  if (rootExtras != null) return rootExtras;
   const direct = num(miscValue(r, "additional_charges_price") ?? r["additional_charges_price"]);
   if (direct != null) return direct;
   const extras = num(miscValue(r, "total_extras"));
