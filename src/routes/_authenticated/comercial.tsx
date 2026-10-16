@@ -103,7 +103,7 @@ export function ComercialPage({
   const [search, setSearch] = useState("");
   const [noTaskOpen, setNoTaskOpen] = useState(false);
   const [tab, setTab] = useState<"visao" | "metas">("visao");
-  const showGoals = active === "comercial" && tab === "metas";
+  const showGoals = tab === "metas";
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "faturamento", dir: -1 });
 
   const { data, isLoading, error } = useQuery({
@@ -283,14 +283,14 @@ export function ComercialPage({
         </header>
 
         <div className="space-y-6 p-6">
-          {active === "comercial" ? (
+          {(
             <div className="flex gap-2 border-b border-border pb-2">
               <Button size="sm" variant={tab === "visao" ? "default" : "outline"} onClick={() => setTab("visao")}>Visão geral</Button>
               <Button size="sm" variant={tab === "metas" ? "default" : "outline"} onClick={() => setTab("metas")}>
                 <Target className="mr-1 size-4" /> Metas
               </Button>
             </div>
-          ) : null}
+          )}
           {error ? (
             <Card className="border-destructive/40 p-4 text-sm text-destructive">
               Não foi possível carregar os dados comerciais agora.
@@ -299,7 +299,13 @@ export function ComercialPage({
           ) : null}
 
           {showGoals ? (
-            view ? <GoalsPanel sellers={view.sellers} month={view.goalMonth} goals={teamData?.goals ?? []} /> : (
+            view ? (
+              active === "comercial" ? (
+                <GoalsPanel sellers={view.sellers} month={view.goalMonth} goals={teamData?.goals ?? []} />
+              ) : (
+                <GoalsReadOnly sellers={view.sellers} month={view.goalMonth} goals={teamData?.goals ?? []} />
+              )
+            ) : (
               <Card className="p-4 text-sm text-muted-foreground">Carregando metas…</Card>
             )
           ) : (<>
@@ -782,6 +788,74 @@ function GoalChart({
         </ResponsiveContainer>
       </div>
     )} />
+  );
+}
+
+// Visualização somente leitura das metas cadastradas na aba Gerencial.
+function GoalsReadOnly({ sellers, month, goals }: { sellers: SellerRow[]; month: string; goals: Goal[] }) {
+  const [m, setM] = useState(month);
+  useEffect(() => setM(month), [month]);
+  const pctOrDash = (v: number | null | undefined) => (v == null || v === 0 ? "—" : pct(v));
+  const moneyOrDash = (v: number | null | undefined) => (v ? brl(v) : "—");
+  const general = goals.find((g) => g.seller_name === GLOBAL_GOAL && g.month === m);
+  const occCurrent = goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === m);
+  const occNext = goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === nextGoalMonth(m));
+  const items = [
+    { label: "Faturamento geral", value: moneyOrDash(general?.revenue_goal) },
+    { label: "Ticket médio geral", value: moneyOrDash(general?.ticket_goal) },
+    { label: "Conversão geral", value: pctOrDash(general?.conversion_goal) },
+    { label: "Desconto geral", value: pctOrDash(general?.discount_goal) },
+    { label: "Ocupação — mês de referência", value: pctOrDash(occCurrent?.discount_goal) },
+    { label: "Ocupação — mês seguinte", value: pctOrDash(occNext?.discount_goal) },
+  ];
+  return (
+    <Card className="w-full space-y-5 p-4 sm:p-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Metas</h2>
+          <p className="text-xs text-muted-foreground">Somente visualização — definidas na aba Gerencial.</p>
+        </div>
+        <label className="w-full text-xs text-muted-foreground sm:w-56">
+          Mês de referência
+          <Input type="month" value={m} onChange={(e) => e.target.value && setM(e.target.value)} className="mt-1" />
+        </label>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((i) => (
+          <div key={i.label} className="rounded-lg border border-border/50 bg-card/40 p-3">
+            <p className="text-xs text-muted-foreground">{i.label}</p>
+            <p className="mt-1 text-lg font-semibold">{i.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs text-muted-foreground">
+              <th className="px-2 py-2 text-left font-medium">Vendedor</th>
+              <th className="px-2 py-2 text-center font-medium">Receita (US$)</th>
+              <th className="px-2 py-2 text-center font-medium">Ticket (US$)</th>
+              <th className="px-2 py-2 text-center font-medium">Desconto (%)</th>
+              <th className="px-2 py-2 text-center font-medium">Conversão (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sellers.map((s) => {
+              const g = goals.find((x) => x.month === m && x.seller_name === s.name);
+              return (
+                <tr key={s.key} className="border-b border-border/50">
+                  <td className="px-2 py-2 font-medium">{s.name}</td>
+                  <td className="px-2 py-2 text-center">{moneyOrDash(g?.revenue_goal)}</td>
+                  <td className="px-2 py-2 text-center">{moneyOrDash(g?.ticket_goal)}</td>
+                  <td className="px-2 py-2 text-center">{pctOrDash(g?.discount_goal)}</td>
+                  <td className="px-2 py-2 text-center">{pctOrDash(g?.conversion_goal)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
   );
 }
 
