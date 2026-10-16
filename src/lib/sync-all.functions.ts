@@ -39,6 +39,17 @@ export const syncAll = createServerFn({ method: "POST" })
       }
       const origin = resolveOrigin(getRequest());
       console.log("[syncAll] origem:", origin);
+      // Diagnóstico: só presença (booleanos), nunca os valores.
+      console.log("[Sync Check] CLICKMASSA_BASE_URL presente:", !!process.env["CLICKMASSA_BASE_URL"]);
+      console.log(
+        "[Sync Check] CLICKMASSA_TOKEN presente:",
+        !!(process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"]),
+      );
+      console.log("[Sync Check] HQ_BASE_URL presente:", !!process.env["HQ_BASE_URL"]);
+      console.log(
+        "[Sync Check] HQ_TOKENS presentes:",
+        !!process.env["HQ_TENANT_TOKEN"] && !!process.env["HQ_USER_TOKEN"],
+      );
 
       await Promise.all(
         JOBS.map(async (j) => {
