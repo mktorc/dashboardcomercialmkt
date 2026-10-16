@@ -215,7 +215,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchKommoLeads(kommoFrom, endIso(to)),
     fetchKommoLeads(startIso(previousYearDate(from)), endIso(previousYearDate(to))),
   ]);
-  const kommoOpps = kommo.map(kommoAsOpportunity);
+  const kommoOpps = kommo.map((lead) => kommoAsOpportunity(lead));
   const err = res.error || tasks.error || goals.error || opps.error || prevRes.error || prevOpps.error || yearRes.error || yearOpps.error;
   if (err) throw err;
 
@@ -238,7 +238,7 @@ export async function fetchComercial(from: string, to: string) {
       conversion_goal: Number(g.conversion_goal ?? 0),
     })),
     yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount), rack_rate: r.rack_rate == null ? null : Number(r.rack_rate), miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price), additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price) })),
-    yearOpportunities: [...((yearOpps.data ?? []) as COpp[]), ...kommoYear.map(kommoAsOpportunity)] as COpp[],
+    yearOpportunities: [...((yearOpps.data ?? []) as COpp[]), ...kommoYear.map((lead) => kommoAsOpportunity(lead))] as COpp[],
     prevData: {
       reservations: (prevRes.data ?? []).map((r: any) => ({
         ...r,

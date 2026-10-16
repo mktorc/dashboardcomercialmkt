@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
-import { fetchKommoLeads, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-leads";
+import { fetchKommoLeads, fetchKommoWins, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-leads";
 
 const iso = (d: Date) => d.toISOString();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -214,7 +214,10 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   };
   const contactCounts = await Promise.all(CONTACT_RULES.map(countContacts));
   const contactsByOrigin = Object.fromEntries(CONTACT_RULES.map((r, i) => [r.id, contactCounts[i]!]));
-  const kommoLeads = await fetchKommoLeads(iso(fromDate), iso(toDate));
+  const [kommoLeads, kommoWins] = await Promise.all([
+    fetchKommoLeads(iso(fromDate), iso(toDate)),
+    fetchKommoWins(iso(fromDate), iso(toDate)),
+  ]);
 
   const err =
     meta.error ||
@@ -228,12 +231,13 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
 
   const createdRows = [
     ...((createdOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
-    ...kommoLeads.map(kommoAsOpportunity),
+    ...kommoLeads.map((lead) => kommoAsOpportunity(lead)),
   ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
-  const updatedRows = (updatedOpportunities.data ?? []) as Omit<
-    OpportunityOriginRow,
-    "utm_source" | "utm_campaign"
-  >[];
+  // Kommo: o updated_at foi reescrito na importação; o ganho é datado pela reserva do HQ.
+  const updatedRows = [
+    ...((updatedOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
+    ...kommoWins.map(({ lead, wonAt }) => ({ ...kommoAsOpportunity(lead, ""), updated_at: wonAt })),
+  ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
   const leadIds = [
     ...new Set(
       [...createdRows, ...updatedRows]
@@ -255,7 +259,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const originLeadError = originLeadPages.find((page) => page.error)?.error;
   if (originLeadError) throw originLeadError;
   const leadAttributionById = new Map<string, { source: string | null; campaign: string | null }>();
-  kommoLeads.forEach((lead) =>
+  [...kommoLeads, ...kommoWins.map((win) => win.lead)].forEach((lead) =>
     leadAttributionById.set(lead.lead_id, {
       source: resolveLeadSource(lead.utm_source, lead.lead_origin),
       campaign: lead.utm_campaign,
@@ -535,6 +539,8 @@ const isWonOpportunity = (opportunity: OpportunityOriginRow) => {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   if (/(lost|perdid|cancelad)/.test(value)) return false;
+  // "Ganho" é a etapa de vitória do Kommo (histórico 2025).
+  if (/^\s*ganho\s*$/.test(value)) return true;
   return /(won|ganh|fechad|closed|concluid)/.test(value);
 };
 
@@ -916,4 +922,35 @@ export function buildMarketingFunnel(d: AnalyticsData, origin: string | null = n
     });
   }
   return { stages: stages.map((st, i) => ({ ...st, label: `${i + 1} · ${st.label}` })), metrics };
+}
+
+export interface OpportunityComparisonPoint {
+  monthLabel: string;
+  currentYear: number;
+  previousYear: number;
+}
+
+// Alinha os meses do período atual com os do período espelho (-1 ano) pela posição.
+// As chaves de origem (origin_N) são por conjunto de dados, então a soma é feita por
+// rótulo de origem em cada lado; originLabelFilter limita a uma origem (null = todas).
+export function buildOpportunityComparison(
+  current: Record<string, string | number>[],
+  currentSources: { key: string; label: string }[],
+  previous: Record<string, string | number>[],
+  previousSources: { key: string; label: string }[],
+  originLabelFilter: string | null,
+): OpportunityComparisonPoint[] {
+  const keysOf = (sources: { key: string; label: string }[]) =>
+    sources
+      .filter((source) => originLabelFilter === null || source.label === originLabelFilter)
+      .map((source) => source.key);
+  const currentKeys = keysOf(currentSources);
+  const previousKeys = keysOf(previousSources);
+  const total = (row: Record<string, string | number> | undefined, keys: string[]) =>
+    row ? keys.reduce((sum, key) => sum + Number(row[key] ?? 0), 0) : 0;
+  return current.map((row, index) => ({
+    monthLabel: String(row["month"]),
+    currentYear: total(row, currentKeys),
+    previousYear: total(previous[index], previousKeys),
+  }));
 }

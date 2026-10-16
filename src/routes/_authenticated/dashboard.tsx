@@ -37,7 +37,8 @@ import {
   computeKpis,
   computeOpportunityOrigins,
   computeTimeseries,
-  computeYoYComparison,
+  buildOpportunityComparison,
+  type OpportunityComparisonPoint,
   filterAnalyticsByOrigin,
   fetchAnalytics,
   pct,
@@ -156,19 +157,23 @@ function Dashboard() {
 
   const yoyCreatedMonthly =
     originAnalytics && priorYearAnalytics
-      ? computeYoYComparison(
+      ? buildOpportunityComparison(
           originAnalytics.createdMonthly,
+          originAnalytics.sources,
           priorYearAnalytics.createdMonthly,
-          originAnalytics.sources.map((s) => s.key),
+          priorYearAnalytics.sources,
+          selectedOrigin,
         )
       : [];
 
   const yoyClosedMonthly =
     originAnalytics && priorYearAnalytics
-      ? computeYoYComparison(
+      ? buildOpportunityComparison(
           originAnalytics.closedMonthly,
+          originAnalytics.sources,
           priorYearAnalytics.closedMonthly,
-          originAnalytics.sources.map((s) => s.key),
+          priorYearAnalytics.sources,
+          selectedOrigin,
         )
       : [];
 
@@ -365,17 +370,17 @@ function Dashboard() {
               title="Oportunidades criadas (Ano Atual vs. Ano Anterior)"
               subtitle="Comparação YoY para o período selecionado."
               data={yoyCreatedMonthly}
-              sources={originSources}
               loading={isLoading}
-              isYoY={true}
+              currentYear={Number(to.slice(0, 4))}
+              previousYear={Number(priorYear.to.slice(0, 4))}
             />
             <OriginMonthlyChart
               title="Oportunidades ganhas (Ano Atual vs. Ano Anterior)"
               subtitle="Comparação YoY para o período selecionado."
               data={yoyClosedMonthly}
-              sources={originSources}
               loading={isLoading}
-              isYoY={true}
+              currentYear={Number(to.slice(0, 4))}
+              previousYear={Number(priorYear.to.slice(0, 4))}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
@@ -635,35 +640,73 @@ function EmptyOriginChart({ loading }: { loading: boolean }) {
   );
 }
 
+function OpportunityComparisonTooltip({
+  active,
+  payload,
+  label,
+  currentYear,
+  previousYear,
+}: {
+  active?: boolean;
+  payload?: { payload: OpportunityComparisonPoint }[];
+  label?: string;
+  currentYear: number;
+  previousYear: number;
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+  const variation =
+    point.previousYear > 0
+      ? ((point.currentYear - point.previousYear) / point.previousYear) * 100
+      : null;
+  return (
+    <div style={tooltipStyle} className="space-y-1 p-2 text-xs">
+      <div className="font-semibold">{label}</div>
+      <div>
+        Ano Atual ({currentYear}): {point.currentYear.toLocaleString("pt-BR")}
+      </div>
+      <div>
+        Ano Anterior ({previousYear}): {point.previousYear.toLocaleString("pt-BR")}
+      </div>
+      <div>
+        Variação:{" "}
+        {variation === null
+          ? "—"
+          : `${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+      </div>
+    </div>
+  );
+}
+
 function OriginMonthlyChart({
   title,
   subtitle,
   data,
-  sources,
   loading,
-  isYoY,
+  currentYear,
+  previousYear,
 }: {
   title: string;
   subtitle: string;
-  data: Record<string, string | number>[];
-  sources: { key: string; label: string }[];
+  data: OpportunityComparisonPoint[];
   loading: boolean;
-  isYoY?: boolean;
+  currentYear: number;
+  previousYear: number;
 }) {
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle}>
       <div className="h-52 min-w-0">
-        {data.length && sources.length ? (
+        {data.length ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart
               data={data}
-              maxBarSize={isYoY ? 24 : 48}
-              barCategoryGap={isYoY ? "20%" : "14%"}
+              maxBarSize={32}
+              barCategoryGap="20%"
               margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis
-                dataKey="month"
+                dataKey="monthLabel"
                 interval="preserveStartEnd"
                 minTickGap={12}
                 tick={{ fontSize: 10 }}
@@ -672,45 +715,20 @@ function OriginMonthlyChart({
               />
               <YAxis {...axis} allowDecimals={false} />
               <Tooltip
-                contentStyle={tooltipStyle}
-                formatter={(value: number) => value.toLocaleString("pt-BR")}
-              />
-              {sources.map((source, index) => {
-                const color = ORIGIN_COLORS[index % ORIGIN_COLORS.length];
-                if (isYoY) {
-                  return (
-                    <Bar
-                      key={`${source.key}_group`}
-                      dataKey={`${source.key}_current`}
-                      name={`${source.label} (Atual)`}
-                      fill={color}
-                      opacity={1}
-                    />
-                  );
-                }
-                return (
-                  <Bar
-                    key={source.key}
-                    dataKey={source.key}
-                    name={source.label}
-                    stackId="origins"
-                    fill={color}
+                content={
+                  <OpportunityComparisonTooltip
+                    currentYear={currentYear}
+                    previousYear={previousYear}
                   />
-                );
-              })}
-              {isYoY &&
-                sources.map((source, index) => {
-                  const color = ORIGIN_COLORS[index % ORIGIN_COLORS.length];
-                  return (
-                    <Bar
-                      key={`${source.key}_prior`}
-                      dataKey={`${source.key}_prior`}
-                      name={`${source.label} (Anterior)`}
-                      fill={color}
-                      opacity={0.5}
-                    />
-                  );
-                })}
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar
+                dataKey="previousYear"
+                name={`Ano Anterior (${previousYear})`}
+                fill="#64748B"
+              />
+              <Bar dataKey="currentYear" name={`Ano Atual (${currentYear})`} fill="#22C55E" />
             </BarChart>
           </ResponsiveContainer>
         ) : (
