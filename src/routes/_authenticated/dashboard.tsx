@@ -18,6 +18,7 @@ import { ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingU
 
 import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { SyncButton } from "@/components/dashboard/SyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -192,6 +193,7 @@ function Dashboard() {
             <p className="text-sm text-foreground/70">Mídia paga, oportunidades ClickMassa e reservas HQ</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
+            <SyncButton />
             <label className="text-xs text-foreground/70">
               De
               <Input
@@ -228,14 +230,6 @@ function Dashboard() {
                 ))}
               </select>
             </label>
-            <button
-              onClick={() => refetch()}
-              className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold text-[color:var(--brand-dark)]"
-              style={{ background: "var(--brand-vivid)", boxShadow: "var(--shadow-glow)" }}
-            >
-              <RefreshCw className={`size-3.5 ${isFetching ? "animate-spin" : ""}`} />
-              Sincronizar
-            </button>
           </div>
         </header>
 

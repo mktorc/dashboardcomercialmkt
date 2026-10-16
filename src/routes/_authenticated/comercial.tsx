@@ -30,6 +30,7 @@ import { toast } from "sonner";
 
 import { guardPage } from "@/lib/roles";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { SyncButton } from "@/components/dashboard/SyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -271,6 +272,7 @@ export function ComercialPage({
             <p className="text-sm text-foreground/70">Equipe de vendas — ClickMassa + HQ Rentals</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
+            <SyncButton />
             <label className="text-xs text-foreground/70">
               De
               <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
@@ -334,7 +336,7 @@ export function ComercialPage({
               </div>
               <div className="space-y-4">
                 {discountCard}
-                <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" fmt={pct} expandable />
+                <GoalChart title="Desconto médio (%)" subtitle="Alcançado vs. limite" data={goalRows} h={chartH} a="descontoPct" b="discountGoal" bLabel="Limite" fmt={pct} expandable />
                 {active === "comercial-operacional" ? occupancyCards?.[2] : null}
               </div>
               {active === "comercial" ? occupancyCards : null}
@@ -752,6 +754,7 @@ function GoalChart({
   h,
   a,
   b,
+  bLabel = "Meta",
   fmt,
   expandable = false,
 }: {
@@ -761,6 +764,7 @@ function GoalChart({
   h: number;
   a: keyof SellerRow;
   b?: keyof SellerRow;
+  bLabel?: string;
   fmt: (v: number) => string;
   expandable?: boolean;
 }) {
@@ -783,7 +787,7 @@ function GoalChart({
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
             <Legend />
             <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]} />
-            {b ? <Bar dataKey={b} name="Meta" fill="#2f9c5a" radius={[0, 4, 4, 0]} /> : null}
+            {b ? <Bar dataKey={b} name={bLabel} fill="#2f9c5a" radius={[0, 4, 4, 0]} /> : null}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -1163,15 +1167,15 @@ function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: st
         </p>
       </div>
       <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[960px] text-sm [&_td]:px-3 [&_th]:px-3 [&_td]:align-middle">
           <thead className="text-xs uppercase text-muted-foreground">
             <tr>
-              <th className="py-2 text-left">Atendente</th>
-              <th className="py-2 text-right">Valor vendido</th>
-              <th className="py-2 pl-4 text-left">Atingimento</th>
+              <th className="py-2 text-left whitespace-nowrap">Atendente</th>
+              <th className="py-2 text-right whitespace-nowrap">Valor vendido</th>
+              <th className="py-2 text-left">Atingimento</th>
               <th className="py-2 text-left">Faixa atual</th>
               <th className="py-2 text-right">Comissão estimada</th>
-              <th className="py-2 pl-4 text-left">Próximo nível</th>
+              <th className="py-2 text-left">Próximo nível</th>
             </tr>
           </thead>
           <tbody>
@@ -1179,21 +1183,21 @@ function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: st
               const c = commissionFor(s.faturamento, s.revenueGoal, teamAtt);
               return (
                 <tr key={s.name} className="border-t border-border">
-                  <td className="py-2 text-foreground">{s.name}</td>
-                  <td className="py-2 text-right">{brl(s.faturamento)}</td>
-                  <td className="py-2 pl-4">
+                  <td className="py-3 text-foreground">{s.name}</td>
+                  <td className="py-3 text-right whitespace-nowrap">{brl(s.faturamento)}</td>
+                  <td className="py-3 min-w-[190px]">
                     {s.revenueGoal > 0 ? (
                       <div className="flex items-center gap-2">
-                        <div className="h-2 w-28 overflow-hidden rounded-full bg-secondary">
+                        <div className="h-2 w-24 shrink-0 overflow-hidden rounded-full bg-secondary">
                           <div className="h-full bg-accent" style={{ width: `${Math.min(100, c.attainment * 100)}%` }} />
                         </div>
-                        <span className="text-xs">{(c.attainment * 100).toFixed(1)}%</span>
+                        <span className="w-12 shrink-0 text-right text-xs tabular-nums">{(c.attainment * 100).toFixed(1)}%</span>
                       </div>
                     ) : <span className="text-xs text-muted-foreground">Sem meta</span>}
                   </td>
-                  <td className="py-2 text-xs">{c.label}</td>
-                  <td className="py-2 text-right font-semibold text-accent">{brl(c.commission)}</td>
-                  <td className="py-2 pl-4 text-xs text-muted-foreground">
+                  <td className="py-3 text-xs min-w-[180px]">{c.label}</td>
+                  <td className="py-3 text-right font-semibold text-accent whitespace-nowrap">{brl(c.commission)}</td>
+                  <td className="py-3 text-xs text-muted-foreground min-w-[240px]">
                     {s.revenueGoal <= 0 ? "Cadastre a meta individual" : c.next
                       ? `Faltam ${brl(c.next.missing)} em vendas para atingir ${Math.round(c.next.pct * 100)}% e subir para ${pctBR(c.next.rate)}`
                       : hit ? "Nível máximo atingido" : "Falta a meta geral para liberar 1,75%"}

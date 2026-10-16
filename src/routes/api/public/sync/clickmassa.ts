@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { recordSyncRun } from "@/lib/sync-runs";
 
 // Sincronização ClickMassa (API) -> tabela `crm_leads`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>.
@@ -159,7 +160,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             console.error("tasks sync", e);
           }
 
-          return Response.json({
+          await recordSyncRun("clickmassa");
+        return Response.json({
             ok: true,
             tasksSynced,
             pipelines: pipelines.map((p) => p["name"]),

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { recordSyncRun } from "@/lib/sync-runs";
 
 // Sincroniza oportunidades do ClickMassa buscando GET /opportunity/:id
 // (a API não tem listagem). Varre uma faixa de IDs e faz upsert em crm_opportunities.
@@ -112,6 +113,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         for (let i = 0; i < notFound.length; i += 500) {
           await supabaseAdmin.from("crm_opportunities").delete().in("opportunity_id", notFound.slice(i, i + 500));
         }
+        await recordSyncRun("clickmassa-opportunities");
         return Response.json({ ok: true, from, to, found: rows.length, originsUpdated, removed: notFound.length, errors });
       },
     },

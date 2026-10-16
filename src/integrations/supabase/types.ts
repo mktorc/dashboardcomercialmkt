@@ -155,6 +155,21 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_runs: {
+        Row: {
+          last_success_at: string
+          service: string
+        }
+        Insert: {
+          last_success_at?: string
+          service: string
+        }
+        Update: {
+          last_success_at?: string
+          service?: string
+        }
+        Relationships: []
+      }
       fleet_stats: {
         Row: {
           id: number

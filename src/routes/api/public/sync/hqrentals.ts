@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { recordSyncRun } from "@/lib/sync-runs";
 import { extractAdditionalChargesPrice, extractMiscellaneousPrice, normalizeStatus } from "@/lib/hq-charges";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
@@ -154,6 +155,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           }
         }
 
+        await recordSyncRun("hqrentals");
         return Response.json({ ok: true, synced: rows.length });
       },
     },

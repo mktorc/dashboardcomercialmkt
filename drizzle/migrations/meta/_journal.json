@@ -218,6 +218,13 @@
       "when": 1792071860338,
       "tag": "0030_funnel_leads_first_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792071860339,
+      "tag": "0031_sync_runs",
+      "breakpoints": true
     }
   ]
 }
