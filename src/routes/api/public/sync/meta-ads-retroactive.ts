@@ -58,7 +58,8 @@ export const Route = createFileRoute("/api/public/sync/meta-ads-retroactive")({
                 impressions = Math.floor((daySpend * 2) + Math.random() * 1500);
               }
 
-              const campaign = campaigns[Math.floor(Math.random() * campaigns.length)];
+              const campaign = campaigns[Math.floor(Math.random() * campaigns.length)] ?? campaigns[0];
+              if (!campaign) throw new Error("Nenhuma campanha disponível");
 
               data.push({
                 date: dateStr,
@@ -78,7 +79,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads-retroactive")({
           };
 
           const data = generateData();
-          const totalSpend = data.reduce((sum, row) => sum + (Number(row.spend) || 0), 0);
+          const totalSpend = data.reduce((sum, row) => sum + (Number(row["spend"]) || 0), 0);
 
           console.log(`[Meta Ads Retroativo] Injetando ${data.length} registros...`);
           console.log(`[Meta Ads Retroativo] Gasto total: US$ ${totalSpend.toFixed(2)}`);

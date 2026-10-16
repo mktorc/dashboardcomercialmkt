@@ -147,7 +147,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
             next = ((j["paging"] as Obj | undefined)?.["next"] as string) ?? null;
           }
 
-          const totalSpend = rows.reduce((sum, r) => sum + (Number(r.spend) || 0), 0);
+          const totalSpend = rows.reduce((sum, r) => sum + (Number(r["spend"]) || 0), 0);
           console.log(`[Meta Ads Sync] Registros recuperados da API: ${rows.length}`);
           console.log(`[Meta Ads Sync] Gasto total na API: US$ ${totalSpend.toFixed(2)}`);
 
