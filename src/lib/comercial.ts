@@ -65,8 +65,10 @@ export const sellerKey = (n: string | null | undefined) => {
   return k ? (ALIASES[k] ?? k) : "sem_vendedor";
 };
 
-const startIso = (d: string) => new Date(d + "T00:00:00").toISOString();
-const endIso = (d: string) => new Date(d + "T23:59:59.999").toISOString();
+// Limites do período em UTC, o mesmo referencial usado para agrupar por dia/mês
+// (created_at.slice(...)) e igual ao do HQ; o fuso do navegador deslocava as bordas.
+const startIso = (d: string) => `${d}T00:00:00.000Z`;
+const endIso = (d: string) => `${d}T23:59:59.999Z`;
 
 // Calcula o período homólogo no mês anterior mantendo a mesma janela de dias
 export function getPreviousPeriod(from: string, to: string) {
