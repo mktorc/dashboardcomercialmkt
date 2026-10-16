@@ -24,7 +24,6 @@ export type Database = {
           id: string
           lead_id: string | null
           lead_origin: string | null
-          first_connection_name: string | null
           name: string | null
           phone: string | null
           phone8: string | null
@@ -44,7 +43,6 @@ export type Database = {
           id?: string
           lead_id?: string | null
           lead_origin?: string | null
-          first_connection_name?: string | null
           name?: string | null
           phone?: string | null
           phone8?: string | null
@@ -64,7 +62,6 @@ export type Database = {
           id?: string
           lead_id?: string | null
           lead_origin?: string | null
-          first_connection_name?: string | null
           name?: string | null
           phone?: string | null
           phone8?: string | null
