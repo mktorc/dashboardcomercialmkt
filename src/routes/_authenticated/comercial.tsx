@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -37,10 +37,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { brl, pct } from "@/lib/analytics";
 import {
@@ -104,6 +102,8 @@ export function ComercialPage({
   const [to, setTo] = useState(ymd(now));
   const [search, setSearch] = useState("");
   const [noTaskOpen, setNoTaskOpen] = useState(false);
+  const [tab, setTab] = useState<"visao" | "metas">("visao");
+  const showGoals = active === "comercial" && tab === "metas";
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "faturamento", dir: -1 });
 
   const { data, isLoading, error } = useQuery({
@@ -121,6 +121,8 @@ export function ComercialPage({
       )
     : null, [teamData, from, to, active]);
   const { data: occ } = useQuery({ queryKey: ["occupancy", from, to], queryFn: () => fetchOccupancy(from, to), enabled: active === "comercial" || active === "comercial-operacional" });
+  // Cards de ocupação não consideram o filtro de período: sempre mês atual, seguinte e +2.
+  const { data: occCards } = useQuery({ queryKey: ["occupancy", "cards"], queryFn: () => fetchOccupancy(), enabled: active === "comercial" || active === "comercial-operacional" });
   const k = view?.kpis;
   const cardGoals = revenueAndTicketGoals(teamData?.goals ?? [], from, to);
   const revenuePace = expectedRevenueByDate(teamData?.goals ?? [], from, to);
@@ -202,9 +204,9 @@ export function ComercialPage({
     className={firstRowOperationalCardClass} />;
   const occupancyCards = active === "comercial" || active === "comercial-operacional" ? ["Ocupação do mês atual", "Ocupação do mês seguinte", "Ocupação do mês +2"].map((label, index) => {
     const occupancyMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index, 1)).toISOString().slice(0, 7);
-    const month = occ?.months.find((item) => item.month === occupancyMonth);
+    const month = occCards?.months.find((item) => item.month === occupancyMonth);
     const previousMonthKey = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index - 1, 1)).toISOString().slice(0, 7);
-    const previousMonth = occ?.months.find((item) => item.month === previousMonthKey);
+    const previousMonth = occCards?.months.find((item) => item.month === previousMonthKey);
     const occupancyRate = month?.rate;
     const occupancyVariation = occupancyMonthVariation(month, previousMonth);
     const occupancyTarget = data?.goals.find((g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth)?.discount_goal;
@@ -277,11 +279,18 @@ export function ComercialPage({
               Até
               <Input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
             </label>
-            {view ? <GoalsDialog sellers={view.sellers} month={view.goalMonth} goals={teamData?.goals ?? []} /> : null}
           </div>
         </header>
 
         <div className="space-y-6 p-6">
+          {active === "comercial" ? (
+            <div className="flex gap-2 border-b border-border pb-2">
+              <Button size="sm" variant={tab === "visao" ? "default" : "outline"} onClick={() => setTab("visao")}>Visão geral</Button>
+              <Button size="sm" variant={tab === "metas" ? "default" : "outline"} onClick={() => setTab("metas")}>
+                <Target className="mr-1 size-4" /> Metas
+              </Button>
+            </div>
+          ) : null}
           {error ? (
             <Card className="border-destructive/40 p-4 text-sm text-destructive">
               Não foi possível carregar os dados comerciais agora.
@@ -289,6 +298,11 @@ export function ComercialPage({
             </Card>
           ) : null}
 
+          {showGoals ? (
+            view ? <GoalsPanel sellers={view.sellers} month={view.goalMonth} goals={teamData?.goals ?? []} /> : (
+              <Card className="p-4 text-sm text-muted-foreground">Carregando metas…</Card>
+            )
+          ) : (<>
           <section className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-4">
                 {opportunityCard}
@@ -424,6 +438,7 @@ export function ComercialPage({
               teamGoal={cardGoals.revenue}
             />
           ) : null}
+          </>)}
         </div>
       </main>
       <Dialog open={noTaskOpen} onOpenChange={setNoTaskOpen}>
@@ -770,7 +785,7 @@ function GoalChart({
   );
 }
 
-function GoalsDialog({
+function GoalsPanel({
   sellers,
   month,
   goals,
@@ -780,7 +795,6 @@ function GoalsDialog({
   goals: Goal[];
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"commercial" | "general">("commercial");
   const [m, setM] = useState(month);
   
@@ -858,32 +872,22 @@ function GoalsDialog({
     onSuccess: () => {
       toast.success("Metas salvas com sucesso");
       qc.invalidateQueries({ queryKey: ["comercial"] });
-      setOpen(false);
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        setOpen(o);
-        if (o) {
-          setM(month);
-          load(month);
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9">
-          <Target className="mr-1 size-4" /> Metas
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Definição de Metas</DialogTitle>
-        </DialogHeader>
+  useEffect(() => {
+    setM(month);
+  }, [month]);
+  useEffect(() => {
+    load(m);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [m, goals, sellers]);
 
+  return (
+    <Card className="max-w-2xl p-5">
+      <h2 className="mb-3 text-base font-semibold">Definição de Metas</h2>
+      <div>
         {/* Seletor de Abas */}
         <div className="flex space-x-2 border-b pb-2 mb-3">
           <Button
@@ -1024,13 +1028,13 @@ function GoalsDialog({
           </div>
         )}
 
-        <DialogFooter className="mt-4">
+        <div className="mt-4 flex justify-end">
           <Button onClick={() => mut.mutate()} disabled={mut.isPending}>
             Salvar metas
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Card>
   );
 }
 
