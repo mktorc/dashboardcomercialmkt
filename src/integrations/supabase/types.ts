@@ -19,6 +19,7 @@ export type Database = {
           created_at: string
           email: string | null
           email_lc: string | null
+          first_connection_name: string | null
           first_response_at: string | null
           id: string
           lead_id: string | null
@@ -37,6 +38,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           email_lc?: string | null
+          first_connection_name?: string | null
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
@@ -55,6 +57,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           email_lc?: string | null
+          first_connection_name?: string | null
           first_response_at?: string | null
           id?: string
           lead_id?: string | null
@@ -246,6 +249,7 @@ export type Database = {
           date: string
           id: string
           impressions: number
+          leads: number | null
           spend: number
           utm_campaign: string | null
         }
@@ -258,6 +262,7 @@ export type Database = {
           date: string
           id?: string
           impressions?: number
+          leads?: number | null
           spend?: number
           utm_campaign?: string | null
         }
@@ -270,6 +275,7 @@ export type Database = {
           date?: string
           id?: string
           impressions?: number
+          leads?: number | null
           spend?: number
           utm_campaign?: string | null
         }
