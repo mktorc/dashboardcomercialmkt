@@ -4,14 +4,22 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 // Dispara os mesmos endpoints de sync usados pelo agendamento, com o segredo no servidor.
 const JOBS = [
-  { name: "ClickMassa", path: "/api/public/sync/clickmassa" },
+  { name: "ClickMassa", path: "/api/public/sync/clickmassa?startPage=1&maxPages=5" },
   { name: "ClickMassa (oportunidades)", path: "/api/public/sync/clickmassa-opportunities" },
   { name: "HQ Rentals", path: "/api/public/sync/hqrentals?days=7" },
 ] as const;
 
 export type SyncFailure = { service: string; error: string; status?: number; stack?: string | undefined };
 
+const PRODUCTION_ORIGIN = "https://dashboardcomercialmkt.lovable.app";
+
 function resolveOrigin(request: Request): string {
+  const h0 = request.headers;
+  const host0 = (h0.get("x-forwarded-host") ?? h0.get("host") ?? "").toLowerCase();
+  // Previews exigem sessão da plataforma e respondem 401 a chamadas servidor→servidor.
+  if (host0.includes("id-preview--") || host0.includes("lovableproject.com") || host0.includes("preview--")) {
+    return PRODUCTION_ORIGIN;
+  }
   const envUrl = process.env["PUBLIC_URL"];
   if (envUrl) return envUrl.replace(/\/$/, "");
   const h = request.headers;
