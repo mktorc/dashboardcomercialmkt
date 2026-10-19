@@ -103,7 +103,8 @@ export async function fetchKommoWins(fromIso: string, toIso: string): Promise<Ko
     // reservations já vem ordenado por created_at: a primeira posterior à criação do lead vence.
     const match = reservations.find(
       (r) =>
-        r.created_at >= lead.created_at &&
+        // Mesma tolerância de 1 dia da coorte do banco (0021_cohort_reservations_definer).
+        Date.parse(r.created_at) >= Date.parse(lead.created_at) - 86_400_000 &&
         ((r.phone8 && r.phone8 === lead.phone8) || (r.email_lc && r.email_lc === lead.email_lc)),
     );
     if (match) wins.push({ lead, wonAt: match.created_at });

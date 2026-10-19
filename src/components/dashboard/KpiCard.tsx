@@ -16,6 +16,7 @@ export function KpiCard({
   compact = false,
   tight = false,
   aligned = false,
+  wrapHint = false,
   className,
 }: {
   label: string;
@@ -29,6 +30,8 @@ export function KpiCard({
   compact?: boolean;
   tight?: boolean;
   aligned?: boolean;
+  /** Permite o subtítulo quebrar em várias linhas (aceita \n) em vez de truncar. */
+  wrapHint?: boolean;
   className?: string | undefined;
 }) {
   const progress = goal ? goalProgress(goal.actual, goal.target) : null;
@@ -86,7 +89,7 @@ export function KpiCard({
         <p className={cn("truncate font-semibold", tight ? "text-[22px] leading-7" : "text-2xl", highlight ? "text-accent" : "text-foreground")}>
           {value}
         </p>
-        {hint ? <p className={cn("text-muted-foreground", compact ? "mt-0.5 truncate text-[10px] leading-3" : "mt-1 text-xs")}>{hint}</p> : null}
+        {hint ? <p className={cn("text-muted-foreground", wrapHint ? "mt-1 whitespace-pre-line text-xs leading-4" : compact ? "mt-0.5 truncate text-[10px] leading-3" : "mt-1 text-xs")}>{hint}</p> : null}
       </div>
       {aligned ? (
         <div className="mt-auto flex h-14 w-full flex-col justify-end">

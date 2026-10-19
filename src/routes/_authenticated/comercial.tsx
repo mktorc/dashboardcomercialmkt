@@ -342,32 +342,25 @@ export function ComercialPage({
               {active === "comercial" ? occupancyCards : null}
           </section>
 
-          <SellerLineChart
-            title="Oportunidades por vendedor por dia"
-            data={view?.dailyOpportunitiesBySeller ?? []}
-            series={view?.dailyOpportunityKeys ?? []}
-            expandable
-          />
-
-          {active === "comercial-operacional" ? (
-            <SellerLineChart
-              title="Valor fechado por vendedor por dia"
-              data={view?.dailyRevenueBySeller ?? []}
-              series={view?.dailyRevenueKeys ?? []}
-              currency
-              expandable
-            />
-          ) : (
-            <SellerLineChart
-              title="Valor fechado por vendedor ao mês"
-              subtitle="Período selecionado, pela data de criação da reserva."
-              data={monthlyRevenue}
-              dataKey="mes"
-              series={view?.stackKeys ?? []}
-              currency
-              expandable
-            />
-          )}
+          {active === "comercial" ? (
+            <>
+              <SellerLineChart
+                title="Oportunidades por vendedor por dia"
+                data={view?.dailyOpportunitiesBySeller ?? []}
+                series={view?.dailyOpportunityKeys ?? []}
+                expandable
+              />
+              <SellerLineChart
+                title="Valor fechado por vendedor ao mês"
+                subtitle="Período selecionado, pela data de criação da reserva."
+                data={monthlyRevenue}
+                dataKey="mes"
+                series={view?.stackKeys ?? []}
+                currency
+                expandable
+              />
+            </>
+          ) : null}
 
           {active === "comercial" ? (
             <section className="grid gap-4 xl:grid-cols-2">
@@ -1123,8 +1116,8 @@ function RevenueBreakdownChart({
 }) {
   return (
     <ExpandableChartPanel
-      title="Faturamento diário por componente (Time Comercial)"
-      subtitle="Quebra de receita em Rack Rate, Taxas Diversas e Cobranças Adicionais"
+      title="Faturamento mensal por componente (Time Comercial)"
+      subtitle="Últimos 13 meses — Rack Rate, Taxas Diversas e Cobranças Adicionais"
       expandable
       render={(expanded) => (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 320, minHeight: 0 }}>
@@ -1149,8 +1142,25 @@ function RevenueBreakdownChart({
   );
 }
 
+function useUsdBrl() {
+  return useQuery({
+    queryKey: ["usd-brl"],
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+      if (!res.ok) throw new Error("cotação indisponível");
+      const json = await res.json();
+      const bid = Number(json?.USDBRL?.bid);
+      if (!Number.isFinite(bid) || bid <= 0) throw new Error("cotação inválida");
+      return bid;
+    },
+  });
+}
+
 function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: string; faturamento: number; revenueGoal: number }[]; teamSold: number; teamGoal: number }) {
   const teamAtt = teamGoal > 0 ? teamSold / teamGoal : 0;
+  const { data: usdBrl } = useUsdBrl();
+  const brlReais = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const hit = teamAtt >= 1;
   const pctBR = (v: number) => `${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
   return (
@@ -1166,7 +1176,40 @@ function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: st
           {hit ? "Meta geral atingida — gatilho de 1,75% liberado para quem bateu 100% da meta individual." : `Faltam ${brl(Math.max(0, teamGoal - teamSold))} para liberar o gatilho de 1,75%.`}
         </p>
       </div>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 space-y-3 md:hidden">
+        {sellers.map((s) => {
+          const c = commissionFor(s.faturamento, s.revenueGoal, teamAtt);
+          const tone = c.attainment < 0.75 ? "text-red-500" : c.attainment < 0.9 ? "text-yellow-500" : "text-green-500";
+          return (
+            <div key={s.name} className="rounded-md border border-border p-3 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span className="font-semibold text-foreground">{s.name}</span>
+                <div className="text-right font-semibold text-accent">
+                  <div>{brl(c.commission)}</div>
+                  <div className="text-xs font-normal text-muted-foreground">{usdBrl ? brlReais(c.commission * usdBrl) : "cotação indisponível"}</div>
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Vendido: {brl(s.faturamento)}</p>
+              {s.revenueGoal > 0 ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                    <div className="h-full bg-accent" style={{ width: `${Math.min(100, c.attainment * 100)}%` }} />
+                  </div>
+                  <span className="text-xs tabular-nums">{(c.attainment * 100).toFixed(1)}%</span>
+                </div>
+              ) : <p className="mt-2 text-xs text-muted-foreground">Sem meta</p>}
+              <p className={`mt-2 text-xs font-medium ${tone}`}>{c.label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {s.revenueGoal <= 0 ? "Cadastre a meta individual" : c.next
+                  ? `Faltam ${brl(c.next.missing)} em vendas para atingir ${Math.round(c.next.pct * 100)}% e subir para ${pctBR(c.next.rate)}`
+                  : hit ? "Nível máximo atingido" : "Falta a meta geral para liberar 1,75%"}
+              </p>
+            </div>
+          );
+        })}
+        {!sellers.length ? <p className="py-6 text-center text-muted-foreground">Nenhum atendente no período.</p> : null}
+      </div>
+      <div className="mt-4 hidden overflow-x-auto md:block">
         <table className="w-full min-w-[960px] text-sm [&_td]:px-3 [&_th]:px-3 [&_td]:align-middle">
           <thead className="text-xs uppercase text-muted-foreground">
             <tr>
@@ -1174,7 +1217,7 @@ function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: st
               <th className="py-2 text-right whitespace-nowrap">Valor vendido</th>
               <th className="py-2 text-left">Atingimento</th>
               <th className="py-2 text-left">Faixa atual</th>
-              <th className="py-2 text-right">Comissão estimada</th>
+              <th className="py-2 text-right">Comissão estimada (USD / BRL{usdBrl ? ` · US$1 = R$${usdBrl.toFixed(2).replace(".", ",")}` : ""})</th>
               <th className="py-2 text-left">Próximo nível</th>
             </tr>
           </thead>
@@ -1195,8 +1238,11 @@ function CommissionModule({ sellers, teamSold, teamGoal }: { sellers: { name: st
                       </div>
                     ) : <span className="text-xs text-muted-foreground">Sem meta</span>}
                   </td>
-                  <td className="py-3 text-xs min-w-[180px]">{c.label}</td>
-                  <td className="py-3 text-right font-semibold text-accent whitespace-nowrap">{brl(c.commission)}</td>
+                  <td className={`py-3 text-xs min-w-[180px] font-medium ${c.attainment < 0.75 ? "text-red-500" : c.attainment < 0.9 ? "text-yellow-500" : "text-green-500"}`}>{c.label}</td>
+                  <td className="py-3 text-right font-semibold text-accent whitespace-nowrap">
+                    <div>{brl(c.commission)}</div>
+                    <div className="text-xs font-normal text-muted-foreground">{usdBrl ? brlReais(c.commission * usdBrl) : "cotação indisponível"}</div>
+                  </td>
                   <td className="py-3 text-xs text-muted-foreground min-w-[240px]">
                     {s.revenueGoal <= 0 ? "Cadastre a meta individual" : c.next
                       ? `Faltam ${brl(c.next.missing)} em vendas para atingir ${Math.round(c.next.pct * 100)}% e subir para ${pctBR(c.next.rate)}`

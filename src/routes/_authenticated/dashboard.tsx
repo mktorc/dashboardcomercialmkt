@@ -36,6 +36,8 @@ import {
   buildMarketingFunnel,
   computeAttribution,
   computeKpis,
+  computeChannelComparison,
+  type ChannelComparisonMode,
   computeOpportunityOrigins,
   computeTimeseries,
   buildOpportunityComparison,
@@ -107,6 +109,7 @@ function Dashboard() {
   );
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
+  const [channelMode, setChannelMode] = useState<ChannelComparisonMode>("both");
   const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({ key: "investimento", dir: -1 });
   const priorYear = getPriorYearDates(from, to);
   const { data, isLoading, isFetching, refetch, error } = useQuery({
@@ -141,6 +144,7 @@ function Dashboard() {
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   const kpis = originData ? computeKpis(originData) : null;
+  const channelComparison = data ? computeChannelComparison(data.current, channelMode) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
   attribution = attribution.sort((a, b) => {
@@ -249,8 +253,8 @@ function Dashboard() {
               hint={
                 kpis ? `Meta ${brl(kpis.metaSpend)} · Google ${brl(kpis.googleSpend)}` : undefined
               }
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
             <KpiCard
@@ -258,8 +262,8 @@ function Dashboard() {
               label="CPL global"
               value={kpis ? brl(kpis.cpl) : "—"}
               hint={kpis ? `${kpis.leads} oportunidades no ClickMassa` : undefined}
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
             <KpiCard
@@ -268,8 +272,8 @@ function Dashboard() {
               value={kpis ? pct(kpis.conversion) : "—"}
               hint={kpis ? `${kpis.reservations} reservas fechadas no HQ` : undefined}
               highlight
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
             <KpiCard
@@ -277,17 +281,17 @@ function Dashboard() {
               label="Ticket médio"
               value={kpis ? brl(kpis.ticket) : "—"}
               hint="Valor médio por reserva HQ"
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
             <KpiCard
               icon={Gauge}
               label="Custo de aquisição de clientes"
               value={kpis?.cac == null ? "—" : brl(kpis.cac)}
-              hint={kpis ? `Somente mídia · Meta + Google ÷ ${kpis.reservations} reservas HQ` : undefined}
+              hint={kpis ? `Somente mídia · Meta + Google ÷ ${kpis.reservations} reservas HQ\nCAC percentual: ${kpis.cacPct == null ? "—" : `${(kpis.cacPct * 100).toFixed(1).replace(".", ",")}%`} do rack rate` : undefined}
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
             <KpiCard
@@ -296,8 +300,8 @@ function Dashboard() {
               value={kpis ? `${kpis.roas.toFixed(2)}x` : "—"}
               hint={kpis ? `Faturamento ${brl(kpis.revenue)}` : undefined}
               highlight
+              wrapHint
               compact
-              aligned
               className="h-[160px]"
             />
           </section>
@@ -377,6 +381,36 @@ function Dashboard() {
               previousYear={Number(priorYear.to.slice(0, 4))}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Comparativo de Conversão e CAC % (Marketing)</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate.
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
+                    <Button key={key} size="sm" variant={channelMode === key ? "default" : "outline"} onClick={() => setChannelMode(key)}>
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4 h-[300px] w-full min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[{ canal: channelMode === "meta" ? "Meta Ads" : channelMode === "google" ? "Google Ads" : "Meta + Google", conversao: channelComparison[0]?.value ?? 0, cac: channelComparison[1]?.value ?? 0 }]} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="canal" tick={{ fontSize: 12 }} />
+                    <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
+                    <Tooltip formatter={(v: number) => `${v.toFixed(2).replace(".", ",")}%`} />
+                    <Legend />
+                    <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill="#44E500" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cac" name="CAC Percentual (%)" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
               <p className="text-xs text-muted-foreground">
                 Contatos ClickMassa, oportunidades e reservas confirmadas criados no período; a etapa de leads de mídia aparece só para Meta Ads.
@@ -390,7 +424,7 @@ function Dashboard() {
                       return (
                         <div
                           key={index}
-                          className="flex min-h-14 max-w-full items-center justify-center gap-3 rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
+                          className="flex min-h-14 max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
                           style={{ width: `${Math.min(100, w)}%` }}
                         >
                           <span className="text-xs font-medium">{stage.label}</span>
@@ -400,11 +434,11 @@ function Dashboard() {
                       );
                     })}
                   </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
                     {dynamicFunnel.metrics.map((m) => (
-                      <div key={m.label} className="rounded-md border border-border p-3">
-                        <p className="text-[11px] text-muted-foreground">{m.label}</p>
-                        <p className="text-lg font-semibold text-foreground">{m.value === null ? "—" : pct(m.value)}</p>
+                      <div key={m.label} className="flex min-w-0 flex-col justify-between gap-1 rounded-md border border-border p-3">
+                        <p className="break-words text-[11px] leading-4 text-muted-foreground">{m.label}</p>
+                        <p className="text-lg font-semibold leading-6 text-foreground">{m.value === null ? "—" : pct(m.value)}</p>
                       </div>
                     ))}
                   </div>

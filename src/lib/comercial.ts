@@ -83,9 +83,18 @@ export function getPreviousPeriod(from: string, to: string) {
   return { prevFrom: previousMonthDate(from), prevTo: previousMonthDate(to) };
 }
 
-async function fetchRevenueBreakdown(from: string, to: string) {
+/** Últimos 13 meses (YYYY-MM), terminando no mês atual: em nov/2026 começa em nov/2025. */
+function revenueBreakdownMonths() {
+  const now = new Date();
+  return Array.from({ length: 13 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+}
+
+async function fetchRevenueBreakdown() {
   try {
-    const histFrom = startIso(from);
+    const histFrom = startIso(`${revenueBreakdownMonths()[0]}-01`);
 
     // Fetch all required columns in a single query
     const { data, error } = await fetchAll((a, b) =>
@@ -93,7 +102,6 @@ async function fetchRevenueBreakdown(from: string, to: string) {
         .from("reservations")
         .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
         .gte("created_at", histFrom)
-        .lte("created_at", endIso(to))
         .range(a, b),
     );
 
@@ -105,7 +113,6 @@ async function fetchRevenueBreakdown(from: string, to: string) {
           .from("reservations")
           .select("created_at, seller_name, status, rack_rate")
           .gte("created_at", histFrom)
-          .lte("created_at", endIso(to))
           .range(a, b),
       );
 
@@ -205,7 +212,7 @@ export async function fetchComercial(from: string, to: string) {
     ),
   ]);
 
-  const revenueBreakdownData = await fetchRevenueBreakdown(from, to);
+  const revenueBreakdownData = await fetchRevenueBreakdown();
 
   // Leads do Kommo (anteriores ao ClickMassa): período anterior, 5 meses dos gráficos e ano anterior.
   const [ty, tm] = to.split("-").map(Number);
@@ -257,7 +264,7 @@ export async function fetchComercial(from: string, to: string) {
 export type ComercialData = Awaited<ReturnType<typeof fetchComercial>>;
 
 const OPERATIONAL_SELLERS = new Set(["nathalia", "mauro", "gessica", "thalita"]);
-const isOperationalSeller = (name: string | null | undefined) => OPERATIONAL_SELLERS.has(sellerKey(name));
+export const isOperationalSeller = (name: string | null | undefined) => OPERATIONAL_SELLERS.has(sellerKey(name));
 
 export function filterOperationalData(data: ComercialData): ComercialData {
   const keepGoal = (goal: Goal) =>
@@ -396,9 +403,8 @@ export function computeDailyRevenueBreakdown(
   to: string,
 ): Array<{ dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }> {
   const buckets = new Map<string, { dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }>();
-  for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
-    const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
-    const dia = `${key.slice(8)}/${key.slice(5, 7)}`;
+  for (const key of revenueBreakdownMonths()) {
+    const dia = `${key.slice(5, 7)}/${key.slice(2, 4)}`;
     buckets.set(key, {
       dia,
       rackRate: 0,
@@ -415,7 +421,7 @@ export function computeDailyRevenueBreakdown(
   reservations.forEach((reservation) => {
     if (reservation.status !== "confirmed") return;
     if (!isCommercialTeam(reservation.seller_name)) return;
-    const key = reservation.created_at.slice(0, 10);
+    const key = reservation.created_at.slice(0, 7);
     const bucket = buckets.get(key);
     if (!bucket) return;
 

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { isOperationalSeller } from "@/lib/comercial";
 import { fetchKommoLeads, fetchKommoWins, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-leads";
 
 const iso = (d: Date) => d.toISOString();
@@ -82,6 +83,7 @@ export function deduplicateReservations(reservations: ReservationRow[]) {
 export type OpportunityOriginRow = {
   opportunity_id: string;
   lead_id: string | null;
+  seller_name?: string | null;
   created_at: string;
   updated_at: string;
   stage_name: string | null;
@@ -128,6 +130,9 @@ const CONTACT_RULES: ContactRule[] = [
 export async function fetchAnalytics(from: string, to: string): Promise<AnalyticsData> {
   const fromDate = new Date(`${from}T00:00:00`);
   const toDate = new Date(`${to}T23:59:59.999`);
+  // Mesmos limites em UTC da aba Comercial, para as oportunidades baterem.
+  const utcFrom = `${from}T00:00:00.000Z`;
+  const utcTo = `${to}T23:59:59.999Z`;
   const [meta, google, reservations, createdOpportunities, updatedOpportunities, contacts, allLeads] = await Promise.all([
       fetchAll((a, b) =>
         supabase
@@ -162,18 +167,18 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         supabase
           .from("crm_opportunities")
           .select(
-            "opportunity_id, lead_id, created_at, updated_at, stage_name, status, pipeline_step_id",
+            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id",
           )
           .eq("pipeline_name", "Comercial")
-          .gte("created_at", iso(fromDate))
-          .lte("created_at", iso(toDate))
+          .gte("created_at", utcFrom)
+          .lte("created_at", utcTo)
           .range(a, b),
       ),
       fetchAll((a, b) =>
         supabase
           .from("crm_opportunities")
           .select(
-            "opportunity_id, lead_id, created_at, updated_at, stage_name, status, pipeline_step_id",
+            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id",
           )
           .eq("pipeline_name", "Comercial")
           .gte("updated_at", iso(fromDate))
@@ -215,7 +220,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const contactCounts = await Promise.all(CONTACT_RULES.map(countContacts));
   const contactsByOrigin = Object.fromEntries(CONTACT_RULES.map((r, i) => [r.id, contactCounts[i]!]));
   const [kommoLeads, kommoWins] = await Promise.all([
-    fetchKommoLeads(iso(fromDate), iso(toDate)),
+    fetchKommoLeads(utcFrom, utcTo),
     fetchKommoWins(iso(fromDate), iso(toDate)),
   ]);
 
@@ -229,15 +234,23 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     allLeads.error;
   if (err) throw err;
 
+  // Mesma base da aba Comercial: só vendedores operacionais.
   const createdRows = [
     ...((createdOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
     ...kommoLeads.map((lead) => kommoAsOpportunity(lead)),
-  ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
+  ].filter((row) => isOperationalSeller(row.seller_name)) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
   // Kommo: o updated_at foi reescrito na importação; o ganho é datado pela reserva do HQ.
   const updatedRows = [
     ...((updatedOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
     ...kommoWins.map(({ lead, wonAt }) => ({ ...kommoAsOpportunity(lead, ""), updated_at: wonAt })),
   ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
+  console.debug("[Analytics] ganhos", {
+    periodo: `${from} → ${to}`,
+    crmAtualizadas: updatedOpportunities.data?.length ?? 0,
+    kommoGanhosHQ: kommoWins.length,
+    kommoLeadsCriados: kommoLeads.length,
+    updatedGanhas: updatedRows.filter((r) => isWonOpportunity(r as OpportunityOriginRow)).length,
+  });
   const leadIds = [
     ...new Set(
       [...createdRows, ...updatedRows]
@@ -344,6 +357,8 @@ export function computeKpis(d: AnalyticsData) {
     revenue,
     ticket: confirmed.length ? revenue / confirmed.length : 0,
     cac: confirmed.length ? spend / confirmed.length : null,
+    /** CAC percentual: investimento ÷ faturamento em rack rate. */
+    cacPct: revenue > 0 ? spend / revenue : null,
     roas: spend ? revenue / spend : 0,
   };
 }
@@ -953,4 +968,29 @@ export function buildOpportunityComparison(
     currentYear: total(row, currentKeys),
     previousYear: total(previous[index], previousKeys),
   }));
+}
+
+export type ChannelComparisonMode = "meta" | "google" | "both";
+export type ChannelComparisonPoint = { metric: string; value: number };
+
+/** Taxa de conversão (ganhas ÷ criadas) e CAC % (investimento ÷ rack rate), em %, por canal de tráfego. */
+export function computeChannelComparison(data: AnalyticsData, mode: ChannelComparisonMode): ChannelComparisonPoint[] {
+  const scoped =
+    mode === "both"
+      ? {
+          ...data,
+          opportunities: data.opportunities.filter((o) => ["meta", "google"].includes(normalizeOrigin(o.utm_source))),
+          reservations: [
+            ...filterAnalyticsByOrigin(data, "meta").reservations,
+            ...filterAnalyticsByOrigin(data, "google").reservations,
+          ],
+        }
+      : filterAnalyticsByOrigin(data, mode);
+  const kpis = computeKpis(scoped);
+  const created = scoped.opportunities.length;
+  const won = scoped.opportunities.filter(isWonOpportunity).length;
+  return [
+    { metric: "Taxa de Conversão (%)", value: created ? (won / created) * 100 : 0 },
+    { metric: "CAC Percentual (%)", value: (kpis.cacPct ?? 0) * 100 },
+  ];
 }
