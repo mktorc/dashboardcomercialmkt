@@ -244,13 +244,6 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     ...((updatedOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
     ...kommoWins.map(({ lead, wonAt }) => ({ ...kommoAsOpportunity(lead, ""), updated_at: wonAt })),
   ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
-  console.debug("[Analytics] ganhos", {
-    periodo: `${from} → ${to}`,
-    crmAtualizadas: updatedOpportunities.data?.length ?? 0,
-    kommoGanhosHQ: kommoWins.length,
-    kommoLeadsCriados: kommoLeads.length,
-    updatedGanhas: updatedRows.filter((r) => isWonOpportunity(r as OpportunityOriginRow)).length,
-  });
   const leadIds = [
     ...new Set(
       [...createdRows, ...updatedRows]
