@@ -1,0 +1,10 @@
+DROP POLICY IF EXISTS "role read tasks" ON public.crm_tasks;
+CREATE POLICY "role read tasks" ON public.crm_tasks FOR SELECT TO authenticated USING (public.has_any_role(auth.uid(), ARRAY['superadmin','comercial','marketing']::app_role[]));
+DROP POLICY IF EXISTS "role read fleet" ON public.fleet_stats;
+CREATE POLICY "role read fleet" ON public.fleet_stats FOR SELECT TO authenticated USING (public.has_any_role(auth.uid(), ARRAY['superadmin','comercial','marketing']::app_role[]));
+DROP POLICY IF EXISTS "role read google" ON public.google_ads_metrics;
+CREATE POLICY "role read google" ON public.google_ads_metrics FOR SELECT TO authenticated USING (public.has_any_role(auth.uid(), ARRAY['superadmin','comercial','marketing']::app_role[]));
+DROP POLICY IF EXISTS "role read meta" ON public.meta_ads_metrics;
+CREATE POLICY "role read meta" ON public.meta_ads_metrics FOR SELECT TO authenticated USING (public.has_any_role(auth.uid(), ARRAY['superadmin','comercial','marketing']::app_role[]));
+DROP POLICY IF EXISTS "role read goals" ON public.sales_goals;
+CREATE POLICY "role read goals" ON public.sales_goals FOR SELECT TO authenticated USING (public.has_any_role(auth.uid(), ARRAY['superadmin','comercial','marketing']::app_role[]));
