@@ -106,7 +106,7 @@ function SettingsPage() {
             <Button type="submit" disabled={create.isPending}>Cadastrar</Button>
           </form>
           <p className="mt-3 text-xs text-muted-foreground">
-            Comercial - Equipe: só Comercial Operacional · Mkt - Equipe: só Marketing · Superadmin: todas as abas.
+            Equipes (Comercial e Mkt): Marketing, Comercial e Comercial Operacional · Superadmin: todas as abas, incluindo Configurações.
           </p>
         </Card>
 
