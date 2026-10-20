@@ -126,7 +126,7 @@ type ContactRule = {
 };
 const CONTACT_RULES: ContactRule[] = [
   { id: "meta", match: /^meta$/, connection: ["%campanha meta%", "%Orlando Rent a Car%"], origin: ["%meta%"], combined: false },
-  { id: "google", match: /^google$/, connection: ["%Oficial AFS%"], origin: ["%google%"], combined: false },
+  { id: "google", match: /^google$/, connection: ["%Oficial AFS%", "%Google Ads%"], origin: ["%google%"], combined: false },
   { id: "turistorlando", match: /turist/, connection: ["%turist%"], origin: ["%turist%"], combined: true },
   { id: "agencias", match: /agenc|indica/, connection: ["%agenc%", "%indica%"], origin: ["%agenc%", "%indica%"], combined: true },
 ];
@@ -300,7 +300,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       if (lead.lead_id)
         leadAttributionById.set(lead.lead_id, {
           // Mesmo critério dos Contatos: conexão "Oficial AFS" = lead do Google (oportunidades ⊂ contatos).
-          source: /oficial afs/i.test(lead.first_connection_name ?? "")
+          source: /oficial afs|google ads/i.test(lead.first_connection_name ?? "")
             ? "google"
             : resolveLeadSource(lead.utm_source, lead.lead_origin),
           campaign: lead.utm_campaign,
@@ -391,7 +391,7 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
     ].filter((lead) => Date.parse(lead.created_at) <= limit);
     const lead = candidates.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
     if (!lead) return r;
-    const source = /oficial afs/i.test(lead.first_connection_name ?? "")
+    const source = /oficial afs|google ads/i.test(lead.first_connection_name ?? "")
       ? "google"
       : resolveLeadSource(lead.utm_source, lead.lead_origin);
     return source ? { ...r, lead_origin: source } : r;
