@@ -544,10 +544,21 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const noTaskList = d.opportunities
     .filter((o) => o.created_at <= endIso(to))
     .filter((o) => seller === "all" || sellerKey(o.seller_name) === seller)
+    // Somente o time comercial (vendedores operacionais).
+    .filter((o) => isOperationalSeller(o.seller_name))
     .filter(hasNoTask)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => ({ ...o, owner: o.seller_name?.trim() || UNASSIGNED_LABEL }));
   const leadsNoTask = noTaskList.length;
+  // Sem tarefas por vendedor: todos os períodos, sem filtro de data, só time comercial.
+  const noTaskBySellerMap = new Map<string, { name: string; noTask: number }>();
+  d.opportunities.filter((o) => isOperationalSeller(o.seller_name) && hasNoTask(o)).forEach((o) => {
+    const k = nameOf(o.seller_name);
+    const row = noTaskBySellerMap.get(k) ?? { name: names.get(k) ?? UNASSIGNED_LABEL, noTask: 0 };
+    row.noTask++;
+    noTaskBySellerMap.set(k, row);
+  });
+  const noTaskBySeller = [...noTaskBySellerMap.values()].sort((a, b) => b.noTask - a.noTask);
 
   const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
   const dailyOpportunitiesBySeller = new Map<string, Record<string, string | number>>();
@@ -729,6 +740,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     dailyRevenueBySeller: [...dailyRevenueBySeller.values()],
     dailyRevenueKeys: [...dailyRevenueKeys],
     noTaskList,
+    noTaskBySeller,
     kpis,
     rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
     sellers,

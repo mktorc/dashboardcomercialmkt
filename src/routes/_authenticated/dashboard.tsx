@@ -192,6 +192,12 @@ function Dashboard() {
         )
       : [];
 
+  // Entre set/2024 e nov/2025 o Kommo quase não etiquetou leads como Google (origem vazia ou "Outros Canais").
+  const googleNote =
+    selectedOrigin && /google/i.test(selectedOrigin)
+      ? "Atenção: de set/2024 a nov/2025 a origem Google está subestimada, pois o Kommo deixou de etiquetar esses leads (ficaram sem origem ou como \"Outros Canais\"). Comparações com 2026 mostram um salto que não é real."
+      : undefined;
+
   const dynamicFunnel = originData ? buildMarketingFunnel(originData, selectedOrigin) : null;
 
   return (
@@ -381,6 +387,7 @@ function Dashboard() {
               loading={isLoading}
               currentYear={Number(to.slice(0, 4))}
               previousYear={Number(priorYear.to.slice(0, 4))}
+              note={googleNote}
             />
             <OriginMonthlyChart
               title="Oportunidades ganhas (Ano Atual vs. Ano Anterior)"
@@ -389,6 +396,7 @@ function Dashboard() {
               loading={isLoading}
               currentYear={Number(to.slice(0, 4))}
               previousYear={Number(priorYear.to.slice(0, 4))}
+              note={googleNote}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -723,9 +731,11 @@ function OriginMonthlyChart({
   loading,
   currentYear,
   previousYear,
+  note,
 }: {
   title: string;
   subtitle: string;
+  note?: string | undefined;
   data: OpportunityComparisonPoint[];
   loading: boolean;
   currentYear: number;
@@ -773,6 +783,7 @@ function OriginMonthlyChart({
           <EmptyOriginChart loading={loading} />
         )}
       </div>
+      {note ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{note}</p> : null}
     </ExpandableChartPanel>
   );
 }

@@ -48,6 +48,7 @@ import {
   filterOperationalData,
   fetchComercial,
   saveGoals,
+  sellerKey,
   type SellerRow,
   type Goal,
 } from "@/lib/comercial";
@@ -147,23 +148,26 @@ export function ComercialPage({
   }, [view, search, sort]);
 
   const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.faturamento || r.revenueGoal));
-  const chartH = Math.min(420, Math.max(220, goalRows.length * 34));
+  const chartH = 280;
   const opportunityRows = (view?.rows ?? [])
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.oportunidades > 0 || r.reservas > 0))
     .sort((a, b) => b.oportunidades - a.oportunidades);
-  const noTaskRows = (view?.rows ?? [])
-    .filter((r) => r.key !== "venda_direta" && r.noTask > 0)
-    .sort((a, b) => b.noTask - a.noTask);
-  const allTimeOpportunityRows = teamData
-    ? computeOpportunityTotalsBySeller(teamData.opportunities)
-    : [];
+  const noTaskRows = view?.noTaskBySeller ?? [];
+  // Sem vendedor = oportunidades sem nenhum responsável atribuído (campo vazio), de todos os períodos.
+  const noSellerOpportunities = (data?.opportunities ?? [])
+    .filter((o) => !o.seller_name?.trim())
+    .sort((x, y) => y.created_at.localeCompare(x.created_at));
+  const allTimeOpportunityRows: { name: string; oportunidades: number; reservas: number; key: string; selectKey?: string }[] = [
+    ...(teamData ? computeOpportunityTotalsBySeller(teamData.opportunities) : []),
+    ...(noSellerOpportunities.length
+      ? [{ key: "__none", name: "Sem vendedor", oportunidades: noSellerOpportunities.length, reservas: 0, selectKey: "__none" }]
+      : []),
+  ].sort((x, y) => y.oportunidades - x.oportunidades);
+  const [noSellerOpen, setNoSellerOpen] = useState(false);
   const operationalCardClass = "min-h-[190px] h-full w-full flex flex-col justify-between";
   const compactOperationalCardClass = "h-[160px] w-full px-3 py-2 flex flex-col justify-between";
   const firstRowOperationalCardClass = "h-[144px] w-full p-3 flex flex-col justify-start";
-  const operationalSellerChartHeight = Math.min(
-    420,
-    Math.max(220, Math.max(opportunityRows.length, noTaskRows.length, allTimeOpportunityRows.length) * 34),
-  );
+  const operationalSellerChartHeight = chartH;
 
   const opportunityCard = <KpiCard icon={Target} label="Oportunidades"
     value={k ? k.oportunidades.toLocaleString("pt-BR") : "—"}
@@ -322,7 +326,7 @@ export function ComercialPage({
               </div>
               <div className="space-y-4">
                 {conversionCard}
-                <OpportunitySellerChart data={allTimeOpportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} expandable />
+                <OpportunitySellerChart data={allTimeOpportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} expandable onSelect={(key) => { if (key === "__none") setNoSellerOpen(true); }} />
               </div>
               <div className="space-y-4">
                 {revenueCard}
@@ -442,6 +446,32 @@ export function ComercialPage({
           </>)}
         </div>
       </main>
+      <Dialog open={noSellerOpen} onOpenChange={setNoSellerOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Oportunidades sem vendedor ({noSellerOpportunities.length.toLocaleString("pt-BR")})</DialogTitle>
+          </DialogHeader>
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2 text-left">Criado em</th>
+                <th className="py-2 text-left">Contato</th>
+                <th className="py-2 text-left">Etapa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {noSellerOpportunities.slice(0, 500).map((o, i) => (
+                <tr key={o.opportunity_id + i} className="border-t border-border">
+                  <td className="py-2">{new Date(o.created_at).toLocaleDateString("pt-BR")}</td>
+                  <td className="py-2 text-foreground">{o.name ?? "—"}</td>
+                  <td className="py-2">{o.stage_name ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {noSellerOpportunities.length > 500 ? <p className="text-xs text-muted-foreground">Mostrando as 500 mais recentes.</p> : null}
+        </DialogContent>
+      </Dialog>
       <Dialog open={noTaskOpen} onOpenChange={setNoTaskOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
@@ -530,8 +560,11 @@ function OpportunitySellerChart({
   loading,
   compare = false,
   expandable = false,
+  onSelect,
 }: {
-  data: Pick<SellerRow, "name" | "oportunidades" | "reservas">[];
+  data: (Pick<SellerRow, "name" | "oportunidades" | "reservas"> & { selectKey?: string })[];
+  /** Clique numa barra abre o detalhamento (nome do vendedor, "__all" ou "__none"). */
+  onSelect?: ((key: string) => void) | undefined;
   height: number;
   loading: boolean;
   compare?: boolean;
@@ -539,7 +572,7 @@ function OpportunitySellerChart({
 }) {
   const chartData = data.map((row) => ({
     ...row,
-    reservasPct: row.oportunidades ? pct(row.reservas / row.oportunidades) : "—",
+    reservasPct: row.oportunidades && row.selectKey !== "__none" ? pct(row.reservas / row.oportunidades) : "—",
   }));
   return (
     <ExpandableChartPanel
@@ -554,9 +587,16 @@ function OpportunitySellerChart({
               <XAxis type="number" {...axis} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
-              <Bar dataKey="oportunidades" name="Oportunidades" fill={compare ? "#44E500" : "#2f9c5a"} radius={[0, 4, 4, 0]} />
+              <Bar
+                dataKey="oportunidades"
+                name="Oportunidades"
+                fill={compare ? "#44E500" : "#2f9c5a"}
+                radius={[0, 4, 4, 0]}
+                {...(onSelect ? { cursor: "pointer", onClick: (entry: { payload?: { name: string; selectKey?: string } }) => entry.payload && onSelect(entry.payload.selectKey ?? entry.payload.name) } : {})}
+              />
               {compare ? (
-                <Bar dataKey="reservas" name="Reservas concluídas" fill="#2f9c5a" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="reservas" name="Reservas concluídas" fill="#2f9c5a" radius={[0, 4, 4, 0]}
+                  {...(onSelect ? { cursor: "pointer", onClick: (entry: { payload?: { name: string; selectKey?: string } }) => entry.payload && onSelect(entry.payload.selectKey ?? entry.payload.name) } : {})}>
                   <LabelList dataKey="reservasPct" position="right" formatter={(value: string) => value} />
                 </Bar>
               ) : null}
@@ -584,7 +624,7 @@ function NoTaskBySellerChart({
   return (
     <ExpandableChartPanel
       title="Oportunidades sem tarefas por vendedor"
-      subtitle="Oportunidades abertas sem tarefas por vendedor no período."
+      subtitle="Todos os períodos, sem filtro de datas."
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
