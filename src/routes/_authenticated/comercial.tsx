@@ -326,7 +326,7 @@ export function ComercialPage({
               </div>
               <div className="space-y-4">
                 {revenueCard}
-                <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} expandable />
+                <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} expandable showAttainment />
                 {active === "comercial-operacional" ? occupancyCards?.[0] : null}
               </div>
               <div className="space-y-4">
@@ -750,6 +750,7 @@ function GoalChart({
   bLabel = "Meta",
   fmt,
   expandable = false,
+  showAttainment = false,
 }: {
   title: string;
   subtitle: string;
@@ -760,12 +761,14 @@ function GoalChart({
   bLabel?: string;
   fmt: (v: number) => string;
   expandable?: boolean;
+  /** Mostra, ao lado da barra de cada vendedor, o % de atingimento (alcançado ÷ meta). */
+  showAttainment?: boolean;
 }) {
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
       <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : h, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
+          <BarChart data={data} layout="vertical" margin={{ top: 10, right: showAttainment ? 56 : 24, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
             <XAxis
               type="number"
@@ -779,7 +782,32 @@ function GoalChart({
             <YAxis type="category" dataKey="name" width={sellerAxisWidth(data, 90)} {...axis} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
             <Legend />
-            <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]} />
+            <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]}>
+              {showAttainment && b ? (
+                <LabelList
+                  dataKey={a}
+                  content={(props) => {
+                    const row = data[props.index ?? -1];
+                    const goal = row ? Number(row[b]) : 0;
+                    if (!row || !(goal > 0)) return null;
+                    const value = (Number(row[a]) / goal) * 100;
+                    return (
+                      <text
+                        x={Number(props.x) + Number(props.width) + 6}
+                        y={Number(props.y) + Number(props.height) / 2}
+                        dominantBaseline="central"
+                        fontSize={11}
+                        fontWeight={600}
+                        fill="currentColor"
+                        className="text-foreground"
+                      >
+                        {value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+                      </text>
+                    );
+                  }}
+                />
+              ) : null}
+            </Bar>
             {b ? <Bar dataKey={b} name={bLabel} fill="#2f9c5a" radius={[0, 4, 4, 0]} /> : null}
           </BarChart>
         </ResponsiveContainer>

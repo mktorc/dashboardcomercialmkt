@@ -36,7 +36,7 @@ import {
   buildMarketingFunnel,
   computeAttribution,
   computeKpis,
-  computeChannelComparison,
+  computeChannelMonthly,
   type ChannelComparisonMode,
   computeOpportunityOrigins,
   computeTimeseries,
@@ -109,6 +109,16 @@ function Dashboard() {
   );
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
+  // De janeiro do ano atual até o mês atual.
+  const last12 = Array.from({ length: today.getMonth() + 1 }, (_, i) => {
+    const d = new Date(today.getFullYear(), i, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const { data: data12 } = useQuery({
+    queryKey: ["analytics-12m", last12[0]],
+    queryFn: () => fetchAnalytics(`${last12[0]}-01`, localDateInput(today)),
+    staleTime: 10 * 60 * 1000,
+  });
   const [channelMode, setChannelMode] = useState<ChannelComparisonMode>("both");
   const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({ key: "investimento", dir: -1 });
   const priorYear = getPriorYearDates(from, to);
@@ -144,7 +154,7 @@ function Dashboard() {
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   const kpis = originData ? computeKpis(originData) : null;
-  const channelComparison = data ? computeChannelComparison(data.current, channelMode) : [];
+  const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
   attribution = attribution.sort((a, b) => {
@@ -385,7 +395,7 @@ function Dashboard() {
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">Comparativo de Conversão e CAC % (Marketing)</h2>
                   <p className="text-xs text-muted-foreground">
-                    Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate.
+                    Desde janeiro · Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate.
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -398,9 +408,9 @@ function Dashboard() {
               </div>
               <div className="mt-4 h-[300px] w-full min-w-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={[{ canal: channelMode === "meta" ? "Meta Ads" : channelMode === "google" ? "Google Ads" : "Meta + Google", conversao: channelComparison[0]?.value ?? 0, cac: channelComparison[1]?.value ?? 0 }]} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <BarChart data={channelMonthly} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="canal" tick={{ fontSize: 12 }} />
+                    <XAxis dataKey="month" interval={0} tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(v: number) => `${v.toFixed(2).replace(".", ",")}%`} />
                     <Legend />
@@ -413,7 +423,7 @@ function Dashboard() {
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
               <p className="text-xs text-muted-foreground">
-                Contatos ClickMassa, oportunidades e reservas confirmadas criados no período; a etapa de leads de mídia aparece só para Meta Ads.
+                Contatos ClickMassa, oportunidades e reservas confirmadas criados no período; a primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
               </p>
               {dynamicFunnel ? (
                 <>

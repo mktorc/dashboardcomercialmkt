@@ -56,6 +56,7 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
                 spend: (Number(m["costMicros"]) || 0) / 1e6,
                 clicks: Number(m["clicks"]) || 0,
                 impressions: Number(m["impressions"]) || 0,
+                conversions: Number(m["conversions"]) || 0,
                 utm_campaign: utm ? decodeURIComponent(utm[1] ?? "") : null,
               });
             }
