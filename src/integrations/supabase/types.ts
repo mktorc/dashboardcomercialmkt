@@ -504,7 +504,7 @@ export type Database = {
       seller_key: { Args: { _name: string }; Returns: string }
     }
     Enums: {
-      app_role: "superadmin" | "comercial" | "marketing"
+      app_role: "superadmin" | "comercial" | "marketing" | "comercial_gerencial"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -632,7 +632,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["superadmin", "comercial", "marketing"],
+      app_role: ["superadmin", "comercial", "marketing", "comercial_gerencial"],
     },
   },
 } as const

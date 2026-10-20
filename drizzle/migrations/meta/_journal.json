@@ -239,6 +239,20 @@
       "when": 1792432310751,
       "tag": "0033_google_ads_conversions",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1792432310752,
+      "tag": "0034_role_comercial_gerencial",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1792432310753,
+      "tag": "0035_comercial_gerencial_policies",
+      "breakpoints": true
     }
   ]
 }

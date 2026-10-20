@@ -1,12 +1,13 @@
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "superadmin" | "comercial" | "marketing";
+export type AppRole = "superadmin" | "comercial" | "marketing" | "comercial_gerencial";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   superadmin: "Superadmin",
   comercial: "Comercial - Equipe",
   marketing: "Mkt - Equipe",
+  comercial_gerencial: "Comercial - Gerencial",
 };
 
 export type PageKey = "dashboard" | "comercial" | "comercial-operacional" | "configuracoes";
@@ -15,16 +16,19 @@ const ACCESS: Record<AppRole, PageKey[]> = {
   superadmin: ["dashboard", "comercial", "comercial-operacional", "configuracoes"],
   comercial: ["dashboard", "comercial", "comercial-operacional"],
   marketing: ["dashboard", "comercial", "comercial-operacional"],
+  // Só o menu Comercial (Gerencial e Operacional); sem Marketing nem Configurações.
+  comercial_gerencial: ["comercial", "comercial-operacional"],
 };
 
 export function canAccess(role: AppRole | null, page: PageKey) {
   return role ? ACCESS[role].includes(page) : false;
 }
 
-export const HOME: Record<AppRole, "/dashboard" | "/comercial-operacional"> = {
+export const HOME: Record<AppRole, "/dashboard" | "/comercial" | "/comercial-operacional"> = {
   superadmin: "/dashboard",
   comercial: "/comercial-operacional",
   marketing: "/dashboard",
+  comercial_gerencial: "/comercial",
 };
 
 export async function getMyRole(): Promise<AppRole | null> {
