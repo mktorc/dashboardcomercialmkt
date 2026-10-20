@@ -14,4 +14,14 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: { plugins: [mcpPlugin()] },
+  // Só vale no deploy da Vercel (NITRO_PRESET=vercel); ignorado nos outros destinos.
+  // O tipo do wrapper do Lovable não declara `vercel`, mas as opções passam direto para o Nitro.
+  nitro: {
+    vercel: {
+      // Os syncs longos precisam de mais tempo por chamada (máx. 300s no plano Hobby com Fluid compute).
+      functions: { maxDuration: 300 },
+      // Rotina diária dos syncs: 09:00 UTC (06:00 em Brasília).
+      config: { crons: [{ path: "/api/public/sync/cron", schedule: "0 9 * * *" }] },
+    },
+  } as never,
 });

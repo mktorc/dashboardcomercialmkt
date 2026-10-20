@@ -21,6 +21,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
+import { Route as ApiPublicSyncCronRouteImport } from './routes/api/public/sync/cron'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
 import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/sync/hqrentals'
 import { Route as ApiPublicSyncHqrentalsBackfillRouteImport } from './routes/api/public/sync/hqrentals-backfill'
@@ -90,6 +91,11 @@ const ApiPublicSyncClickmassaOpportunitiesRoute =
     path: '/api/public/sync/clickmassa-opportunities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicSyncCronRoute = ApiPublicSyncCronRouteImport.update({
+  id: '/api/public/sync/cron',
+  path: '/api/public/sync/cron',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSyncGoogleAdsRoute = ApiPublicSyncGoogleAdsRouteImport.update({
   id: '/api/public/sync/google-ads',
   path: '/api/public/sync/google-ads',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hqrentals': typeof ApiPublicSyncHqrentalsRoute
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
@@ -188,6 +197,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/hqrentals-backfill'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/hqrentals-backfill'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hqrentals'
     | '/api/public/sync/hqrentals-backfill'
@@ -241,6 +253,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  ApiPublicSyncCronRoute: typeof ApiPublicSyncCronRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
   ApiPublicSyncHqrentalsRoute: typeof ApiPublicSyncHqrentalsRoute
   ApiPublicSyncHqrentalsBackfillRoute: typeof ApiPublicSyncHqrentalsBackfillRoute
@@ -334,6 +347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncClickmassaOpportunitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync/cron': {
+      id: '/api/public/sync/cron'
+      path: '/api/public/sync/cron'
+      fullPath: '/api/public/sync/cron'
+      preLoaderRoute: typeof ApiPublicSyncCronRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync/google-ads': {
       id: '/api/public/sync/google-ads'
       path: '/api/public/sync/google-ads'
@@ -401,6 +421,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
     ApiPublicSyncClickmassaOpportunitiesRoute,
+  ApiPublicSyncCronRoute: ApiPublicSyncCronRoute,
   ApiPublicSyncGoogleAdsRoute: ApiPublicSyncGoogleAdsRoute,
   ApiPublicSyncHqrentalsRoute: ApiPublicSyncHqrentalsRoute,
   ApiPublicSyncHqrentalsBackfillRoute: ApiPublicSyncHqrentalsBackfillRoute,
