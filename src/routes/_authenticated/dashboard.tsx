@@ -37,6 +37,8 @@ import {
   computeAttribution,
   computeKpis,
   computeChannelMonthly,
+  MIN_CHANNEL_OPPORTUNITIES,
+  MIN_CHANNEL_RESERVATIONS,
   type ChannelComparisonMode,
   computeOpportunityOrigins,
   computeTimeseries,
@@ -420,13 +422,16 @@ function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="month" interval={0} tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v: number) => `${v.toFixed(2).replace(".", ",")}%`} />
+                    <Tooltip formatter={(v) => (typeof v === "number" ? `${v.toFixed(2).replace(".", ",")}%` : "sem dados suficientes")} />
                     <Legend />
                     <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill="#44E500" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="cac" name="CAC Percentual (%)" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                Meses sem barra não têm dados suficientes: o canal precisa de pelo menos {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026.
+              </p>
             </Card>
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>

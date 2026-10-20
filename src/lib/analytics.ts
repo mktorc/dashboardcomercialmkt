@@ -1044,7 +1044,12 @@ export function buildOpportunityComparison(
 }
 
 export type ChannelComparisonMode = "meta" | "google" | "both";
-export type ChannelMonthlyPoint = { month: string; conversao: number; cac: number };
+/** `null` = sem dados suficientes no mês (o canal tem poucas oportunidades/reservas atribuídas). */
+export type ChannelMonthlyPoint = { month: string; conversao: number | null; cac: number | null };
+// Mínimos para exibir os indicadores: abaixo disso a origem do lead não foi registrada o bastante
+// e a razão fica distorcida (ex.: CAC % de 120% com 1 reserva atribuída).
+export const MIN_CHANNEL_OPPORTUNITIES = 10;
+export const MIN_CHANNEL_RESERVATIONS = 5;
 
 const MONTH_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -1079,22 +1084,10 @@ export function computeChannelMonthly(
     const kpis = computeKpis(scoped);
     const created = scoped.opportunities.length;
     const won = scoped.opportunities.filter(isWonOpportunity).length;
-    const monthRes = data.reservations.filter((r) => inMonth(r.created_at) && r.status === "confirmed");
-    console.debug("[CAC diag]", mode, key, {
-      investimento: Math.round(kpis.spend),
-      faturamentoAtribuido: Math.round(kpis.revenue),
-      reservasAtribuidas: kpis.reservations,
-      reservasTotais: monthRes.length,
-      faturamentoTotal: Math.round(monthRes.reduce((t, r) => t + r.total_amount, 0)),
-      comLead: monthRes.filter((r) => r.lead_origin).length,
-      comUtm: monthRes.filter((r) => r.utm_campaign?.trim()).length,
-      comPartner: monthRes.filter((r) => r.commission_partner).length,
-      origens: [...new Set(monthRes.map((r) => normalizeOrigin(reservationOrigin(r))))].slice(0, 8).join(","),
-    });
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
-      conversao: created ? (won / created) * 100 : 0,
-      cac: (kpis.cacPct ?? 0) * 100,
+      conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,
+      cac: kpis.reservations >= MIN_CHANNEL_RESERVATIONS && kpis.spend > 0 && kpis.cacPct != null ? kpis.cacPct * 100 : null,
     };
   });
 }
