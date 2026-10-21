@@ -1112,28 +1112,41 @@ export function computeChannelMonthly(
           ],
         }
       : filterAnalyticsByOrigin(data, mode);
+  const reservationsByContact = new Map<string, ReservationRow[]>();
+  data.reservations
+    .filter((r) => r.status === "confirmed")
+    .forEach((r) => {
+      [r.phone8 ? `p:${r.phone8}` : null, r.email_lc ? `e:${r.email_lc}` : null].forEach((key) => {
+        if (key) reservationsByContact.set(key, [...(reservationsByContact.get(key) ?? []), r]);
+      });
+    });
   return months.map((key) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
     const monthOpportunities = scopedAll.opportunities.filter((o) => inMonth(o.created_at));
-    // Paridade com as ganhas: faturamento e reservas são só os das oportunidades ganhas da safra do mês.
-    // O vínculo é pelo contato (telefone/e-mail): a mesma pessoa pode ter mais de um lead no CRM.
-    const wonPhones = new Set<string>();
-    const wonEmails = new Set<string>();
-    monthOpportunities.filter(isWonOpportunity).forEach((o) => {
-      if (o.phone8) wonPhones.add(o.phone8);
-      if (o.email_lc) wonEmails.add(o.email_lc);
-    });
+    // Paridade com as ganhas: cada ganha da safra do mês liga a UMA reserva confirmada do mesmo contato
+    // (telefone/e-mail), a primeira ainda não usada criada a partir da oportunidade.
+    const usedReservations = new Set<ReservationRow>();
+    const wonReservations: ReservationRow[] = [];
+    [...monthOpportunities.filter(isWonOpportunity)]
+      .sort((x, y) => x.created_at.localeCompare(y.created_at))
+      .forEach((o) => {
+        const from = Date.parse(o.created_at) - 86_400_000;
+        const candidates = [
+          ...(o.phone8 ? (reservationsByContact.get(`p:${o.phone8}`) ?? []) : []),
+          ...(o.email_lc ? (reservationsByContact.get(`e:${o.email_lc}`) ?? []) : []),
+        ].filter((r) => !usedReservations.has(r) && Date.parse(r.created_at) >= from);
+        const match = candidates.sort((x, y) => x.created_at.localeCompare(y.created_at))[0];
+        if (!match) return;
+        usedReservations.add(match);
+        wonReservations.push(match);
+      });
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: monthOpportunities,
       updatedOpportunities: [],
-      reservations: data.reservations.filter(
-        (r) =>
-          r.status === "confirmed" &&
-          ((r.phone8 != null && wonPhones.has(r.phone8)) || (r.email_lc != null && wonEmails.has(r.email_lc))),
-      ),
+      reservations: wonReservations,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
