@@ -34,6 +34,8 @@ import {
   brl,
   ALL_ORIGINS_KEY,
   buildMarketingFunnel,
+  fetchTeamCosts,
+  teamCostForRange,
   computeAttribution,
   computeKpis,
   computeChannelMonthly,
@@ -111,6 +113,8 @@ function Dashboard() {
   );
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
+  const [includeTeam, setIncludeTeam] = useState(false);
+  const { data: teamCosts } = useQuery({ queryKey: ["team-costs"], queryFn: fetchTeamCosts, staleTime: 10 * 60 * 1000 });
   // De janeiro do ano atual até o mês atual.
   const last12 = Array.from({ length: today.getMonth() + 1 }, (_, i) => {
     const d = new Date(today.getFullYear(), i, 1);
@@ -155,7 +159,9 @@ function Dashboard() {
 
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
-  const kpis = originData ? computeKpis(originData) : null;
+  // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
+  const teamSpend = includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
+  const kpis = originData ? computeKpis(originData, teamSpend) : null;
   const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
@@ -252,6 +258,18 @@ function Dashboard() {
                 ))}
               </select>
             </label>
+            <label
+              className="flex h-9 items-center gap-2 text-xs text-foreground/70"
+              title={selectedOrigin ? "Disponível só em \"Todas as origens\"" : "Soma o investimento mensal da equipe (Configurações) ao CAC"}
+            >
+              <input
+                type="checkbox"
+                checked={includeTeam && !selectedOrigin}
+                disabled={Boolean(selectedOrigin)}
+                onChange={(event) => setIncludeTeam(event.target.checked)}
+              />
+              Incluir equipe de marketing
+            </label>
           </div>
         </header>
 
@@ -269,7 +287,9 @@ function Dashboard() {
               label="Investimento total em mídia"
               value={kpis ? brl(kpis.spend) : "—"}
               hint={
-                kpis ? `Meta ${brl(kpis.metaSpend)} · Google ${brl(kpis.googleSpend)}` : undefined
+                kpis
+                  ? `Meta ${brl(kpis.metaSpend)} · Google ${brl(kpis.googleSpend)}${kpis.teamSpend ? ` · Equipe ${brl(kpis.teamSpend)}` : ""}`
+                  : undefined
               }
               wrapHint
               compact
@@ -307,7 +327,7 @@ function Dashboard() {
               icon={Gauge}
               label="Custo de aquisição de clientes"
               value={kpis?.cac == null ? "—" : brl(kpis.cac)}
-              hint={kpis ? `Somente mídia · Meta + Google ÷ ${kpis.reservations} reservas HQ\nCAC percentual: ${kpis.cacPct == null ? "—" : `${(kpis.cacPct * 100).toFixed(1).replace(".", ",")}%`} do rack rate` : undefined}
+              hint={kpis ? `${kpis.teamSpend ? "Mídia + equipe de marketing" : "Somente mídia · Meta + Google"} ÷ ${kpis.reservations} reservas HQ\nCAC percentual: ${kpis.cacPct == null ? "—" : `${(kpis.cacPct * 100).toFixed(1).replace(".", ",")}%`} do rack rate` : undefined}
               wrapHint
               compact
               className="h-[160px]"

@@ -253,6 +253,13 @@
       "when": 1792432310753,
       "tag": "0035_comercial_gerencial_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1792518710753,
+      "tag": "0036_marketing_team_costs",
+      "breakpoints": true
     }
   ]
 }

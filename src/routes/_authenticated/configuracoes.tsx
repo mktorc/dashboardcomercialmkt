@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 import { guardPage, ROLE_LABELS, type AppRole } from "@/lib/roles";
 import { createUser, deleteUser, listUsers, updateUser } from "@/lib/users.functions";
 
@@ -67,6 +68,45 @@ function SettingsPage() {
     onError: onErr,
   });
 
+  const costs = useQuery({
+    queryKey: ["team-costs-admin"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("marketing_team_costs").select("month, amount").order("month", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+  const [costMonth, setCostMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [costAmount, setCostAmount] = useState("");
+  const refreshCosts = () => {
+    qc.invalidateQueries({ queryKey: ["team-costs-admin"] });
+    qc.invalidateQueries({ queryKey: ["team-costs"] });
+  };
+  const saveCost = useMutation({
+    mutationFn: async () => {
+      const amount = Number(costAmount.replace(/\./g, "").replace(",", "."));
+      if (!costMonth || !Number.isFinite(amount) || amount < 0) throw new Error("Informe mês e valor válidos");
+      const { error } = await supabase
+        .from("marketing_team_costs")
+        .upsert({ month: costMonth, amount, updated_at: new Date().toISOString() }, { onConflict: "month" });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Investimento salvo");
+      setCostAmount("");
+      refreshCosts();
+    },
+    onError: onErr,
+  });
+  const removeCost = useMutation({
+    mutationFn: async (month: string) => {
+      const { error } = await supabase.from("marketing_team_costs").delete().eq("month", month);
+      if (error) throw error;
+    },
+    onSuccess: refreshCosts,
+    onError: onErr,
+  });
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar active="configuracoes" />
@@ -77,6 +117,47 @@ function SettingsPage() {
             Só acessa o painel quem estiver cadastrado aqui.
           </p>
         </div>
+
+        <Card className="p-5">
+          <h2 className="mb-1 font-semibold text-foreground">Investimento na equipe de marketing</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Valor mensal (USD). No dashboard, marque "Incluir equipe de marketing" para somá-lo ao investimento do CAC, rateado pelos dias do período.
+          </p>
+          <form
+            className="grid gap-4 md:grid-cols-[180px_200px_auto] md:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveCost.mutate();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="tc-month">Mês</Label>
+              <Input id="tc-month" type="month" required value={costMonth} onChange={(e) => setCostMonth(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tc-amount">Valor mensal</Label>
+              <Input id="tc-amount" inputMode="decimal" required placeholder="15000" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
+            </div>
+            <Button type="submit" disabled={saveCost.isPending}>Salvar</Button>
+          </form>
+          {costs.data?.length ? (
+            <table className="mt-4 w-full text-sm">
+              <tbody>
+                {costs.data.map((c) => (
+                  <tr key={c.month} className="border-t border-border">
+                    <td className="py-2 text-foreground">{c.month.slice(5)}/{c.month.slice(0, 4)}</td>
+                    <td className="text-foreground">{Number(c.amount).toLocaleString("pt-BR", { style: "currency", currency: "USD" })}</td>
+                    <td className="text-right">
+                      <Button size="sm" variant="ghost" title="Excluir" onClick={() => removeCost.mutate(c.month)}>
+                        <Trash2 className="size-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </Card>
 
         <Card className="p-5">
           <h2 className="mb-4 font-semibold text-foreground">Novo usuário</h2>

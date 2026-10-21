@@ -353,6 +353,24 @@ export type Database = {
         }
         Relationships: []
       }
+      marketing_team_costs: {
+        Row: {
+          amount: number
+          month: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          month: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          month?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales_goals: {
         Row: {
           conversion_goal: number | null

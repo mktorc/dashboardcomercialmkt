@@ -403,16 +403,37 @@ export const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 export const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
-export function computeKpis(d: AnalyticsData) {
+/** Custos mensais da equipe de marketing ("YYYY-MM" → valor). */
+export async function fetchTeamCosts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("marketing_team_costs").select("month, amount");
+  if (error) throw error;
+  return Object.fromEntries((data ?? []).map((r) => [r.month, Number(r.amount)]));
+}
+
+/** Rateia o custo mensal pelos dias do período [from, to] (YYYY-MM-DD, inclusive). */
+export function teamCostForRange(costs: Record<string, number>, from: string, to: string): number {
+  let total = 0;
+  const end = Date.parse(`${to}T00:00:00Z`);
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= end; t += 86_400_000) {
+    const day = new Date(t);
+    const amount = costs[day.toISOString().slice(0, 7)];
+    if (!amount) continue;
+    total += amount / new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)).getUTCDate();
+  }
+  return total;
+}
+
+export function computeKpis(d: AnalyticsData, teamSpend = 0) {
   const metaSpend = d.meta.reduce((s, r) => s + r.spend, 0);
   const googleSpend = d.google.reduce((s, r) => s + r.spend, 0);
-  const spend = metaSpend + googleSpend;
+  const spend = metaSpend + googleSpend + teamSpend;
   const leads = d.opportunities.length;
   const confirmed = d.reservations.filter((r) => r.status === "confirmed");
   const revenue = confirmed.reduce((s, r) => s + r.total_amount, 0);
   return {
     metaSpend,
     googleSpend,
+    teamSpend,
     spend,
     leads,
     cpl: leads ? spend / leads : 0,
