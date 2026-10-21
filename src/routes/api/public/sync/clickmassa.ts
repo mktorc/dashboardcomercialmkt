@@ -61,6 +61,17 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
           } catch {
             ticketsOk = false;
           }
+          // A listagem de contatos traz só o id da conexão (firstConnection); o nome vem de /whatsapp.
+          const connectionNames = new Map<string, string>();
+          try {
+            const conns = (await get("/whatsapp")) as unknown as Obj[];
+            (Array.isArray(conns) ? conns : []).forEach((w) => {
+              const name = s(w["name"]) ?? s(w["nome"]) ?? s(w["description"]);
+              if (w["id"] != null && name) connectionNames.set(String(w["id"]), name);
+            });
+          } catch (e) {
+            console.error("connections", e);
+          }
           const ticketByContact = new Map<string, Obj>();
           tickets.forEach((t) => ticketByContact.set(String(t["contactId"]), t));
 
@@ -103,7 +114,9 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                   s((c["leadOrigin"] as Obj | null)?.["name"]) ??
                   s((c["customFields"] as Obj | null)?.["Origem do Lead"]) ??
                   s((c["customFields"] as Obj | null)?.["origem_do_lead"]),
-                first_connection_name: s(c["firstConnectionName"]),
+                first_connection_name:
+                  s(c["firstConnectionName"]) ??
+                  (c["firstConnection"] != null ? (connectionNames.get(String(c["firstConnection"])) ?? null) : null),
                 utm_medium: utm.medium,
                 utm_campaign: utm.campaign,
                 created_at: s(c["createdAt"]) ?? new Date().toISOString(),
@@ -169,6 +182,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
             ticketsOk,
             warning: ticketsOk ? null : "Atendimentos indisponíveis para este token",
             synced: rows.length,
+            connectionsMapped: connectionNames.size,
+            withConnection: rows.filter((r) => r.first_connection_name).length,
             nextPage: more ? page : null,
           });
         } catch (e) {
