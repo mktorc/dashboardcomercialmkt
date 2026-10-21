@@ -8,7 +8,7 @@ const JOBS = [
   { name: "meta-ads", path: "/api/public/sync/meta-ads?days=7" },
   { name: "google-ads", path: "/api/public/sync/google-ads?days=7" },
   { name: "hqrentals", path: "/api/public/sync/hqrentals?days=7" },
-  { name: "clickmassa", path: "/api/public/sync/clickmassa?startPage=1&maxPages=5" },
+  { name: "clickmassa", path: "/api/public/sync/clickmassa?startPage=1&maxPages=50" },
   { name: "clickmassa-opportunities", path: "/api/public/sync/clickmassa-opportunities" },
 ] as const;
 
