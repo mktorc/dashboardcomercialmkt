@@ -125,7 +125,8 @@ type ContactRule = {
   combined: boolean;
 };
 const CONTACT_RULES: ContactRule[] = [
-  { id: "meta", match: /^meta$/, connection: ["%campanha meta%", "%Orlando Rent a Car%"], origin: ["%meta%"], combined: false },
+  // Meta: só pela Origem do Lead. A conexão "Campanha Meta" recebe contatos de qualquer origem (recorrentes, indicações, sem origem).
+  { id: "meta", match: /^meta$/, connection: [], origin: ["%meta%"], combined: true },
   { id: "google", match: /^google$/, connection: ["%Oficial AFS%", "%Google Ads%"], origin: ["%google%"], combined: false },
   { id: "turistorlando", match: /turist/, connection: ["%turist%"], origin: ["%turist%"], combined: true },
   { id: "agencias", match: /agenc|indica/, connection: ["%agenc%", "%indica%"], origin: ["%agenc%", "%indica%"], combined: true },
