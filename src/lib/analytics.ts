@@ -619,6 +619,8 @@ export function computeAttribution(d: AnalyticsData) {
           ? (r.faturamento - r.investimento) / r.investimento
           : null,
       roas: r.investimento && (r.leads || r.reservas) ? r.faturamento / r.investimento : null,
+      // CAC: investimento ÷ reservas fechadas (sem investimento ou sem reserva é desconhecido).
+      cac: r.investimento && r.reservas ? r.investimento / r.reservas : null,
     }))
     .sort((a, b) => b.investimento - a.investimento || b.faturamento - a.faturamento);
 }

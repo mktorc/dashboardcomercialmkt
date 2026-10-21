@@ -22,7 +22,6 @@ import { SyncButton } from "@/components/dashboard/SyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -105,7 +104,7 @@ const getPriorYearDates = (from: string, to: string) => {
   };
 };
 
-type AttributionSortKey = "utm" | "investimento" | "leads" | "cpl" | "reservas" | "conversao" | "faturamento" | "roas" | "roi";
+type AttributionSortKey = "utm" | "investimento" | "leads" | "cpl" | "reservas" | "conversao" | "faturamento" | "roas" | "cac";
 
 function Dashboard() {
   const today = new Date();
@@ -277,18 +276,6 @@ function Dashboard() {
                 ))}
               </select>
             </label>
-            <label
-              className="flex h-9 items-center gap-2 text-xs text-foreground/70"
-              title={selectedOrigin ? "Disponível só em \"Todas as origens\"" : "Soma o investimento mensal da equipe (Configurações) ao CAC"}
-            >
-              <input
-                type="checkbox"
-                checked={includeTeam && !selectedOrigin}
-                disabled={Boolean(selectedOrigin)}
-                onChange={(event) => setIncludeTeam(event.target.checked)}
-              />
-              Incluir equipe de marketing
-            </label>
           </div>
         </header>
 
@@ -299,6 +286,19 @@ function Dashboard() {
               {error instanceof Error ? <p className="mt-1 break-words text-xs">{error.message}</p> : null}
             </Card>
           ) : null}
+
+          <label
+            className="flex w-fit items-center gap-2 text-xs text-foreground/80"
+            title={selectedOrigin ? "Disponível só em \"Todas as origens\"" : "Soma o investimento mensal da equipe (Configurações) a Investimento, CPL, CAC e ROAS"}
+          >
+            <input
+              type="checkbox"
+              checked={includeTeam && !selectedOrigin}
+              disabled={Boolean(selectedOrigin)}
+              onChange={(event) => setIncludeTeam(event.target.checked)}
+            />
+            Incluir investimento da equipe de marketing (Investimento total, CPL, CAC e ROAS)
+          </label>
 
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <KpiCard
@@ -547,10 +547,10 @@ function Dashboard() {
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">
-                  Atribuição e ROI por UTM / Campanha
+                  Atribuição e CAC por UTM / Campanha
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. ROI "—" = nenhum lead ou reserva
+                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. CAC "—" = sem investimento ou nenhuma reserva
                   chegou com a UTM desta campanha.
                 </p>
               </div>
@@ -637,10 +637,10 @@ function Dashboard() {
                     <th className="px-5 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "roi", dir: s.key === "roi" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() => setAttributionSort((s) => ({ key: "cac", dir: s.key === "cac" ? ((s.dir * -1) as 1 | -1) : -1 }))}
                       >
-                        ROI
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "roi" ? "text-accent" : ""}`} />
+                        CAC
+                        <ArrowUpDown className={`size-3 ${attributionSort.key === "cac" ? "text-accent" : ""}`} />
                       </button>
                     </th>
                   </tr>
@@ -668,22 +668,15 @@ function Dashboard() {
                         {row.roas === null ? "—" : `${row.roas.toFixed(2)}x`}
                       </td>
                       <td className="px-5 py-2.5 text-right">
-                        {row.roi === null ? (
+                        {row.cac === null ? (
                           <span
                             className="text-muted-foreground"
-                            title="Sem leads ou reservas com esta UTM"
+                            title="Sem investimento ou sem reservas com esta UTM"
                           >
                             —
                           </span>
                         ) : (
-                          <Badge
-                            variant={(row.roi ?? 0) >= 0 ? "default" : "destructive"}
-                            className={
-                              (row.roi ?? 0) >= 0 ? "bg-accent text-accent-foreground" : ""
-                            }
-                          >
-                            {(row.roi * 100).toFixed(0)}%
-                          </Badge>
+                          brl(row.cac)
                         )}
                       </td>
                     </tr>
