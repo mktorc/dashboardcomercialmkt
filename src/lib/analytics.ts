@@ -97,6 +97,9 @@ export type OpportunityOriginRow = {
   pipeline_step_id: number | null;
   utm_source: string | null;
   utm_campaign?: string | null;
+  /** Contato do lead (liga a oportunidade ganha à reserva do HQ). */
+  phone8?: string | null;
+  email_lc?: string | null;
 };
 
 export type AnalyticsData = {
@@ -275,7 +278,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       fetchAll((a, b) =>
         supabase
           .from("crm_leads")
-          .select("lead_id, utm_source, lead_origin, utm_campaign, first_connection_name")
+          .select("lead_id, utm_source, lead_origin, utm_campaign, first_connection_name, phone8, email_lc")
           .in("lead_id", leadIds.slice(index * 400, (index + 1) * 400))
           .range(a, b),
       ),
@@ -283,11 +286,16 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   );
   const originLeadError = originLeadPages.find((page) => page.error)?.error;
   if (originLeadError) throw originLeadError;
-  const leadAttributionById = new Map<string, { source: string | null; campaign: string | null }>();
+  const leadAttributionById = new Map<
+    string,
+    { source: string | null; campaign: string | null; phone8: string | null; email_lc: string | null }
+  >();
   [...kommoLeads, ...kommoWins.map((win) => win.lead)].forEach((lead) =>
     leadAttributionById.set(lead.lead_id, {
       source: resolveLeadSource(lead.utm_source, lead.lead_origin),
       campaign: lead.utm_campaign,
+      phone8: lead.phone8 ?? null,
+      email_lc: lead.email_lc ?? null,
     }),
   );
   originLeadPages.forEach((page) => {
@@ -298,6 +306,8 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         lead_origin: string | null;
         utm_campaign: string | null;
         first_connection_name: string | null;
+        phone8: string | null;
+        email_lc: string | null;
       }[]
     ).forEach((lead) => {
       if (lead.lead_id)
@@ -307,6 +317,8 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
             ? "google"
             : resolveLeadSource(lead.utm_source, lead.lead_origin),
           campaign: lead.utm_campaign,
+          phone8: lead.phone8,
+          email_lc: lead.email_lc,
         });
     });
   });
@@ -321,6 +333,8 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       utm_campaign: opportunity.lead_id
         ? (leadAttributionById.get(opportunity.lead_id)?.campaign ?? null)
         : null,
+      phone8: opportunity.lead_id ? (leadAttributionById.get(opportunity.lead_id)?.phone8 ?? null) : null,
+      email_lc: opportunity.lead_id ? (leadAttributionById.get(opportunity.lead_id)?.email_lc ?? null) : null,
     }));
 
   const num = <T extends { spend: unknown }>(rows: T[]) =>
@@ -1106,9 +1120,13 @@ export function computeChannelMonthly(
     const inMonth = (value: string) => value.slice(0, 7) === key;
     const monthOpportunities = scopedAll.opportunities.filter((o) => inMonth(o.created_at));
     // Paridade com as ganhas: faturamento e reservas são só os das oportunidades ganhas da safra do mês.
-    const wonLeadIds = new Set(
-      monthOpportunities.filter(isWonOpportunity).map((o) => o.lead_id).filter((id): id is string => Boolean(id)),
-    );
+    // O vínculo é pelo contato (telefone/e-mail): a mesma pessoa pode ter mais de um lead no CRM.
+    const wonPhones = new Set<string>();
+    const wonEmails = new Set<string>();
+    monthOpportunities.filter(isWonOpportunity).forEach((o) => {
+      if (o.phone8) wonPhones.add(o.phone8);
+      if (o.email_lc) wonEmails.add(o.email_lc);
+    });
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
@@ -1116,7 +1134,9 @@ export function computeChannelMonthly(
       opportunities: monthOpportunities,
       updatedOpportunities: [],
       reservations: data.reservations.filter(
-        (r) => r.status === "confirmed" && r.lead_id != null && wonLeadIds.has(r.lead_id),
+        (r) =>
+          r.status === "confirmed" &&
+          ((r.phone8 != null && wonPhones.has(r.phone8)) || (r.email_lc != null && wonEmails.has(r.email_lc))),
       ),
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).

@@ -15,6 +15,8 @@ export type KommoLead = {
   utm_campaign: string | null;
   created_at: string;
   updated_at: string;
+  phone8?: string | null;
+  email_lc?: string | null;
 };
 
 export async function fetchKommoLeads(fromIso: string, toIso: string,
@@ -24,7 +26,7 @@ export async function fetchKommoLeads(fromIso: string, toIso: string,
   const { data, error } = await fetchAll((a, b) =>
     supabase
       .from("crm_leads")
-      .select("lead_id, name, stage_name, seller_name, utm_source, lead_origin, utm_campaign, created_at, updated_at")
+      .select("lead_id, name, stage_name, seller_name, utm_source, lead_origin, utm_campaign, created_at, updated_at, phone8, email_lc")
       .like("lead_id", `${KOMMO_PREFIX}%`)
       .gte(dateColumn, fromIso)
       .lte(dateColumn, toIso)
@@ -47,6 +49,8 @@ export const kommoAsOpportunity = (l: KommoLead, status = "closed") => ({
   pipeline_step_id: null as number | null,
   created_at: l.created_at,
   updated_at: l.updated_at,
+  phone8: l.phone8 ?? null,
+  email_lc: l.email_lc ?? null,
 });
 
 export type KommoWin = { lead: KommoLead; wonAt: string };
