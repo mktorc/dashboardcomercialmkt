@@ -129,6 +129,7 @@ export function ComercialPage({
   const cardGoals = revenueAndTicketGoals(teamData?.goals ?? [], from, to);
   const revenuePace = expectedRevenueByDate(teamData?.goals ?? [], from, to);
   const monthProgressPercent = monthProgress(to) * 100;
+  const paceDelta = (k?.faturamento ?? 0) - revenuePace;
   const ticketGoalDelta = (k?.ticket ?? 0) - cardGoals.ticket;
   const discountLimitDeltaPp = (cardGoals.discount - (k?.descontoPct ?? 0)) * 100;
   const selectedPeriodDays = Math.max(
@@ -165,8 +166,9 @@ export function ComercialPage({
   ].sort((x, y) => y.oportunidades - x.oportunidades);
   const [noSellerOpen, setNoSellerOpen] = useState(false);
   const operationalCardClass = "min-h-[190px] h-full w-full flex flex-col justify-between";
-  const compactOperationalCardClass = "h-[160px] w-full px-3 py-2 flex flex-col justify-between";
-  const firstRowOperationalCardClass = "h-[144px] w-full p-3 flex flex-col justify-start";
+  const compactOperationalCardClass = "h-[200px] w-full px-3 py-2 flex flex-col justify-between";
+  const occupancyCardClass = "h-[160px] w-full px-3 py-2 flex flex-col justify-between";
+  const firstRowOperationalCardClass = "h-[160px] w-full p-3 flex flex-col justify-start";
   const operationalSellerChartHeight = chartH;
 
   const opportunityCard = <KpiCard icon={Target} label="Oportunidades"
@@ -175,7 +177,7 @@ export function ComercialPage({
     footer={k ? `Média de ${(k.oportunidades / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia` : undefined}
     compact tight
     className={firstRowOperationalCardClass} />;
-  const noTaskCard = <Button variant="ghost" className="block h-[144px] w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full" onClick={() => setNoTaskOpen(true)}>
+  const noTaskCard = <Button variant="ghost" className="block h-[160px] w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full" onClick={() => setNoTaskOpen(true)}>
     <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
       value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
       hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight
@@ -187,7 +189,7 @@ export function ComercialPage({
     value={k ? brl(k.faturamento) : "—"}
     hint={k ? comparison(k.faturamentoVar) : undefined}
     goal={{ actual: k?.faturamento ?? 0, target: cardGoals.revenue, label: brl(cardGoals.revenue) }}
-    pace={{ expected: brl(revenuePace), actual: brl(k?.faturamento ?? 0), monthPercent: monthProgressPercent }}
+    pace={{ expected: brl(revenuePace), actual: brl(k?.faturamento ?? 0), monthPercent: monthProgressPercent, delta: { label: `${paceDelta >= 0 ? "+" : "−"}${brl(Math.abs(paceDelta))} ${paceDelta >= 0 ? "acima" : "abaixo"}`, positive: paceDelta >= 0 } }}
     compact aligned className={compactOperationalCardClass} />;
   const ticketCard = <KpiCard icon={DollarSign} label="Ticket médio"
     value={k ? brl(k.ticket) : "—"}
@@ -218,7 +220,7 @@ export function ComercialPage({
     return <KpiCard key={label} icon={CarFront} label={label} value={occupancyRate === undefined ? "—" : pct(occupancyRate)}
       hint={occupancyVariation === undefined ? undefined : comparison(occupancyVariation)}
       highlight={index === 0} compact aligned
-      goal={{ actual: occupancyRate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} className={compactOperationalCardClass} />;
+      goal={{ actual: occupancyRate ?? 0, target: occupancyTarget, label: pct(occupancyTarget ?? 0) }} className={occupancyCardClass} />;
   }) : null;
 
   const selectedMonths = new Set<string>();
@@ -317,18 +319,6 @@ export function ComercialPage({
           ) : (<>
           <section className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-4">
-                {opportunityCard}
-                <OpportunitySellerChart data={opportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} compare expandable />
-              </div>
-              <div className="space-y-4">
-                {noTaskCard}
-                <NoTaskBySellerChart data={noTaskRows} height={operationalSellerChartHeight} expandable />
-              </div>
-              <div className="space-y-4">
-                {conversionCard}
-                <OpportunitySellerChart data={allTimeOpportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} expandable onSelect={(key) => { if (key === "__none") setNoSellerOpen(true); }} />
-              </div>
-              <div className="space-y-4">
                 {revenueCard}
                 <GoalChart title="Receita provisionada" subtitle="Alcançado vs. meta" data={goalRows} h={chartH} a="faturamento" b="revenueGoal" fmt={brl} expandable showAttainment />
                 {active === "comercial-operacional" ? occupancyCards?.[0] : null}
@@ -344,6 +334,18 @@ export function ComercialPage({
                 {active === "comercial-operacional" ? occupancyCards?.[2] : null}
               </div>
               {active === "comercial" ? occupancyCards : null}
+              <div className="space-y-4">
+                {opportunityCard}
+                <OpportunitySellerChart data={opportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} compare expandable />
+              </div>
+              <div className="space-y-4">
+                {noTaskCard}
+                <NoTaskBySellerChart data={noTaskRows} height={operationalSellerChartHeight} expandable />
+              </div>
+              <div className="space-y-4">
+                {conversionCard}
+                <OpportunitySellerChart data={allTimeOpportunityRows} height={operationalSellerChartHeight} loading={isLoading && !error} expandable onSelect={(key) => { if (key === "__none") setNoSellerOpen(true); }} />
+              </div>
           </section>
 
           {active === "comercial" ? (
@@ -585,7 +587,7 @@ function OpportunitySellerChart({
             <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
+              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} tickFormatter={axisName} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
               <Bar
                 dataKey="oportunidades"
@@ -632,7 +634,7 @@ function NoTaskBySellerChart({
             <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} {...axis} />
+              <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} tickFormatter={axisName} {...axis} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
               <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -775,9 +777,12 @@ function ExpandableChartPanel({
   );
 }
 
-function sellerAxisWidth(data: Pick<SellerRow, "name">[], maxWidth = 120) {
-  const longestName = data.reduce((length, row) => Math.max(length, row.name.length), 0);
-  return Math.min(maxWidth, Math.max(52, Math.ceil(longestName * 6.5 + 12)));
+/** Nome curto para o eixo: só o primeiro nome quando o nome é longo (o tooltip mostra o nome completo). */
+const axisName = (name: string) => (name.length > 12 ? (name.split(" ")[0] ?? name) : name);
+
+function sellerAxisWidth(data: Pick<SellerRow, "name">[], maxWidth = 130) {
+  const longestName = data.reduce((length, row) => Math.max(length, axisName(row.name).length), 0);
+  return Math.min(maxWidth, Math.max(52, Math.ceil(longestName * 6.5 + 14)));
 }
 
 function GoalChart({
@@ -819,9 +824,9 @@ function GoalChart({
                 return `$${Math.round(value / 1000)}k`;
               }}
             />
-            <YAxis type="category" dataKey="name" width={sellerAxisWidth(data, 90)} {...axis} />
+            <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} tickFormatter={axisName} {...axis} />
             <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]}>
               {showAttainment && b ? (
                 <LabelList

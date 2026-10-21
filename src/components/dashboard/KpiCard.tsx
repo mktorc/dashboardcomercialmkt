@@ -25,7 +25,7 @@ export function KpiCard({
   icon: LucideIcon;
   highlight?: boolean | undefined;
   goal?: { actual: number; target?: number | undefined; label: string; kind?: "target" | "limit" } | undefined;
-  pace?: { expected: string; actual: string; monthPercent: number } | undefined;
+  pace?: { expected: string; actual: string; monthPercent: number; delta?: { label: string; positive: boolean } } | undefined;
   footer?: string | undefined;
   compact?: boolean;
   tight?: boolean;
@@ -35,36 +35,61 @@ export function KpiCard({
   className?: string | undefined;
 }) {
   const progress = goal ? goalProgress(goal.actual, goal.target) : null;
-  const overLimit = goal?.kind === "limit" && progress !== null && progress.percent > 100;
+  const isLimit = goal?.kind === "limit";
+  const overLimit = isLimit && progress !== null && progress.percent > 100;
+  // Cor pelo atingimento: verde na meta, âmbar perto, laranja longe; no limite, vermelho ao estourar.
+  const tone = overLimit
+    ? { text: "text-destructive", bar: "[&>div]:bg-destructive" }
+    : progress === null || isLimit || progress.percent >= 100
+      ? { text: "text-accent", bar: "[&>div]:bg-accent" }
+      : progress.percent >= 75
+        ? { text: "text-amber-400", bar: "[&>div]:bg-amber-400" }
+        : { text: "text-orange-500", bar: "[&>div]:bg-orange-500" };
   const goalLabelDetails = goal ? (
-    <div className={cn("flex justify-between", compact ? "flex-nowrap gap-1 text-[10px] leading-3" : "flex-wrap gap-x-3 gap-y-1 text-xs")}>
-      <span className={cn("text-muted-foreground", compact && "min-w-0 truncate")}>
-        {progress ? `${goal.kind === "limit" ? "Limite" : "Meta"}: ${goal.label}` : `${goal.kind === "limit" ? "Limite" : "Meta"} não definida`}
-      </span>
+    <div className="flex items-end justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{isLimit ? "Limite" : "Meta"}</p>
+        <p className={cn("truncate font-semibold leading-5 text-foreground", compact ? "text-sm" : "text-base")}>
+          {progress ? goal.label : "Não definida"}
+        </p>
+      </div>
       {progress ? (
-        <span className={cn("font-medium", compact && "shrink-0", overLimit ? "text-destructive" : "text-accent")}>
-          {progress.percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% {goal.kind === "limit" ? "do limite" : "da meta"}
-        </span>
+        <div className="shrink-0 text-right">
+          <p className={cn("font-bold leading-none", compact ? "text-xl" : "text-2xl", tone.text)}>
+            {progress.percent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+          </p>
+          <p className="mt-0.5 text-[10px] leading-3 text-muted-foreground">{isLimit ? "do limite" : "da meta"}</p>
+        </div>
       ) : null}
     </div>
   ) : null;
   const goalProgressDetails = goal ? (
     <Progress
-      aria-label={`${label} — progresso ${goal.kind === "limit" ? "do limite" : "da meta"}`}
+      aria-label={`${label} — progresso ${isLimit ? "do limite" : "da meta"}`}
       value={progress?.bar ?? 0}
-      className={cn(compact && "h-1.5", overLimit ? "bg-secondary [&>div]:bg-destructive" : "bg-secondary [&>div]:bg-accent")}
+      className={cn(compact ? "h-2.5" : "h-3", "bg-secondary", tone.bar)}
     />
   ) : null;
   const goalDetails = goal ? (
-    <div className={cn(aligned ? "space-y-0.5" : tight ? "mt-auto space-y-0.5 pt-1" : compact ? "mt-2 space-y-1" : "mt-4 space-y-2")}>
+    <div className={cn(aligned ? "space-y-1" : tight ? "mt-auto space-y-1 pt-1" : compact ? "mt-2 space-y-1.5" : "mt-4 space-y-2")}>
       {goalLabelDetails}
       {goalProgressDetails}
     </div>
   ) : null;
   const paceDetails = pace ? (
-    <p className={cn("text-muted-foreground", aligned ? "line-clamp-2 text-[10px] leading-3" : tight ? "mt-0.5 line-clamp-2 text-[9px] leading-3" : compact ? "mt-1 line-clamp-2 text-[10px] leading-3" : "mt-2 text-[11px] leading-4")}>
-      Ritmo ({pace.monthPercent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do mês): {pace.actual} realizado · {pace.expected} esperado
-    </p>
+    <div className="rounded-md bg-secondary/60 px-2 py-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Ritmo · {pace.monthPercent.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do mês
+        </span>
+        {pace.delta ? (
+          <span className={cn("text-[11px] font-bold", pace.delta.positive ? "text-accent" : "text-orange-500")}>{pace.delta.label}</span>
+        ) : null}
+      </div>
+      <p className="text-[11px] leading-4 text-foreground/90">
+        <span className="font-semibold">{pace.actual}</span> realizado · <span className="font-semibold">{pace.expected}</span> esperado
+      </p>
+    </div>
   ) : null;
   const footerDetails = footer ? (
     <p className={cn("text-muted-foreground", aligned ? "line-clamp-2 text-[10px] leading-3" : tight ? "mt-auto pt-0.5 text-[9px] leading-3" : compact ? "mt-auto line-clamp-2 pt-1 text-[10px] leading-3" : "mt-auto pt-2 text-[11px] leading-4")}>
@@ -92,7 +117,7 @@ export function KpiCard({
         {hint ? <p className={cn("text-muted-foreground", wrapHint ? "mt-1 whitespace-pre-line text-xs leading-4" : compact ? "mt-0.5 truncate text-[10px] leading-3" : "mt-1 text-xs")}>{hint}</p> : null}
       </div>
       {aligned ? (
-        <div className="mt-auto flex h-14 w-full flex-col justify-end">
+        <div className="mt-auto flex w-full flex-col justify-end gap-1">
           {goalLabelDetails}
           <div className="flex flex-col gap-0.5">
             {goalProgressDetails}
