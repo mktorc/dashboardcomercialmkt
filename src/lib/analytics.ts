@@ -42,6 +42,8 @@ export type ReservationRow = {
   lead_origin?: string | null;
   /** Criação do lead da safra ao qual a reserva pertence. */
   lead_created_at?: string | null;
+  /** Lead vinculado por telefone/e-mail (liga a reserva à oportunidade ganha). */
+  lead_id?: string | null;
 };
 
 /** Deduplicação inteligente de leads Kommo + ClickMassa por email/telefone com regra de booking_date */
@@ -395,7 +397,7 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
     const source = /oficial afs|google ads/i.test(lead.first_connection_name ?? "")
       ? "google"
       : resolveLeadSource(lead.utm_source, lead.lead_origin);
-    return source ? { ...r, lead_origin: source } : r;
+    return { ...r, lead_id: lead.lead_id, ...(source ? { lead_origin: source } : {}) };
   });
 }
 
@@ -1102,13 +1104,20 @@ export function computeChannelMonthly(
       : filterAnalyticsByOrigin(data, mode);
   return months.map((key) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
+    const monthOpportunities = scopedAll.opportunities.filter((o) => inMonth(o.created_at));
+    // Paridade com as ganhas: faturamento e reservas são só os das oportunidades ganhas da safra do mês.
+    const wonLeadIds = new Set(
+      monthOpportunities.filter(isWonOpportunity).map((o) => o.lead_id).filter((id): id is string => Boolean(id)),
+    );
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
       google: scopedAll.google.filter((r) => inMonth(r.date)),
-      opportunities: scopedAll.opportunities.filter((o) => inMonth(o.created_at)),
+      opportunities: monthOpportunities,
       updatedOpportunities: [],
-      reservations: scopedAll.reservations.filter((r) => inMonth(r.created_at)),
+      reservations: data.reservations.filter(
+        (r) => r.status === "confirmed" && r.lead_id != null && wonLeadIds.has(r.lead_id),
+      ),
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
