@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2, KeyRound } from "lucide-react";
+import { Trash2, KeyRound, ChevronDown } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -78,6 +78,7 @@ function SettingsPage() {
   });
   const [costMonth, setCostMonth] = useState(new Date().toISOString().slice(0, 7));
   const [costAmount, setCostAmount] = useState("");
+  const [costOpen, setCostOpen] = useState(false);
   const refreshCosts = () => {
     qc.invalidateQueries({ queryKey: ["team-costs-admin"] });
     qc.invalidateQueries({ queryKey: ["team-costs"] });
@@ -119,7 +120,17 @@ function SettingsPage() {
         </div>
 
         <Card className="p-5">
-          <h2 className="mb-1 font-semibold text-foreground">Investimento na equipe de marketing</h2>
+          <button
+            type="button"
+            className="flex w-full items-center justify-between text-left"
+            aria-expanded={costOpen}
+            onClick={() => setCostOpen((o) => !o)}
+          >
+            <h2 className="font-semibold text-foreground">Investimento na equipe de marketing</h2>
+            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${costOpen ? "rotate-180" : ""}`} />
+          </button>
+          {costOpen ? (
+            <div className="mt-1">
           <p className="mb-4 text-xs text-muted-foreground">
             Valor mensal (USD). No dashboard, marque "Incluir equipe de marketing" para somá-lo ao investimento do CAC, rateado pelos dias do período.
           </p>
@@ -156,6 +167,8 @@ function SettingsPage() {
                 ))}
               </tbody>
             </table>
+          ) : null}
+            </div>
           ) : null}
         </Card>
 
