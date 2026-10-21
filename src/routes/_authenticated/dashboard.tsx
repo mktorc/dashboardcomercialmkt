@@ -436,7 +436,7 @@ function Dashboard() {
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
               <p className="text-xs text-muted-foreground">
-                Contatos ClickMassa, oportunidades e reservas confirmadas criados no período; a primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
+                Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades (um contato pode ter mais de uma, ou ser anterior ao período) e reservas confirmadas. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
               </p>
               {dynamicFunnel ? (
                 <>
