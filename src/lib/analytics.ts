@@ -312,10 +312,8 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     ).forEach((lead) => {
       if (lead.lead_id)
         leadAttributionById.set(lead.lead_id, {
-          // Mesmo critério dos Contatos: conexão "Oficial AFS" = lead do Google (oportunidades ⊂ contatos).
-          source: /oficial afs|google ads/i.test(lead.first_connection_name ?? "")
-            ? "google"
-            : resolveLeadSource(lead.utm_source, lead.lead_origin),
+          // Só a Origem do Lead define o canal: a conexão "Google Ads e Oficial" também recebe recorrentes e indicações.
+          source: resolveLeadSource(lead.utm_source, lead.lead_origin),
           campaign: lead.utm_campaign,
           phone8: lead.phone8,
           email_lc: lead.email_lc,
@@ -408,9 +406,7 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
     ].filter((lead) => Date.parse(lead.created_at) <= limit);
     const lead = candidates.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
     if (!lead) return r;
-    const source = /oficial afs|google ads/i.test(lead.first_connection_name ?? "")
-      ? "google"
-      : resolveLeadSource(lead.utm_source, lead.lead_origin);
+    const source = resolveLeadSource(lead.utm_source, lead.lead_origin);
     return { ...r, lead_id: lead.lead_id, ...(source ? { lead_origin: source } : {}) };
   });
 }
