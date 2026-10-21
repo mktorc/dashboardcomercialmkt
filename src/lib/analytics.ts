@@ -1067,7 +1067,13 @@ export function buildOpportunityComparison(
 
 export type ChannelComparisonMode = "meta" | "google" | "both";
 /** `null` = sem dados suficientes no mês (o canal tem poucas oportunidades/reservas atribuídas). */
-export type ChannelMonthlyPoint = { month: string; conversao: number | null; cac: number | null };
+export type ChannelMonthlyPoint = {
+  month: string;
+  conversao: number | null;
+  cac: number | null;
+  /** Componentes do cálculo, mostrados no tooltip para conferência. */
+  detail: { created: number; won: number; reservations: number; revenue: number; media: number; team: number };
+};
 // Mínimos para exibir os indicadores: abaixo disso a origem do lead não foi registrada o bastante
 // e a razão fica distorcida (ex.: CAC % de 120% com 1 reserva atribuída).
 export const MIN_CHANNEL_OPPORTUNITIES = 10;
@@ -1080,6 +1086,7 @@ export function computeChannelMonthly(
   data: AnalyticsData,
   mode: ChannelComparisonMode,
   months: string[],
+  teamCosts: Record<string, number> = {},
 ): ChannelMonthlyPoint[] {
   // A atribuição usa o período todo (campanha → canal); só depois divide por mês.
   const scopedAll: AnalyticsData =
@@ -1103,13 +1110,25 @@ export function computeChannelMonthly(
       updatedOpportunities: [],
       reservations: scopedAll.reservations.filter((r) => inMonth(r.created_at)),
     };
-    const kpis = computeKpis(scoped);
+    // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
+    const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
+    const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
+    const kpis = computeKpis(scoped, teamSpend);
     const created = scoped.opportunities.length;
     const won = scoped.opportunities.filter(isWonOpportunity).length;
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,
       cac: kpis.reservations >= MIN_CHANNEL_RESERVATIONS && kpis.spend > 0 && kpis.cacPct != null ? kpis.cacPct * 100 : null,
+      detail: {
+        created,
+        won,
+        reservations: kpis.reservations,
+        revenue: kpis.revenue,
+        media: kpis.metaSpend + kpis.googleSpend,
+        team: teamSpend,
+      },
     };
   });
 }

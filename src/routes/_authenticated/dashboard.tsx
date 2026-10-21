@@ -42,6 +42,7 @@ import {
   MIN_CHANNEL_OPPORTUNITIES,
   MIN_CHANNEL_RESERVATIONS,
   type ChannelComparisonMode,
+  type ChannelMonthlyPoint,
   computeOpportunityOrigins,
   computeTimeseries,
   buildOpportunityComparison,
@@ -162,7 +163,7 @@ function Dashboard() {
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
   const teamSpend = includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
   const kpis = originData ? computeKpis(originData, teamSpend) : null;
-  const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12) : [];
+  const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {}) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
   attribution = attribution.sort((a, b) => {
@@ -442,7 +443,25 @@ function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                     <XAxis dataKey="month" interval={0} tick={{ fontSize: 11 }} />
                     <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v) => (typeof v === "number" ? `${v.toFixed(2).replace(".", ",")}%` : "sem dados suficientes")} />
+                    <Tooltip
+                      content={({ active, payload, label }) => {
+                        const point = active ? (payload?.[0]?.payload as ChannelMonthlyPoint | undefined) : undefined;
+                        if (!point) return null;
+                        const d = point.detail;
+                        const fmt = (v: number | null) => (v == null ? "sem dados suficientes" : `${v.toFixed(2).replace(".", ",")}%`);
+                        return (
+                          <div className="rounded-md border border-border bg-card p-3 text-xs text-foreground shadow-md">
+                            <p className="mb-1 font-semibold">{label}</p>
+                            <p>Conversão: {fmt(point.conversao)}</p>
+                            <p className="text-muted-foreground">{d.won} ganhas ÷ {d.created} oportunidades criadas</p>
+                            <p className="mt-1">CAC %: {fmt(point.cac)}</p>
+                            <p className="text-muted-foreground">
+                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento ({d.reservations} reservas)
+                            </p>
+                          </div>
+                        );
+                      }}
+                    />
                     <Legend />
                     <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill="#44E500" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="cac" name="CAC Percentual (%)" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
@@ -450,7 +469,7 @@ function Dashboard() {
                 </ResponsiveContainer>
               </div>
               <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-                Meses sem barra não têm dados suficientes: o canal precisa de pelo menos {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026.
+                Meses sem barra não têm dados suficientes: o canal precisa de pelo menos {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026. No Consolidado, o CAC % também inclui o investimento mensal na equipe de marketing (Configurações).
               </p>
             </Card>
             <Card className="overflow-hidden p-5 xl:col-span-2">
