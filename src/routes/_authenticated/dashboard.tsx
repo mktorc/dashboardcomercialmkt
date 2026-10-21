@@ -474,7 +474,7 @@ function Dashboard() {
                             <p className="text-muted-foreground">{d.won} ganhas ÷ {d.created} oportunidades criadas</p>
                             <p className="mt-1">CAC %: {fmt(point.cac)}</p>
                             <p className="text-muted-foreground">
-                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento das {d.reservations} ganhas
+                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento ({d.reservations} reservas/ganhas)
                             </p>
                           </div>
                         );

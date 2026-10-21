@@ -110,6 +110,8 @@ export type AnalyticsData = {
   reservations: ReservationRow[];
   opportunities: OpportunityOriginRow[];
   updatedOpportunities: OpportunityOriginRow[];
+  /** Leads do Kommo sem filtro de vendedor (base dos "leads" do comparativo de conversão, antes do ClickMassa). */
+  kommoLeadsAll?: OpportunityOriginRow[];
   /** Contatos do ClickMassa criados no período com firstConnectionName preenchido. */
   contactsReceived?: number;
   /** Total de crm_leads criados no período (fallback quando first_connection_name ainda não foi preenchido). */
@@ -357,6 +359,9 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     reservations: linkedReservations,
     opportunities,
     updatedOpportunities: updated,
+    kommoLeadsAll: attachOrigin(
+      kommoLeads.map((lead) => kommoAsOpportunity(lead)) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[],
+    ),
     contactsReceived: contacts.count ?? 0,
     leadsCreated: allLeads.count ?? 0,
     contactsByOrigin,
@@ -1096,6 +1101,9 @@ export const MIN_CHANNEL_RESERVATIONS = 5;
 const MONTH_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 /** Por mês: taxa de conversão (ganhas ÷ criadas) e CAC % (investimento ÷ rack rate), em %, por canal. */
+/** Até esta data o CRM era o Kommo (sem valor): o faturamento vem das reservas do HQ pela origem. */
+const CLICKMASSA_START = "2026-06-15";
+
 const EMPTY_WON: ReservationRow = {
   created_at: "",
   pick_up_at: null,
@@ -1134,13 +1142,24 @@ export function computeChannelMonthly(
     });
   return months.map((key) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
-    const monthOpportunities = scopedAll.opportunities.filter((o) => inMonth(o.created_at));
-    // Paridade com a planilha: o faturamento é a soma do valor das oportunidades ganhas (ClickMassa).
+    // Era ClickMassa (a partir de 15/06): oportunidades do CRM. Era Kommo (antes): todos os leads do Kommo
+    // da origem (sem filtro de vendedor) e, como "ganhas", as reservas do HQ atribuídas ao canal.
+    const monthOpportunities = scopedAll.opportunities.filter(
+      (o) => inMonth(o.created_at) && o.created_at.slice(0, 10) >= CLICKMASSA_START,
+    );
+    const inChannel = (o: OpportunityOriginRow) => {
+      const origin = normalizeOrigin(o.utm_source);
+      return mode === "both" ? origin === "meta" || origin === "google" : origin === mode;
+    };
+    const kommoCreated = (data.kommoLeadsAll ?? []).filter(
+      (o) => inMonth(o.created_at) && o.created_at.slice(0, 10) < CLICKMASSA_START && inChannel(o),
+    ).length;
+    // Paridade com a planilha: desde 15/06 o faturamento é a soma do valor das oportunidades ganhas (ClickMassa).
     // Ganha sem valor (histórico Kommo) usa a reserva confirmada do mesmo contato (telefone/e-mail),
     // a primeira ainda não usada criada a partir da oportunidade.
     const usedReservations = new Set<ReservationRow>();
     const wonRevenueRows: ReservationRow[] = [];
-    [...monthOpportunities.filter(isWonOpportunity)]
+    [...monthOpportunities.filter((o) => isWonOpportunity(o) && o.created_at.slice(0, 10) >= CLICKMASSA_START)]
       .sort((x, y) => x.created_at.localeCompare(y.created_at))
       .forEach((o) => {
         const value = Number(o.value) || 0;
@@ -1163,15 +1182,24 @@ export function computeChannelMonthly(
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: monthOpportunities,
       updatedOpportunities: [],
-      reservations: wonRevenueRows,
+      reservations: [
+        ...wonRevenueRows,
+        // Era Kommo (antes de 15/06): faturamento das reservas do HQ atribuídas ao canal pela origem.
+        ...scopedAll.reservations.filter(
+          (r) => inMonth(r.created_at) && r.created_at.slice(0, 10) < CLICKMASSA_START,
+        ),
+      ],
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
     const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
     const kpis = computeKpis(scoped, teamSpend);
-    const created = scoped.opportunities.length;
-    const won = scoped.opportunities.filter(isWonOpportunity).length;
+    const kommoWon = scoped.reservations.filter(
+      (r) => r.status === "confirmed" && r.created_at.slice(0, 10) < CLICKMASSA_START,
+    ).length;
+    const created = scoped.opportunities.length + kommoCreated;
+    const won = scoped.opportunities.filter(isWonOpportunity).length + kommoWon;
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,
