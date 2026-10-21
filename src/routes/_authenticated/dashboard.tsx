@@ -126,7 +126,18 @@ function Dashboard() {
     queryFn: () => fetchAnalytics(`${last12[0]}-01`, localDateInput(today)),
     staleTime: 10 * 60 * 1000,
   });
+  // Gráficos de oportunidades criadas/ganhas: sempre o ano todo (janeiro até hoje), independente do período.
+  const yearStart = `${last12[0]}-01`;
+  const priorYearStart = `${today.getFullYear() - 1}-01-01`;
+  const priorYearToday = localDateInput(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+  const { data: data12Prior } = useQuery({
+    queryKey: ["analytics-12m-prior", priorYearStart, priorYearToday],
+    queryFn: () => fetchAnalytics(priorYearStart, priorYearToday),
+    staleTime: 10 * 60 * 1000,
+  });
   const [channelMode, setChannelMode] = useState<ChannelComparisonMode>("both");
+  // O funil tem seu próprio seletor (independe do filtro de origem do topo).
+  const [funnelMode, setFunnelMode] = useState<ChannelComparisonMode>("both");
   const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({ key: "investimento", dir: -1 });
   const priorYear = getPriorYearDates(from, to);
   const { data, isLoading, isFetching, refetch, error } = useQuery({
@@ -179,24 +190,30 @@ function Dashboard() {
       ? [{ key: ALL_ORIGINS_KEY, label: "Todas as origens" }]
       : (originAnalytics?.sources ?? []).filter((source) => source.label === originFilter);
 
+  const yearOrigin = data12
+    ? computeOpportunityOrigins(data12.opportunities, data12.updatedOpportunities, yearStart, localDateInput(today))
+    : null;
+  const yearPriorOrigin = data12Prior
+    ? computeOpportunityOrigins(data12Prior.opportunities, data12Prior.updatedOpportunities, priorYearStart, priorYearToday)
+    : null;
   const yoyCreatedMonthly =
-    originAnalytics && priorYearAnalytics
+    yearOrigin && yearPriorOrigin
       ? buildOpportunityComparison(
-          originAnalytics.createdMonthly,
-          originAnalytics.sources,
-          priorYearAnalytics.createdMonthly,
-          priorYearAnalytics.sources,
+          yearOrigin.createdMonthly,
+          yearOrigin.sources,
+          yearPriorOrigin.createdMonthly,
+          yearPriorOrigin.sources,
           selectedOrigin,
         )
       : [];
 
   const yoyClosedMonthly =
-    originAnalytics && priorYearAnalytics
+    yearOrigin && yearPriorOrigin
       ? buildOpportunityComparison(
-          originAnalytics.closedMonthly,
-          originAnalytics.sources,
-          priorYearAnalytics.closedMonthly,
-          priorYearAnalytics.sources,
+          yearOrigin.closedMonthly,
+          yearOrigin.sources,
+          yearPriorOrigin.closedMonthly,
+          yearPriorOrigin.sources,
           selectedOrigin,
         )
       : [];
@@ -207,7 +224,8 @@ function Dashboard() {
       ? "Atenção: de set/2024 a nov/2025 a origem Google está subestimada, pois o Kommo deixou de etiquetar esses leads (ficaram sem origem ou como \"Outros Canais\"). Comparações com 2026 mostram um salto que não é real."
       : undefined;
 
-  const dynamicFunnel = originData ? buildMarketingFunnel(originData, selectedOrigin) : null;
+  const funnelOrigin = funnelMode === "both" ? null : funnelMode;
+  const dynamicFunnel = data ? buildMarketingFunnel(filterAnalyticsByOrigin(data.current, funnelOrigin), funnelOrigin) : null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -405,20 +423,20 @@ function Dashboard() {
           <section className="grid min-w-0 gap-4 xl:grid-cols-2">
             <OriginMonthlyChart
               title="Oportunidades criadas (Ano Atual vs. Ano Anterior)"
-              subtitle="Comparação YoY para o período selecionado."
+              subtitle="Comparação YoY do ano todo (janeiro até hoje), independente do período selecionado."
               data={yoyCreatedMonthly}
-              loading={isLoading}
-              currentYear={Number(to.slice(0, 4))}
-              previousYear={Number(priorYear.to.slice(0, 4))}
+              loading={!data12 || !data12Prior}
+              currentYear={today.getFullYear()}
+              previousYear={today.getFullYear() - 1}
               note={googleNote}
             />
             <OriginMonthlyChart
               title="Oportunidades ganhas (Ano Atual vs. Ano Anterior)"
-              subtitle="Comparação YoY para o período selecionado."
+              subtitle="Comparação YoY do ano todo (janeiro até hoje), independente do período selecionado."
               data={yoyClosedMonthly}
-              loading={isLoading}
-              currentYear={Number(to.slice(0, 4))}
-              previousYear={Number(priorYear.to.slice(0, 4))}
+              loading={!data12 || !data12Prior}
+              currentYear={today.getFullYear()}
+              previousYear={today.getFullYear() - 1}
               note={googleNote}
             />
             <Card className="overflow-hidden p-5 xl:col-span-2">
@@ -456,7 +474,7 @@ function Dashboard() {
                             <p className="text-muted-foreground">{d.won} ganhas ÷ {d.created} oportunidades criadas</p>
                             <p className="mt-1">CAC %: {fmt(point.cac)}</p>
                             <p className="text-muted-foreground">
-                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento das ganhas ({d.reservations} reservas de {d.won} ganhas)
+                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento das {d.reservations} ganhas
                             </p>
                           </div>
                         );
@@ -473,10 +491,21 @@ function Dashboard() {
               </p>
             </Card>
             <Card className="overflow-hidden p-5 xl:col-span-2">
-              <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
-              <p className="text-xs text-muted-foreground">
-                Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades (um contato pode ter mais de uma, ou ser anterior ao período) e reservas confirmadas. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades (um contato pode ter mais de uma, ou ser anterior ao período) e reservas confirmadas. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
+                    <Button key={key} size="sm" variant={funnelMode === key ? "default" : "outline"} onClick={() => setFunnelMode(key)}>
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               {dynamicFunnel ? (
                 <>
                   <div className="mt-6 flex flex-col items-center gap-2">
@@ -504,7 +533,7 @@ function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  {selectedOrigin && /meta/i.test(selectedOrigin) && !dynamicFunnel.stages[0]?.count ? (
+                  {funnelOrigin === "meta" && !dynamicFunnel.stages[0]?.count ? (
                     <p className="mt-3 text-xs text-muted-foreground">Leads do Meta aparecem após a próxima sincronização do Meta Ads.</p>
                   ) : null}
                 </>

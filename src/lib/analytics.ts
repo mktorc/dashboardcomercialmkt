@@ -97,6 +97,8 @@ export type OpportunityOriginRow = {
   pipeline_step_id: number | null;
   utm_source: string | null;
   utm_campaign?: string | null;
+  /** Valor da oportunidade no ClickMassa (reserva fechada); ausente nos leads históricos do Kommo. */
+  value?: number | null;
   /** Contato do lead (liga a oportunidade ganha à reserva do HQ). */
   phone8?: string | null;
   email_lc?: string | null;
@@ -189,7 +191,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         supabase
           .from("crm_opportunities")
           .select(
-            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id",
+            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
           )
           .eq("pipeline_name", "Comercial")
           .gte("created_at", utcFrom)
@@ -200,7 +202,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         supabase
           .from("crm_opportunities")
           .select(
-            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id",
+            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
           )
           .eq("pipeline_name", "Comercial")
           .gte("updated_at", iso(fromDate))
@@ -1094,6 +1096,16 @@ export const MIN_CHANNEL_RESERVATIONS = 5;
 const MONTH_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 /** Por mês: taxa de conversão (ganhas ÷ criadas) e CAC % (investimento ÷ rack rate), em %, por canal. */
+const EMPTY_WON: ReservationRow = {
+  created_at: "",
+  pick_up_at: null,
+  car_category: null,
+  rental_days: 0,
+  total_amount: 0,
+  status: "confirmed",
+  utm_campaign: null,
+};
+
 export function computeChannelMonthly(
   data: AnalyticsData,
   mode: ChannelComparisonMode,
@@ -1123,22 +1135,27 @@ export function computeChannelMonthly(
   return months.map((key) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
     const monthOpportunities = scopedAll.opportunities.filter((o) => inMonth(o.created_at));
-    // Paridade com as ganhas: cada ganha da safra do mês liga a UMA reserva confirmada do mesmo contato
-    // (telefone/e-mail), a primeira ainda não usada criada a partir da oportunidade.
+    // Paridade com a planilha: o faturamento é a soma do valor das oportunidades ganhas (ClickMassa).
+    // Ganha sem valor (histórico Kommo) usa a reserva confirmada do mesmo contato (telefone/e-mail),
+    // a primeira ainda não usada criada a partir da oportunidade.
     const usedReservations = new Set<ReservationRow>();
-    const wonReservations: ReservationRow[] = [];
+    const wonRevenueRows: ReservationRow[] = [];
     [...monthOpportunities.filter(isWonOpportunity)]
       .sort((x, y) => x.created_at.localeCompare(y.created_at))
       .forEach((o) => {
+        const value = Number(o.value) || 0;
         const from = Date.parse(o.created_at) - 86_400_000;
         const candidates = [
           ...(o.phone8 ? (reservationsByContact.get(`p:${o.phone8}`) ?? []) : []),
           ...(o.email_lc ? (reservationsByContact.get(`e:${o.email_lc}`) ?? []) : []),
         ].filter((r) => !usedReservations.has(r) && Date.parse(r.created_at) >= from);
         const match = candidates.sort((x, y) => x.created_at.localeCompare(y.created_at))[0];
-        if (!match) return;
-        usedReservations.add(match);
-        wonReservations.push(match);
+        if (value <= 0 && !match) {
+          wonRevenueRows.push({ ...EMPTY_WON, created_at: o.created_at });
+          return;
+        }
+        if (match) usedReservations.add(match);
+        wonRevenueRows.push(value > 0 ? { ...EMPTY_WON, created_at: o.created_at, total_amount: value } : match!);
       });
     const scoped: AnalyticsData = {
       ...scopedAll,
@@ -1146,7 +1163,7 @@ export function computeChannelMonthly(
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: monthOpportunities,
       updatedOpportunities: [],
-      reservations: wonReservations,
+      reservations: wonRevenueRows,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
