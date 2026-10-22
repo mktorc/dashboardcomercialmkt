@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { recordSyncRun } from "@/lib/sync-runs";
 
 // Sincronização Google Ads (REST + GAQL) -> tabela `google_ads_metrics`.
 // Proteção: Authorization: Bearer <segredo cron>. Query opcional: ?days=30
@@ -115,6 +116,7 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
               .upsert(rows.slice(i, i + 500) as never, { onConflict: "date,campaign_id" });
             if (error) return Response.json({ error: error.message }, { status: 500 });
           }
+          await recordSyncRun("google-ads");
           return Response.json({ ok: true, synced: rows.length, since: d(since), until: d(until) });
         } catch (e) {
           return Response.json({ error: (e as Error).message }, { status: 502 });

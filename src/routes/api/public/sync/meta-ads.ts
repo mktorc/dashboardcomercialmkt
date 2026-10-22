@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
+import { recordSyncRun } from "@/lib/sync-runs";
 
 // Sincronização Meta Ads (Graph API insights) -> tabela `meta_ads_metrics`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>
@@ -188,6 +189,8 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           console.log(`[Meta Ads Sync] ✅ Sincronização concluída com sucesso`);
           console.log(`[Meta Ads Sync] Total de registos inseridos: ${totalInserted}`);
           console.log(`[Meta Ads Sync] Valor total em base de dados: US$ ${totalSpend.toFixed(2)}`);
+
+          await recordSyncRun("meta-ads");
 
           return Response.json({
             ok: true,
