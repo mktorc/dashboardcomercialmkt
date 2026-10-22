@@ -860,6 +860,9 @@ export function filterAnalyticsByOrigin(data: AnalyticsData, origin: string | nu
     ...(data.contactsReceived !== undefined ? { contactsReceived: data.contactsReceived } : {}),
     ...(data.leadsCreated !== undefined ? { leadsCreated: data.leadsCreated } : {}),
     ...(data.contactsByOrigin ? { contactsByOrigin: data.contactsByOrigin } : {}),
+    ...(data.kommoLeadsAll
+      ? { kommoLeadsAll: data.kommoLeadsAll.filter((o) => normalizeOrigin(o.utm_source) === selectedOrigin) }
+      : {}),
     meta: selectedOrigin === "meta" ? data.meta : [],
     google: selectedOrigin === "google" ? data.google : [],
     opportunities: data.opportunities.filter(
@@ -875,6 +878,23 @@ export function filterAnalyticsByOrigin(data: AnalyticsData, origin: string | nu
       const source = sources?.size === 1 ? [...sources][0]! : (partner ?? "sem_origem");
       return normalizeOrigin(source) === selectedOrigin;
     }),
+  };
+}
+
+/** Escopo "Consolidado" das análises de canal: só Meta e Google (sem indicações, agências etc.). */
+export function scopeMetaGoogle(data: AnalyticsData): AnalyticsData {
+  const meta = filterAnalyticsByOrigin(data, "meta");
+  const google = filterAnalyticsByOrigin(data, "google");
+  return {
+    ...data,
+    meta: data.meta,
+    google: data.google,
+    opportunities: [...meta.opportunities, ...google.opportunities],
+    updatedOpportunities: [...meta.updatedOpportunities, ...google.updatedOpportunities],
+    reservations: [...meta.reservations, ...google.reservations],
+    ...(data.kommoLeadsAll
+      ? { kommoLeadsAll: [...(meta.kommoLeadsAll ?? []), ...(google.kommoLeadsAll ?? [])] }
+      : {}),
   };
 }
 
@@ -993,16 +1013,33 @@ export type MarketingFunnel = {
  * Demais filtros: começa nos Contatos (sem etapa de mídia). `d` já vem filtrado pela origem;
  * `origin` é a origem selecionada (null = todas).
  */
-export function buildMarketingFunnel(d: AnalyticsData, origin: string | null = null): MarketingFunnel {
+export function buildMarketingFunnel(
+  d: AnalyticsData,
+  origin: string | null = null,
+  /** Todas as reservas do período (sem filtro de origem), para ligar ganhas a reservas. */
+  allReservations: ReservationRow[] = d.reservations,
+  /** Consolidado só de Meta e Google (os contatos somam as duas regras). */
+  metaGoogle = false,
+): MarketingFunnel {
   const key = origin ? normalizeOrigin(origin) : null;
-  const opportunities = d.opportunities.length;
-  const won = d.reservations.filter((r) => r.status === "confirmed");
-  const revenue = won.reduce((s, r) => s + r.total_amount, 0);
+  // Mesma fonte do comparativo de CAC: criadas, ganhas e faturamento vêm de computeWonSummary.
+  const summary = computeWonSummary({
+    opportunities: d.opportunities,
+    kommoLeads: d.kommoLeadsAll ?? [],
+    attributedReservations: d.reservations,
+    reservationsByContact: indexReservationsByContact(allReservations),
+    inRange: () => true,
+  });
+  const opportunities = summary.created;
+  const wonCount = summary.won;
+  const revenue = summary.revenueRows.reduce((s, r) => s + r.total_amount, 0);
 
   // Contatos por origem (nome da conexão). Só "todas" tem fallback para o total de leads criados.
   let contacts: number | null;
   let contactsHint: string | undefined;
-  if (key === null) {
+  if (key === null && metaGoogle) {
+    contacts = (d.contactsByOrigin?.["meta"] ?? 0) + (d.contactsByOrigin?.["google"] ?? 0);
+  } else if (key === null) {
     // "Todas as origens": todos os leads criados no período. first_connection_name só vem preenchido
     // em parte dos leads (ex.: Oficial AFS), então contá-lo sozinho subconta o topo do funil.
     contacts = Math.max(d.leadsCreated ?? 0, d.contactsReceived ?? 0);
@@ -1014,7 +1051,7 @@ export function buildMarketingFunnel(d: AnalyticsData, origin: string | null = n
   const stages: MarketingFunnel["stages"] = [];
   const metrics: MarketingFunnel["metrics"] = [];
   const oppStage = { label: "Oportunidades criadas", count: opportunities };
-  const wonStage = { label: "Oportunidades ganhas (reservas)", count: won.length, hint: brl(revenue) };
+  const wonStage = { label: "Oportunidades ganhas (reservas)", count: wonCount, hint: brl(revenue) };
 
   if (key === "google") {
     const conversions = Math.round(d.google.reduce((s, r) => s + (Number(r.conversions) || 0), 0));
@@ -1044,12 +1081,12 @@ export function buildMarketingFunnel(d: AnalyticsData, origin: string | null = n
   stages.push(oppStage, wonStage);
 
   if (contacts !== null) metrics.push({ label: "Taxa de Qualificação (Contato → Oportunidade)", value: ratio(opportunities, contacts) });
-  metrics.push({ label: "Taxa de Fechamento (Oportunidade → Ganha)", value: ratio(won.length, opportunities) });
+  metrics.push({ label: "Taxa de Fechamento (Oportunidade → Ganha)", value: ratio(wonCount, opportunities) });
   if (contacts !== null) {
     const denom = key === "meta" || key === "google" ? stages[0]!.count : contacts;
     metrics.push({
       label: key === "meta" ? "Conversão Global (Lead Meta → Ganha)" : key === "google" ? "Conversão Global (Conversão Google → Ganha)" : "Conversão Global (Contato → Ganha)",
-      value: ratio(won.length, denom),
+      value: ratio(wonCount, denom),
     });
   }
   return { stages: stages.map((st, i) => ({ ...st, label: `${i + 1} · ${st.label}` })), metrics };
@@ -1116,6 +1153,70 @@ const EMPTY_WON: ReservationRow = {
   utm_campaign: null,
 };
 
+/** Índice das reservas confirmadas por telefone/e-mail, para ligar uma ganha à reserva do mesmo contato. */
+function indexReservationsByContact(reservations: ReservationRow[]) {
+  const byContact = new Map<string, ReservationRow[]>();
+  reservations
+    .filter((r) => r.status === "confirmed")
+    .forEach((r) => {
+      [r.phone8 ? `p:${r.phone8}` : null, r.email_lc ? `e:${r.email_lc}` : null].forEach((key) => {
+        if (key) byContact.set(key, [...(byContact.get(key) ?? []), r]);
+      });
+    });
+  return byContact;
+}
+
+/**
+ * Fonte única de "criadas", "ganhas" e faturamento para o comparativo de CAC e para o funil de marketing.
+ * Desde CLICKMASSA_START: oportunidades do ClickMassa; faturamento = valor das ganhas (sem valor, usa a reserva
+ * do mesmo contato, uma por ganha). Antes: todos os leads do Kommo da origem; ganhas e faturamento = reservas do HQ
+ * atribuídas ao canal pela origem.
+ */
+function computeWonSummary(input: {
+  /** Oportunidades já restritas ao canal. */
+  opportunities: OpportunityOriginRow[];
+  /** Leads do Kommo já restritos ao canal (sem filtro de vendedor). */
+  kommoLeads: OpportunityOriginRow[];
+  /** Reservas do HQ atribuídas ao canal (usadas antes de CLICKMASSA_START). */
+  attributedReservations: ReservationRow[];
+  reservationsByContact: Map<string, ReservationRow[]>;
+  inRange: (iso: string) => boolean;
+}) {
+  const isClickmassaEra = (iso: string) => iso.slice(0, 10) >= CLICKMASSA_START;
+  const rangeOpportunities = input.opportunities.filter((o) => input.inRange(o.created_at) && isClickmassaEra(o.created_at));
+  const usedReservations = new Set<ReservationRow>();
+  const clickmassaRows: ReservationRow[] = [];
+  rangeOpportunities
+    .filter(isWonOpportunity)
+    .sort((x, y) => x.created_at.localeCompare(y.created_at))
+    .forEach((o) => {
+      const value = Number(o.value) || 0;
+      const from = Date.parse(o.created_at) - 86_400_000;
+      const candidates = [
+        ...(o.phone8 ? (input.reservationsByContact.get(`p:${o.phone8}`) ?? []) : []),
+        ...(o.email_lc ? (input.reservationsByContact.get(`e:${o.email_lc}`) ?? []) : []),
+      ].filter((r) => !usedReservations.has(r) && Date.parse(r.created_at) >= from);
+      const match = candidates.sort((x, y) => x.created_at.localeCompare(y.created_at))[0];
+      if (value <= 0 && !match) {
+        clickmassaRows.push({ ...EMPTY_WON, created_at: o.created_at });
+        return;
+      }
+      if (match) usedReservations.add(match);
+      clickmassaRows.push(value > 0 ? { ...EMPTY_WON, created_at: o.created_at, total_amount: value } : match!);
+    });
+  const kommoReservations = input.attributedReservations.filter(
+    (r) => r.status === "confirmed" && input.inRange(r.created_at) && !isClickmassaEra(r.created_at),
+  );
+  const kommoCreated = input.kommoLeads.filter((o) => input.inRange(o.created_at) && !isClickmassaEra(o.created_at)).length;
+  return {
+    created: rangeOpportunities.length + kommoCreated,
+    won: clickmassaRows.length + kommoReservations.length,
+    /** Uma linha por ganha, com o faturamento em total_amount. */
+    revenueRows: [...clickmassaRows, ...kommoReservations],
+    clickmassaOpportunities: rangeOpportunities,
+  };
+}
+
 export function computeChannelMonthly(
   data: AnalyticsData,
   mode: ChannelComparisonMode,
@@ -1123,85 +1224,36 @@ export function computeChannelMonthly(
   teamCosts: Record<string, number> = {},
 ): ChannelMonthlyPoint[] {
   // A atribuição usa o período todo (campanha → canal); só depois divide por mês.
-  const scopedAll: AnalyticsData =
-    mode === "both"
-      ? {
-          ...data,
-          opportunities: data.opportunities.filter((o) => ["meta", "google"].includes(normalizeOrigin(o.utm_source))),
-          reservations: [
-            ...filterAnalyticsByOrigin(data, "meta").reservations,
-            ...filterAnalyticsByOrigin(data, "google").reservations,
-          ],
-        }
-      : filterAnalyticsByOrigin(data, mode);
-  const reservationsByContact = new Map<string, ReservationRow[]>();
-  data.reservations
-    .filter((r) => r.status === "confirmed")
-    .forEach((r) => {
-      [r.phone8 ? `p:${r.phone8}` : null, r.email_lc ? `e:${r.email_lc}` : null].forEach((key) => {
-        if (key) reservationsByContact.set(key, [...(reservationsByContact.get(key) ?? []), r]);
-      });
-    });
+  const scopedAll: AnalyticsData = mode === "both" ? scopeMetaGoogle(data) : filterAnalyticsByOrigin(data, mode);
+  const reservationsByContact = indexReservationsByContact(data.reservations);
+  const inChannel = (o: OpportunityOriginRow) => {
+    const origin = normalizeOrigin(o.utm_source);
+    return mode === "both" ? origin === "meta" || origin === "google" : origin === mode;
+  };
+  const channelKommoLeads = (data.kommoLeadsAll ?? []).filter(inChannel);
   return months.map((key) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
-    // Era ClickMassa (a partir de 15/06): oportunidades do CRM. Era Kommo (antes): todos os leads do Kommo
-    // da origem (sem filtro de vendedor) e, como "ganhas", as reservas do HQ atribuídas ao canal.
-    const monthOpportunities = scopedAll.opportunities.filter(
-      (o) => inMonth(o.created_at) && o.created_at.slice(0, 10) >= CLICKMASSA_START,
-    );
-    const inChannel = (o: OpportunityOriginRow) => {
-      const origin = normalizeOrigin(o.utm_source);
-      return mode === "both" ? origin === "meta" || origin === "google" : origin === mode;
-    };
-    const kommoCreated = (data.kommoLeadsAll ?? []).filter(
-      (o) => inMonth(o.created_at) && o.created_at.slice(0, 10) < CLICKMASSA_START && inChannel(o),
-    ).length;
-    // Paridade com a planilha: desde 15/06 o faturamento é a soma do valor das oportunidades ganhas (ClickMassa).
-    // Ganha sem valor (histórico Kommo) usa a reserva confirmada do mesmo contato (telefone/e-mail),
-    // a primeira ainda não usada criada a partir da oportunidade.
-    const usedReservations = new Set<ReservationRow>();
-    const wonRevenueRows: ReservationRow[] = [];
-    [...monthOpportunities.filter((o) => isWonOpportunity(o) && o.created_at.slice(0, 10) >= CLICKMASSA_START)]
-      .sort((x, y) => x.created_at.localeCompare(y.created_at))
-      .forEach((o) => {
-        const value = Number(o.value) || 0;
-        const from = Date.parse(o.created_at) - 86_400_000;
-        const candidates = [
-          ...(o.phone8 ? (reservationsByContact.get(`p:${o.phone8}`) ?? []) : []),
-          ...(o.email_lc ? (reservationsByContact.get(`e:${o.email_lc}`) ?? []) : []),
-        ].filter((r) => !usedReservations.has(r) && Date.parse(r.created_at) >= from);
-        const match = candidates.sort((x, y) => x.created_at.localeCompare(y.created_at))[0];
-        if (value <= 0 && !match) {
-          wonRevenueRows.push({ ...EMPTY_WON, created_at: o.created_at });
-          return;
-        }
-        if (match) usedReservations.add(match);
-        wonRevenueRows.push(value > 0 ? { ...EMPTY_WON, created_at: o.created_at, total_amount: value } : match!);
-      });
+    const summary = computeWonSummary({
+      opportunities: scopedAll.opportunities,
+      kommoLeads: channelKommoLeads,
+      attributedReservations: scopedAll.reservations,
+      reservationsByContact,
+      inRange: inMonth,
+    });
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
       google: scopedAll.google.filter((r) => inMonth(r.date)),
-      opportunities: monthOpportunities,
+      opportunities: summary.clickmassaOpportunities,
       updatedOpportunities: [],
-      reservations: [
-        ...wonRevenueRows,
-        // Era Kommo (antes de 15/06): faturamento das reservas do HQ atribuídas ao canal pela origem.
-        ...scopedAll.reservations.filter(
-          (r) => inMonth(r.created_at) && r.created_at.slice(0, 10) < CLICKMASSA_START,
-        ),
-      ],
+      reservations: summary.revenueRows,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
     const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
     const kpis = computeKpis(scoped, teamSpend);
-    const kommoWon = scoped.reservations.filter(
-      (r) => r.status === "confirmed" && r.created_at.slice(0, 10) < CLICKMASSA_START,
-    ).length;
-    const created = scoped.opportunities.length + kommoCreated;
-    const won = scoped.opportunities.filter(isWonOpportunity).length + kommoWon;
+    const { created, won } = summary;
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,

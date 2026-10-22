@@ -33,6 +33,7 @@ import {
   brl,
   ALL_ORIGINS_KEY,
   buildMarketingFunnel,
+  scopeMetaGoogle,
   fetchTeamCosts,
   teamCostForRange,
   computeAttribution,
@@ -224,7 +225,15 @@ function Dashboard() {
       : undefined;
 
   const funnelOrigin = funnelMode === "both" ? null : funnelMode;
-  const dynamicFunnel = data ? buildMarketingFunnel(filterAnalyticsByOrigin(data.current, funnelOrigin), funnelOrigin) : null;
+  // Consolidado do funil = Meta + Google, o mesmo escopo do Consolidado do comparativo de CAC.
+  const dynamicFunnel = data
+    ? buildMarketingFunnel(
+        funnelOrigin ? filterAnalyticsByOrigin(data.current, funnelOrigin) : scopeMetaGoogle(data.current),
+        funnelOrigin,
+        data.current.reservations,
+        !funnelOrigin,
+      )
+    : null;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -495,7 +504,7 @@ function Dashboard() {
                 <div>
                   <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
                   <p className="text-xs text-muted-foreground">
-                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades (um contato pode ter mais de uma, ou ser anterior ao período) e reservas confirmadas. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
+                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
                   </p>
                 </div>
                 <div className="flex gap-1">
