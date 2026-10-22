@@ -20,8 +20,16 @@ export default defineConfig({
     vercel: {
       // Os syncs longos precisam de mais tempo por chamada (máx. 300s no plano Hobby com Fluid compute).
       functions: { maxDuration: 300 },
-      // Rotina diária dos syncs: 09:00 UTC (06:00 em Brasília).
-      config: { crons: [{ path: "/api/public/sync/cron", schedule: "0 9 * * *" }] },
+      // Syncs 3x ao dia: 08h, 12h e 16h de Brasília (UTC-3) = 11:00, 15:00 e 19:00 UTC.
+      // Hobby só aceita cron que rode uma vez por dia, então são três programações separadas
+      // (cada uma pode atrasar até 59 min nesse plano).
+      config: {
+        crons: [
+          { path: "/api/public/sync/cron", schedule: "0 11 * * *" },
+          { path: "/api/public/sync/cron", schedule: "0 15 * * *" },
+          { path: "/api/public/sync/cron", schedule: "0 19 * * *" },
+        ],
+      },
     },
   } as never,
 });
