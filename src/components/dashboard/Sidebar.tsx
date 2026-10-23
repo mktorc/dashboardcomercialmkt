@@ -2,7 +2,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canAccess, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { Briefcase, ChevronDown, LayoutDashboard, LogOut, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { data: role = null } = useQuery({ queryKey: ["my-role"], queryFn: getMyRole });
   const showGer = canAccess(role, "comercial");
   const showOp = canAccess(role, "comercial-operacional");
@@ -32,7 +34,70 @@ export function Sidebar({ active }: { active: ActivePage }) {
     navigate({ to: "/auth", search: { next: undefined }, replace: true });
   }
 
+  const mobileLink = (to: string, label: string, isActive: boolean, Icon?: typeof Settings, indent = false) => (
+    <Link
+      key={to}
+      to={to}
+      onClick={() => setMobileOpen(false)}
+      className={`flex items-center gap-3 rounded-lg py-3 text-sm transition-colors ${indent ? "pl-10 pr-3" : "px-3"} ${
+        isActive
+          ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
+      }`}
+    >
+      {Icon ? <Icon className="size-4" /> : null}
+      {label}
+    </Link>
+  );
+
   return (
+    <>
+    <header
+      className="sticky top-0 z-40 flex items-center gap-3 border-b border-sidebar-border px-4 py-3 lg:hidden"
+      style={{ background: "var(--brand-dark)" }}
+    >
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Abrir menu"
+        className="flex size-9 items-center justify-center rounded-md text-sidebar-foreground hover:bg-sidebar-accent"
+      >
+        <Menu className="size-5" />
+      </button>
+      <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-8 rounded-lg object-cover" />
+      <p className="text-sm font-semibold text-sidebar-foreground">Orlando Rent Car</p>
+    </header>
+    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+      <SheetContent
+        side="left"
+        className="flex w-72 flex-col border-sidebar-border p-4 text-sidebar-foreground [&>button]:text-sidebar-foreground"
+        style={{ background: "var(--brand-dark)" }}
+      >
+        <SheetTitle className="mb-6 flex items-center gap-2 text-sidebar-foreground">
+          <img src="/logo-orc.png" alt="" className="size-9 rounded-lg object-cover" />
+          Orlando Rent Car
+        </SheetTitle>
+        <nav className="flex flex-col gap-1">
+          {items.filter((i) => canAccess(role, i.key)).map((i) => mobileLink(i.to, i.label, active === i.key, i.icon))}
+          {showGer || showOp ? (
+            <>
+              <p className="flex items-center gap-3 px-3 pt-3 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/60">
+                <Briefcase className="size-4" /> Comercial
+              </p>
+              {showGer ? mobileLink("/comercial", "Gerencial", active === "comercial", undefined, true) : null}
+              {showOp ? mobileLink("/comercial-operacional", "Operacional", active === "comercial-operacional", undefined, true) : null}
+            </>
+          ) : null}
+          {canAccess(role, "configuracoes") ? mobileLink("/configuracoes", "Configurações", active === "configuracoes", Settings) : null}
+        </nav>
+        <button
+          onClick={signOut}
+          className="mt-auto flex items-center gap-2 rounded-lg px-3 py-3 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent"
+        >
+          <LogOut className="size-4" /> Sair
+        </button>
+      </SheetContent>
+    </Sheet>
     <aside
       className={`hidden shrink-0 flex-col border-r border-sidebar-border transition-[width,padding] duration-200 lg:flex ${collapsed ? "w-16 p-2" : "w-60 p-4"}`}
       style={{ background: "var(--brand-dark)" }}
@@ -137,5 +202,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
         Meta Ads · Google Ads · ClickMassa · HQ Rentals
       </p> : null}
     </aside>
+    </>
   );
 }

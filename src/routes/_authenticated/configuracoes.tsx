@@ -109,9 +109,9 @@ function SettingsPage() {
   });
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       <Sidebar active="configuracoes" />
-      <main className="flex-1 space-y-6 p-6">
+      <main className="min-w-0 flex-1 space-y-6 p-4 sm:p-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Configurações</h1>
           <p className="text-sm text-muted-foreground">

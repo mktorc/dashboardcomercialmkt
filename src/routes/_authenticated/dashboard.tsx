@@ -236,11 +236,11 @@ function Dashboard() {
     : null;
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       <Sidebar active="dashboard" />
-      <main className="flex-1 overflow-x-hidden">
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
-          className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5"
+          className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
           style={{ background: "var(--gradient-brand)" }}
         >
           <div>
@@ -288,7 +288,7 @@ function Dashboard() {
           </div>
         </header>
 
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-4 sm:p-6">
           {error ? (
             <Card className="border-destructive/40 p-4 text-sm text-destructive">
               Não foi possível carregar os dados agora. Tente sincronizar novamente.

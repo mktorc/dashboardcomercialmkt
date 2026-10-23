@@ -266,11 +266,11 @@ export function ComercialPage({
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       <Sidebar active={active} />
-      <main className="flex-1 overflow-x-hidden">
+      <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
-          className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-6 py-5"
+          className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
           style={{ background: "var(--gradient-brand)" }}
         >
           <div>
@@ -290,7 +290,7 @@ export function ComercialPage({
           </div>
         </header>
 
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 p-4 sm:p-6">
           {(
             <div className="flex gap-2 border-b border-border pb-2">
               <Button size="sm" variant={tab === "visao" ? "default" : "outline"} onClick={() => setTab("visao")}>Visão geral</Button>
