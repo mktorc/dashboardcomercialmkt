@@ -19,8 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      # O script só precisa do supabase-js; evita instalar o projeto inteiro (o package-lock.json não é mantido).
+      - run: npm install --no-save --no-package-lock --no-audit --no-fund --prefix scripts/comissoes @supabase/supabase-js@2
       - run: node scripts/comissoes/importar-hq.mjs
         env:
           HQ_TENANT_TOKEN: ${{ secrets.HQ_TENANT_TOKEN }}
