@@ -288,6 +288,13 @@
       "when": 1792864310753,
       "tag": "0040_comissao_manual",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792950710753,
+      "tag": "0041_opportunity_total_tasks",
+      "breakpoints": true
     }
   ]
 }
