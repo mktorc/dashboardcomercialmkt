@@ -82,6 +82,7 @@ export type Database = {
           name: string | null
           opportunity_id: string
           pending_tasks: number
+          total_tasks: number | null
           pipeline_name: string | null
           pipeline_step_id: number | null
           seller_name: string | null
@@ -97,6 +98,7 @@ export type Database = {
           name?: string | null
           opportunity_id: string
           pending_tasks?: number
+          total_tasks?: number | null
           pipeline_name?: string | null
           pipeline_step_id?: number | null
           seller_name?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           name?: string | null
           opportunity_id?: string
           pending_tasks?: number
+          total_tasks?: number | null
           pipeline_name?: string | null
           pipeline_step_id?: number | null
           seller_name?: string | null

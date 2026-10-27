@@ -71,6 +71,7 @@ async function processOpportunity(p: ClickmassaPayload): Promise<void> {
     seller_name: str(obj(p["responsible"])["name"]) ?? str(obj(p["user"])["name"]),
     value: num(p["value"]),
     pending_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
+    total_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]) + num(tc["countComplete"]),
     created_at: str(p["createdAt"]) ?? new Date().toISOString(),
     updated_at: str(p["updatedAt"]) ?? new Date().toISOString(),
   };

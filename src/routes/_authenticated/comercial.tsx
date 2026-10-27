@@ -553,8 +553,8 @@ function MonthlyBarChart({
             />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [formatter(value), name]} />
               {comparisonKey ? <Legend /> : null}
-              <Bar dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]} />
               {comparisonKey ? <Bar dataKey={comparisonKey} name={comparisonName} fill="#2f9c5a" radius={[4, 4, 0, 0]} /> : null}
+              <Bar dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

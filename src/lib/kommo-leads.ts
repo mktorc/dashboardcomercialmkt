@@ -45,7 +45,7 @@ export const kommoAsOpportunity = (l: KommoLead, status = "closed") => ({
   stage_name: l.stage_name,
   status,
   seller_name: l.seller_name,
-  pending_tasks: 0,
+  pending_tasks: 0, total_tasks: 0,
   pipeline_step_id: null as number | null,
   created_at: l.created_at,
   updated_at: l.updated_at,

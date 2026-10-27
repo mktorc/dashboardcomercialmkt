@@ -25,6 +25,7 @@ function toRow(p: Obj) {
     seller_name: s(obj(p["responsible"])["name"]) ?? s(obj(p["user"])["name"]),
     value: num(p["value"]),
     pending_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
+    total_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]) + num(tc["countComplete"]),
     created_at: s(p["createdAt"]) ?? new Date().toISOString(),
     updated_at: s(p["updatedAt"]) ?? new Date().toISOString(),
   };

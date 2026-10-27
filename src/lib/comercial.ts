@@ -12,6 +12,8 @@ export type COpp = {
   status: string | null;
   seller_name: string | null;
   pending_tasks: number;
+  /** Tarefas de qualquer situação no ClickMassa (null = ainda não sincronizado). */
+  total_tasks: number | null;
   created_at: string;
 };
 export const DIRECT_SALE_LABEL = "Venda Direta / Site";
@@ -171,7 +173,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
+        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
         .eq("pipeline_name", "Comercial")
         .range(a, b),
     ),
@@ -187,7 +189,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, status, seller_name, pending_tasks, created_at")
+        .select("opportunity_id, lead_id, status, seller_name, pending_tasks, total_tasks, created_at")
         .eq("pipeline_name", "Comercial")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
@@ -204,7 +206,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, created_at")
+        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
         .eq("pipeline_name", "Comercial")
         .gte("created_at", startIso(previousYearDate(from)))
         .lte("created_at", endIso(previousYearDate(to)))
@@ -477,9 +479,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     return rows.get(k)!;
   };
 
-  const leadIdsWithTask = new Set(d.tasks.filter((t) => !t.completed).map((t) => t.lead_id).filter(Boolean));
   const isOpen = (o: COpp) => (o.status ?? "open").toLowerCase() === "open";
-  const hasNoTask = (o: COpp) => isOpen(o) && o.pending_tasks === 0 && !leadIdsWithTask.has(o.lead_id);
+  // Mesmo critério do filtro "Sem tarefas" do ClickMassa: aberta e que nunca teve tarefa (nem concluída).
+  const hasNoTask = (o: COpp) => isOpen(o) && o.total_tasks === 0;
   const opps = d.opportunities.filter((o) => inPeriod(o.created_at));
   const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
 
