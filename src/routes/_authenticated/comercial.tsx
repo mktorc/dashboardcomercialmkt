@@ -254,7 +254,6 @@ export function ComercialPage({
         yearAgoDiscount: previous?.descontoPct,
       };
     });
-  const monthlyRevenue = (view?.monthly ?? []).filter((month) => selectedMonths.has(String(month["mes"]).replace("/", "-")));
 
   const Th = ({ k: key, label, left }: { k: SortKey; label: string; left?: boolean }) => (
     <th className={`px-4 py-3 font-medium ${left ? "text-left" : "text-right"}`}>
@@ -366,11 +365,10 @@ export function ComercialPage({
                 expandable
               />
               <SellerLineChart
-                title="Valor fechado por vendedor ao mês"
-                subtitle="Período selecionado, pela data de criação da reserva."
-                data={monthlyRevenue}
-                dataKey="mes"
-                series={view?.stackKeys ?? []}
+                title="Valor fechado por vendedor por dia"
+                subtitle="Cada linha representa um vendedor por dia no período selecionado, pela data de criação da reserva."
+                data={view?.dailyRevenueBySeller ?? []}
+                series={view?.dailyRevenueKeys ?? []}
                 currency
                 expandable
               />
