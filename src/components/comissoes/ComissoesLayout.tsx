@@ -12,8 +12,8 @@ const ABAS = [
 
 export function ComissoesLayout({ children }: { children: ReactNode }) {
   const { role } = usePerfil();
-  // sem login não há para onde voltar; superadmin volta ao hub, os demais perfis à própria página
-  const voltar = role === "superadmin" ? "/app" : role ? HOME[role] : null;
+  // superadmin e visitante sem login voltam ao hub; os demais perfis, à própria página
+  const voltar = role === "superadmin" || !role ? "/app" : HOME[role];
   return (
     <div className="min-h-screen bg-background">
       <header
@@ -26,7 +26,7 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
         </div>
         {voltar ? (
           <Button asChild variant="outline" size="sm">
-            <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" ? "Voltar aos Módulos" : "Voltar"}</Link>
+            <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}</Link>
           </Button>
         ) : null}
       </header>

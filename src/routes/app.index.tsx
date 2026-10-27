@@ -2,9 +2,10 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { ModuleSelection } from "@/components/ModuleSelection";
 import { getMyRole, HOME } from "@/lib/roles";
 
-export const Route = createFileRoute("/_authenticated/app/")({
+// Hub público: sem login o visitante escolhe entre entrar e o acesso público.
+export const Route = createFileRoute("/app/")({
   beforeLoad: async () => {
-    // O hub de módulos é exclusivo do superadmin; os demais perfis vão direto para a própria página.
+    // Logado e não superadmin: vai direto para a própria página (só o superadmin vê todos os módulos).
     const role = await getMyRole();
     if (role && role !== "superadmin") throw redirect({ to: HOME[role] });
   },

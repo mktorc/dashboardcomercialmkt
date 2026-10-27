@@ -17,8 +17,8 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
-import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
@@ -73,15 +73,15 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/app/',
+  path: '/app/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
-  id: '/app/',
-  path: '/app/',
-  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAppDashboardRoute =
   AuthenticatedAppDashboardRouteImport.update({
@@ -157,11 +157,11 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
-  '/app/': typeof AuthenticatedAppIndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -180,11 +180,11 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/app': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
-  '/app': typeof AuthenticatedAppIndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -205,11 +205,11 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
-  '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -230,11 +230,11 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/configuracoes'
+    | '/app/'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
-    | '/app/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -253,11 +253,11 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/configuracoes'
+    | '/app'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
-    | '/app'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -277,11 +277,11 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/comercial'
     | '/_authenticated/configuracoes'
+    | '/app/'
     | '/.lovable/oauth/consent'
     | '/_authenticated/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
-    | '/_authenticated/app/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -300,6 +300,7 @@ export interface RootRouteChildren {
   ComercialOperacionalRoute: typeof ComercialOperacionalRoute
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  AppIndexRoute: typeof AppIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
@@ -372,19 +373,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/app/': {
+      id: '/app/'
+      path: '/app'
+      fullPath: '/app/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
       fullPath: '/.lovable/oauth/consent'
       preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/app/': {
-      id: '/_authenticated/app/'
-      path: '/app'
-      fullPath: '/app/'
-      preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/app/dashboard': {
       id: '/_authenticated/app/dashboard'
@@ -477,14 +478,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
-  AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComercialRoute: AuthenticatedComercialRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
-  AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -498,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  AppIndexRoute: AppIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,

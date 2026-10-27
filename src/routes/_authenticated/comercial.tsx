@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
@@ -281,7 +281,13 @@ export function ComercialPage({
             <p className="text-sm text-foreground/70">Equipe de vendas — ClickMassa + HQ Rentals</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            {publicView ? null : <SyncButton />}
+            {publicView ? (
+              <Button asChild variant="outline" size="sm" className="h-9">
+                <Link to="/app">Voltar aos Módulos</Link>
+              </Button>
+            ) : (
+              <SyncButton />
+            )}
             <label className="text-xs text-foreground/70">
               De
               <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
