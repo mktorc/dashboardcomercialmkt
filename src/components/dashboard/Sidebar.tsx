@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canAccess, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { ArrowLeft, Briefcase, ChevronDown, HandCoins, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -89,7 +89,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
               {showOp ? mobileLink("/comercial-operacional", "Operacional", active === "comercial-operacional", undefined, true) : null}
             </>
           ) : null}
-          {canAccess(role, "comissoes") ? mobileLink("/app/comissoes/a-pagar", "Comissões", false, HandCoins) : null}
           {canAccess(role, "configuracoes") ? mobileLink("/configuracoes", "Configurações", active === "configuracoes", Settings) : null}
         </nav>
         <button
@@ -185,16 +184,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
             </DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu> : null}
-        {canAccess(role, "comissoes") ? (
-          <Link
-            to="/app/comissoes/a-pagar"
-            title={collapsed ? "Comissões" : undefined}
-            className={`flex items-center gap-3 rounded-lg py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent ${collapsed ? "justify-center px-0" : "px-3"}`}
-          >
-            <HandCoins className="size-4" />
-            {!collapsed ? "Comissões" : null}
-          </Link>
-        ) : null}
         {canAccess(role, "configuracoes") ? (
           <Link
             to="/configuracoes"
