@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Carregando, Erro, Vazio } from './Estados'
+import { Input } from '@/components/ui/input'
 import { FiltrosBar } from './FiltrosBar'
 import { StatusBadge } from './StatusBadge'
 import { filtrosVazios, useParceiros, useReservas } from '@/lib/comissoes/hooks'
@@ -10,8 +11,14 @@ import { statusDaReserva, type Filtros } from '@/lib/comissoes/types'
 export default function Historico() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
   const parceiros = useParceiros()
-  const { linhas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros)
+  const { linhas: todas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros)
   const [visao, setVisao] = useState<'reserva' | 'parceiro'>('reserva')
+  const [busca, setBusca] = useState('')
+
+  const linhas = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return q ? todas.filter((r) => r.hq_reservation_id.toLowerCase().includes(q)) : todas
+  }, [todas, busca])
 
   const porParceiro = useMemo(() => {
     const mapa = new Map<string, { parceiro: string; reservas: number; retida: number; paga: number; liberada: number; bloqueada: number }>()
@@ -33,6 +40,14 @@ export default function Historico() {
 
       <FiltrosBar filtros={filtros} parceiros={parceiros} onChange={setFiltros} />
 
+      <div className="flex flex-wrap items-center gap-3">
+      <Input
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        placeholder="Buscar por reserva (nº do HQ)"
+        aria-label="Buscar por reserva"
+        className="h-9 w-64 bg-card"
+      />
       <div className="inline-flex rounded-md border border-border bg-card p-0.5 text-sm">
         {([['reserva', 'Por reserva'], ['parceiro', 'Por parceiro']] as const).map(([id, rotulo]) => (
           <button key={id} onClick={() => setVisao(id)} aria-pressed={visao === id}
@@ -41,6 +56,7 @@ export default function Historico() {
           </button>
         ))}
       </div>
+      </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         {carregando ? (
@@ -48,7 +64,7 @@ export default function Historico() {
         ) : erro ? (
           <Erro mensagem={erro} onRetry={recarregar} />
         ) : linhas.length === 0 ? (
-          <Vazio mensagem="Nenhuma reserva encontrada com os filtros atuais." />
+          <Vazio mensagem={busca.trim() ? "Nenhuma reserva encontrada para a busca." : "Nenhuma reserva encontrada com os filtros atuais."} />
         ) : visao === 'parceiro' ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border text-sm">

@@ -36,7 +36,7 @@ async function metodosDePagamento(id) {
 
 // Parceiros que não recebem comissão, mesmo que o HQ tenha percentual cadastrado.
 const SEM_COMISSAO = new Set(
-  ['Google ADS', 'Meta ADS', 'Cliente Recorrente', 'Camp.Hispana', 'Influencer/Parceria', 'Master Vacation', 'Talu Concept'].map(semAcento),
+  ['Google ADS', 'Meta ADS', 'Cliente Recorrente', 'Camp.Hispana', 'Influencer/Parceria', 'Master Vacation', 'Talu Concept', 'Barbs Tour', 'Theodoro'].map(semAcento),
 )
 
 function mapear(r) {
