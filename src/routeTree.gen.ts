@@ -20,8 +20,8 @@ import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authen
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
-import { Route as AuthenticatedAppComissoesAPagarRouteImport } from './routes/_authenticated/app.comissoes.a-pagar'
-import { Route as AuthenticatedAppComissoesHistoricoRouteImport } from './routes/_authenticated/app.comissoes.historico'
+import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
+import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
 import { Route as ApiPublicSyncCronRouteImport } from './routes/api/public/sync/cron'
@@ -89,18 +89,16 @@ const AuthenticatedAppDashboardRoute =
     path: '/app/dashboard',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedAppComissoesAPagarRoute =
-  AuthenticatedAppComissoesAPagarRouteImport.update({
-    id: '/app/comissoes/a-pagar',
-    path: '/app/comissoes/a-pagar',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
-const AuthenticatedAppComissoesHistoricoRoute =
-  AuthenticatedAppComissoesHistoricoRouteImport.update({
-    id: '/app/comissoes/historico',
-    path: '/app/comissoes/historico',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
+const AppComissoesAPagarRoute = AppComissoesAPagarRouteImport.update({
+  id: '/app/comissoes/a-pagar',
+  path: '/app/comissoes/a-pagar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppComissoesHistoricoRoute = AppComissoesHistoricoRouteImport.update({
+  id: '/app/comissoes/historico',
+  path: '/app/comissoes/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSyncClickmassaRoute = ApiPublicSyncClickmassaRouteImport.update({
   id: '/api/public/sync/clickmassa',
   path: '/api/public/sync/clickmassa',
@@ -161,9 +159,9 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
+  '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/app/': typeof AuthenticatedAppIndexRoute
-  '/app/comissoes/a-pagar': typeof AuthenticatedAppComissoesAPagarRoute
-  '/app/comissoes/historico': typeof AuthenticatedAppComissoesHistoricoRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -184,9 +182,9 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
+  '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/app': typeof AuthenticatedAppIndexRoute
-  '/app/comissoes/a-pagar': typeof AuthenticatedAppComissoesAPagarRoute
-  '/app/comissoes/historico': typeof AuthenticatedAppComissoesHistoricoRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -209,9 +207,9 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
+  '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
-  '/_authenticated/app/comissoes/a-pagar': typeof AuthenticatedAppComissoesAPagarRoute
-  '/_authenticated/app/comissoes/historico': typeof AuthenticatedAppComissoesHistoricoRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -234,9 +232,9 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
-    | '/app/'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/app/'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -257,9 +255,9 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
-    | '/app'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/app'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -281,9 +279,9 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes'
     | '/.lovable/oauth/consent'
     | '/_authenticated/app/dashboard'
+    | '/app/comissoes/a-pagar'
+    | '/app/comissoes/historico'
     | '/_authenticated/app/'
-    | '/_authenticated/app/comissoes/a-pagar'
-    | '/_authenticated/app/comissoes/historico'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -303,6 +301,8 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
+  AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
   ApiPublicSyncCronRoute: typeof ApiPublicSyncCronRoute
@@ -393,19 +393,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/app/comissoes/a-pagar': {
-      id: '/_authenticated/app/comissoes/a-pagar'
+    '/app/comissoes/a-pagar': {
+      id: '/app/comissoes/a-pagar'
       path: '/app/comissoes/a-pagar'
       fullPath: '/app/comissoes/a-pagar'
-      preLoaderRoute: typeof AuthenticatedAppComissoesAPagarRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof AppComissoesAPagarRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/app/comissoes/historico': {
-      id: '/_authenticated/app/comissoes/historico'
+    '/app/comissoes/historico': {
+      id: '/app/comissoes/historico'
       path: '/app/comissoes/historico'
       fullPath: '/app/comissoes/historico'
-      preLoaderRoute: typeof AuthenticatedAppComissoesHistoricoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+      preLoaderRoute: typeof AppComissoesHistoricoRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/sync/clickmassa': {
       id: '/api/public/sync/clickmassa'
@@ -478,8 +478,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
-  AuthenticatedAppComissoesAPagarRoute: typeof AuthenticatedAppComissoesAPagarRoute
-  AuthenticatedAppComissoesHistoricoRoute: typeof AuthenticatedAppComissoesHistoricoRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -487,9 +485,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
-  AuthenticatedAppComissoesAPagarRoute: AuthenticatedAppComissoesAPagarRoute,
-  AuthenticatedAppComissoesHistoricoRoute:
-    AuthenticatedAppComissoesHistoricoRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -504,6 +499,8 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  AppComissoesAPagarRoute: AppComissoesAPagarRoute,
+  AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
     ApiPublicSyncClickmassaOpportunitiesRoute,

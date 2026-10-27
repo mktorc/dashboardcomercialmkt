@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getMyRole } from '@/lib/roles'
 import type { Filtros, Reserva } from './types'
 import { listarParceiros } from './service'
 
@@ -35,4 +37,14 @@ export function useParceiros() {
     listarParceiros().then(setParceiros).catch(() => setParceiros([]))
   }, [])
   return parceiros
+}
+
+/** Permissões na tela de comissões. Pagar e validar: só superadmin. Editar comissão: qualquer pessoa. O banco impõe as mesmas regras. */
+export function usePerfil() {
+  const { data: role = null } = useQuery({ queryKey: ['my-role'], queryFn: getMyRole })
+  return {
+    role,
+    podePagar: role === 'superadmin', // marcar como paga e validar descontos
+    podeEditar: true, // ajustar comissão: liberado a qualquer pessoa com o link (reservas não pagas)
+  }
 }

@@ -50,6 +50,8 @@ function mapear(r) {
     total_price: n(r.total_price?.amount),
     total_paid: n(r.total_paid),
     rack_rate: n(r.total_rack_rate),
+    // desconto manual da reserva: exige validação antes do pagamento (ver migração 0040)
+    desconto: n(r.discounts_amount),
     commission_rate: pct,
     currency: String(r.currency ?? 'usd').toUpperCase(),
     hq_status: r.status ?? null,

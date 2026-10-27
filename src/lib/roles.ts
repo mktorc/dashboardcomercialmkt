@@ -14,10 +14,10 @@ export type PageKey = "dashboard" | "comercial" | "comercial-operacional" | "com
 
 const ACCESS: Record<AppRole, PageKey[]> = {
   superadmin: ["dashboard", "comercial", "comercial-operacional", "comissoes", "configuracoes"],
-  comercial: ["dashboard", "comercial", "comercial-operacional"],
+  comercial: ["dashboard", "comercial", "comercial-operacional", "comissoes"],
   marketing: ["dashboard", "comercial", "comercial-operacional"],
-  // Só o menu Comercial (Gerencial e Operacional); sem Marketing nem Configurações.
-  comercial_gerencial: ["comercial", "comercial-operacional"],
+  // Menu Comercial (Gerencial e Operacional) e Comissões; sem Marketing nem Configurações.
+  comercial_gerencial: ["comercial", "comercial-operacional", "comissoes"],
 };
 
 export function canAccess(role: AppRole | null, page: PageKey) {

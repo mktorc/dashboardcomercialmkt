@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePerfil } from "@/lib/comissoes/hooks";
+import { HOME } from "@/lib/roles";
 
 const ABAS = [
   { to: "/app/comissoes/a-pagar", rotulo: "Comissões a Pagar" },
@@ -9,6 +11,9 @@ const ABAS = [
 ] as const;
 
 export function ComissoesLayout({ children }: { children: ReactNode }) {
+  const { role } = usePerfil();
+  // sem login não há para onde voltar; superadmin volta ao hub, os demais perfis à própria página
+  const voltar = role === "superadmin" ? "/app" : role ? HOME[role] : null;
   return (
     <div className="min-h-screen bg-background">
       <header
@@ -19,9 +24,11 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
           <h1 className="text-lg font-semibold text-foreground">Gerenciamento de Comissões</h1>
           <p className="text-sm text-foreground/70">Comissões de parceiros</p>
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
-        </Button>
+        {voltar ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" ? "Voltar aos Módulos" : "Voltar"}</Link>
+          </Button>
+        ) : null}
       </header>
       <nav className="flex gap-2 border-b border-border px-4 py-3 sm:px-6">
         {ABAS.map((a) => (

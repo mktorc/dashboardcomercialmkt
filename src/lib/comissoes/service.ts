@@ -7,7 +7,7 @@ const supabase = typedClient as unknown as SupabaseClient
 
 const PAGE = 1000
 const COLUNAS =
-  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,currency,payment_methods,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,estorno_compensado_em'
+  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,estorno_compensado_em'
 
 const num = (v: unknown) => Number(v ?? 0)
 
@@ -20,6 +20,8 @@ function normalizar(r: Reserva): Reserva {
     valor_comissao: num(r.valor_comissao),
     commission_rate: r.commission_rate == null ? null : num(r.commission_rate),
     commission_amount: r.commission_amount == null ? null : num(r.commission_amount),
+    commission_rate_manual: r.commission_rate_manual == null ? null : num(r.commission_rate_manual),
+    desconto: num(r.desconto),
   }
 }
 
@@ -102,5 +104,30 @@ export async function marcarComoPagas(ids: string[], estornoIds: string[] = []):
       .is('estorno_compensado_em', null)
     if (e2) throw new Error(e2.message)
   }
+  return data.length
+}
+
+/** Define (ou limpa, com null) o ajuste manual da comissão de uma reserva ainda não paga. */
+export async function salvarComissaoManual(id: string, ajuste: { pct: number | null; valor: number | null }): Promise<void> {
+  const { data, error } = await supabase
+    .from('reservas')
+    .update({ commission_rate_manual: ajuste.pct, commission_amount: ajuste.valor })
+    .eq('id', id)
+    .eq('status_repasse', 'pendente')
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!data.length) throw new Error('Reserva não encontrada ou já paga: não é possível alterar a comissão.')
+}
+
+/** Dá o "ok" nos descontos das reservas informadas (ainda não pagas). Retorna quantas foram validadas. */
+export async function validarDescontos(ids: string[]): Promise<number> {
+  if (!ids.length) return 0
+  const { data, error } = await supabase
+    .from('reservas')
+    .update({ desconto_validado_em: new Date().toISOString() })
+    .in('id', ids)
+    .eq('status_repasse', 'pendente')
+    .select('id')
+  if (error) throw new Error(error.message)
   return data.length
 }

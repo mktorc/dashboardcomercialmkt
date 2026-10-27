@@ -281,6 +281,13 @@
       "when": 1792777910753,
       "tag": "0039_comissoes_reservas",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1792864310753,
+      "tag": "0040_comissao_manual",
+      "breakpoints": true
     }
   ]
 }

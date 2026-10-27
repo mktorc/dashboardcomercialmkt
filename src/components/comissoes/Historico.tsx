@@ -1,19 +1,22 @@
 import { useMemo, useState } from 'react'
 import { Carregando, Erro, Vazio } from './Estados'
 import { Input } from '@/components/ui/input'
+import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
 import { StatusBadge } from './StatusBadge'
-import { filtrosVazios, useParceiros, useReservas } from '@/lib/comissoes/hooks'
+import { filtrosVazios, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
 import { listarHistorico } from '@/lib/comissoes/service'
-import { statusDaReserva, type Filtros } from '@/lib/comissoes/types'
+import { descontoPct, podeEditarComissao, precisaValidar, statusDaReserva, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
 
 export default function Historico() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
   const parceiros = useParceiros()
+  const { podeEditar } = usePerfil()
   const { linhas: todas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros)
   const [visao, setVisao] = useState<'reserva' | 'parceiro'>('reserva')
   const [busca, setBusca] = useState('')
+  const [editando, setEditando] = useState<Reserva | null>(null)
 
   const linhas = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -107,8 +110,10 @@ export default function Historico() {
                   <th className="px-4 py-3 text-right">Rack rate</th>
                   <th className="px-4 py-3 text-right">Diferença</th>
                   <th className="px-4 py-3 text-right">Comissão</th>
+                  <th className="px-4 py-3">Desconto</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Paga em</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -130,9 +135,25 @@ export default function Historico() {
                       <td className={`px-4 py-3 text-right font-medium ${dif >= 0 ? 'text-emerald-400' : 'text-destructive'}`}>
                         {dif >= 0 ? '+' : ''}{moeda(dif)}
                       </td>
-                      <td className="px-4 py-3 text-right">{moeda(r.valor_comissao)}</td>
+                      <td className="px-4 py-3 text-right">
+                        {moeda(r.valor_comissao)}
+                        {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">Manual</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.desconto > 0 ? (
+                          <span className={precisaValidar(r) ? 'text-amber-400' : 'text-muted-foreground'}>
+                            {descontoPct(r).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                            {r.exige_validacao ? (r.desconto_validado_em ? ' · validado' : ' · a validar') : ''}
+                          </span>
+                        ) : '—'}
+                      </td>
                       <td className="px-4 py-3"><StatusBadge status={statusDaReserva(r)} /></td>
                       <td className="px-4 py-3">{r.paga_em ? data(r.paga_em) : '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        {podeEditar && podeEditarComissao(r) && (
+                          <button onClick={() => setEditando(r)} className="text-accent hover:underline">Editar comissão</button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -141,6 +162,7 @@ export default function Historico() {
           </div>
         )}
       </div>
+      <EditarComissaoDialog reserva={editando} onClose={() => setEditando(null)} onSalvo={recarregar} />
     </div>
   )
 }
