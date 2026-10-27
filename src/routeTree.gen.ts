@@ -30,6 +30,7 @@ import { Route as ApiPublicSyncHqrentalsRouteImport } from './routes/api/public/
 import { Route as ApiPublicSyncHqrentalsBackfillRouteImport } from './routes/api/public/sync/hqrentals-backfill'
 import { Route as ApiPublicSyncMetaAdsRouteImport } from './routes/api/public/sync/meta-ads'
 import { Route as ApiPublicWebhooksClickmassaRouteImport } from './routes/api/public/webhooks/clickmassa'
+import { Route as ApiPublicWebhooksHqrentalsRouteImport } from './routes/api/public/webhooks/hqrentals'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -143,6 +144,12 @@ const ApiPublicWebhooksClickmassaRoute =
     path: '/api/public/webhooks/clickmassa',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicWebhooksHqrentalsRoute =
+  ApiPublicWebhooksHqrentalsRouteImport.update({
+    id: '/api/public/webhooks/hqrentals',
+    path: '/api/public/webhooks/hqrentals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
+  '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -187,6 +195,7 @@ export interface FileRoutesByTo {
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
+  '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -211,6 +220,7 @@ export interface FileRoutesById {
   '/api/public/sync/hqrentals-backfill': typeof ApiPublicSyncHqrentalsBackfillRoute
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
+  '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
+    | '/api/public/webhooks/hqrentals'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
+    | '/api/public/webhooks/hqrentals'
   id:
     | '__root__'
     | '/'
@@ -280,6 +292,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/hqrentals-backfill'
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
+    | '/api/public/webhooks/hqrentals'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -298,6 +311,7 @@ export interface RootRouteChildren {
   ApiPublicSyncHqrentalsBackfillRoute: typeof ApiPublicSyncHqrentalsBackfillRoute
   ApiPublicSyncMetaAdsRoute: typeof ApiPublicSyncMetaAdsRoute
   ApiPublicWebhooksClickmassaRoute: typeof ApiPublicWebhooksClickmassaRoute
+  ApiPublicWebhooksHqrentalsRoute: typeof ApiPublicWebhooksHqrentalsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -449,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicWebhooksClickmassaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/hqrentals': {
+      id: '/api/public/webhooks/hqrentals'
+      path: '/api/public/webhooks/hqrentals'
+      fullPath: '/api/public/webhooks/hqrentals'
+      preLoaderRoute: typeof ApiPublicWebhooksHqrentalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -492,6 +513,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSyncHqrentalsBackfillRoute: ApiPublicSyncHqrentalsBackfillRoute,
   ApiPublicSyncMetaAdsRoute: ApiPublicSyncMetaAdsRoute,
   ApiPublicWebhooksClickmassaRoute: ApiPublicWebhooksClickmassaRoute,
+  ApiPublicWebhooksHqrentalsRoute: ApiPublicWebhooksHqrentalsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
