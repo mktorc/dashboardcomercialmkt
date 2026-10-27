@@ -260,6 +260,13 @@
       "when": 1792518710753,
       "tag": "0036_marketing_team_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792605110753,
+      "tag": "0037_public_operacional_read",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { guardPage } from "@/lib/roles";
-import { ComercialPage } from "./comercial";
+import { ComercialPage } from "./_authenticated/comercial";
 
-export const Route = createFileRoute("/_authenticated/comercial-operacional")({
-  beforeLoad: () => guardPage("comercial-operacional"),
+export const Route = createFileRoute("/comercial-operacional")({
   head: () => ({
     meta: [
       { title: "Operacional | Orlando Rent Car Analytics" },
@@ -17,5 +15,5 @@ export const Route = createFileRoute("/_authenticated/comercial-operacional")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: () => <ComercialPage title="Operacional" active="comercial-operacional" />,
+  component: () => <ComercialPage title="Operacional" active="comercial-operacional" publicView />,
 });

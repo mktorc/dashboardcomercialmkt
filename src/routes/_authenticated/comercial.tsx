@@ -95,9 +95,12 @@ type SortKey = keyof Pick<SellerRow, "name" | "oportunidades" | "tasksTotal" | "
 export function ComercialPage({
   title = "Gerencial",
   active = "comercial",
+  publicView = false,
 }: {
   title?: string;
   active?: "comercial" | "comercial-operacional";
+  /** Acesso sem login: sem menu lateral nem botão de sincronização. */
+  publicView?: boolean;
 } = {}) {
   const now = new Date();
   const [from, setFrom] = useState(ymd(new Date(now.getFullYear(), now.getMonth(), 1)));
@@ -267,7 +270,7 @@ export function ComercialPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      <Sidebar active={active} />
+      {publicView ? null : <Sidebar active={active} />}
       <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
           className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
@@ -278,7 +281,7 @@ export function ComercialPage({
             <p className="text-sm text-foreground/70">Equipe de vendas — ClickMassa + HQ Rentals</p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
-            <SyncButton />
+            {publicView ? null : <SyncButton />}
             <label className="text-xs text-foreground/70">
               De
               <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
