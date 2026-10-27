@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canAccess, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 const items = [
-  { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/dashboard" },
+  { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/app/dashboard" },
 ] as const;
 
 type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional" | "configuracoes";
@@ -78,6 +78,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
           Orlando Rent Car
         </SheetTitle>
         <nav className="flex flex-col gap-1">
+          {role === "superadmin" ? mobileLink("/app", "Voltar aos Módulos", false, ArrowLeft) : null}
           {items.filter((i) => canAccess(role, i.key)).map((i) => mobileLink(i.to, i.label, active === i.key, i.icon))}
           {showGer || showOp ? (
             <>
@@ -123,6 +124,14 @@ export function Sidebar({ active }: { active: ActivePage }) {
         </button>
       </div>
       <nav className="flex flex-col gap-1">
+        {role === "superadmin" ? <Link
+          to="/app"
+          title={collapsed ? "Voltar aos Módulos" : undefined}
+          className={`flex items-center gap-3 rounded-lg py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent ${collapsed ? "justify-center px-0" : "px-3"}`}
+        >
+          <ArrowLeft className="size-4" />
+          {!collapsed ? "Voltar aos Módulos" : null}
+        </Link> : null}
         {items.filter((i) => canAccess(role, i.key)).map((item) => (
           <Link
             key={item.key}

@@ -274,6 +274,13 @@
       "when": 1792691510753,
       "tag": "0038_public_operacional_read_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1792777910753,
+      "tag": "0039_comissoes_reservas",
+      "breakpoints": true
     }
   ]
 }

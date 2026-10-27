@@ -52,7 +52,7 @@ import {
   pct,
 } from "@/lib/analytics";
 
-export const Route = createFileRoute("/_authenticated/dashboard")({
+export const Route = createFileRoute("/_authenticated/app/dashboard")({
   beforeLoad: () => guardPage("dashboard"),
   head: () => ({
     meta: [

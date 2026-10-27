@@ -38,7 +38,7 @@ function AuthPage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw new Error("E-mail ou senha inválidos.");
       if (next) window.location.assign(next);
-      else navigate({ to: "/dashboard" });
+      else navigate({ to: "/app" });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

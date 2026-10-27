@@ -10,10 +10,10 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   comercial_gerencial: "Comercial - Gerencial",
 };
 
-export type PageKey = "dashboard" | "comercial" | "comercial-operacional" | "configuracoes";
+export type PageKey = "dashboard" | "comercial" | "comercial-operacional" | "comissoes" | "configuracoes";
 
 const ACCESS: Record<AppRole, PageKey[]> = {
-  superadmin: ["dashboard", "comercial", "comercial-operacional", "configuracoes"],
+  superadmin: ["dashboard", "comercial", "comercial-operacional", "comissoes", "configuracoes"],
   comercial: ["dashboard", "comercial", "comercial-operacional"],
   marketing: ["dashboard", "comercial", "comercial-operacional"],
   // Só o menu Comercial (Gerencial e Operacional); sem Marketing nem Configurações.
@@ -24,10 +24,10 @@ export function canAccess(role: AppRole | null, page: PageKey) {
   return role ? ACCESS[role].includes(page) : false;
 }
 
-export const HOME: Record<AppRole, "/dashboard" | "/comercial" | "/comercial-operacional"> = {
-  superadmin: "/dashboard",
+export const HOME: Record<AppRole, "/app/dashboard" | "/comercial" | "/comercial-operacional"> = {
+  superadmin: "/app/dashboard",
   comercial: "/comercial-operacional",
-  marketing: "/dashboard",
+  marketing: "/app/dashboard",
   comercial_gerencial: "/comercial",
 };
 
