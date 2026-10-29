@@ -7,7 +7,7 @@ const supabase = typedClient as unknown as SupabaseClient
 
 const PAGE = 1000
 const COLUNAS =
-  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,estorno_compensado_em'
+  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,manual_charge,valor_repasse,estorno_compensado_em'
 
 const num = (v: unknown) => Number(v ?? 0)
 
@@ -18,6 +18,8 @@ function normalizar(r: Reserva): Reserva {
     total_paid: num(r.total_paid),
     rack_rate: num(r.rack_rate),
     valor_comissao: num(r.valor_comissao),
+    manual_charge: num(r.manual_charge),
+    valor_repasse: num(r.valor_repasse),
     commission_rate: r.commission_rate == null ? null : num(r.commission_rate),
     commission_amount: r.commission_amount == null ? null : num(r.commission_amount),
     commission_rate_manual: r.commission_rate_manual == null ? null : num(r.commission_rate_manual),

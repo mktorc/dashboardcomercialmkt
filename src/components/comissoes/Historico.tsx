@@ -28,7 +28,7 @@ export default function Historico() {
     for (const r of linhas) {
       const g = mapa.get(r.commission_partner) ?? { parceiro: r.commission_partner, reservas: 0, retida: 0, paga: 0, liberada: 0, bloqueada: 0 }
       g.reservas++
-      g[statusDaReserva(r)] += r.valor_comissao
+      g[statusDaReserva(r)] += r.valor_repasse
       mapa.set(r.commission_partner, g)
     }
     return [...mapa.values()].sort((a, b) => a.parceiro.localeCompare(b.parceiro, 'pt-BR'))
@@ -110,6 +110,7 @@ export default function Historico() {
                   <th className="px-4 py-3 text-right">Rack rate</th>
                   <th className="px-4 py-3 text-right">Diferença</th>
                   <th className="px-4 py-3 text-right">Comissão</th>
+                  <th className="px-4 py-3 text-right">Manual charge</th>
                   <th className="px-4 py-3">Desconto</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Paga em</th>
@@ -139,6 +140,7 @@ export default function Historico() {
                         {moeda(r.valor_comissao)}
                         {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">Manual</span>}
                       </td>
+                      <td className="px-4 py-3 text-right">{r.manual_charge > 0 ? moeda(r.manual_charge) : '—'}</td>
                       <td className="px-4 py-3">
                         {r.desconto > 0 ? (
                           <span className={precisaValidar(r) ? 'text-amber-400' : 'text-muted-foreground'}>

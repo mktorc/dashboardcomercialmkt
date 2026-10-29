@@ -42,14 +42,14 @@ export default function ComissoesAPagar() {
     for (const r of linhas) {
       const g = grupo(r.commission_partner)
       g.reservas.push(r)
-      g.bruto += r.valor_comissao
+      g.bruto += r.valor_repasse
     }
     // só desconta estorno de parceiro que tem comissão a receber nesta lista
     for (const e of estornos) {
       const g = mapa.get(e.commission_partner)
       if (!g) continue
       g.estornos.push(e)
-      g.desconto += e.valor_comissao
+      g.desconto += e.valor_repasse
     }
     for (const g of mapa.values()) {
       g.total = g.bruto - g.desconto
@@ -94,8 +94,8 @@ export default function ComissoesAPagar() {
       setAviso({ tipo: 'erro', texto: `Pagamento bloqueado: valide primeiro os descontos de ${travados.join(', ')}.` })
       return
     }
-    const bruto = alvo.reduce((s, r) => s + r.valor_comissao, 0)
-    const desc = descontos.reduce((s, r) => s + r.valor_comissao, 0)
+    const bruto = alvo.reduce((s, r) => s + r.valor_repasse, 0)
+    const desc = descontos.reduce((s, r) => s + r.valor_repasse, 0)
     if (bruto - desc < 0) {
       setAviso({ tipo: 'erro', texto: `${descricao}: os estornos (${moeda(desc)}) superam as comissões (${moeda(bruto)}); nada a pagar agora.` })
       return
@@ -226,6 +226,8 @@ export default function ComissoesAPagar() {
                                   <th className="py-1 pr-4 text-right">Total pago</th>
                                   <th className="py-1 pr-4 text-right">Rack rate</th>
                                   <th className="py-1 pr-4 text-right">Comissão</th>
+                                  <th className="py-1 pr-4 text-right">Manual charge</th>
+                                  <th className="py-1 pr-4 text-right">Total a repassar</th>
                                   <th />
                                 </tr>
                               </thead>
@@ -251,6 +253,8 @@ export default function ComissoesAPagar() {
                                       {moeda(r.valor_comissao)}
                                       {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 font-sans text-xs font-normal text-accent">Manual</span>}
                                     </td>
+                                    <td className="py-1.5 pr-4 text-right">{r.manual_charge > 0 ? moeda(r.manual_charge) : '—'}</td>
+                                    <td className="py-1.5 pr-4 text-right font-semibold">{moeda(r.valor_repasse)}</td>
                                     <td className="py-1.5 text-right">
                                       {podeEditar && podeEditarComissao(r) && (
                                         <button disabled={salvando} onClick={() => setEditando(r)}
@@ -275,6 +279,8 @@ export default function ComissoesAPagar() {
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.total_paid)}</td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.rack_rate)}</td>
                                     <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_comissao)}</td>
+                                    <td className="py-1.5 pr-4 text-right">{r.manual_charge > 0 ? `−${moeda(r.manual_charge)}` : '—'}</td>
+                                    <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_repasse)}</td>
                                     <td />
                                   </tr>
                                 ))}

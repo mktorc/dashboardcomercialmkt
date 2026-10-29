@@ -34,6 +34,16 @@ async function metodosDePagamento(id) {
   return [...new Set((j.data.payments ?? []).filter(pagamentoValido).map((p) => p.payment_type).filter(Boolean))]
 }
 
+// Manual charge: valor que a agência cobrou acima do que vendemos, repassado junto com a comissão.
+// Só vem no detalhe da reserva (item id 6 / is_manual_charge de selected_additional_charges).
+async function manualCharge(id) {
+  const j = await hq(`${BASE}/${id}`)
+  const itens = j.data?.selected_additional_charges ?? []
+  return itens
+    .filter((c) => c.id === 6 || c.is_manual_charge)
+    .reduce((s, c) => s + n(c.total_price?.amount), 0)
+}
+
 // Parceiros que não recebem comissão, mesmo que o HQ tenha percentual cadastrado.
 const SEM_COMISSAO = new Set(
   ['Google ADS', 'Meta ADS', 'Cliente Recorrente', 'Camp.Hispana', 'Influencer/Parceria', 'Master Vacation', 'Talu Concept', 'Barbs Tour', 'Theodoro'].map(semAcento),
@@ -84,6 +94,7 @@ do {
       linhas.slice(i, i + 8).map(async (l) => {
         l.payment_methods = await metodosDePagamento(l.hq_reservation_id)
         l.retida_agencia = l.payment_methods.some(ehRetencao)
+        l.manual_charge = await manualCharge(l.hq_reservation_id)
       }),
     )
   }
