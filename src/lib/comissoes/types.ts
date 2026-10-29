@@ -22,6 +22,8 @@ export interface Reserva {
   liberada: boolean
   valor_comissao: number
   manual_charge: number
+  /** escolha de repassar o manual charge junto com a comissão (padrão: não) */
+  incluir_manual_charge: boolean
   /** comissão + manual charge: o que de fato é repassado ao parceiro */
   valor_repasse: number
   estorno_compensado_em: string | null

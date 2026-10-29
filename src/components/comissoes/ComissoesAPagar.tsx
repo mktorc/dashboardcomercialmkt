@@ -4,7 +4,7 @@ import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
 import { filtrosVazios, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
-import { listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
+import { definirIncluirManualCharge, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
 import { descontoPct, podeEditarComissao, precisaValidar, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
 
 interface GrupoParceiro {
@@ -71,6 +71,19 @@ export default function ComissoesAPagar() {
     const n = new Set(set)
     n.has(chave) ? n.delete(chave) : n.add(chave)
     return n
+  }
+
+  async function alternarManualCharge(r: Reserva) {
+    setSalvando(true)
+    setAviso(null)
+    try {
+      await definirIncluirManualCharge(r.id, !r.incluir_manual_charge)
+      await recarregar()
+    } catch (e) {
+      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao salvar.' })
+    } finally {
+      setSalvando(false)
+    }
   }
 
   async function validar(rs: Reserva[]) {
@@ -253,7 +266,16 @@ export default function ComissoesAPagar() {
                                       {moeda(r.valor_comissao)}
                                       {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 font-sans text-xs font-normal text-accent">Manual</span>}
                                     </td>
-                                    <td className="py-1.5 pr-4 text-right">{r.manual_charge > 0 ? moeda(r.manual_charge) : '—'}</td>
+                                    <td className="py-1.5 pr-4 text-right">
+                                      {r.manual_charge > 0 ? (
+                                        <label className="inline-flex items-center gap-2" title="Repassar o manual charge junto com a comissão">
+                                          <input type="checkbox" checked={r.incluir_manual_charge}
+                                            disabled={salvando || !podeEditar || !podeEditarComissao(r)}
+                                            onChange={() => alternarManualCharge(r)} />
+                                          {moeda(r.manual_charge)}
+                                        </label>
+                                      ) : '—'}
+                                    </td>
                                     <td className="py-1.5 pr-4 text-right font-semibold">{moeda(r.valor_repasse)}</td>
                                     <td className="py-1.5 text-right">
                                       {podeEditar && podeEditarComissao(r) && (
@@ -279,7 +301,7 @@ export default function ComissoesAPagar() {
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.total_paid)}</td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.rack_rate)}</td>
                                     <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_comissao)}</td>
-                                    <td className="py-1.5 pr-4 text-right">{r.manual_charge > 0 ? `−${moeda(r.manual_charge)}` : '—'}</td>
+                                    <td className="py-1.5 pr-4 text-right">{r.incluir_manual_charge ? `−${moeda(r.manual_charge)}` : '—'}</td>
                                     <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_repasse)}</td>
                                     <td />
                                   </tr>

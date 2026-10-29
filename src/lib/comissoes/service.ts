@@ -7,7 +7,7 @@ const supabase = typedClient as unknown as SupabaseClient
 
 const PAGE = 1000
 const COLUNAS =
-  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,manual_charge,valor_repasse,estorno_compensado_em'
+  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,manual_charge,incluir_manual_charge,valor_repasse,estorno_compensado_em'
 
 const num = (v: unknown) => Number(v ?? 0)
 
@@ -132,4 +132,16 @@ export async function validarDescontos(ids: string[]): Promise<number> {
     .select('id')
   if (error) throw new Error(error.message)
   return data.length
+}
+
+/** Define se o manual charge entra no repasse da reserva (ainda não paga). */
+export async function definirIncluirManualCharge(id: string, incluir: boolean): Promise<void> {
+  const { data, error } = await supabase
+    .from('reservas')
+    .update({ incluir_manual_charge: incluir })
+    .eq('id', id)
+    .eq('status_repasse', 'pendente')
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!data.length) throw new Error('Reserva não encontrada ou já paga: não é possível alterar o manual charge.')
 }

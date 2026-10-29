@@ -140,7 +140,7 @@ export default function Historico() {
                         {moeda(r.valor_comissao)}
                         {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">Manual</span>}
                       </td>
-                      <td className="px-4 py-3 text-right">{r.manual_charge > 0 ? moeda(r.manual_charge) : '—'}</td>
+                      <td className="px-4 py-3 text-right">{r.manual_charge > 0 ? <>{moeda(r.manual_charge)}{r.incluir_manual_charge ? <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">No repasse</span> : null}</> : '—'}</td>
                       <td className="px-4 py-3">
                         {r.desconto > 0 ? (
                           <span className={precisaValidar(r) ? 'text-amber-400' : 'text-muted-foreground'}>
