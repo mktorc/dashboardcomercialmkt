@@ -38,6 +38,7 @@ import {
   teamCostForRange,
   computeAttribution,
   computeKpis,
+  withPartnerReservations,
   computeChannelMonthly,
   MIN_CHANNEL_OPPORTUNITIES,
   MIN_CHANNEL_RESERVATIONS,
@@ -173,7 +174,7 @@ function Dashboard() {
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
   const teamSpend = includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
-  const kpis = originData ? computeKpis(originData, teamSpend) : null;
+  const kpis = originData && data ? computeKpis(withPartnerReservations(originData, selectedOrigin, data.current.reservations), teamSpend) : null;
   const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {}) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
@@ -336,7 +337,7 @@ function Dashboard() {
               icon={UserCheck}
               label="Conversão comercial"
               value={kpis ? pct(kpis.conversion) : "—"}
-              hint={kpis ? `${kpis.reservations} reservas fechadas no HQ` : undefined}
+              hint={kpis ? `${kpis.reservations} reservas no HQ` : undefined}
               highlight
               wrapHint
               compact

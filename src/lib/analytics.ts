@@ -1031,8 +1031,15 @@ export function buildMarketingFunnel(
     inRange: () => true,
   });
   const opportunities = summary.created;
-  const wonCount = summary.won;
-  const revenue = summary.revenueRows.reduce((s, r) => s + r.total_amount, 0);
+  // Ganhas e faturamento do HQ: reservas confirmadas cujo parceiro de comissão é o canal (Meta + Google no consolidado).
+  const partnerReservations = allReservations.filter((r) => {
+    if (r.status !== "confirmed") return false;
+    const partner = normalizeOrigin(r.commission_partner);
+    return key ? partner === key : metaGoogle ? partner === "meta" || partner === "google" : true;
+  });
+  const useHq = partnerReservations.length >= MIN_CHANNEL_RESERVATIONS;
+  const wonCount = useHq ? partnerReservations.length : summary.won;
+  const revenue = (useHq ? partnerReservations : summary.revenueRows).reduce((s, r) => s + r.total_amount, 0);
 
   // Contatos por origem (nome da conexão). Só "todas" tem fallback para o total de leads criados.
   let contacts: number | null;
@@ -1217,6 +1224,26 @@ function computeWonSummary(input: {
   };
 }
 
+/**
+ * Reservas do período pelo parceiro de comissão do HQ (open/rental/completed/confirmed, já normalizados
+ * para "confirmed"), como na listagem do HQ. `origin` null = todas as origens.
+ */
+export function withPartnerReservations(
+  d: AnalyticsData,
+  origin: string | null,
+  /** Todas as reservas do período (sem filtro de origem). */
+  allReservations: ReservationRow[],
+): AnalyticsData {
+  if (!origin) return d;
+  const key = normalizeOrigin(origin);
+  return {
+    ...d,
+    reservations: allReservations.filter(
+      (r) => r.status === "confirmed" && normalizeOrigin(r.commission_partner) === key,
+    ),
+  };
+}
+
 export function computeChannelMonthly(
   data: AnalyticsData,
   mode: ChannelComparisonMode,
@@ -1240,20 +1267,27 @@ export function computeChannelMonthly(
       reservationsByContact,
       inRange: inMonth,
     });
+    // Faturamento do HQ: reservas confirmadas do mês cujo parceiro de comissão é o canal. Meses em que o HQ
+    // não registrava o parceiro (antes de ago/2026) seguem a atribuição por origem do lead.
+    const hqReservations = data.reservations.filter(
+      (r) => r.status === "confirmed" && inMonth(r.created_at) && inChannel({ utm_source: r.commission_partner } as OpportunityOriginRow),
+    );
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: summary.clickmassaOpportunities,
       updatedOpportunities: [],
-      reservations: summary.revenueRows,
+      reservations: hqReservations.length >= MIN_CHANNEL_RESERVATIONS ? hqReservations : summary.revenueRows,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
     const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
     const kpis = computeKpis(scoped, teamSpend);
-    const { created, won } = summary;
+    const usesHq = hqReservations.length >= MIN_CHANNEL_RESERVATIONS;
+    const { created } = summary;
+    const won = usesHq ? hqReservations.length : summary.won;
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,
