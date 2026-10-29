@@ -4,7 +4,7 @@ import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
 import { filtrosVazios, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
-import { definirIncluirManualCharge, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
+import { definirIncluirManualCharge, definirIncluirManualChargeEmLote, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
 import { descontoPct, podeEditarComissao, precisaValidar, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
 
 interface GrupoParceiro {
@@ -86,6 +86,19 @@ export default function ComissoesAPagar() {
     }
   }
 
+  async function manualChargeEmLote(rs: Reserva[], incluir: boolean) {
+    setSalvando(true)
+    setAviso(null)
+    try {
+      await definirIncluirManualChargeEmLote(rs.map((r) => r.id), incluir)
+      await recarregar()
+    } catch (e) {
+      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao salvar.' })
+    } finally {
+      setSalvando(false)
+    }
+  }
+
   async function validar(rs: Reserva[]) {
     setSalvando(true)
     setAviso(null)
@@ -113,7 +126,10 @@ export default function ComissoesAPagar() {
       setAviso({ tipo: 'erro', texto: `${descricao}: os estornos (${moeda(desc)}) superam as comissões (${moeda(bruto)}); nada a pagar agora.` })
       return
     }
-    const detalhe = desc ? `\nComissões: ${moeda(bruto)} − estornos de canceladas: ${moeda(desc)}` : ''
+    const mc = alvo.filter((r) => r.incluir_manual_charge).reduce((s, r) => s + r.manual_charge, 0)
+    const semMc = alvo.filter((r) => r.manual_charge > 0 && !r.incluir_manual_charge).reduce((s, r) => s + r.manual_charge, 0)
+    const detalheMc = mc || semMc ? `\nManual charge incluído: ${moeda(mc)}${semMc ? ` (NÃO incluído: ${moeda(semMc)})` : ''}` : ''
+    const detalhe = detalheMc + (desc ? `\nComissões: ${moeda(bruto)} − estornos de canceladas: ${moeda(desc)}` : '')
     if (!window.confirm(`Marcar como paga(s) ${alvo.length} comissão(ões) — ${descricao}?${detalhe}\nTotal a pagar: ${moeda(bruto - desc)}`)) return
     setSalvando(true)
     setAviso(null)
@@ -204,6 +220,29 @@ export default function ComissoesAPagar() {
                             <span className="text-muted-foreground">{aberto ? '▾' : '▸'}</span>
                             {g.parceiro}
                           </button>
+                          {(() => {
+                            const comMc = g.reservas.filter((r) => r.manual_charge > 0)
+                            if (!comMc.length) return null
+                            const incluidas = comMc.filter((r) => r.incluir_manual_charge)
+                            const totalMc = comMc.reduce((s, r) => s + r.manual_charge, 0)
+                            const totalIncl = incluidas.reduce((s, r) => s + r.manual_charge, 0)
+                            return (
+                              <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs font-normal text-amber-300">
+                                <strong>Atenção: manual charge.</strong> {comMc.length} reserva(s) deste parceiro têm {moeda(totalMc)} de manual charge.{' '}
+                                {incluidas.length
+                                  ? `${moeda(totalIncl)} (${incluidas.length}) já está no total a pagar.`
+                                  : 'Nada está incluído no total a pagar.'}
+                                {podeEditar && (
+                                  <span className="ml-2">
+                                    <button disabled={salvando || incluidas.length === comMc.length} onClick={() => manualChargeEmLote(comMc, true)}
+                                      className="mr-2 underline hover:text-amber-200 disabled:opacity-50">Incluir todos</button>
+                                    <button disabled={salvando || !incluidas.length} onClick={() => manualChargeEmLote(comMc, false)}
+                                      className="underline hover:text-amber-200 disabled:opacity-50">Remover todos</button>
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
                           {g.travado && (
                             <div className="mt-1 text-xs font-normal text-amber-400">
                               Pagamento travado: {g.reservas.filter(precisaValidar).length} reserva(s) com desconto a validar

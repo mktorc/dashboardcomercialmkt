@@ -145,3 +145,14 @@ export async function definirIncluirManualCharge(id: string, incluir: boolean): 
   if (error) throw new Error(error.message)
   if (!data.length) throw new Error('Reserva não encontrada ou já paga: não é possível alterar o manual charge.')
 }
+
+/** Inclui (ou tira) o manual charge de várias reservas ainda não pagas de uma vez. */
+export async function definirIncluirManualChargeEmLote(ids: string[], incluir: boolean): Promise<void> {
+  if (!ids.length) return
+  const { error } = await supabase
+    .from('reservas')
+    .update({ incluir_manual_charge: incluir })
+    .in('id', ids)
+    .eq('status_repasse', 'pendente')
+  if (error) throw new Error(error.message)
+}
