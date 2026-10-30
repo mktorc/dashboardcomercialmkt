@@ -295,6 +295,27 @@
       "when": 1792950710753,
       "tag": "0041_opportunity_total_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793037110753,
+      "tag": "0042_pricing_study_report",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793123510753,
+      "tag": "0043_manual_charge",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793209910753,
+      "tag": "0044_manual_charge_opcional",
+      "breakpoints": true
     }
   ]
 }

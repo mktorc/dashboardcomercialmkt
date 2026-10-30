@@ -34,3 +34,6 @@ dist-ssr
 # Vercel
 .vercel
 .env*
+
+# Estudo de precificação: cache local (dados comerciais internos)
+data/precificacao/

@@ -52,3 +52,27 @@ export async function guardPage(page: PageKey) {
   if (!canAccess(role, page)) throw redirect({ to: HOME[role] });
   return { role };
 }
+
+/**
+ * Página oculta "Precificação": acesso por e-mail, fora do mapa ACCESS (nenhum perfil, nem superadmin, a enxerga).
+ * A proteção real é a RLS de pricing_study_report (migração 0042); isto só esconde menu e rota.
+ */
+export const PRICING_STUDY_EMAIL = "marketing@orlandorentcar.com";
+
+export function canSeePricing(email: string | null | undefined) {
+  return (email ?? "").trim().toLowerCase() === PRICING_STUDY_EMAIL;
+}
+
+export async function getMyEmail(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.email ?? null;
+}
+
+/** Use em beforeLoad da rota /precificacao: quem não for o e-mail autorizado volta para a sua home. */
+export async function guardPricingPage() {
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) throw redirect({ to: "/auth", search: { next: undefined } });
+  if (canSeePricing(data.user.email)) return;
+  const role = await getMyRole();
+  throw redirect(role ? { to: HOME[role] } : { to: "/auth", search: { next: undefined } });
+}

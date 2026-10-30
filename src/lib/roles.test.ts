@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAccess } from "./roles";
+import { canAccess, canSeePricing } from "./roles";
 
 const TABS = ["dashboard", "comercial", "comercial-operacional"] as const;
 
@@ -20,5 +20,18 @@ describe("permissões por perfil", () => {
   it("só superadmin acessa Configurações", () => {
     expect(canAccess("comercial", "configuracoes")).toBe(false);
     expect(canAccess("marketing", "configuracoes")).toBe(false);
+  });
+});
+
+describe("página oculta de precificação", () => {
+  it("só o e-mail autorizado enxerga, ignorando caixa e espaços", () => {
+    expect(canSeePricing("marketing@orlandorentcar.com")).toBe(true);
+    expect(canSeePricing("  Marketing@OrlandoRentCar.com ")).toBe(true);
+  });
+  it("nenhum outro e-mail ou perfil enxerga", () => {
+    expect(canSeePricing("comercial@orlandorentcar.com")).toBe(false);
+    expect(canSeePricing("marketing@orlandorentcar.com.br")).toBe(false);
+    expect(canSeePricing(null)).toBe(false);
+    expect(canSeePricing(undefined)).toBe(false);
   });
 });
