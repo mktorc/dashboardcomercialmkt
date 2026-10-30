@@ -1,10 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState, type SyntheticEvent } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { guardPricingPage } from "@/lib/roles";
+import { pricingTabDocument, splitPricingReport, type PricingTab } from "@/lib/pricing-report";
 
 // A tabela pricing_study_report ainda não está em types.ts (gerado): usa o cliente sem tipos, como em lib/comissoes.
 const supabase = typedClient as unknown as SupabaseClient;
@@ -12,17 +16,36 @@ const supabase = typedClient as unknown as SupabaseClient;
 export const Route = createFileRoute("/_authenticated/precificacao")({
   head: () => ({
     meta: [
-      { title: "Precificação | Orlando Rent Car Analytics" },
+      { title: "Estudo de Precificação | Orlando Rent Car Analytics" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   beforeLoad: () => guardPricingPage(),
-  component: PricingPage,
+  component: PricingHub,
 });
 
 type Report = { id: string; generated_at: string; period_start: string; period_end: string; html: string };
 
-function PricingPage() {
+const ajustaAltura = (e: SyntheticEvent<HTMLIFrameElement>) => {
+  const f = e.currentTarget;
+  const h = f.contentDocument?.documentElement.scrollHeight;
+  if (h) f.style.height = `${h + 8}px`;
+};
+
+function TabFrame({ css, tab }: { css: string; tab: PricingTab }) {
+  // allow-same-origin só para medir a altura; sem allow-scripts, nada do relatório executa.
+  return (
+    <iframe
+      title={tab.title}
+      sandbox="allow-same-origin"
+      srcDoc={pricingTabDocument(css, tab)}
+      onLoad={ajustaAltura}
+      className="min-h-[60vh] w-full rounded-xl border border-border bg-background"
+    />
+  );
+}
+
+function PricingHub() {
   const report = useQuery({
     queryKey: ["pricing-study-report"],
     queryFn: async () => {
@@ -36,36 +59,59 @@ function PricingPage() {
       return data as Report | null;
     },
   });
+  const parsed = useMemo(() => (report.data ? splitPricingReport(report.data.html) : null), [report.data]);
+  const [aba, setAba] = useState<string | null>(null);
+  const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
   return (
-    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      <Sidebar active="precificacao" />
-      <main className="min-w-0 flex-1 space-y-4 p-4 sm:p-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Precificação</h1>
-          <p className="text-sm text-muted-foreground">
-            Estudo histórico de ocupação, antecedência e preço (HQ Rentals).
-            {report.data
-              ? ` Período ${report.data.period_start} a ${report.data.period_end} · gerado em ${new Date(report.data.generated_at).toLocaleString("pt-BR")}.`
-              : null}
-          </p>
+    <div className="min-h-screen bg-background">
+      <header
+        className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6"
+        style={{ background: "var(--gradient-brand)" }}
+      >
+        <div className="flex items-center gap-3">
+          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-9 rounded-lg object-cover" />
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Estudo de Precificação</h1>
+            <p className="text-sm text-foreground/70">
+              Ocupação, antecedência, preço e elasticidade (HQ Rentals).
+              {report.data
+                ? ` Período ${report.data.period_start} a ${report.data.period_end} · gerado em ${new Date(report.data.generated_at).toLocaleString("pt-BR")}.`
+                : null}
+            </p>
+          </div>
         </div>
+        <Button asChild variant="outline" size="sm">
+          <Link to="/app">
+            <ArrowLeft className="mr-1 size-4" /> Módulos
+          </Link>
+        </Button>
+      </header>
+
+      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
         {report.isLoading ? (
           <Card className="p-6 text-sm text-muted-foreground">Carregando relatório…</Card>
         ) : report.error ? (
           <Card className="p-6 text-sm text-destructive">Não foi possível carregar o relatório.</Card>
-        ) : !report.data ? (
+        ) : !parsed || parsed.tabs.length === 0 ? (
           <Card className="p-6 text-sm text-muted-foreground">
             Nenhum relatório publicado ainda. Rode o comando publicar em scripts/precificacao.
           </Card>
         ) : (
-          // sandbox vazio: o relatório é HTML estático e não executa scripts nem acessa a sessão do app
-          <iframe
-            title="Relatório de precificação"
-            sandbox=""
-            srcDoc={report.data.html}
-            className="h-[calc(100vh-9rem)] w-full rounded-xl border border-border bg-background"
-          />
+          <Tabs value={ativa} onValueChange={setAba} className="space-y-4">
+            <TabsList className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto">
+              {parsed.tabs.map((t) => (
+                <TabsTrigger key={t.id} value={t.id}>
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {parsed.tabs.map((t) => (
+              <TabsContent key={t.id} value={t.id} className="mt-0">
+                <TabFrame css={parsed.css} tab={t} />
+              </TabsContent>
+            ))}
+          </Tabs>
         )}
       </main>
     </div>

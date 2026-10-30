@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, HandCoins, LogIn, LogOut, Globe } from "lucide-react";
+import { BarChart3, HandCoins, LineChart, LogIn, LogOut, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { canAccess, getMyRole, type PageKey } from "@/lib/roles";
+import { canAccess, canSeePricing, getMyEmail, getMyRole, type PageKey } from "@/lib/roles";
 import { supabase } from "@/integrations/supabase/client";
 
 // Com login (superadmin): todos os módulos.
@@ -26,6 +26,15 @@ const MODULES = [
     cta: "Acessar Comissões",
   },
 ] as const;
+
+// Módulo oculto: só aparece para o e-mail autorizado (a proteção real é a RLS da migração 0042).
+const PRICING_MODULE = {
+  to: "/precificacao",
+  icon: LineChart,
+  title: "Estudo de Precificação",
+  description: "Ocupação, antecedência, preço e elasticidade por categoria e sazonalidade. Acesso restrito.",
+  cta: "Acessar Precificação",
+} as const;
 
 // Acesso público (sem login): Operacional e Comissões sem as ações de pagar e validar.
 const PUBLIC_MODULES = [
@@ -51,6 +60,7 @@ export function ModuleSelection() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: role = null, isLoading } = useQuery({ queryKey: ["my-role"], queryFn: getMyRole });
+  const { data: email = null } = useQuery({ queryKey: ["my-email"], queryFn: getMyEmail });
   const [publico, setPublicoState] = useState(() => {
     try {
       return sessionStorage.getItem(CHAVE) === "1";
@@ -80,7 +90,8 @@ export function ModuleSelection() {
   if (isLoading) return <div className="min-h-screen bg-background" />;
 
   const logado = role != null;
-  const modulos = logado ? MODULES.filter((m) => canAccess(role, m.page)) : publico ? PUBLIC_MODULES : [];
+  const base = logado ? MODULES.filter((m) => canAccess(role, m.page)) : publico ? PUBLIC_MODULES : [];
+  const modulos = logado && canSeePricing(email) ? [...base, PRICING_MODULE] : base;
 
   return (
     <div className="min-h-screen bg-background">

@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canAccess, canSeePricing, getMyEmail, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LineChart, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ const items = [
   { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/app/dashboard" },
 ] as const;
 
-type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional" | "configuracoes" | "precificacao";
+type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional" | "configuracoes";
 
 export function Sidebar({ active }: { active: ActivePage }) {
   const navigate = useNavigate();
@@ -80,7 +80,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
           Orlando Rent Car
         </SheetTitle>
         <nav className="flex flex-col gap-1">
-          {role === "superadmin" ? mobileLink("/app", "Voltar aos Módulos", false, ArrowLeft) : null}
+          {role === "superadmin" || showPricing ? mobileLink("/app", "Voltar aos Módulos", false, ArrowLeft) : null}
           {items.filter((i) => canAccess(role, i.key)).map((i) => mobileLink(i.to, i.label, active === i.key, i.icon))}
           {showGer || showOp ? (
             <>
@@ -91,7 +91,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
               {showOp ? mobileLink("/comercial-operacional", "Operacional", active === "comercial-operacional", undefined, true) : null}
             </>
           ) : null}
-          {showPricing ? mobileLink("/precificacao", "Precificação", active === "precificacao", LineChart) : null}
           {canAccess(role, "configuracoes") ? mobileLink("/configuracoes", "Configurações", active === "configuracoes", Settings) : null}
         </nav>
         <button
@@ -127,7 +126,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
         </button>
       </div>
       <nav className="flex flex-col gap-1">
-        {role === "superadmin" ? <Link
+        {role === "superadmin" || showPricing ? <Link
           to="/app"
           title={collapsed ? "Voltar aos Módulos" : undefined}
           className={`flex items-center gap-3 rounded-lg py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent ${collapsed ? "justify-center px-0" : "px-3"}`}
@@ -187,20 +186,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
             </DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu> : null}
-        {showPricing ? (
-          <Link
-            to="/precificacao"
-            title={collapsed ? "Precificação" : undefined}
-            className={`flex items-center gap-3 rounded-lg py-2 text-sm transition-colors ${collapsed ? "justify-center px-0" : "px-3"} ${
-              active === "precificacao"
-                ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
-            }`}
-          >
-            <LineChart className="size-4" />
-            {!collapsed ? "Precificação" : null}
-          </Link>
-        ) : null}
         {canAccess(role, "configuracoes") ? (
           <Link
             to="/configuracoes"
