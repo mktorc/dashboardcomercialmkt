@@ -8,11 +8,9 @@ const LABELS: Record<string, string> = {
   resumo: "Resumo",
   ocupacao: "Ocupação e frota",
   antecedencia: "Antecedência",
-  preco: "Preço",
-  relacao: "Preço × ocupação",
-  elasticidade: "Elasticidade",
+  preco: "Preço e desconto",
+  relacao: "Preço e ocupação",
   regras: "Regras de ajuste",
-  qualidade: "Qualidade dos dados",
   limitacoes: "Limitações",
 };
 

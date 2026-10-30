@@ -49,7 +49,7 @@ section{{padding:32px 0 8px}}h2{{margin:0 0 4px;font-size:1.3rem;color:var(--acc
 .sub{{color:var(--muted);margin:0 0 16px}}
 .card{{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin:12px 0}}
 .kpis{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}}
-.kpi b{{display:block;font-size:1.6rem;color:var(--brand-vivid)}}.kpi span{{color:var(--muted);font-size:.85rem}}
+.kpis .card{{margin:0}}.kpi b{{display:block;font-size:1.6rem;color:var(--brand-vivid)}}.kpi span{{color:var(--muted);font-size:.85rem}}
 .aviso{{border-left:4px solid var(--accent);background:color-mix(in oklab,var(--card) 85%,var(--brand-vivid) 15%)}}
 .alerta{{border-left:4px solid var(--danger)}}
 table{{width:100%;border-collapse:collapse;font-size:.88rem;font-variant-numeric:tabular-nums}}
@@ -60,7 +60,28 @@ td.n,th.n{{text-align:right}}.fraca{{color:var(--muted);font-style:italic}}
 .tag{{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.78rem;color:#0b130e;font-weight:600}}
 svg text{{fill:var(--muted);font-size:11px}}.grafico{{width:100%;height:auto}}
 footer{{color:var(--muted);font-size:.8rem;padding:32px 0;border-top:1px solid var(--border);margin-top:40px}}
-@media(max-width:600px){{.marca img{{width:44px;height:44px}}.marca h1{{font-size:1.2rem}}}}
+details.item{{border:1px solid var(--border);border-radius:var(--radius);margin:12px 0;background:color-mix(in oklab,var(--card) 70%,var(--bg) 30%)}}
+details.item>summary{{cursor:pointer;list-style:none;padding:12px 14px;font-weight:600;display:flex;gap:10px;align-items:center;min-height:44px}}
+details.item>summary::-webkit-details-marker{{display:none}}
+details.item>summary::before{{content:"▸";color:var(--accent);transition:transform .15s;flex:none}}
+details.item[open]>summary::before{{transform:rotate(90deg)}}
+details.item>summary:hover{{color:var(--accent)}}
+details.item>.corpo{{padding:0 14px 14px}}
+details.analise{{border-color:var(--brand-vivid)}}details.analise>summary{{color:var(--accent);font-size:1.05rem}}
+.corpo>.sub:first-child{{margin-top:0}}
+.analise h4{{margin:20px 0 6px;color:var(--accent);font-size:.98rem}}.analise p{{margin:6px 0}}.analise ul{{margin:6px 0;padding-left:20px}}.analise li{{margin:4px 0}}
+.analise .tabela,.corpo .tabela{{margin:10px 0}}
+.grafwrap{{overflow-x:auto;-webkit-overflow-scrolling:touch}}svg.grafico{{min-width:540px}}
+.tabela{{-webkit-overflow-scrolling:touch}}img,svg{{max-width:100%}}
+.nota-data{{color:var(--muted);font-size:.8rem;margin:0 0 8px}}
+@media(max-width:720px){{
+body{{font-size:14px}}header.topo{{padding:18px 8px}}.wrap{{padding:0 10px}}h2{{font-size:1.15rem}}h3{{font-size:1rem}}
+.marca{{gap:10px}}.marca img{{width:44px;height:44px}}.marca h1{{font-size:1.15rem}}.marca p{{font-size:.85rem}}
+.kpis{{grid-template-columns:repeat(2,minmax(0,1fr))}}.kpi b{{font-size:1.25rem}}
+th,td{{padding:6px 8px;font-size:.8rem}}nav.indice a{{padding:10px}}
+details.item>summary{{padding:10px 12px}}details.item>.corpo{{padding:0 10px 12px}}.card{{padding:12px}}
+.tabela table{{min-width:max(100%,calc(var(--cols,6)*96px))}}
+}}
 @media print{{nav.indice{{display:none}}body{{background:#fff;color:#111}}}}
 """
 

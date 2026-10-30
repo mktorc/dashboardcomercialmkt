@@ -1,8 +1,8 @@
-import { useMemo, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,25 +24,58 @@ export const Route = createFileRoute("/_authenticated/precificacao")({
   component: PricingHub,
 });
 
-type Report = { id: string; generated_at: string; period_start: string; period_end: string; html: string };
+export type Report = { id: string; generated_at: string; period_start: string; period_end: string; html: string };
 
-const ajustaAltura = (e: SyntheticEvent<HTMLIFrameElement>) => {
-  const f = e.currentTarget;
-  const h = f.contentDocument?.documentElement.scrollHeight;
-  if (h) f.style.height = `${h + 8}px`;
-};
+const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
+// Iframe sem scripts: o pai lê a altura do conteúdo (allow-same-origin) e acompanha mudanças de largura e de itens recolhidos.
 function TabFrame({ css, tab }: { css: string; tab: PricingTab }) {
-  // allow-same-origin só para medir a altura; sem allow-scripts, nada do relatório executa.
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [observer, setObserver] = useState<ResizeObserver | null>(null);
+
+  useEffect(() => () => observer?.disconnect(), [observer]);
+
+  const aoCarregar = () => {
+    const f = ref.current;
+    const doc = f?.contentDocument;
+    if (!f || !doc) return;
+    const ajusta = () => {
+      f.style.height = `${doc.documentElement.scrollHeight + 8}px`;
+    };
+    ajusta();
+    observer?.disconnect();
+    const ro = new ResizeObserver(ajusta);
+    ro.observe(doc.documentElement);
+    setObserver(ro);
+    doc.addEventListener("toggle", ajusta, true);
+  };
+
   return (
-    <iframe
-      title={tab.title}
-      sandbox="allow-same-origin"
-      srcDoc={pricingTabDocument(css, tab)}
-      onLoad={ajustaAltura}
-      className="min-h-[60vh] w-full rounded-xl border border-border bg-background"
-    />
+    <div className="space-y-2">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={() => alternaTodos(ref.current, true)}>
+          <ChevronsUpDown className="mr-1 size-4" /> Expandir tudo
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => alternaTodos(ref.current, false)}>
+          <ChevronsDownUp className="mr-1 size-4" /> Recolher tudo
+        </Button>
+      </div>
+      <iframe
+        ref={ref}
+        title={tab.title}
+        sandbox="allow-same-origin"
+        srcDoc={pricingTabDocument(css, tab)}
+        onLoad={aoCarregar}
+        className="min-h-[60vh] w-full border-0 bg-background sm:rounded-xl sm:border sm:border-border"
+      />
+    </div>
   );
+}
+
+function alternaTodos(frame: HTMLIFrameElement | null, abrir: boolean) {
+  frame?.contentDocument?.querySelectorAll("details.item").forEach((d) => {
+    (d as HTMLDetailsElement).open = abrir;
+  });
 }
 
 function PricingHub() {
@@ -59,25 +92,27 @@ function PricingHub() {
       return data as Report | null;
     },
   });
-  const parsed = useMemo(() => (report.data ? splitPricingReport(report.data.html) : null), [report.data]);
+  return <PricingHubView data={report.data ?? null} isLoading={report.isLoading} hasError={!!report.error} />;
+}
+
+export function PricingHubView({ data, isLoading, hasError }: { data: Report | null; isLoading: boolean; hasError: boolean }) {
+  const parsed = useMemo(() => (data ? splitPricingReport(data.html) : null), [data]);
   const [aba, setAba] = useState<string | null>(null);
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
   return (
     <div className="min-h-screen bg-background">
       <header
-        className="flex items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6"
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-6"
         style={{ background: "var(--gradient-brand)" }}
       >
-        <div className="flex items-center gap-3">
-          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-9 rounded-lg object-cover" />
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-9 shrink-0 rounded-lg object-cover" />
           <div>
             <h1 className="text-lg font-semibold text-foreground">Estudo de Precificação</h1>
             <p className="text-sm text-foreground/70">
-              Ocupação, antecedência, preço e elasticidade (HQ Rentals).
-              {report.data
-                ? ` Período ${report.data.period_start} a ${report.data.period_end} · gerado em ${new Date(report.data.generated_at).toLocaleString("pt-BR")}.`
-                : null}
+              Ocupação, antecedência e preço (HQ Rentals).
+              {data ? ` Período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.` : null}
             </p>
           </div>
         </div>
@@ -88,10 +123,10 @@ function PricingHub() {
         </Button>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
-        {report.isLoading ? (
+      <main className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
+        {isLoading ? (
           <Card className="p-6 text-sm text-muted-foreground">Carregando relatório…</Card>
-        ) : report.error ? (
+        ) : hasError ? (
           <Card className="p-6 text-sm text-destructive">Não foi possível carregar o relatório.</Card>
         ) : !parsed || parsed.tabs.length === 0 ? (
           <Card className="p-6 text-sm text-muted-foreground">
@@ -99,7 +134,7 @@ function PricingHub() {
           </Card>
         ) : (
           <Tabs value={ativa} onValueChange={setAba} className="space-y-4">
-            <TabsList className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto">
+            <TabsList className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto [&>*]:shrink-0">
               {parsed.tabs.map((t) => (
                 <TabsTrigger key={t.id} value={t.id}>
                   {t.label}

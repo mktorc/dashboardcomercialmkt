@@ -32,7 +32,7 @@ const PRICING_MODULE = {
   to: "/precificacao",
   icon: LineChart,
   title: "Estudo de Precificação",
-  description: "Ocupação, antecedência, preço e elasticidade por categoria e sazonalidade. Acesso restrito.",
+  description: "Ocupação, antecedência e preço por categoria e sazonalidade. Acesso restrito.",
   cta: "Acessar Precificação",
 } as const;
 
