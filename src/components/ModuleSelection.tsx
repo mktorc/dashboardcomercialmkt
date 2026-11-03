@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, HandCoins, LineChart, LogIn, LogOut, Globe } from "lucide-react";
+import { BarChart3, ClipboardList, HandCoins, LineChart, LogIn, LogOut, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { canAccess, canSeePricing, getMyEmail, getMyRole, type PageKey } from "@/lib/roles";
@@ -27,6 +27,15 @@ const MODULES = [
   },
 ] as const;
 
+// Controle de Reservas: visível a quem entra no hub, com ou sem login.
+const RESERVAS_MODULE = {
+    to: "/controle-reservas",
+    icon: ClipboardList,
+    title: "Controle de Reservas",
+    description: "Reservas que passaram de pending para open (sinal pago), por dia.",
+    cta: "Acessar Controle de Reservas",
+  } as const;
+
 // Módulo oculto: só aparece para o e-mail autorizado (a proteção real é a RLS da migração 0042).
 const PRICING_MODULE = {
   to: "/precificacao",
@@ -51,6 +60,13 @@ const PUBLIC_MODULES = [
     title: "Gerenciamento de Comissões",
     description: "Visualização e ajuste das comissões de parceiros. Pagar e validar descontos exige login de superadmin.",
     cta: "Acessar Comissões",
+  },
+  {
+    to: "/controle-reservas",
+    icon: ClipboardList,
+    title: "Controle de Reservas",
+    description: "Reservas que passaram de pending para open (sinal pago), por dia.",
+    cta: "Acessar Controle de Reservas",
   },
 ] as const;
 
@@ -91,7 +107,8 @@ export function ModuleSelection() {
 
   const logado = role != null;
   const base = logado ? MODULES.filter((m) => canAccess(role, m.page)) : publico ? PUBLIC_MODULES : [];
-  const modulos = logado && canSeePricing(email) ? [...base, PRICING_MODULE] : base;
+  const comReservas = logado ? [...base, RESERVAS_MODULE] : base;
+  const modulos = logado && canSeePricing(email) ? [...comReservas, PRICING_MODULE] : comReservas;
 
   return (
     <div className="min-h-screen bg-background">
@@ -135,7 +152,7 @@ export function ModuleSelection() {
                 <Globe className="size-8 text-accent" />
                 <h2 className="text-lg font-semibold text-foreground">Acesso público</h2>
                 <p className="text-sm text-muted-foreground">
-                  Sem login: Comercial Operacional e Comissões (visualização e edição da comissão).
+                  Sem login: Comercial Operacional, Comissões (visualização e edição da comissão) e Controle de Reservas.
                 </p>
               </div>
               <Button variant="outline" onClick={() => setPublico(true)}>Acessar publicamente</Button>

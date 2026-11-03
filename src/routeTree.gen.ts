@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ComercialOperacionalRouteImport } from './routes/comercial-operacional'
+import { Route as ControleReservasRouteImport } from './routes/controle-reservas'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -51,6 +52,11 @@ const AuthRoute = AuthRouteImport.update({
 const ComercialOperacionalRoute = ComercialOperacionalRouteImport.update({
   id: '/comercial-operacional',
   path: '/comercial-operacional',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ControleReservasRoute = ControleReservasRouteImport.update({
+  id: '/controle-reservas',
+  path: '/controle-reservas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -166,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
+  '/controle-reservas': typeof ControleReservasRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
+  '/controle-reservas': typeof ControleReservasRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -218,6 +226,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
+  '/controle-reservas': typeof ControleReservasRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -245,6 +254,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/comercial-operacional'
+    | '/controle-reservas'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -270,6 +280,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/comercial-operacional'
+    | '/controle-reservas'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -296,6 +307,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/comercial-operacional'
+    | '/controle-reservas'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -323,6 +335,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ComercialOperacionalRoute: typeof ComercialOperacionalRoute
+  ControleReservasRoute: typeof ControleReservasRoute
   McpRoute: typeof McpRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -369,6 +382,13 @@ declare module '@tanstack/react-router' {
       path: '/comercial-operacional'
       fullPath: '/comercial-operacional'
       preLoaderRoute: typeof ComercialOperacionalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/controle-reservas': {
+      id: '/controle-reservas'
+      path: '/controle-reservas'
+      fullPath: '/controle-reservas'
+      preLoaderRoute: typeof ControleReservasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -536,6 +556,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ComercialOperacionalRoute: ComercialOperacionalRoute,
+  ControleReservasRoute: ControleReservasRoute,
   McpRoute: McpRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:

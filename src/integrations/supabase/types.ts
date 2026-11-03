@@ -374,6 +374,30 @@ export type Database = {
         }
         Relationships: []
       }
+      reservation_status_history: {
+        Row: {
+          changed_at: string
+          from_status: string | null
+          id: number
+          reservation_id: string
+          to_status: string
+        }
+        Insert: {
+          changed_at?: string
+          from_status?: string | null
+          id?: never
+          reservation_id: string
+          to_status: string
+        }
+        Update: {
+          changed_at?: string
+          from_status?: string | null
+          id?: never
+          reservation_id?: string
+          to_status?: string
+        }
+        Relationships: []
+      }
       sales_goals: {
         Row: {
           conversion_goal: number | null
