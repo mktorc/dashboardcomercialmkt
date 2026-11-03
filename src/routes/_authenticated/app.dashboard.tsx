@@ -437,11 +437,9 @@ function Dashboard() {
           </section>
 
           <section className="grid gap-4">
-            <Card className="p-5">
-              <h2 className="text-sm font-semibold text-foreground">
-                Evolução diária — Investimento x Faturamento
-              </h2>
-              <div className="mt-4 h-72">
+            <ExpandableChartPanel title="Evolução diária — Investimento x Faturamento">
+              {(expanded) => (
+              <div style={{ height: expanded ? "70vh" : 288 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <defs>
@@ -490,7 +488,8 @@ function Dashboard() {
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
-            </Card>
+              )}
+            </ExpandableChartPanel>
           </section>
 
           <section className="grid min-w-0 gap-4 xl:grid-cols-2">
@@ -517,12 +516,13 @@ function Dashboard() {
                 title="Conversas iniciadas por mensagem (Meta Ads)"
                 subtitle="Uma barra por dia do período selecionado. Fonte: Meta, ação messaging_conversation_started_7d."
               >
+                {(expanded) => (<>
                 <p className="-mt-2 mb-2 text-2xl font-bold text-foreground">
                   {metaConversationsTotal.toLocaleString("pt-BR")}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">conversas no período (soma de todos os dias)</span>
                 </p>
                 {metaConversationsDaily.length ? (
-                  <div className="h-[300px] w-full min-w-0">
+                  <div className="w-full min-w-0" style={{ height: expanded ? "65vh" : 300 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={metaConversationsDaily} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -542,16 +542,14 @@ function Dashboard() {
                     {isLoading ? "Carregando..." : "Sem dados no período."}
                   </div>
                 )}
+                </>)}
               </ExpandableChartPanel>
             </div>
-            <Card className="overflow-hidden p-5 xl:col-span-2">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Comparativo de Conversão e CAC % (Marketing)</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Desde janeiro · Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate.
-                  </p>
-                </div>
+            <ExpandableChartPanel
+              className="xl:col-span-2"
+              title="Comparativo de Conversão e CAC % (Marketing)"
+              subtitle="Desde janeiro · Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate."
+              actions={
                 <div className="flex gap-1">
                   {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
                     <Button key={key} size="sm" variant={channelMode === key ? "default" : "outline"} onClick={() => setChannelMode(key)}>
@@ -559,8 +557,10 @@ function Dashboard() {
                     </Button>
                   ))}
                 </div>
-              </div>
-              <div className="mt-4 h-[300px] w-full min-w-0">
+              }
+            >
+              {(expanded) => (<>
+              <div className="w-full min-w-0" style={{ height: expanded ? "60vh" : 300 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={channelMonthly} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -594,15 +594,13 @@ function Dashboard() {
               <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
                 Meses sem barra não têm dados suficientes: o canal precisa de pelo menos {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026. No Consolidado, o CAC % também inclui o investimento mensal na equipe de marketing (Configurações).
               </p>
-            </Card>
-            <Card className="overflow-hidden p-5 xl:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Funil de marketing</h2>
-                  <p className="text-xs text-muted-foreground">
-                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (cliques e conversões).
-                  </p>
-                </div>
+              </>)}
+            </ExpandableChartPanel>
+            <ExpandableChartPanel
+              className="xl:col-span-2"
+              title="Funil de marketing"
+              subtitle="Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (cliques e conversões)."
+              actions={
                 <div className="flex gap-1">
                   {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
                     <Button key={key} size="sm" variant={funnelMode === key ? "default" : "outline"} onClick={() => setFunnelMode(key)}>
@@ -610,7 +608,9 @@ function Dashboard() {
                     </Button>
                   ))}
                 </div>
-              </div>
+              }
+            >
+              {() => (<>
               {dynamicFunnel ? (
                 <>
                   <div className="mt-6 flex flex-col items-center gap-2">
@@ -645,7 +645,8 @@ function Dashboard() {
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">{isLoading ? "Carregando…" : "Sem dados."}</p>
               )}
-            </Card>
+              </>)}
+            </ExpandableChartPanel>
           </section>
 
           <Card className="overflow-hidden">
@@ -806,43 +807,54 @@ function Dashboard() {
 function ExpandableChartPanel({
   title,
   subtitle,
+  actions,
+  className = "",
   children,
 }: {
   title: string;
   subtitle?: string;
-  children: React.ReactNode;
+  /** Controles ao lado do título (ex.: seletor de canal); aparecem também no modo expandido. */
+  actions?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode | ((expanded: boolean) => React.ReactNode);
 }) {
   const [open, setOpen] = useState(false);
+  const body = (expanded: boolean) => (typeof children === "function" ? children(expanded) : children);
+  const header = (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+      </div>
+      {actions}
+    </div>
+  );
 
   return (
     <>
-      <Card className="relative min-w-0 overflow-hidden p-5">
+      <Card className={`relative min-w-0 overflow-hidden p-5 ${className}`}>
         <div className="absolute right-5 top-5">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setOpen(true)}
             aria-label={`Expandir ${title}`}
-            title="Expandir gráfico"
+            title="Expandir"
           >
             <Maximize2 className="size-4" />
           </Button>
         </div>
-        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-        <div className="mt-4 min-w-0">
-          {children}
-        </div>
+        <div className="pr-10">{header}</div>
+        <div className="mt-4 min-w-0">{body(false)}</div>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="w-[min(96vw,1200px)] max-w-none">
+        <DialogContent className="max-h-[92vh] w-[min(96vw,1200px)] max-w-none overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
-          <div style={{ height: "70vh", overflow: "auto" }}>
-            {children}
-          </div>
+          {actions ? <div className="flex justify-end">{actions}</div> : null}
+          <div className="min-w-0">{body(true)}</div>
         </DialogContent>
       </Dialog>
     </>
@@ -914,7 +926,8 @@ function OriginMonthlyChart({
 }) {
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle}>
-      <div className="h-52 min-w-0">
+      {(expanded) => (<>
+      <div className="min-w-0" style={{ height: expanded ? "65vh" : 208 }}>
         {data.length ? (
           <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <BarChart
@@ -955,6 +968,7 @@ function OriginMonthlyChart({
         )}
       </div>
       {note ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{note}</p> : null}
+      </>)}
     </ExpandableChartPanel>
   );
 }

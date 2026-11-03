@@ -582,7 +582,7 @@ function OpportunitySellerChart({
   height,
   loading,
   compare = false,
-  expandable = false,
+  expandable = true,
   onSelect,
 }: {
   data: (Pick<SellerRow, "name" | "oportunidades" | "reservas"> & { selectKey?: string })[];
@@ -638,7 +638,7 @@ function OpportunitySellerChart({
 function NoTaskBySellerChart({
   data,
   height,
-  expandable = false,
+  expandable = true,
 }: {
   data: Pick<SellerRow, "name" | "noTask">[];
   height: number;
@@ -677,7 +677,7 @@ function SellerLineChart({
   dataKey = "dia",
   series,
   currency = false,
-  expandable = false,
+  expandable = true,
 }: {
   title: string;
   subtitle?: string;
@@ -773,7 +773,7 @@ function SellerLineChart({
 function ExpandableChartPanel({
   title,
   subtitle,
-  expandable = false,
+  expandable = true,
   render,
 }: {
   title: string;
@@ -827,7 +827,7 @@ function GoalChart({
   b,
   bLabel = "Meta",
   fmt,
-  expandable = false,
+  expandable = true,
   showAttainment = false,
 }: {
   title: string;
