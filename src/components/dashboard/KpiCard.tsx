@@ -1,8 +1,22 @@
-import type { LucideIcon } from "lucide-react";
+import { Calculator, CircleHelp, type LucideIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { goalProgress } from "@/lib/commercial-goals";
 import { cn } from "@/lib/utils";
+
+function InfoPopover({ icon: Icon, ariaLabel, text }: { icon: LucideIcon; ariaLabel: string; text: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label={ariaLabel} className="rounded-full text-muted-foreground/70 hover:text-foreground">
+          <Icon className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 whitespace-pre-line text-xs normal-case leading-5 tracking-normal">{text}</PopoverContent>
+    </Popover>
+  );
+}
 
 export function KpiCard({
   label,
@@ -17,6 +31,9 @@ export function KpiCard({
   tight = false,
   aligned = false,
   wrapHint = false,
+  help,
+  calc,
+  breakdown,
   className,
 }: {
   label: string;
@@ -32,6 +49,12 @@ export function KpiCard({
   aligned?: boolean;
   /** Permite o subtítulo quebrar em várias linhas (aceita \n) em vez de truncar. */
   wrapHint?: boolean;
+  /** Explicação do indicador (o que significa e como é calculado), aberta pelo botão "?". */
+  help?: string | undefined;
+  /** Mini-tabela por canal (linhas) e indicador (colunas), abaixo do valor principal. */
+  /** Conta feita com os dados reais do período, aberta pelo botão de calculadora. */
+  calc?: string | undefined;
+  breakdown?: { columns: string[]; rows: { label: string; values: string[] }[] } | undefined;
   className?: string | undefined;
 }) {
   const progress = goal ? goalProgress(goal.actual, goal.target) : null;
@@ -104,7 +127,15 @@ export function KpiCard({
       />
       <div className={cn("flex shrink-0 items-start justify-between gap-3", tight ? "h-7" : compact ? "h-8" : "h-9")}>
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+            {help ? (
+              <InfoPopover icon={CircleHelp} ariaLabel={`O que é ${label}`} text={help} />
+            ) : null}
+            {calc ? (
+              <InfoPopover icon={Calculator} ariaLabel={`Cálculo de ${label} com os dados do período`} text={calc} />
+            ) : null}
+          </p>
         </div>
         <span className={cn("rounded-lg bg-secondary text-accent", tight ? "p-1" : compact ? "p-1.5" : "p-2")}>
           <Icon className="size-5" />
@@ -116,6 +147,28 @@ export function KpiCard({
         </p>
         {hint ? <p className={cn("text-muted-foreground", wrapHint ? "mt-1 whitespace-pre-line text-xs leading-4" : compact ? "mt-0.5 truncate text-[10px] leading-3" : "mt-1 text-xs")}>{hint}</p> : null}
       </div>
+      {breakdown ? (
+        <table className="mt-2 w-full text-[11px] leading-4">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="text-left font-medium" />
+              {breakdown.columns.map((column) => (
+                <th key={column} className="text-right font-medium">{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {breakdown.rows.map((row) => (
+              <tr key={row.label}>
+                <td className="text-left text-muted-foreground">{row.label}</td>
+                {row.values.map((value, i) => (
+                  <td key={breakdown.columns[i]} className="text-right font-semibold text-foreground">{value}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
       {aligned ? (
         <div className="mt-auto flex w-full flex-col justify-end gap-1">
           {goalLabelDetails}

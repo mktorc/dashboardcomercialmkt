@@ -175,6 +175,23 @@ function Dashboard() {
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
   const teamSpend = includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
   const kpis = originData && data ? computeKpis(withPartnerReservations(originData, selectedOrigin, data.current.reservations), teamSpend) : null;
+  // Mesmo cálculo do filtro de origem, por canal, para a linha "Meta · Google" de cada card.
+  const channelKpis = (origin: "meta" | "google") =>
+    data ? computeKpis(withPartnerReservations(filterAnalyticsByOrigin(data.current, origin), origin, data.current.reservations)) : null;
+  const metaKpis = !selectedOrigin ? channelKpis("meta") : null;
+  const googleKpis = !selectedOrigin ? channelKpis("google") : null;
+  const fmtPct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1).replace(".", ",")}%`);
+  const channelRows = (format: (k: NonNullable<typeof kpis>) => string) =>
+    metaKpis && googleKpis
+      ? [
+          { label: "Meta", values: [format(metaKpis)] },
+          { label: "Google", values: [format(googleKpis)] },
+        ]
+      : null;
+  const breakdownOf = (column: string, format: (k: NonNullable<typeof kpis>) => string) => {
+    const rows = channelRows(format);
+    return rows ? { columns: [column], rows } : undefined;
+  };
   const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {}) : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
@@ -314,62 +331,94 @@ function Dashboard() {
             <KpiCard
               icon={Wallet}
               label="Investimento total em mídia"
+              help={"Quanto foi investido em anúncios no período.\nSoma do gasto do Meta Ads e do Google Ads (mais a equipe de marketing, se a opção estiver marcada)."}
               value={kpis ? brl(kpis.spend) : "—"}
-              hint={
+              calc={kpis ? `Meta ${brl(kpis.metaSpend)} + Google ${brl(kpis.googleSpend)}${kpis.teamSpend ? ` + Equipe ${brl(kpis.teamSpend)}` : ""} = ${brl(kpis.spend)}` : undefined}
+              breakdown={
                 kpis
-                  ? `Meta ${brl(kpis.metaSpend)} · Google ${brl(kpis.googleSpend)}${kpis.teamSpend ? ` · Equipe ${brl(kpis.teamSpend)}` : ""}`
+                  ? {
+                      columns: ["Investido"],
+                      rows: [
+                        { label: "Meta", values: [brl(kpis.metaSpend)] },
+                        { label: "Google", values: [brl(kpis.googleSpend)] },
+                      ],
+                    }
                   : undefined
               }
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
             <KpiCard
               icon={Target}
               label="CPL global"
+              help={"Custo por lead: investimento ÷ oportunidades criadas no ClickMassa no período.\nMostra quanto custa gerar cada oportunidade."}
               value={kpis ? brl(kpis.cpl) : "—"}
-              hint={kpis ? `${kpis.leads} oportunidades no ClickMassa` : undefined}
+              calc={kpis ? `${brl(kpis.spend)} investidos ÷ ${kpis.leads} oportunidades no ClickMassa = ${brl(kpis.cpl)}` : undefined}
+              breakdown={breakdownOf("CPL", (k) => brl(k.cpl))}
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
             <KpiCard
               icon={UserCheck}
               label="Conversão comercial"
+              help={"Percentual de oportunidades que viraram reserva.\nReservas confirmadas no HQ ÷ oportunidades criadas no ClickMassa."}
               value={kpis ? pct(kpis.conversion) : "—"}
-              hint={kpis ? `${kpis.reservations} reservas no HQ` : undefined}
+              calc={kpis ? `${kpis.reservations} reservas no HQ ÷ ${kpis.leads} oportunidades no ClickMassa = ${pct(kpis.conversion)}` : undefined}
+              breakdown={breakdownOf("Conversão", (k) => pct(k.conversion))}
               highlight
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
             <KpiCard
               icon={DollarSign}
               label="Ticket médio"
+              help={"Valor médio por reserva HQ.\nFaturamento das reservas confirmadas ÷ número de reservas."}
               value={kpis ? brl(kpis.ticket) : "—"}
-              hint="Valor médio por reserva HQ"
+              calc={kpis ? `${brl(kpis.revenue)} de faturamento ÷ ${kpis.reservations} reservas HQ = ${brl(kpis.ticket)}` : undefined}
+              breakdown={breakdownOf("Ticket", (k) => brl(k.ticket))}
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
             <KpiCard
               icon={Gauge}
               label="Custo de aquisição de clientes"
-              value={kpis?.cac == null ? "—" : brl(kpis.cac)}
-              hint={kpis ? `${kpis.teamSpend ? "Mídia + equipe de marketing" : "Somente mídia · Meta + Google"} ÷ ${kpis.reservations} reservas HQ\nCAC percentual: ${kpis.cacPct == null ? "—" : `${(kpis.cacPct * 100).toFixed(1).replace(".", ",")}%`} do rack rate` : undefined}
+              help={"CAC: quanto custa conquistar cada reserva.\nInvestimento em mídia (Meta + Google, mais equipe se marcada) ÷ reservas HQ.\nCAC percentual: investimento ÷ faturamento em rack rate."}
+              value={kpis?.cac == null ? "—" : `${brl(kpis.cac)} (${fmtPct(kpis.cacPct)})`}
+              calc={
+                kpis
+                  ? `CAC: ${brl(kpis.spend)} investidos ÷ ${kpis.reservations} reservas HQ = ${kpis.cac == null ? "—" : brl(kpis.cac)}\nCAC percentual: ${brl(kpis.spend)} investidos ÷ ${brl(kpis.revenue)} de faturamento em rack rate = ${fmtPct(kpis.cacPct)}${kpis.teamSpend ? "\nO investimento inclui a equipe de marketing." : "\nSomente mídia (Meta + Google)."}`
+                  : undefined
+              }
+              breakdown={
+                metaKpis && googleKpis
+                  ? {
+                      columns: ["CAC", "CAC %"],
+                      rows: [
+                        { label: "Meta", values: [metaKpis.cac == null ? "—" : brl(metaKpis.cac), fmtPct(metaKpis.cacPct)] },
+                        { label: "Google", values: [googleKpis.cac == null ? "—" : brl(googleKpis.cac), fmtPct(googleKpis.cacPct)] },
+                      ],
+                    }
+                  : undefined
+              }
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
             <KpiCard
               icon={TrendingUp}
               label="ROAS real global"
+              help={"Retorno sobre o investimento.\nFaturamento das reservas confirmadas ÷ investimento. 2x = cada US$ 1 investido voltou US$ 2."}
               value={kpis ? `${kpis.roas.toFixed(2)}x` : "—"}
-              hint={kpis ? `Faturamento ${brl(kpis.revenue)}` : undefined}
+              calc={kpis ? `${brl(kpis.revenue)} de faturamento ÷ ${brl(kpis.spend)} investidos = ${kpis.roas.toFixed(2)}x` : undefined}
+              breakdown={breakdownOf("ROAS", (k) => `${k.roas.toFixed(2)}x`)}
               highlight
               wrapHint
               compact
-              className="h-[160px]"
+              className="h-full"
             />
           </section>
 
