@@ -27,7 +27,15 @@ type ReservationInfo = {
   total_amount: number | string | null;
   seller_name: string | null;
   created_at: string;
+  status: string | null;
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "Pendente",
+  confirmed: "Confirmada (open)",
+  cancelled: "Cancelada",
+};
+const statusLabel = (status: string | null | undefined) => (status ? STATUS_LABELS[status] ?? status : "—");
 
 /** Dia local (YYYY-MM-DD) de um instante. */
 const localDay = (iso: string) => new Date(iso).toLocaleDateString("sv-SE");
@@ -58,7 +66,7 @@ async function fetchPendingToOpen(from: string, to: string) {
   for (let i = 0; i < ids.length; i += 150) {
     const { data, error } = await supabase
       .from("reservations")
-      .select("reservation_id, car_category, total_amount, seller_name, created_at")
+      .select("reservation_id, car_category, total_amount, seller_name, created_at, status")
       .in("reservation_id", ids.slice(i, i + 150));
     if (error) throw error;
     (data as ReservationInfo[]).forEach((r) => info.set(r.reservation_id, r));
@@ -71,10 +79,20 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)));
   const [to, setTo] = useState(ymd(today));
 
-  const { data, isLoading, error } = useQuery({
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { data: allChanges, isLoading, error } = useQuery({
     queryKey: ["reservas-pending-open", from, to],
     queryFn: () => fetchPendingToOpen(from, to),
   });
+  // Status atual de cada reserva (pode já ter mudado depois de virar open): filtro e coluna.
+  const statusOptions = useMemo(
+    () => [...new Set((allChanges ?? []).map((c) => c.info?.status).filter((v): v is string => Boolean(v)))].sort(),
+    [allChanges],
+  );
+  const data = useMemo(
+    () => (allChanges ?? []).filter((c) => statusFilter === "all" || c.info?.status === statusFilter),
+    [allChanges, statusFilter],
+  );
 
   const daily = useMemo(() => {
     const byDay = new Map<string, number>();
@@ -156,6 +174,19 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   <th className="px-5 py-2 text-left">Virou open em</th>
                   <th className="px-3 py-2 text-left">Reserva</th>
                   <th className="px-3 py-2 text-left">Categoria</th>
+                  <th className="px-3 py-2 text-left">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      aria-label="Filtrar por status atual"
+                      className="h-8 rounded-md border border-input bg-card px-2 text-xs font-medium uppercase text-foreground"
+                    >
+                      <option value="all">Status atual: todos</option>
+                      {statusOptions.map((st) => (
+                        <option key={st} value={st}>{statusLabel(st)}</option>
+                      ))}
+                    </select>
+                  </th>
                   <th className="px-3 py-2 text-left">Vendedor</th>
                   <th className="px-3 py-2 text-left">Criada em</th>
                   <th className="px-5 py-2 text-right">Valor</th>
@@ -167,13 +198,14 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                     <td className="px-5 py-2">{new Date(c.changed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
                     <td className="px-3 py-2 font-medium text-foreground">{c.reservation_id}</td>
                     <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
+                    <td className="px-3 py-2">{statusLabel(c.info?.status)}</td>
                     <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
                     <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR") : "—"}</td>
                     <td className="px-5 py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
                   </tr>
                 ))}
                 {!isLoading && !total ? (
-                  <tr><td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">Nenhuma reserva mudou de pending para open no período.</td></tr>
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">Nenhuma reserva mudou de pending para open no período.</td></tr>
                 ) : null}
               </tbody>
             </table>
