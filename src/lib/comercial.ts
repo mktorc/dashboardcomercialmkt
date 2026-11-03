@@ -526,6 +526,19 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       goalCount.set(row.key, (goalCount.get(row.key) ?? 0) + 1);
     });
 
+  // O time operacional sempre aparece (ex.: no painel de metas), mesmo sem atividade no período.
+  const knownNames = [
+    ...d.goals.map((g) => g.seller_name),
+    ...d.yearReservations.map((r) => r.seller_name),
+    ...d.yearOpportunities.map((o) => o.seller_name),
+  ];
+  OPERATIONAL_SELLERS.forEach((key) => {
+    if (rows.has(key)) return;
+    const known = knownNames.find((n) => n && sellerKey(n) === key)?.trim();
+    names.set(key, known ?? key.charAt(0).toUpperCase() + key.slice(1));
+    touch(key);
+  });
+
   const all: SellerRow[] = [...rows.values()].map((r) => ({
     ...r,
     name: names.get(r.key) ?? r.key,
