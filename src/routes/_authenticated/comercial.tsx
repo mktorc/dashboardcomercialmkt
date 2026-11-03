@@ -47,6 +47,7 @@ import {
   computeOpportunityTotalsBySeller,
   filterOperationalData,
   fetchComercial,
+  fetchActiveOpportunities,
   saveGoals,
   sellerKey,
   type SellerRow,
@@ -115,6 +116,7 @@ export function ComercialPage({
     queryKey: ["comercial", from, to],
     queryFn: () => fetchComercial(from, to),
   });
+  const { data: activeOppsData } = useQuery({ queryKey: ["comercial", "active-opportunities"], queryFn: fetchActiveOpportunities });
   const teamData = useMemo(() => data ? filterOperationalData(data) : null, [data]);
   const view = useMemo(() => teamData
     ? computeComercial(
@@ -156,13 +158,25 @@ export function ComercialPage({
   const opportunityRows = (view?.rows ?? [])
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.oportunidades > 0 || r.reservas > 0))
     .sort((a, b) => b.oportunidades - a.oportunidades);
-  const noTaskRows = view?.noTaskBySeller ?? [];
+  const activeOpps = activeOppsData ?? [];
+  const noTaskMap = new Map<string, { name: string; noTask: number }>();
+  activeOpps.filter((o) => o.total_tasks === 0 && o.seller_name?.trim()).forEach((o) => {
+    const k = sellerKey(o.seller_name);
+    const row = noTaskMap.get(k) ?? { name: o.seller_name!.trim(), noTask: 0 };
+    row.noTask++;
+    noTaskMap.set(k, row);
+  });
+  const noTaskList = activeOpps
+    .filter((o) => o.total_tasks === 0 && o.seller_name?.trim())
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .map((o) => ({ ...o, owner: o.seller_name!.trim() }));
+  const noTaskRows = [...noTaskMap.values()].sort((a, b) => b.noTask - a.noTask);
   // Sem vendedor = oportunidades sem nenhum responsável atribuído (campo vazio), de todos os períodos.
-  const noSellerOpportunities = (data?.opportunities ?? [])
+  const noSellerOpportunities = activeOpps
     .filter((o) => !o.seller_name?.trim())
     .sort((x, y) => y.created_at.localeCompare(x.created_at));
   const allTimeOpportunityRows: { name: string; oportunidades: number; reservas: number; key: string; selectKey?: string }[] = [
-    ...(teamData ? computeOpportunityTotalsBySeller(teamData.opportunities) : []),
+    ...computeOpportunityTotalsBySeller(activeOpps.filter((o) => o.seller_name?.trim())),
     ...(noSellerOpportunities.length
       ? [{ key: "__none", name: "Sem vendedor", oportunidades: noSellerOpportunities.length, reservas: 0, selectKey: "__none" }]
       : []),
@@ -182,9 +196,9 @@ export function ComercialPage({
     className={firstRowOperationalCardClass} />;
   const noTaskCard = <Button variant="ghost" className="block h-[160px] w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full" onClick={() => setNoTaskOpen(true)}>
     <KpiCard icon={ClipboardX} label="Oportunidades sem tarefas"
-      value={k ? k.leadsNoTask.toLocaleString("pt-BR") : "—"}
-      hint={k ? comparison(k.leadsNoTaskVar) : undefined} highlight
-      footer={k ? `Média de ${(k.leadsNoTask / selectedPeriodDays).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia sem tarefas` : undefined}
+      value={activeOppsData ? noTaskList.length.toLocaleString("pt-BR") : "—"}
+      highlight
+      footer="Leads ativos na base, sem filtro de datas"
       compact tight
         className={firstRowOperationalCardClass} />
   </Button>;
@@ -484,7 +498,7 @@ export function ComercialPage({
       <Dialog open={noTaskOpen} onOpenChange={setNoTaskOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Oportunidades sem tarefa ({view?.noTaskList.length ?? 0})</DialogTitle>
+            <DialogTitle>Oportunidades sem tarefa ({noTaskList.length})</DialogTitle>
           </DialogHeader>
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-muted-foreground">
@@ -496,7 +510,7 @@ export function ComercialPage({
               </tr>
             </thead>
             <tbody>
-              {(view?.noTaskList ?? []).slice(0, 500).map((l, i) => (
+              {noTaskList.slice(0, 500).map((l, i) => (
                 <tr key={(l.lead_id ?? "") + i} className="border-t border-border">
                   <td className="py-2">{new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
                   <td className="py-2 text-foreground">{l.name ?? "—"}</td>
@@ -506,7 +520,7 @@ export function ComercialPage({
               ))}
             </tbody>
           </table>
-          {(view?.noTaskList.length ?? 0) > 500 ? <p className="text-xs text-muted-foreground">Mostrando os 500 mais recentes.</p> : null}
+          {(noTaskList.length) > 500 ? <p className="text-xs text-muted-foreground">Mostrando os 500 mais recentes.</p> : null}
         </DialogContent>
       </Dialog>
     </div>
@@ -586,7 +600,7 @@ function OpportunitySellerChart({
   return (
     <ExpandableChartPanel
       title={compare ? "Oportunidades vs. reservas por vendedor" : "Oportunidades por vendedor"}
-      subtitle={compare ? "Oportunidades e conversão em reservas por vendedor." : "Todos os períodos, sem filtro de datas."}
+      subtitle={compare ? "Oportunidades e conversão em reservas por vendedor." : "Leads ativos na base (sem ganhos e perdidos), sem filtro de datas."}
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
@@ -633,7 +647,7 @@ function NoTaskBySellerChart({
   return (
     <ExpandableChartPanel
       title="Oportunidades sem tarefas por vendedor"
-      subtitle="Todos os períodos, sem filtro de datas."
+      subtitle="Leads ativos na base (sem ganhos e perdidos), sem filtro de datas."
       expandable={expandable}
       render={(expanded) => data.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
@@ -691,9 +705,21 @@ function SellerLineChart({
               <XAxis dataKey={dataKey} {...axis} minTickGap={8} />
               <YAxis {...axis} allowDecimals={!currency} tickFormatter={(value: number) => currency ? `$${Math.round(value / 1000)}k` : value.toLocaleString("pt-BR")} />
               <Tooltip
-                contentStyle={tooltipStyle}
-                itemSorter={(item) => -Number(item.value ?? 0)}
-                formatter={(value: number) => currency ? brl(value) : value.toLocaleString("pt-BR")}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const fmt = (value: number) => currency ? brl(value) : value.toLocaleString("pt-BR");
+                  const items = [...payload].sort((a, b) => Number(b.value ?? 0) - Number(a.value ?? 0));
+                  const total = items.reduce((sum, item) => sum + Number(item.value ?? 0), 0);
+                  return (
+                    <div style={tooltipStyle} className="px-3 py-2 text-sm">
+                      <p className="mb-1 font-semibold text-foreground">{label}</p>
+                      {items.map((item) => (
+                        <p key={String(item.dataKey)} style={{ color: item.color }}>{item.name} : {fmt(Number(item.value ?? 0))}</p>
+                      ))}
+                      <p className="mt-1 border-t border-border pt-1 font-semibold text-foreground">Total : {fmt(total)}</p>
+                    </div>
+                  );
+                }}
               />
               <Legend
                 content={({ payload }) => (

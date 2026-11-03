@@ -149,6 +149,21 @@ async function fetchRevenueBreakdown() {
   }
 }
 
+/** Oportunidades ativas (abertas) do funil Comercial: independe do período e exclui ganhas/perdidas. */
+export async function fetchActiveOpportunities(): Promise<COpp[]> {
+  const { data, error } = await fetchAll((a, b) =>
+    supabase
+      .from("crm_opportunities")
+      .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
+      .eq("pipeline_name", "Comercial")
+      .eq("status", "open")
+      .order("opportunity_id")
+      .range(a, b),
+  );
+  if (error) throw error;
+  return (data as COpp[]).filter((o) => isOperationalSeller(o.seller_name) || !o.seller_name?.trim());
+}
+
 export async function fetchComercial(from: string, to: string) {
   const { prevFrom, prevTo } = getPreviousPeriod(from, to);
 
@@ -175,6 +190,7 @@ export async function fetchComercial(from: string, to: string) {
         .from("crm_opportunities")
         .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
         .eq("pipeline_name", "Comercial")
+        .order("opportunity_id")
         .range(a, b),
     ),
     // Período anterior (para comparação)
