@@ -1009,7 +1009,7 @@ export type MarketingFunnel = {
 };
 
 /**
- * Funil de marketing. Meta Ads: 4 etapas (Leads Meta → Contatos → Oportunidades → Ganhas).
+ * Funil de marketing. Meta Ads: 4 etapas (Leads Meta → Contatos → Oportunidades → Ganhas). Google Ads: 5 (Cliques → Conversões → Contatos → Oportunidades → Ganhas).
  * Demais filtros: começa nos Contatos (sem etapa de mídia). `d` já vem filtrado pela origem;
  * `origin` é a origem selecionada (null = todas).
  */
@@ -1063,6 +1063,13 @@ export function buildMarketingFunnel(
   if (key === "google") {
     const conversions = Math.round(d.google.reduce((s, r) => s + (Number(r.conversions) || 0), 0));
     const spend = d.google.reduce((s, r) => s + r.spend, 0);
+    const clicks = d.google.reduce((s, r) => s + (Number(r.clicks) || 0), 0);
+    stages.push({
+      label: "Cliques no Google Ads",
+      count: clicks,
+      hint: clicks ? `CPC ${brl(spend / clicks)}` : undefined,
+    });
+    metrics.push({ label: "Taxa de Clique → Conversão", value: ratio(conversions, clicks) });
     stages.push({
       label: "Conversões geradas no Google Ads",
       count: conversions,
@@ -1090,7 +1097,7 @@ export function buildMarketingFunnel(
   if (contacts !== null) metrics.push({ label: "Taxa de Qualificação (Contato → Oportunidade)", value: ratio(opportunities, contacts) });
   metrics.push({ label: "Taxa de Fechamento (Oportunidade → Ganha)", value: ratio(wonCount, opportunities) });
   if (contacts !== null) {
-    const denom = key === "meta" || key === "google" ? stages[0]!.count : contacts;
+    const denom = key === "meta" ? stages[0]!.count : key === "google" ? stages[1]!.count : contacts;
     metrics.push({
       label: key === "meta" ? "Conversão Global (Lead Meta → Ganha)" : key === "google" ? "Conversão Global (Conversão Google → Ganha)" : "Conversão Global (Contato → Ganha)",
       value: ratio(wonCount, denom),

@@ -170,6 +170,20 @@ function Dashboard() {
       )
     : null;
 
+  // Conversas iniciadas por mensagem no Meta, uma barra por dia do período (dias sem dado = 0).
+  const metaConversationsDaily = (() => {
+    if (!data) return [];
+    const byDay = new Map<string, number>();
+    data.current.meta.forEach((r) => byDay.set(r.date, (byDay.get(r.date) ?? 0) + (Number(r.conversations) || 0)));
+    const days: { date: string; label: string; conversations: number }[] = [];
+    for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+      const date = new Date(t).toISOString().slice(0, 10);
+      days.push({ date, label: date.slice(8) + "/" + date.slice(5, 7), conversations: byDay.get(date) ?? 0 });
+    }
+    return days;
+  })();
+
+  const metaConversationsTotal = metaConversationsDaily.reduce((sum, d) => sum + d.conversations, 0);
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
@@ -498,6 +512,38 @@ function Dashboard() {
               previousYear={today.getFullYear() - 1}
               note={googleNote}
             />
+            <div className="xl:col-span-2">
+              <ExpandableChartPanel
+                title="Conversas iniciadas por mensagem (Meta Ads)"
+                subtitle="Uma barra por dia do período selecionado. Fonte: Meta, ação messaging_conversation_started_7d."
+              >
+                <p className="-mt-2 mb-2 text-2xl font-bold text-foreground">
+                  {metaConversationsTotal.toLocaleString("pt-BR")}
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">conversas no período (soma de todos os dias)</span>
+                </p>
+                {metaConversationsDaily.length ? (
+                  <div className="h-[300px] w-full min-w-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metaConversationsDaily} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis dataKey="label" minTickGap={8} {...axis} />
+                        <YAxis allowDecimals={false} {...axis} />
+                        <Tooltip
+                          contentStyle={tooltipStyle}
+                          formatter={(v: number) => [v.toLocaleString("pt-BR"), "Conversas iniciadas"]}
+                          labelFormatter={(_, payload) => String(payload?.[0]?.payload?.date ?? "").split("-").reverse().join("/")}
+                        />
+                        <Bar dataKey="conversations" name="Conversas iniciadas" fill="#44E500" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+                    {isLoading ? "Carregando..." : "Sem dados no período."}
+                  </div>
+                )}
+              </ExpandableChartPanel>
+            </div>
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -552,9 +598,9 @@ function Dashboard() {
             <Card className="overflow-hidden p-5 xl:col-span-2">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">Funil de marketing — 4 etapas</h2>
+                  <h2 className="text-sm font-semibold text-foreground">Funil de marketing</h2>
                   <p className="text-xs text-muted-foreground">
-                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (conversões).
+                    Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (cliques e conversões).
                   </p>
                 </div>
                 <div className="flex gap-1">
