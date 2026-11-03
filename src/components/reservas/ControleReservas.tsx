@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
@@ -105,6 +106,7 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         <div className="flex flex-wrap items-center gap-2">
           <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="w-auto" aria-label="De" />
           <Input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="w-auto" aria-label="Até" />
+          <ManualSyncButton />
           {showBack ? (
             <Button asChild variant="outline" size="sm">
               <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Módulos</Link>

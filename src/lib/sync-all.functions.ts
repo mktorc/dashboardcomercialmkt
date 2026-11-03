@@ -13,7 +13,7 @@ export type SyncFailure = { service: string; error: string; status?: number; sta
 
 const PRODUCTION_ORIGIN = "https://dashboardcomercialmkt.lovable.app";
 
-function resolveOrigin(request: Request): string {
+export function resolveOrigin(request: Request): string {
   const h0 = request.headers;
   const host0 = (h0.get("x-forwarded-host") ?? h0.get("host") ?? "").toLowerCase();
   // Previews exigem sessão da plataforma e respondem 401 a chamadas servidor→servidor.

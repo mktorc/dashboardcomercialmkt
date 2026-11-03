@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { Button } from "@/components/ui/button";
 import { usePerfil } from "@/lib/comissoes/hooks";
 import { HOME } from "@/lib/roles";
@@ -24,11 +25,14 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
           <h1 className="text-lg font-semibold text-foreground">Gerenciamento de Comissões</h1>
           <p className="text-sm text-foreground/70">Comissões de parceiros</p>
         </div>
-        {voltar ? (
-          <Button asChild variant="outline" size="sm">
-            <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}</Link>
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <ManualSyncButton />
+          {voltar ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}</Link>
+            </Button>
+          ) : null}
+        </div>
       </header>
       <nav className="flex gap-2 border-b border-border px-4 py-3 sm:px-6">
         {ABAS.map((a) => (
