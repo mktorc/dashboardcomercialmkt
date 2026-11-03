@@ -30,3 +30,15 @@ export const syncReservations = createServerFn({ method: "POST" }).handler(async
     return { ok: false as const, error: (e as Error).message || "Erro ao sincronizar" };
   }
 });
+
+// Última sincronização do HQ (agendada ou manual). Leitura pelo servidor porque as telas públicas não leem sync_runs.
+export const getLastReservationsSync = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.from("sync_runs").select("last_success_at").eq("service", "hqrentals").maybeSingle();
+    return { at: data?.last_success_at ?? null };
+  } catch (e) {
+    console.error("[getLastReservationsSync]", e);
+    return { at: null };
+  }
+});
