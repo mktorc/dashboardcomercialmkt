@@ -68,7 +68,7 @@ async function fetchPendingToOpen(from: string, to: string) {
 
 export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const today = new Date();
-  const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)));
+  const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)));
   const [to, setTo] = useState(ymd(today));
 
   const { data, isLoading, error } = useQuery({
