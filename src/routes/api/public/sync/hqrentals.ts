@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
 import { extractAdditionalChargesPrice, extractMiscellaneousPrice, normalizeStatus } from "@/lib/hq-charges";
+import { extractFleetVehicle, extractSegments, type FleetVehicleRow } from "@/lib/hq-segments";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
@@ -108,7 +109,18 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           if (!pageUsers.length) break;
           if (uj.data?.last_page && up >= uj.data.last_page) break;
         }
-        const rows = all.map((r) => mapReservation(r, users)).filter((r) => r.reservation_id !== "");
+        const mapped = all
+          .map((raw) => ({ raw, row: mapReservation(raw, users) }))
+          .filter(({ row }) => row.reservation_id !== "");
+        const rows = mapped.map(({ row }) => row);
+        // Trechos de veículo de cada reserva (base da ocupação, no critério do relatório de Utilização do HQ)
+        const segments = [
+          ...new Map(
+            mapped
+              .flatMap(({ raw, row }) => extractSegments(raw, row.reservation_id, row.status))
+              .map((seg) => [`${seg.reservation_id}|${seg.seq}`, seg] as const),
+          ).values(),
+        ];
 
         // Log diagnóstico dos primeiros registos para verificar se taxas e cobranças estão a ser extraídas
         if (rows.length > 0) {
@@ -128,6 +140,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         // Tamanho da frota (para a taxa de ocupação)
         const vehicleIds = new Set<string>();
+        const fleetRows = new Map<number, FleetVehicleRow>();
         for (let vp = 1; vp <= 50; vp++) {
           const vr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles?page=${vp}`, {
             headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
@@ -135,7 +148,13 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           if (!vr.ok) break;
           const vj = (await vr.json()) as { data?: HqReservation[]; last_page?: number };
           const before = vehicleIds.size;
-          (vj.data ?? []).filter((v) => !v["deleted_at"]).forEach((v) => vehicleIds.add(String(v["id"])));
+          (vj.data ?? [])
+            .filter((v) => !v["deleted_at"])
+            .forEach((v) => {
+              vehicleIds.add(String(v["id"]));
+              const fleetRow = extractFleetVehicle(v);
+              if (fleetRow) fleetRows.set(fleetRow.id, fleetRow);
+            });
           if (vehicleIds.size === before || vp >= (vj.last_page ?? 1)) break;
         }
         const vehicles = vehicleIds.size;
@@ -143,6 +162,16 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           await supabaseAdmin
             .from("fleet_stats")
             .upsert({ id: 1, vehicles, updated_at: new Date().toISOString() });
+        }
+        // Frota com data de entrada (capacidade da ocupação). Veículos que saíram do HQ deixam a tabela.
+        if (fleetRows.size > 0) {
+          const { error: fleetError } = await supabaseAdmin
+            .from("fleet_vehicles")
+            .upsert([...fleetRows.values()].map((v) => ({ ...v, updated_at: new Date().toISOString() })), { onConflict: "id" });
+          if (fleetError) return Response.json({ error: fleetError.message }, { status: 500 });
+          const { data: stored } = await supabaseAdmin.from("fleet_vehicles").select("id");
+          const gone = (stored ?? []).map((v) => v.id).filter((id) => !fleetRows.has(id));
+          if (gone.length > 0) await supabaseAdmin.from("fleet_vehicles").delete().in("id", gone);
         }
         // Upsert em lotes para não estourar o limite de payload
         const BATCH = 500;
@@ -155,8 +184,21 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           }
         }
 
+        // Trechos: recria os das reservas sincronizadas (uma troca de veículo pode mudar a quantidade de trechos)
+        for (let i = 0; i < rows.length; i += 200) {
+          const { error } = await supabaseAdmin
+            .from("reservation_segments")
+            .delete()
+            .in("reservation_id", rows.slice(i, i + 200).map((r) => r.reservation_id));
+          if (error) return Response.json({ error: error.message }, { status: 500 });
+        }
+        for (let i = 0; i < segments.length; i += BATCH) {
+          const { error } = await supabaseAdmin.from("reservation_segments").insert(segments.slice(i, i + BATCH));
+          if (error) return Response.json({ error: error.message }, { status: 500 });
+        }
+
         await recordSyncRun("hqrentals");
-        return Response.json({ ok: true, synced: rows.length });
+        return Response.json({ ok: true, synced: rows.length, segments: segments.length, fleet: fleetRows.size });
       },
     },
   },

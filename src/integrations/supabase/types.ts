@@ -176,6 +176,27 @@ export type Database = {
         }
         Relationships: []
       }
+      fleet_vehicles: {
+        Row: {
+          entry_date: string
+          exit_date: string | null
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          entry_date: string
+          exit_date?: string | null
+          id: number
+          updated_at?: string
+        }
+        Update: {
+          entry_date?: string
+          exit_date?: string | null
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       google_ads_metrics: {
         Row: {
           campaign_id: string | null
@@ -371,6 +392,30 @@ export type Database = {
           amount?: number
           month?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      reservation_segments: {
+        Row: {
+          pick_up_at: string
+          reservation_id: string
+          return_at: string
+          seq: number
+          status: string
+        }
+        Insert: {
+          pick_up_at: string
+          reservation_id: string
+          return_at: string
+          seq: number
+          status: string
+        }
+        Update: {
+          pick_up_at?: string
+          reservation_id?: string
+          return_at?: string
+          seq?: number
+          status?: string
         }
         Relationships: []
       }

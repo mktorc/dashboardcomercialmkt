@@ -330,6 +330,13 @@
       "when": 1793382710753,
       "tag": "0046_reservation_status_history_public",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793469110753,
+      "tag": "0047_occupancy_segments",
+      "breakpoints": true
     }
   ]
 }
