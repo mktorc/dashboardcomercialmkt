@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { goalProgress } from "@/lib/commercial-goals";
 import { cn } from "@/lib/utils";
 
-function InfoPopover({ icon: Icon, ariaLabel, text }: { icon: LucideIcon; ariaLabel: string; text: string }) {
+export function InfoPopover({ icon: Icon, ariaLabel, text }: { icon: LucideIcon; ariaLabel: string; text: string }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
