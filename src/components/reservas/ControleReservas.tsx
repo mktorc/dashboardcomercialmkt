@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, CalendarCheck } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ArrowLeft, CalendarCheck, Maximize2, Minimize2, X } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -77,10 +77,13 @@ async function fetchPendingToOpen(from: string, to: string) {
 
 export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const today = new Date();
-  const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)));
+  const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
   const [to, setTo] = useState(ymd(today));
 
   const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const { data: allChanges, isLoading, error } = useQuery({
     queryKey: ["reservas-pending-open", from, to],
     queryFn: () => fetchPendingToOpen(from, to),
@@ -94,6 +97,11 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
     () => (allChanges ?? []).filter((c) => statusFilter === "all" || c.info?.status === statusFilter),
     [allChanges, statusFilter],
   );
+  const query = search.trim().toLowerCase();
+  const tableRows = useMemo(
+    () => (query ? data.filter((c) => c.reservation_id.toLowerCase().includes(query)) : data),
+    [data, query],
+  );
 
   const daily = useMemo(() => {
     const byDay = new Map<string, number>();
@@ -105,6 +113,11 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
     }
     return days;
   }, [data, from, to]);
+
+  const dayList = useMemo(
+    () => (selectedDay ? data.filter((c) => localDay(c.changed_at) === selectedDay) : []),
+    [data, selectedDay],
+  );
 
   const total = data?.length ?? 0;
   const amount = (data ?? []).reduce((s, c) => s + (Number(c.info?.total_amount) || 0), 0);
@@ -145,9 +158,16 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         </div>
 
         <Card className="p-5">
-          <h2 className="text-sm font-semibold text-foreground">Reservas que viraram open por dia</h2>
-          <p className="text-xs text-muted-foreground">Uma barra por dia do período. O dia é o da sincronização que detectou a mudança.</p>
-          <div className="mt-4 h-[280px] w-full min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Reservas que viraram open por dia</h2>
+              <p className="text-xs text-muted-foreground">Uma barra por dia do período. O dia é o da sincronização que detectou a mudança. Clique em uma barra para listar as reservas do dia.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Recolher gráfico" : "Expandir gráfico"}>
+              {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+            </Button>
+          </div>
+          <div className={`mt-4 w-full min-w-0 ${expanded ? "h-[560px]" : "h-[280px]"}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={daily} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
@@ -158,15 +178,87 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   formatter={(v: number) => [v.toLocaleString("pt-BR"), "Reservas"]}
                   labelFormatter={(_, p) => br(String(p?.[0]?.payload?.day ?? ""))}
                 />
-                <Bar dataKey="reservas" name="Reservas" fill="#44E500" radius={[4, 4, 0, 0]} />
+                <Bar
+                  dataKey="reservas"
+                  name="Reservas"
+                  fill="#44E500"
+                  radius={[4, 4, 0, 0]}
+                  cursor="pointer"
+                  onClick={(d: { day?: string }) => d?.day && setSelectedDay((cur) => (cur === d.day ? null : d.day!))}
+                >
+                  {daily.map((d) => (
+                    <Cell key={d.day} fill="#44E500" fillOpacity={selectedDay && selectedDay !== d.day ? 0.4 : 1} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {selectedDay ? (
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">
+                  Viraram open em {br(selectedDay)} ({dayList.length.toLocaleString("pt-BR")})
+                </h3>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedDay(null)} aria-label="Fechar lista"><X className="size-4" /></Button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="py-2 text-left">Reserva</th>
+                      <th className="px-3 py-2 text-left">Categoria</th>
+                      <th className="px-3 py-2 text-left">Status atual</th>
+                      <th className="px-3 py-2 text-left">Vendedor</th>
+                      <th className="px-3 py-2 text-left">Criada em</th>
+                      <th className="py-2 text-right">Valor</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dayList.map((c, i) => (
+                      <tr key={c.reservation_id + i} className="border-t border-border">
+                        <td className="py-2 font-medium text-foreground">{c.reservation_id}</td>
+                        <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
+                        <td className="px-3 py-2">{statusLabel(c.info?.status)}</td>
+                        <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
+                        <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
+                        <td className="py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
+                      </tr>
+                    ))}
+                    {!dayList.length ? (
+                      <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma reserva virou open nesse dia.</td></tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </Card>
 
         <Card className="overflow-hidden">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="text-sm font-semibold text-foreground">Quais reservas ({total.toLocaleString("pt-BR")})</h2>
+          <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-4">
+            <h2 className="text-sm font-semibold text-foreground">
+              Quais reservas ({(query ? tableRows.length : total).toLocaleString("pt-BR")})
+            </h2>
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nº da reserva"
+              aria-label="Buscar por número da reserva"
+              className="h-8 w-full max-w-xs"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filtrar por status atual"
+              className="h-8 rounded-md border border-input bg-card px-2 text-sm text-foreground"
+            >
+              <option value="all">Status atual: todos</option>
+              {statusOptions.map((st) => (
+                <option key={st} value={st}>{statusLabel(st)}</option>
+              ))}
+            </select>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -175,26 +267,14 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   <th className="px-5 py-2 text-left">Virou open em</th>
                   <th className="px-3 py-2 text-left">Reserva</th>
                   <th className="px-3 py-2 text-left">Categoria</th>
-                  <th className="px-3 py-2 text-left">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      aria-label="Filtrar por status atual"
-                      className="h-8 rounded-md border border-input bg-card px-2 text-xs font-medium uppercase text-foreground"
-                    >
-                      <option value="all">Status atual: todos</option>
-                      {statusOptions.map((st) => (
-                        <option key={st} value={st}>{statusLabel(st)}</option>
-                      ))}
-                    </select>
-                  </th>
+                  <th className="px-3 py-2 text-left">Status atual</th>
                   <th className="px-3 py-2 text-left">Vendedor</th>
                   <th className="px-3 py-2 text-left">Criada em</th>
                   <th className="px-5 py-2 text-right">Valor</th>
                 </tr>
               </thead>
               <tbody>
-                {(data ?? []).map((c, i) => (
+                {tableRows.map((c, i) => (
                   <tr key={c.reservation_id + i} className="border-t border-border">
                     <td className="px-5 py-2">{new Date(c.changed_at).toLocaleDateString("pt-BR", { timeZone: TZ })}</td>
                     <td className="px-3 py-2 font-medium text-foreground">{c.reservation_id}</td>
@@ -205,8 +285,8 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                     <td className="px-5 py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
                   </tr>
                 ))}
-                {!isLoading && !total ? (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">Nenhuma reserva mudou de pending para open no período.</td></tr>
+                {!isLoading && !tableRows.length ? (
+                  <tr><td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">{query ? "Nenhuma reserva encontrada para essa busca." : "Nenhuma reserva mudou de pending para open no período."}</td></tr>
                 ) : null}
               </tbody>
             </table>
