@@ -38,8 +38,9 @@ const STATUS_LABELS: Record<string, string> = {
 const statusLabel = (status: string | null | undefined) => (status ? STATUS_LABELS[status] ?? status : "—");
 
 /** Dia local (YYYY-MM-DD) de um instante. */
-const localDay = (iso: string) => new Date(iso).toLocaleDateString("sv-SE");
-const ymd = (d: Date) => d.toLocaleDateString("sv-SE");
+const TZ = "America/Sao_Paulo";
+const localDay = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: TZ });
+const ymd = (d: Date) => d.toLocaleDateString("sv-SE", { timeZone: TZ });
 const br = (day: string) => day.split("-").reverse().join("/");
 
 /** Reservas que passaram de pending para confirmed (open no HQ) entre `from` e `to` (dias locais). */
@@ -195,12 +196,12 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
               <tbody>
                 {(data ?? []).map((c, i) => (
                   <tr key={c.reservation_id + i} className="border-t border-border">
-                    <td className="px-5 py-2">{new Date(c.changed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+                    <td className="px-5 py-2">{new Date(c.changed_at).toLocaleDateString("pt-BR", { timeZone: TZ })}</td>
                     <td className="px-3 py-2 font-medium text-foreground">{c.reservation_id}</td>
                     <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
                     <td className="px-3 py-2">{statusLabel(c.info?.status)}</td>
                     <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
-                    <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR") : "—"}</td>
+                    <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
                     <td className="px-5 py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
                   </tr>
                 ))}
