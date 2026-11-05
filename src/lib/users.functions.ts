@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-type Role = "superadmin" | "comercial" | "marketing" | "comercial_gerencial";
-const ROLES: Role[] = ["superadmin", "comercial", "marketing", "comercial_gerencial"];
+type Role = "superadmin" | "comercial" | "marketing" | "comercial_gerencial" | "financeiro";
+const ROLES: Role[] = ["superadmin", "comercial", "marketing", "comercial_gerencial", "financeiro"];
 
 async function assertSuperadmin(supabase: any, userId: string) {
   const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "superadmin" });

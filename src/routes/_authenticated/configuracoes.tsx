@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Trash2, KeyRound, ChevronDown } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { ArrowLeft, Trash2, KeyRound, ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -109,9 +108,11 @@ function SettingsPage() {
   });
 
   return (
-    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      <Sidebar active="configuracoes" />
-      <main className="min-w-0 flex-1 space-y-6 p-4 sm:p-6">
+    <div className="min-h-screen bg-background">
+      <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
+        </Button>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Configurações</h1>
           <p className="text-sm text-muted-foreground">

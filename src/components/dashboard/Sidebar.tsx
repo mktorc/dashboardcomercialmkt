@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canAccess, canSeePricing, getMyEmail, getMyRole } from "@/lib/roles";
 import { useState } from "react";
-import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, Settings, PanelLeftOpen } from "lucide-react";
+import { ArrowLeft, Briefcase, ChevronDown, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import {
   DropdownMenu,
@@ -16,7 +16,7 @@ const items = [
   { key: "dashboard", label: "Marketing", icon: LayoutDashboard, to: "/app/dashboard" },
 ] as const;
 
-type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional" | "configuracoes";
+type ActivePage = (typeof items)[number]["key"] | "comercial" | "comercial-operacional";
 
 export function Sidebar({ active }: { active: ActivePage }) {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export function Sidebar({ active }: { active: ActivePage }) {
     navigate({ to: "/auth", search: { next: undefined }, replace: true });
   }
 
-  const mobileLink = (to: string, label: string, isActive: boolean, Icon?: typeof Settings, indent = false) => (
+  const mobileLink = (to: string, label: string, isActive: boolean, Icon?: typeof ArrowLeft, indent = false) => (
     <Link
       key={to}
       to={to}
@@ -91,7 +91,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
               {showOp ? mobileLink("/comercial-operacional", "Operacional", active === "comercial-operacional", undefined, true) : null}
             </>
           ) : null}
-          {canAccess(role, "configuracoes") ? mobileLink("/configuracoes", "Configurações", active === "configuracoes", Settings) : null}
         </nav>
         <button
           onClick={signOut}
@@ -186,20 +185,6 @@ export function Sidebar({ active }: { active: ActivePage }) {
             </DropdownMenuItem> : null}
           </DropdownMenuContent>
         </DropdownMenu> : null}
-        {canAccess(role, "configuracoes") ? (
-          <Link
-            to="/configuracoes"
-            title={collapsed ? "Configurações" : undefined}
-            className={`flex items-center gap-3 rounded-lg py-2 text-sm transition-colors ${collapsed ? "justify-center px-0" : "px-3"} ${
-              active === "configuracoes"
-                ? "bg-sidebar-primary font-semibold text-sidebar-primary-foreground"
-                : "text-sidebar-foreground/80 hover:bg-sidebar-accent"
-            }`}
-          >
-            <Settings className="size-4" />
-            {!collapsed ? "Configurações" : null}
-          </Link>
-        ) : null}
       </nav>
       <button
         onClick={signOut}

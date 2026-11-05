@@ -13,7 +13,7 @@ const ABAS = [
 
 export function ComissoesLayout({ children }: { children: ReactNode }) {
   const { role } = usePerfil();
-  // superadmin e visitante sem login voltam ao hub; os demais perfis, à própria página
+  // superadmin e visitante sem login voltam ao hub; os demais perfis (incl. financeiro), à própria página
   const voltar = role === "superadmin" || !role ? "/app" : HOME[role];
   return (
     <div className="min-h-screen bg-background">

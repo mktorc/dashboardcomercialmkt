@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, ClipboardList, HandCoins, LineChart, LogIn, LogOut, Globe } from "lucide-react";
+import { BarChart3, ClipboardList, HandCoins, LineChart, LogIn, LogOut, Globe, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { canAccess, canSeePricing, getMyEmail, getMyRole, type PageKey } from "@/lib/roles";
@@ -126,9 +126,16 @@ export function ModuleSelection() {
           </div>
         </div>
         {logado ? (
-          <Button variant="outline" size="sm" onClick={signOut}>
-            <LogOut className="mr-1 size-4" /> Sair
-          </Button>
+          <div className="flex items-center gap-2">
+            {canAccess(role, "configuracoes") ? (
+              <Button asChild variant="outline" size="icon" title="Configurações" aria-label="Configurações">
+                <Link to="/configuracoes"><Settings className="size-4" /></Link>
+              </Button>
+            ) : null}
+            <Button variant="outline" size="sm" onClick={signOut}>
+              <LogOut className="mr-1 size-4" /> Sair
+            </Button>
+          </div>
         ) : publico ? (
           <Button variant="outline" size="sm" onClick={irParaLogin}>
             <LogIn className="mr-1 size-4" /> Fazer login

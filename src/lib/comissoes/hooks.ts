@@ -39,12 +39,12 @@ export function useParceiros() {
   return parceiros
 }
 
-/** Permissões na tela de comissões. Pagar e validar: só superadmin. Editar comissão: qualquer pessoa. O banco impõe as mesmas regras. */
+/** Permissões na tela de comissões. Pagar e validar: superadmin e financeiro. Editar comissão: qualquer pessoa. O banco impõe as mesmas regras. */
 export function usePerfil() {
   const { data: role = null } = useQuery({ queryKey: ['my-role'], queryFn: getMyRole })
   return {
     role,
-    podePagar: role === 'superadmin', // marcar como paga e validar descontos
+    podePagar: role === 'superadmin' || role === 'financeiro', // marcar como paga e validar descontos
     podeEditar: true, // ajustar comissão: liberado a qualquer pessoa com o link (reservas não pagas)
   }
 }
