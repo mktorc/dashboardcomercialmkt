@@ -1,3 +1,4 @@
+import { PeriodoPicker } from '@/components/PeriodoPicker'
 import type { Filtros } from '@/lib/comissoes/types'
 
 interface Props {
@@ -13,7 +14,7 @@ export function FiltrosBar({ filtros, parceiros, onChange }: Props) {
   const set = (p: Partial<Filtros>) => onChange({ ...filtros, ...p })
   const invalido = !!filtros.dataInicio && !!filtros.dataFim && filtros.dataInicio > filtros.dataFim
   return (
-    <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5">
       <label className="text-sm font-medium text-foreground/80">
         Parceiro
         <select className={campo} value={filtros.parceiro} onChange={(e) => set({ parceiro: e.target.value })}>
@@ -24,22 +25,21 @@ export function FiltrosBar({ filtros, parceiros, onChange }: Props) {
         </select>
       </label>
       <label className="text-sm font-medium text-foreground/80">
-        Criação da reserva — de
-        <input type="date" className={campo} value={filtros.dataInicio} max={filtros.dataFim || undefined}
-          onChange={(e) => set({ dataInicio: e.target.value })} />
+        Nº da reserva
+        <input type="search" inputMode="numeric" placeholder="Buscar reserva" className={campo} value={filtros.reserva}
+          onChange={(e) => set({ reserva: e.target.value })} />
       </label>
-      <label className="text-sm font-medium text-foreground/80">
-        até
-        <input type="date" className={campo} value={filtros.dataFim} min={filtros.dataInicio || undefined}
-          onChange={(e) => set({ dataFim: e.target.value })} />
-      </label>
+      <div className="text-sm font-medium text-foreground/80">
+        Criação da reserva
+        <PeriodoPicker inicio={filtros.dataInicio} fim={filtros.dataFim} onChange={(dataInicio, dataFim) => set({ dataInicio, dataFim })} />
+      </div>
       <div className="flex items-end">
-        <button type="button" onClick={() => onChange({ parceiro: '', dataInicio: '', dataFim: '' })}
+        <button type="button" onClick={() => onChange({ parceiro: '', reserva: '', dataInicio: '', dataFim: '' })}
           className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground/80 hover:bg-muted/40">
           Limpar filtros
         </button>
       </div>
-      {invalido && <p className="text-sm text-destructive sm:col-span-2 lg:col-span-4">A data inicial é posterior à data final.</p>}
+      {invalido && <p className="text-sm text-destructive sm:col-span-2 lg:col-span-5">A data inicial é posterior à data final.</p>}
     </div>
   )
 }

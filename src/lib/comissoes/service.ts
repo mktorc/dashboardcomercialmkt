@@ -7,7 +7,7 @@ const supabase = typedClient as unknown as SupabaseClient
 
 const PAGE = 1000
 const COLUNAS =
-  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,manual_charge,incluir_manual_charge,valor_repasse,estorno_compensado_em'
+  'id,hq_reservation_id,commission_partner,created_at,total_price,total_paid,rack_rate,commission_rate,commission_amount,commission_rate_manual,desconto,desconto_validado_em,exige_validacao,currency,retida_agencia,hq_status,status_repasse,paga_em,liberada,valor_comissao,manual_charge,incluir_manual_charge,valor_repasse,estorno_compensado_em,seller_name'
 
 const num = (v: unknown) => Number(v ?? 0)
 
@@ -36,6 +36,7 @@ async function buscar(filtros: Filtros, extra?: (q: Query) => Query): Promise<Re
   for (let from = 0; ; from += PAGE) {
     let q = base()
     if (filtros.parceiro) q = q.eq('commission_partner', filtros.parceiro)
+    if (filtros.reserva.trim()) q = q.ilike('hq_reservation_id', `%${filtros.reserva.trim().replace(/[%_,()]/g, '')}%`)
     if (filtros.dataInicio) q = q.gte('created_at', `${filtros.dataInicio}T00:00:00`)
     if (filtros.dataFim) q = q.lte('created_at', `${filtros.dataFim}T23:59:59.999`)
     if (extra) q = extra(q)

@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarCheck, Maximize2, Minimize2, X } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PeriodoPicker } from "@/components/PeriodoPicker";
 import { Input } from "@/components/ui/input";
 import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
@@ -136,8 +137,7 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="w-auto" aria-label="De" />
-          <Input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="w-auto" aria-label="Até" />
+          <PeriodoPicker inicio={from} fim={to} className="h-9 w-auto min-w-52 !mt-0 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
           <ManualSyncButton />
           {showBack ? (
             <Button asChild variant="outline" size="sm">

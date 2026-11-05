@@ -16,7 +16,8 @@ if (faltando.length) {
 
 // secrets colados no GitHub costumam vir com quebra de linha no fim, o que invalida a autenticação
 const auth = Buffer.from(`${HQ_TENANT_TOKEN.trim()}:${HQ_USER_TOKEN.trim()}`).toString('base64')
-const BASE = 'https://api-america-3.caagcrm.com/api-america-3/car-rental/reservations'
+const API = 'https://api-america-3.caagcrm.com/api-america-3/car-rental'
+const BASE = `${API}/reservations`
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 
 const n = (v) => Number(v ?? 0)
@@ -49,7 +50,19 @@ const SEM_COMISSAO = new Set(
   ['Google ADS', 'Meta ADS', 'Cliente Recorrente', 'Camp.Hispana', 'Influencer/Parceria', 'Master Vacation', 'Talu Concept', 'Barbs Tour', 'Theodoro'].map(semAcento),
 )
 
-function mapear(r) {
+// id -> nome de quem criou a reserva (created_by)
+async function carregarUsuarios() {
+  const mapa = new Map()
+  for (let p = 1; p <= 20; p++) {
+    const j = await hq(`${API}/users?page=${p}`)
+    const lista = j.data?.data ?? []
+    lista.forEach((u) => mapa.set(String(u.id), String(u.full_name ?? u.first_name ?? '').trim()))
+    if (!lista.length || (j.data?.last_page && p >= j.data.last_page)) break
+  }
+  return mapa
+}
+
+function mapear(r, usuarios) {
   const parceiro = r.tour_operator
   const pct = n(parceiro?.commission_percentage)
   if (!parceiro?.name || pct <= 0 || SEM_COMISSAO.has(semAcento(parceiro.name).trim())) return null
@@ -65,6 +78,7 @@ function mapear(r) {
     commission_rate: pct,
     currency: String(r.currency ?? 'usd').toUpperCase(),
     hq_status: r.status ?? null,
+    seller_name: usuarios.get(String(r.created_by ?? '')) || null,
   }
 }
 
@@ -78,6 +92,7 @@ async function hq(url) {
 }
 const pagina = (page) => hq(`${BASE}?limit=100&page=${page}`)
 
+const usuarios = await carregarUsuarios().catch(() => new Map())
 let page = 1, ultima = 1, lidas = 0, gravadas = 0
 do {
   const j = await pagina(page)
@@ -87,7 +102,7 @@ do {
   }
   ultima = j.last_page
   lidas += j.data.length
-  const linhas = j.data.map(mapear).filter(Boolean)
+  const linhas = j.data.map((r) => mapear(r, usuarios)).filter(Boolean)
   // métodos de pagamento só das reservas que serão gravadas, 8 por vez
   for (let i = 0; i < linhas.length; i += 8) {
     await Promise.all(

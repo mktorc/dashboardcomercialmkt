@@ -27,6 +27,8 @@ export interface Reserva {
   /** comissão + manual charge: o que de fato é repassado ao parceiro */
   valor_repasse: number
   estorno_compensado_em: string | null
+  /** quem criou a reserva no HQ */
+  seller_name: string | null
 }
 
 /** Status exibido na interface, derivado de status_repasse + liberada. */
@@ -34,6 +36,7 @@ export type StatusExibicao = 'retida' | 'paga' | 'liberada' | 'bloqueada'
 
 export interface Filtros {
   parceiro: string
+  reserva: string // número da reserva (busca parcial)
   dataInicio: string // yyyy-mm-dd
   dataFim: string // yyyy-mm-dd
 }

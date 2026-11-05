@@ -105,6 +105,7 @@ export default function Historico() {
                   <th className="px-4 py-3">Reserva</th>
                   <th className="px-4 py-3">Parceiro</th>
                   <th className="px-4 py-3">Criada em</th>
+                  <th className="px-4 py-3">Criada por</th>
                   <th className="px-4 py-3 text-right">Total price</th>
                   <th className="px-4 py-3 text-right">Total paid</th>
                   <th className="px-4 py-3 text-right">Rack rate</th>
@@ -130,6 +131,7 @@ export default function Historico() {
                     </td>
                       <td className="px-4 py-3">{r.commission_partner}</td>
                       <td className="px-4 py-3">{data(r.created_at)}</td>
+                      <td className="px-4 py-3">{r.seller_name || '—'}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.total_price)}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.total_paid)}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.rack_rate)}</td>

@@ -275,6 +275,7 @@ export default function ComissoesAPagar() {
                                 <tr>
                                   <th className="py-1 pr-4">Reserva</th>
                                   <th className="py-1 pr-4">Criada em</th>
+                                  <th className="py-1 pr-4">Criada por</th>
                                   <th className="py-1 pr-4 text-right">Total pago</th>
                                   <th className="py-1 pr-4 text-right">Rack rate</th>
                                   <th className="py-1 pr-4 text-right">Comissão</th>
@@ -299,6 +300,7 @@ export default function ComissoesAPagar() {
                                       )}
                                     </td>
                                     <td className="py-1.5 pr-4">{data(r.created_at)}</td>
+                                    <td className="py-1.5 pr-4">{r.seller_name || '—'}</td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.total_paid)}</td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.rack_rate)}</td>
                                     <td className="py-1.5 pr-4 text-right font-medium">

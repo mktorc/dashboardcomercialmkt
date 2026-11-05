@@ -21,6 +21,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
+import { PeriodoPicker } from "@/components/PeriodoPicker";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -281,26 +282,10 @@ function Dashboard() {
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <SyncButton />
-            <label className="text-xs text-foreground/70">
-              De
-              <Input
-                type="date"
-                value={from}
-                max={to}
-                onChange={(event) => event.target.value && setFrom(event.target.value)}
-                className="mt-1 h-9 w-40 bg-card"
-              />
-            </label>
-            <label className="text-xs text-foreground/70">
-              Até
-              <Input
-                type="date"
-                value={to}
-                min={from}
-                onChange={(event) => event.target.value && setTo(event.target.value)}
-                className="mt-1 h-9 w-40 bg-card"
-              />
-            </label>
+            <div className="text-xs text-foreground/70">
+              Período
+              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-56 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+            </div>
             <label className="text-xs text-foreground/70">
               Origem
               <select

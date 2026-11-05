@@ -337,6 +337,13 @@
       "when": 1793469110753,
       "tag": "0047_occupancy_segments",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793469170753,
+      "tag": "0048_reservas_seller_name",
+      "breakpoints": true
     }
   ]
 }

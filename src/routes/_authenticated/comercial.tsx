@@ -35,6 +35,7 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { InfoPopover, KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
+import { PeriodoPicker } from "@/components/PeriodoPicker";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -319,14 +320,10 @@ export function ComercialPage({
             ) : (
               <SyncButton />
             )}
-            <label className="text-xs text-foreground/70">
-              De
-              <Input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
-            </label>
-            <label className="text-xs text-foreground/70">
-              Até
-              <Input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} className="mt-1 h-9 w-40 bg-card" />
-            </label>
+            <div className="text-xs text-foreground/70">
+              Período
+              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-56 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+            </div>
           </div>
         </header>
 

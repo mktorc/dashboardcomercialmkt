@@ -4,7 +4,7 @@ import { getMyRole } from '@/lib/roles'
 import type { Filtros, Reserva } from './types'
 import { listarParceiros } from './service'
 
-export const filtrosVazios: Filtros = { parceiro: '', dataInicio: '', dataFim: '' }
+export const filtrosVazios: Filtros = { parceiro: '', reserva: '', dataInicio: '', dataFim: '' }
 
 export function useReservas(carregar: (f: Filtros) => Promise<Reserva[]>, filtros: Filtros) {
   const [linhas, setLinhas] = useState<Reserva[]>([])
@@ -22,7 +22,7 @@ export function useReservas(carregar: (f: Filtros) => Promise<Reserva[]>, filtro
       setCarregando(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carregar, filtros.parceiro, filtros.dataInicio, filtros.dataFim])
+  }, [carregar, filtros.parceiro, filtros.reserva, filtros.dataInicio, filtros.dataFim])
 
   useEffect(() => {
     recarregar()
