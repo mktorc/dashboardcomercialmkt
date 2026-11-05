@@ -54,7 +54,7 @@ const SEM_COMISSAO = new Set(
 async function carregarUsuarios() {
   const mapa = new Map()
   for (let p = 1; p <= 20; p++) {
-    const j = await hq(`${API}/users?page=${p}`)
+    const j = await hq(`${API.replace(/\/car-rental$/, "")}/users?page=${p}`)
     const lista = j.data?.data ?? []
     lista.forEach((u) => mapa.set(String(u.id), String(u.full_name ?? u.first_name ?? '').trim()))
     if (!lista.length || (j.data?.last_page && p >= j.data.last_page)) break
