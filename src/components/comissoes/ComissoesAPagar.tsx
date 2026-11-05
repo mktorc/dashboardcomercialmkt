@@ -20,7 +20,7 @@ interface GrupoParceiro {
 export default function ComissoesAPagar() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
   const parceiros = useParceiros()
-  const { podePagar, podeEditar } = usePerfil()
+  const { podePagar, podeValidar, podeEditar } = usePerfil()
   const { linhas, carregando, erro, recarregar } = useReservas(listarAPagar, filtros)
   const [estornos, setEstornos] = useState<Reserva[]>([])
   useEffect(() => {
@@ -260,7 +260,7 @@ export default function ComissoesAPagar() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {g.travado && (
-                            <button hidden={!podePagar} disabled={salvando} onClick={() => validar(g.reservas.filter(precisaValidar))}
+                            <button hidden={!podeValidar} disabled={salvando} onClick={() => validar(g.reservas.filter(precisaValidar))}
                               className="mr-3 text-amber-400 hover:underline disabled:opacity-50">Validar descontos</button>
                           )}
                           <button hidden={!podePagar} disabled={salvando || g.travado} onClick={() => pagar(g.reservas, g.parceiro, g.estornos)}
@@ -324,7 +324,7 @@ export default function ComissoesAPagar() {
                                           className="mr-3 text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50">Editar</button>
                                       )}
                                       {precisaValidar(r) && (
-                                        <button hidden={!podePagar} disabled={salvando} onClick={() => validar([r])}
+                                        <button hidden={!podeValidar} disabled={salvando} onClick={() => validar([r])}
                                           className="mr-3 text-amber-400 hover:underline disabled:opacity-50">Validar</button>
                                       )}
                                       <button hidden={!podePagar} disabled={salvando || g.travado} onClick={() => pagar([r], r.hq_reservation_id)}

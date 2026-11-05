@@ -365,6 +365,13 @@
       "when": 1793469350753,
       "tag": "0051_financeiro_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1793469410753,
+      "tag": "0052_validar_desconto_superadmin",
+      "breakpoints": true
     }
   ]
 }
