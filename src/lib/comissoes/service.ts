@@ -85,6 +85,15 @@ export async function listarParceiros(): Promise<string[]> {
   return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
 
+/** Notas internas dos parceiros (aba Commission Partners do HQ), por nome. Vazio para quem não está logado. */
+export async function listarNotasParceiros(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('commission_partners').select('name,internal_notes')
+  if (error) throw new Error(error.message)
+  const notas: Record<string, string> = {}
+  data.forEach((d) => { if (d.internal_notes) notas[d.name] = d.internal_notes })
+  return notas
+}
+
 /** Marca como paga apenas o que ainda é elegível e pendente; retorna quantas foram atualizadas. */
 export async function marcarComoPagas(ids: string[], estornoIds: string[] = []): Promise<number> {
   if (!ids.length) return 0

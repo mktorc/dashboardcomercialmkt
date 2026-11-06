@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getMyRole } from '@/lib/roles'
 import type { Filtros, Reserva } from './types'
-import { listarParceiros } from './service'
+import { listarNotasParceiros, listarParceiros } from './service'
 
 export const filtrosVazios: Filtros = { parceiro: '', reserva: '', dataInicio: '', dataFim: '' }
 
@@ -48,4 +48,12 @@ export function usePerfil() {
     podeValidar: role === 'superadmin', // validar descontos
     podeEditar: true, // ajustar comissão: liberado a qualquer pessoa com o link (reservas não pagas)
   }
+}
+
+export function useNotasParceiros() {
+  const [notas, setNotas] = useState<Record<string, string>>({})
+  useEffect(() => {
+    listarNotasParceiros().then(setNotas).catch(() => setNotas({}))
+  }, [])
+  return notas
 }

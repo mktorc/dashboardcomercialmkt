@@ -166,6 +166,12 @@ export function ComercialPage({
       });
   }, [view, search, sort]);
 
+  const detailTotals = tableRows.reduce(
+    (t, r) => ({ opp: t.opp + r.oportunidades, res: t.res + r.reservas, fat: t.fat + r.faturamento }),
+    { opp: 0, res: 0, fat: 0 },
+  );
+  const detailCalc = `Total da equipe no período:\nConversão: ${detailTotals.res.toLocaleString("pt-BR")} reservas ÷ ${detailTotals.opp.toLocaleString("pt-BR")} oportunidades = ${detailTotals.opp ? pct(detailTotals.res / detailTotals.opp) : "—"}\nTicket médio: ${brl(detailTotals.fat)} ÷ ${detailTotals.res.toLocaleString("pt-BR")} reservas = ${detailTotals.res ? brl(detailTotals.fat / detailTotals.res) : "—"}\nPor vendedor, conversão = reservas ÷ oportunidades e ticket = valor fechado ÷ reservas.`;
+
   const goalRows = (view?.rows ?? []).filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.faturamento || r.revenueGoal));
   const chartH = 308;
   const opportunityRows = (view?.rows ?? [])
@@ -417,13 +423,25 @@ export function ComercialPage({
 
           {active === "comercial" ? (
             <section className="grid gap-4 xl:grid-cols-2">
-              <MonthlyBarChart title="Taxa de ocupação mensal" data={occupancyComparisons} dataKey="rate" valueName="Ocupação" formatter={pct} comparisonKey="yearAgoRate" />
-              <MonthlyBarChart title="Taxa de conversão mensal" data={monthlyKpis} dataKey="conversao" valueName="Conversão" formatter={pct} comparisonKey="yearAgoConversion" />
-              <MonthlyBarChart title="Faturamento mensal" data={monthlyKpis} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis comparisonKey="yearAgoRevenue" />
-              <MonthlyBarChart title="Reservas mensais" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
-              <MonthlyBarChart title="Ticket médio mensal" data={monthlyKpis} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis comparisonKey="yearAgoTicket" />
-              <MonthlyBarChart title="Desconto médio mensal" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" lowerIsBetter />
+              <MonthlyBarChart title="Taxa de ocupação mensal" formula="Dias de aluguel dos veículos ÷ dias de frota disponíveis no mês" data={occupancyComparisons} dataKey="rate" valueName="Ocupação" formatter={pct} comparisonKey="yearAgoRate" />
+              <MonthlyBarChart title="Taxa de conversão mensal" formula="Reservas ÷ oportunidades do mês" data={monthlyKpis} dataKey="conversao" valueName="Conversão" formatter={pct} comparisonKey="yearAgoConversion" />
+              <MonthlyBarChart title="Faturamento mensal" formula="Soma do rack rate das reservas do mês" data={monthlyKpis} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis comparisonKey="yearAgoRevenue" />
+              <MonthlyBarChart title="Reservas mensais" formula="Reservas confirmadas criadas no mês" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
+              <MonthlyBarChart title="Ticket médio mensal" formula="Faturamento ÷ reservas do mês" data={monthlyKpis} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis comparisonKey="yearAgoTicket" />
+              <MonthlyBarChart title="Desconto médio mensal" formula="Desconto ÷ (valor cobrado + desconto) do mês" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" lowerIsBetter />
             </section>
+          ) : null}
+
+          {active === "comercial" ? (
+            <MonthlyBarChart
+              title="Faturamento do período por mês de retirada"
+              data={view?.revenueByPickupMonth ?? []}
+              dataKey="faturamento"
+              valueName="Faturamento"
+              formatter={brl}
+              currencyAxis
+              calc={view ? `${brl(view.revenueByPickupMonth.reduce((sum, m) => sum + m.faturamento, 0))} em ${view.revenueByPickupMonth.reduce((sum, m) => sum + m.reservas, 0).toLocaleString("pt-BR")} reservas criadas no período: ${view.revenueByPickupMonth.map((m) => `${m.mes} ${brl(m.faturamento)}`).join(" + ") || "sem reservas"}` : undefined}
+            />
           ) : null}
 
           {view?.revenueBreakdown ? (
@@ -437,6 +455,7 @@ export function ComercialPage({
               <div>
                 <div className="flex items-center gap-1.5">
                   <h2 className="text-sm font-semibold text-foreground">Detalhamento por vendedor</h2>
+                  {tableRows.length ? <InfoPopover icon={Calculator} ariaLabel="Cálculo do detalhamento por vendedor com os dados do período" text={detailCalc} /> : null}
                   <InfoPopover icon={CircleHelp} ariaLabel="O que é o detalhamento por vendedor" text={"Resumo de tarefas, reservas e valor fechado de cada vendedor no período.\nCada coluna tem o seu próprio \"?\". Clique no título da coluna para ordenar."} />
                 </div>
               </div>
@@ -567,9 +586,14 @@ function MonthlyBarChart({
   integerAxis = false,
   percentageAxis = false,
   lowerIsBetter = false,
+  calc,
+  formula,
 }: {
   title: string;
   data: object[];
+  calc?: string | undefined;
+  /** Como o indicador é calculado; vira o cabeçalho da calculadora com os valores de cada mês. */
+  formula?: string;
   dataKey: string;
   valueName: string;
   formatter: (value: number) => string;
@@ -581,9 +605,18 @@ function MonthlyBarChart({
   /** Variação negativa em relação ao ano anterior é positiva (ex.: desconto). */
   lowerIsBetter?: boolean;
 }) {
+  const monthLines = (data as Record<string, unknown>[]).map((row) => {
+    const curr = Number(row[dataKey]);
+    const prev = comparisonKey ? Number(row[comparisonKey]) : NaN;
+    const change = Number.isFinite(prev) && prev > 0 ? ((curr - prev) / prev) * 100 : null;
+    const variation = change === null ? "" : ` (${comparisonName.toLowerCase()} ${formatter(prev)}, ${change > 0 ? "+" : ""}${change.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%)`;
+    return `${String(row[dataKey === "rate" ? "label" : "mes"])}: ${formatter(curr)}${variation}`;
+  });
+  const autoCalc = formula && monthLines.length ? `${formula}\n${monthLines.join("\n")}` : undefined;
   return (
     <ExpandableChartPanel
       title={title}
+      calc={calc ?? autoCalc}
       expandable
       render={(expanded) => (
       <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 284, minHeight: 0 }}>
@@ -675,8 +708,14 @@ function OpportunitySellerChart({
     sharePct: totalOpps ? pct(row.oportunidades / totalOpps) : "—",
     reservasPct: row.oportunidades && row.selectKey !== "__none" ? pct(row.reservas / row.oportunidades) : "—",
   }));
+  const calcLines = data.map((row) =>
+    compare
+      ? `${row.name}: ${row.reservas.toLocaleString("pt-BR")} reservas ÷ ${row.oportunidades.toLocaleString("pt-BR")} oportunidades = ${row.oportunidades ? pct(row.reservas / row.oportunidades) : "—"}`
+      : `${row.name}: ${row.oportunidades.toLocaleString("pt-BR")} ÷ ${totalOpps.toLocaleString("pt-BR")} = ${totalOpps ? pct(row.oportunidades / totalOpps) : "—"} do total`,
+  );
   return (
     <ExpandableChartPanel
+      calc={calcLines.length ? calcLines.join("\n") : undefined}
       title={compare ? "Oportunidades vs. reservas por vendedor" : "Oportunidades por vendedor"}
       subtitle={compare ? "Oportunidades e conversão em reservas por vendedor." : "Leads ativos na base (sem ganhos e perdidos), sem filtro de datas."}
       expandable={expandable}
@@ -744,8 +783,10 @@ function NoTaskBySellerChart({
     ...row,
     sharePct: total ? pct(row.noTask / total) : "—",
   }));
+  const calcLines = data.map((row) => `${row.name}: ${row.noTask.toLocaleString("pt-BR")} ÷ ${total.toLocaleString("pt-BR")} = ${total ? pct(row.noTask / total) : "—"} do total`);
   return (
     <ExpandableChartPanel
+      calc={calcLines.length ? calcLines.join("\n") : undefined}
       title="Oportunidades sem tarefas por vendedor"
       subtitle="Leads ativos na base (sem ganhos e perdidos), sem filtro de datas."
       expandable={expandable}
@@ -810,8 +851,14 @@ function SellerLineChart({
     return next;
   });
 
+  const seriesTotals = series.map((name) => ({ name, total: data.reduce((sum, row) => sum + (Number(row[name]) || 0), 0) }));
+  const grandTotal = seriesTotals.reduce((sum, item) => sum + item.total, 0);
+  const fmtTotal = (v: number) => (currency ? brl(v) : v.toLocaleString("pt-BR"));
+  const lineCalc = seriesTotals.length
+    ? `Soma dos dias do período por vendedor:\n${seriesTotals.map((item) => `${item.name}: ${fmtTotal(item.total)}`).join("\n")}\nTotal: ${fmtTotal(grandTotal)}`
+    : undefined;
   return (
-    <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
+    <ExpandableChartPanel title={title} subtitle={subtitle} calc={lineCalc} expandable={expandable} render={(expanded) => (
       data.length && series.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 348, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -886,6 +933,7 @@ function SellerLineChart({
 }
 
 const CHART_HELP: Record<string, string> = {
+  "Faturamento do período por mês de retirada": "Reservas confirmadas criadas no período selecionado, com o faturamento (rack rate) somado pelo mês em que o cliente retira o carro.\nMostra para quando foi o faturamento gerado agora. Reservas sem data de retirada ficam em \"Sem data\".",
   "Receita provisionada": "Faturamento (rack rate) de cada vendedor no período comparado com a meta individual.\nO % ao lado da barra é alcançado ÷ meta.",
   "Ticket médio": "Ticket médio de cada vendedor (faturamento ÷ reservas) contra a meta.\nO valor ao lado da barra é a diferença para a meta: verde se bateu, amarelo entre 50% e 99%, vermelho abaixo de 50%.",
   "Desconto médio (%)": "Desconto médio de cada vendedor contra o limite.\nO valor ao lado da barra é a diferença para o limite: verde se igual ou abaixo, vermelho se acima.",
@@ -919,11 +967,14 @@ const COLUMN_HELP: Record<string, string> = {
 function ExpandableChartPanel({
   title,
   subtitle,
+  calc,
   expandable = true,
   render,
 }: {
   title: string;
   subtitle?: string;
+  /** Conta feita com os dados reais do período, aberta pelo botão de calculadora. */
+  calc?: string | undefined;
   expandable?: boolean;
   render: (expanded: boolean) => ReactNode;
 }) {
@@ -935,6 +986,7 @@ function ExpandableChartPanel({
           <div className="flex items-center gap-1.5">
             <h2 className="text-sm font-semibold text-foreground">{title}</h2>
             {CHART_HELP[title] ? <InfoPopover icon={CircleHelp} ariaLabel={`O que é ${title}`} text={CHART_HELP[title]} /> : null}
+            {calc ? <InfoPopover icon={Calculator} ariaLabel={`Cálculo de ${title} com os dados do período`} text={calc} /> : null}
           </div>
         </div>
         {expandable ? (
@@ -994,8 +1046,20 @@ function GoalChart({
   deltaMode?: "higher" | "lower";
 }) {
   const showLabel = showAttainment || !!deltaMode;
+  const calcLines = b
+    ? data
+        .filter((row) => Number(row[a]) || Number(row[b]))
+        .map((row) => {
+          const actual = Number(row[a]);
+          const target = Number(row[b]);
+          const detail = showAttainment
+            ? target > 0 ? ` ÷ ${bLabel.toLowerCase()} ${fmt(target)} = ${pct(actual / target)}` : ` (sem ${bLabel.toLowerCase()})`
+            : target > 0 ? ` vs. ${bLabel.toLowerCase()} ${fmt(target)} → ${actual - target > 0 ? "+" : ""}${fmt(actual - target)}` : ` (sem ${bLabel.toLowerCase()})`;
+          return `${row.name}: ${fmt(actual)}${detail}`;
+        })
+    : [];
   return (
-    <ExpandableChartPanel title={title} subtitle={subtitle} expandable={expandable} render={(expanded) => (
+    <ExpandableChartPanel title={title} subtitle={subtitle} calc={calcLines.length ? calcLines.join("\n") : undefined} expandable={expandable} render={(expanded) => (
       <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : h, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 10, right: deltaMode ? 76 : showAttainment ? 56 : 24, left: 0, bottom: 8 }}>
@@ -1380,8 +1444,10 @@ function RevenueBreakdownChart({
 }: {
   data: Array<{ dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }>;
 }) {
+  const sum = (key: "rackRate" | "miscellaneousPrice" | "additionalChargesPrice" | "total") => data.reduce((acc, row) => acc + row[key], 0);
   return (
     <ExpandableChartPanel
+      calc={data.length ? `Rack Rate ${brl(sum("rackRate"))} + Taxas Diversas ${brl(sum("miscellaneousPrice"))} + Cobranças Adicionais ${brl(sum("additionalChargesPrice"))} = ${brl(sum("total"))} nos últimos 13 meses` : undefined}
       title="Faturamento mensal por componente (Time Comercial)"
       subtitle="Últimos 13 meses — Rack Rate, Taxas Diversas e Cobranças Adicionais"
       expandable

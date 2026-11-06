@@ -1,0 +1,25 @@
+name: Sincronizar oportunidades (ClickMassa)
+
+on:
+  schedule:
+    # A cada 30 min: o webhook do ClickMassa não avisa quando uma tarefa é criada,
+    # então total_tasks (usado em "Oportunidades sem tarefas") só se atualiza por esta sincronização.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-oportunidades-clickmassa
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Chamar a sincronização de oportunidades
+        env:
+          SYNC_CRON_TOKEN: ${{ secrets.SYNC_CRON_TOKEN }}
+        run: |
+          curl --fail-with-body -sS -m 540 -X POST \
+            "https://dashboardcomercialmkt.lovable.app/api/public/sync/clickmassa-opportunities" \
+            -H "Authorization: Bearer $SYNC_CRON_TOKEN"

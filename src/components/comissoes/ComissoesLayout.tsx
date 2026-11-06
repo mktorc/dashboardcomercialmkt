@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { Button } from "@/components/ui/button";
 import { usePerfil } from "@/lib/comissoes/hooks";
@@ -13,6 +15,14 @@ const ABAS = [
 
 export function ComissoesLayout({ children }: { children: ReactNode }) {
   const { role } = usePerfil();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  async function signOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/app", replace: true });
+  }
   // superadmin e visitante sem login voltam ao hub; os demais perfis (incl. financeiro), à própria página
   const voltar = role === "superadmin" || !role ? "/app" : HOME[role];
   return (
@@ -30,6 +40,11 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
           {voltar ? (
             <Button asChild variant="outline" size="sm">
               <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}</Link>
+            </Button>
+          ) : null}
+          {role ? (
+            <Button variant="outline" size="sm" onClick={signOut}>
+              <LogOut className="mr-1 size-4" /> Sair
             </Button>
           ) : null}
         </div>

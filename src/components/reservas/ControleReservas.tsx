@@ -154,8 +154,12 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard icon={CalendarCheck} label="Pending → Open no período" value={isLoading ? "—" : total.toLocaleString("pt-BR")} highlight
+            help={"Reservas que passaram de pending para open (sinal pago) no período selecionado."}
+            calc={isLoading ? undefined : `${total.toLocaleString("pt-BR")} reservas ÷ ${Math.max(1, daily.length)} dias = ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`}
             footer={`Média de ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`} />
           <KpiCard icon={CalendarCheck} label="Valor dessas reservas" value={isLoading ? "—" : brl(amount)}
+            help={"Soma do valor total atual das reservas que passaram de pending para open no período."}
+            calc={isLoading ? undefined : `${total.toLocaleString("pt-BR")} reservas somando ${brl(amount)}${total ? ` → ${brl(amount / total)} por reserva` : ""}`}
             footer="Soma do valor total atual das reservas" />
         </div>
 

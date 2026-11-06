@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
 import { StatusBadge } from './StatusBadge'
-import { filtrosVazios, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
+import { filtrosVazios, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
 import { listarHistorico } from '@/lib/comissoes/service'
 import { descontoPct, podeEditarComissao, precisaValidar, statusDaReserva, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
@@ -12,6 +12,7 @@ import { descontoPct, podeEditarComissao, precisaValidar, statusDaReserva, temAj
 export default function Historico() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
   const parceiros = useParceiros()
+  const notas = useNotasParceiros()
   const { podeEditar } = usePerfil()
   const { linhas: todas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros)
   const [visao, setVisao] = useState<'reserva' | 'parceiro'>('reserva')
@@ -80,6 +81,7 @@ export default function Historico() {
                   <th className="px-4 py-3 text-right">Liberada (a pagar)</th>
                   <th className="px-4 py-3 text-right">Abaixo do rack rate</th>
                   <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3">Notas internas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -92,6 +94,7 @@ export default function Historico() {
                     <td className="px-4 py-3 text-right text-blue-400">{moeda(g.liberada)}</td>
                     <td className="px-4 py-3 text-right text-amber-400">{moeda(g.bloqueada)}</td>
                     <td className="px-4 py-3 text-right font-semibold">{moeda(g.retida + g.paga + g.liberada + g.bloqueada)}</td>
+                    <td className="max-w-xs whitespace-pre-line px-4 py-3 text-xs text-muted-foreground">{notas[g.parceiro] ?? ""}</td>
                   </tr>
                 ))}
               </tbody>

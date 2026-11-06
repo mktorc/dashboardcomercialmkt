@@ -51,6 +51,8 @@ export type CRes = {
   additional_charges_price?: number | null;
   status: string;
   seller_name: string | null;
+  pick_up_at?: string | null;
+  reservation_id?: string | null;
 };
 // Faturamento / receita provisionada = coluna rack_rate (HQ) em ambas as abas comerciais.
 // Sem rack_rate a reserva não contribui; não há fallback para total_amount.
@@ -198,7 +200,7 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
+        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name, pick_up_at, reservation_id")
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -254,6 +256,25 @@ export async function fetchComercial(from: string, to: string) {
         .range(a, b),
     ),
   ]);
+
+  // Reservas do período sem retirada em reservations: usa o primeiro trecho (reservation_segments), que o sync preenche por veículo.
+  const missingPickup = ((res.data ?? []) as CRes[]).filter(
+    (r) => !r.pick_up_at && r.reservation_id && r.created_at >= startIso(from) && r.created_at <= endIso(to),
+  );
+  if (missingPickup.length) {
+    const firstPickup = new Map<string, string>();
+    for (let i = 0; i < missingPickup.length; i += 200) {
+      const ids = missingPickup.slice(i, i + 200).map((r) => r.reservation_id!);
+      const { data: segs } = await supabase.from("reservation_segments").select("reservation_id, pick_up_at").in("reservation_id", ids);
+      (segs ?? []).forEach((sg) => {
+        const cur = firstPickup.get(sg.reservation_id);
+        if (!cur || sg.pick_up_at < cur) firstPickup.set(sg.reservation_id, sg.pick_up_at);
+      });
+    }
+    missingPickup.forEach((r) => {
+      r.pick_up_at = firstPickup.get(r.reservation_id!) ?? null;
+    });
+  }
 
   const revenueBreakdownData = await fetchRevenueBreakdown();
 
@@ -565,6 +586,25 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       row.gross += r.total_amount + r.discount_amount;
     });
 
+  // Faturamento das reservas criadas no período (e do vendedor filtrado), agrupado pelo mês de retirada.
+  const pickupMonths = new Map<string, { monthKey: string; mes: string; faturamento: number; reservas: number }>();
+  confirmed
+    .filter((r) => inPeriod(r.created_at) && (seller === "all" || sellerKey(r.seller_name) === seller))
+    .forEach((r) => {
+      const monthKey = r.pick_up_at ? r.pick_up_at.slice(0, 7) : "sem-data";
+      const [y, m] = monthKey.split("-");
+      const row = pickupMonths.get(monthKey) ?? {
+        monthKey,
+        mes: monthKey === "sem-data" ? "Sem data" : `${MONTHS_PT[Number(m) - 1]}/${y}`,
+        faturamento: 0,
+        reservas: 0,
+      };
+      row.faturamento += reservationRackRate(r, useHqRackRate);
+      row.reservas++;
+      pickupMonths.set(monthKey, row);
+    });
+  const revenueByPickupMonth = [...pickupMonths.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+
   const goalCount = new Map<string, number>();
   d.goals
     .filter((g) => months.has(g.month))
@@ -810,6 +850,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     rows: visible.filter((r) => r.oportunidades || r.reservas || r.overdue || r.pending || r.done),
     sellers,
     monthly: [...monthly.values()],
+    revenueByPickupMonth,
     monthlyKpis: computeMonthlyCommercial(d.opportunities, d.reservations, seller, from, to, useHqRackRate),
     monthlyKpisPreviousYear: computeMonthlyCommercial(
       d.yearOpportunities,

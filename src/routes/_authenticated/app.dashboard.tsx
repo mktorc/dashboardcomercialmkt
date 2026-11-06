@@ -8,6 +8,7 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  LabelList,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -83,6 +84,9 @@ const tooltipStyle = {
   borderRadius: 12,
   color: "#fff",
 };
+// Paleta padrão dos gráficos de duas séries: principal (atual/receita) e secundária (anterior/investimento).
+const CHART_PRIMARY = "#44E500";
+const CHART_SECONDARY = "#2f9c5a";
 const ORIGIN_COLORS = [
   "#2f9c5a",
   "#44E500",
@@ -429,12 +433,12 @@ function Dashboard() {
                   <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <defs>
                       <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#44E500" stopOpacity={0.5} />
-                        <stop offset="95%" stopColor="#44E500" stopOpacity={0} />
+                        <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={0.5} />
+                        <stop offset="95%" stopColor={CHART_PRIMARY} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="inv" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#005C29" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="#005C29" stopOpacity={0} />
+                        <stop offset="5%" stopColor={CHART_SECONDARY} stopOpacity={0.7} />
+                        <stop offset="95%" stopColor={CHART_SECONDARY} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
@@ -457,7 +461,7 @@ function Dashboard() {
                       dataKey="faturamento"
                       yAxisId="revenue"
                       name="Faturamento"
-                      stroke="#44E500"
+                      stroke={CHART_PRIMARY}
                       fill="url(#rev)"
                       strokeWidth={2}
                     />
@@ -466,7 +470,7 @@ function Dashboard() {
                       dataKey="investimento"
                       yAxisId="spend"
                       name="Investimento"
-                      stroke="#ffd23f"
+                      stroke={CHART_SECONDARY}
                       strokeWidth={2.5}
                       dot={false}
                     />
@@ -518,7 +522,7 @@ function Dashboard() {
                           formatter={(v: number) => [v.toLocaleString("pt-BR"), "Conversas iniciadas"]}
                           labelFormatter={(_, payload) => String(payload?.[0]?.payload?.date ?? "").split("-").reverse().join("/")}
                         />
-                        <Bar dataKey="conversations" name="Conversas iniciadas" fill="#44E500" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="conversations" name="Conversas iniciadas" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -571,8 +575,8 @@ function Dashboard() {
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill="#44E500" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cac" name="CAC Percentual (%)" fill="#2f9c5a" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cac" name="CAC Percentual (%)" fill={CHART_SECONDARY} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -919,7 +923,7 @@ function OriginMonthlyChart({
               data={data}
               maxBarSize={32}
               barCategoryGap="20%"
-              margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+              margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis
@@ -943,9 +947,30 @@ function OriginMonthlyChart({
               <Bar
                 dataKey="previousYear"
                 name={`Ano Anterior (${previousYear})`}
-                fill="#64748B"
+                fill={CHART_SECONDARY}
               />
-              <Bar dataKey="currentYear" name={`Ano Atual (${currentYear})`} fill="#22C55E" />
+              <Bar dataKey="currentYear" name={`Ano Atual (${currentYear})`} fill={CHART_PRIMARY}>
+                <LabelList
+                  dataKey="currentYear"
+                  content={(props) => {
+                    const row = data[props.index ?? -1];
+                    if (!row || !(row.previousYear > 0)) return null;
+                    const variation = ((row.currentYear - row.previousYear) / row.previousYear) * 100;
+                    return (
+                      <text
+                        x={Number(props.x) + Number(props.width) / 2}
+                        y={Number(props.y) - 6}
+                        textAnchor="middle"
+                        fontSize={8}
+                        fontWeight={600}
+                        fill={variation >= 0 ? CHART_PRIMARY : "#ef4444"}
+                      >
+                        {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                      </text>
+                    );
+                  }}
+                />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         ) : (

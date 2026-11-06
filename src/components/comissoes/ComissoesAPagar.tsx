@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Card, Carregando, Erro, Vazio } from './Estados'
 import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
-import { filtrosVazios, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
+import { filtrosVazios, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
 import { definirIncluirManualCharge, definirIncluirManualChargeEmLote, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
 import { descontoPct, podeEditarComissao, precisaValidar, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
@@ -20,6 +20,7 @@ interface GrupoParceiro {
 export default function ComissoesAPagar() {
   const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
   const parceiros = useParceiros()
+  const notas = useNotasParceiros()
   const { podePagar, podeValidar, podeEditar } = usePerfil()
   const { linhas, carregando, erro, recarregar } = useReservas(listarAPagar, filtros)
   const [estornos, setEstornos] = useState<Reserva[]>([])
@@ -220,6 +221,11 @@ export default function ComissoesAPagar() {
                             <span className="text-muted-foreground">{aberto ? '▾' : '▸'}</span>
                             {g.parceiro}
                           </button>
+                          {notas[g.parceiro] && (
+                            <div className="mt-1 whitespace-pre-line text-xs font-normal text-muted-foreground">
+                              <strong>Notas internas:</strong> {notas[g.parceiro]}
+                            </div>
+                          )}
                           {(() => {
                             const comMc = g.reservas.filter((r) => r.manual_charge > 0)
                             if (!comMc.length) return null
