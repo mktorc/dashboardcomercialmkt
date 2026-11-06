@@ -1,0 +1,33 @@
+name: Previsão de ocupação (Gestor de Precificação)
+
+on:
+  schedule:
+    # Uma vez por dia, 09:00 UTC (05:00 em Orlando): renova o cache do HQ e republica a previsão.
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: previsao-ocupacao
+  cancel-in-progress: false
+
+jobs:
+  previsao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install duckdb numpy
+      - name: Extrair reservas, frota e bloqueios do HQ (somente GET)
+        env:
+          HQ_BASE_URL: ${{ secrets.HQ_BASE_URL }}
+          HQ_TENANT_TOKEN: ${{ secrets.HQ_TENANT_TOKEN }}
+          HQ_USER_TOKEN: ${{ secrets.HQ_USER_TOKEN }}
+        run: python3 scripts/precificacao/extrair.py --inicio 2024-01-01 --fim 2028-12-31
+      - name: Calcular e publicar a previsão
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/precificacao/previsao.py --publicar
