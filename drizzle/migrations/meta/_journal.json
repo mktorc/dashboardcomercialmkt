@@ -372,6 +372,13 @@
       "when": 1793469410753,
       "tag": "0052_validar_desconto_superadmin",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793469470753,
+      "tag": "0053_push_notifications",
+      "breakpoints": true
     }
   ]
 }

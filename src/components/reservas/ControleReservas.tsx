@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PeriodoPicker } from "@/components/PeriodoPicker";
 import { Input } from "@/components/ui/input";
+import { PushToggle } from "@/components/reservas/PushToggle";
 import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { supabase } from "@/integrations/supabase/client";
@@ -138,6 +139,7 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PeriodoPicker inicio={from} fim={to} className="h-9 w-auto min-w-52 !mt-0 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+          <PushToggle />
           <ManualSyncButton />
           {showBack ? (
             <Button asChild variant="outline" size="sm">

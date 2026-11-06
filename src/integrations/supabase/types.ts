@@ -74,6 +74,18 @@ export type Database = {
         }
         Relationships: []
       }
+      push_state: {
+        Row: { id: number; last_history_id: number }
+        Insert: { id: number; last_history_id?: number }
+        Update: { id?: number; last_history_id?: number }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: { auth: string; created_at: string; endpoint: string; id: number; p256dh: string }
+        Insert: { auth: string; created_at?: string; endpoint: string; id?: number; p256dh: string }
+        Update: { auth?: string; created_at?: string; endpoint?: string; id?: number; p256dh?: string }
+        Relationships: []
+      }
       crm_opportunities: {
         Row: {
           created_at: string

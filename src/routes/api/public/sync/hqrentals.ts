@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
+import { notifyReservationsOpened } from "@/lib/push.server";
 import { extractAdditionalChargesPrice, extractMiscellaneousPrice, normalizeStatus } from "@/lib/hq-charges";
 import { extractFleetVehicle, extractSegments, type FleetVehicleRow } from "@/lib/hq-segments";
 
@@ -198,6 +199,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         }
 
         await recordSyncRun("hqrentals");
+        await notifyReservationsOpened();
         return Response.json({ ok: true, synced: rows.length, segments: segments.length, fleet: fleetRows.size });
       },
     },

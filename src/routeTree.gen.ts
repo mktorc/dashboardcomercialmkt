@@ -25,6 +25,7 @@ import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
+import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
 import { Route as ApiPublicSyncCronRouteImport } from './routes/api/public/sync/cron'
@@ -118,6 +119,11 @@ const AppComissoesHistoricoRoute = AppComissoesHistoricoRouteImport.update({
   path: '/app/comissoes/historico',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPushSubscribeRoute = ApiPublicPushSubscribeRouteImport.update({
+  id: '/api/public/push/subscribe',
+  path: '/api/public/push/subscribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSyncClickmassaRoute = ApiPublicSyncClickmassaRouteImport.update({
   id: '/api/public/sync/clickmassa',
   path: '/api/public/sync/clickmassa',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/dashboard'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
     | '/api/public/sync/cron'
@@ -343,6 +355,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
+  ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
   ApiPublicSyncCronRoute: typeof ApiPublicSyncCronRoute
@@ -468,6 +481,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppComissoesHistoricoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/push/subscribe': {
+      id: '/api/public/push/subscribe'
+      path: '/api/public/push/subscribe'
+      fullPath: '/api/public/push/subscribe'
+      preLoaderRoute: typeof ApiPublicPushSubscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync/clickmassa': {
       id: '/api/public/sync/clickmassa'
       path: '/api/public/sync/clickmassa'
@@ -565,6 +585,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,
+  ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
     ApiPublicSyncClickmassaOpportunitiesRoute,
