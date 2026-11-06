@@ -1,38 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { supabase as typedClient } from "@/integrations/supabase/client";
-import { forecastTotal, type ForecastPayload } from "@/lib/pricing-forecast";
-
-// pricing_occupancy_forecast ainda não está em types.ts (gerado): cliente sem tipos, como em precificacao.tsx.
-const supabase = typedClient as unknown as SupabaseClient;
+import { forecastTotal, useForecast } from "@/lib/pricing-forecast";
 
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
-
-export function useForecast() {
-  return useQuery({
-    queryKey: ["pricing-occupancy-forecast"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pricing_occupancy_forecast")
-        .select("generated_at,payload")
-        .order("generated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data as { generated_at: string; payload: ForecastPayload } | null;
-    },
-  });
-}
-
-/** Data e hora da última publicação, no formato do "Última atualização" dos demais hubs. */
-export function formatLastUpdate(iso: string) {
-  const d = new Date(iso);
-  return `${d.toLocaleDateString("pt-BR")} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-}
 
 export function OcupacaoEsperada() {
   const q = useForecast();

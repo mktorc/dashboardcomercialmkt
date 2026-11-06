@@ -12,6 +12,7 @@ import {
   PrecificacaoSidebar,
   type PricingNavItem,
 } from "@/components/precificacao/PrecificacaoSidebar";
+import { formatLastUpdate, useForecast } from "@/lib/pricing-forecast";
 import { guardPricingPage } from "@/lib/roles";
 import { pricingTabDocument, splitPricingReport, type PricingTab } from "@/lib/pricing-report";
 
@@ -134,6 +135,7 @@ export function PricingHubView({
   const [aba, setAba] = useState<string | null>(null);
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
+  const forecast = useForecast();
   const [secao, setSecao] = useState<Section>("ocupacao");
 
   return (
@@ -141,15 +143,24 @@ export function PricingHubView({
       <PrecificacaoSidebar items={NAV} active={secao} onSelect={setSecao} />
       <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
-          className="border-b border-border px-4 py-4 sm:px-6 sm:py-5"
+          className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
           style={{ background: "var(--gradient-brand)" }}
         >
-          <h1 className="text-xl font-semibold text-foreground">Gestor de Precificação Dinâmico</h1>
-          <p className="text-sm text-foreground/70">
-            {secao === "estudo" && data
-              ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
-              : "Ocupação atual e esperada por categoria, data a data."}
-          </p>
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">
+              Gestor de Precificação Dinâmico
+            </h1>
+            <p className="text-sm text-foreground/70">
+              {secao === "estudo" && data
+                ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
+                : "Ocupação atual e esperada por categoria, data a data."}
+            </p>
+          </div>
+          {forecast.data ? (
+            <span className="text-xs text-foreground/60">
+              Última atualização: {formatLastUpdate(forecast.data.generated_at)}
+            </span>
+          ) : null}
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
           {secao === "ocupacao" ? (
