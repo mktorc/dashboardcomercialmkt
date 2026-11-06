@@ -181,6 +181,19 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
     [data, selectedDay],
   );
 
+  // Onboardings feitos por responsável, entre as reservas listadas (período e filtro de status atuais).
+  const onboardingsPorResponsavel = useMemo(() => {
+    const counts = new Map<string, number>(RESPONSAVEIS_ONBOARDING.map((r) => [r, 0]));
+    const vistas = new Set<string>();
+    data.forEach((c) => {
+      if (vistas.has(c.reservation_id)) return;
+      vistas.add(c.reservation_id);
+      const o = onboardingById.get(c.reservation_id);
+      if (o?.realizado && o.responsavel) counts.set(o.responsavel, (counts.get(o.responsavel) ?? 0) + 1);
+    });
+    return counts;
+  }, [data, onboardingById]);
+
   const total = data?.length ?? 0;
   const amount = (data ?? []).reduce((s, c) => s + (Number(c.info?.total_amount) || 0), 0);
 
@@ -221,6 +234,18 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
             help={"Soma do valor total atual das reservas que passaram de pending para open no período."}
             calc={isLoading ? undefined : `${total.toLocaleString("pt-BR")} reservas somando ${brl(amount)}${total ? ` → ${brl(amount / total)} por reserva` : ""}`}
             footer="Soma do valor total atual das reservas" />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          {RESPONSAVEIS_ONBOARDING.map((nome) => {
+            const feitos = onboardingsPorResponsavel.get(nome) ?? 0;
+            return (
+              <KpiCard key={nome} icon={CalendarCheck} label={`Onboardings feitos: ${nome}`} value={isLoading ? "—" : feitos.toLocaleString("pt-BR")}
+                help={`Reservas do período (e do filtro de status atual) com onboarding realizado por ${nome}.`}
+                calc={isLoading ? undefined : `${feitos.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")} reservas listadas`}
+                footer={`De ${total.toLocaleString("pt-BR")} reservas listadas`} />
+            );
+          })}
         </div>
 
         <Card className="p-5">
