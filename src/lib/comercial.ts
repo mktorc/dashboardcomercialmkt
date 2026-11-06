@@ -16,6 +16,31 @@ export type COpp = {
   total_tasks: number | null;
   created_at: string;
 };
+// Origens que NÃO são agência de viagem: a aba Operacional só considera oportunidades vindas delas.
+const NON_AGENCY_ORIGIN_NAMES = [
+  "meta ads", "google ads", "camp.hispana", "turistorlando", "viajando barato para orlando", "alex veiga",
+  "victoria salvalaggio", "gabi blanck", "theodoro", "talu concept", "natalia souza", "redirectbox",
+  "master vacation", "indicacao", "cliente recorrente", "instagram",
+];
+// Comparação sem acento, caixa, espaço ou pontuação ("@ViajandobaratoparaOrlando" = "Viajando barato para Orlando").
+const originKey = (v: string | null | undefined) =>
+  (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const NON_AGENCY_ORIGINS = new Set(NON_AGENCY_ORIGIN_NAMES.map(originKey));
+export const isNonAgencyOrigin = (origin: string | null | undefined) => NON_AGENCY_ORIGINS.has(originKey(origin));
+
+/** lead_id → origem do lead (apenas leads com origem preenchida). */
+export async function fetchLeadOrigins(): Promise<Map<string, string>> {
+  const { data, error } = await fetchAll((a, b) =>
+    supabase.from("crm_leads").select("lead_id, lead_origin").not("lead_origin", "is", null).order("lead_id").range(a, b),
+  );
+  if (error) throw error;
+  return new Map((data as { lead_id: string; lead_origin: string }[]).map((l) => [l.lead_id, l.lead_origin]));
+}
+
+/** Mantém só oportunidades cujo lead tem origem fora de agência de viagem. */
+export const keepNonAgencyOpps = <T extends { lead_id: string | null }>(opps: T[], origins: Map<string, string>) =>
+  opps.filter((o) => !!o.lead_id && isNonAgencyOrigin(origins.get(o.lead_id)));
+
 export const DIRECT_SALE_LABEL = "Venda Direta / Site";
 export type CRes = {
   created_at: string;
@@ -303,6 +328,15 @@ export function filterOperationalData(data: ComercialData): ComercialData {
       opportunities: (data.prevData.opportunities as { seller_name: string | null }[])
         .filter((row) => isOperationalSeller(row.seller_name)),
     },
+  };
+}
+
+export function filterNonAgencyData(data: ComercialData, origins: Map<string, string>): ComercialData {
+  return {
+    ...data,
+    opportunities: keepNonAgencyOpps(data.opportunities, origins),
+    yearOpportunities: keepNonAgencyOpps(data.yearOpportunities, origins),
+    prevData: { ...data.prevData, opportunities: keepNonAgencyOpps(data.prevData.opportunities as COpp[], origins) },
   };
 }
 

@@ -51,6 +51,9 @@ import {
   filterOperationalData,
   fetchComercial,
   fetchActiveOpportunities,
+  fetchLeadOrigins,
+  filterNonAgencyData,
+  keepNonAgencyOpps,
   saveGoals,
   sellerKey,
   type SellerRow,
@@ -120,7 +123,14 @@ export function ComercialPage({
     queryFn: () => fetchComercial(from, to),
   });
   const { data: activeOppsData } = useQuery({ queryKey: ["comercial", "active-opportunities"], queryFn: fetchActiveOpportunities });
-  const teamData = useMemo(() => data ? filterOperationalData(data) : null, [data]);
+  const operational = active === "comercial-operacional";
+  // Aba Operacional: só oportunidades de origens que não são agência de viagem.
+  const { data: leadOrigins } = useQuery({ queryKey: ["comercial", "lead-origins"], queryFn: fetchLeadOrigins, enabled: operational });
+  const teamData = useMemo(() => {
+    if (!data) return null;
+    const base = filterOperationalData(data);
+    return operational && leadOrigins ? filterNonAgencyData(base, leadOrigins) : base;
+  }, [data, operational, leadOrigins]);
   const view = useMemo(() => teamData
     ? computeComercial(
         { ...teamData, goals: teamData.goals.filter((g) => !isGeneralGoal(g)) },
@@ -162,6 +172,7 @@ export function ComercialPage({
     .filter((r) => r.key !== "sem_vendedor" && r.key !== "venda_direta" && (r.oportunidades > 0 || r.reservas > 0))
     .sort((a, b) => b.oportunidades - a.oportunidades);
   const activeOpps = activeOppsData ?? [];
+  const chartActiveOpps = operational && leadOrigins ? keepNonAgencyOpps(activeOpps, leadOrigins) : activeOpps;
   const noTaskMap = new Map<string, { name: string; noTask: number }>();
   activeOpps.filter((o) => o.total_tasks === 0 && o.seller_name?.trim()).forEach((o) => {
     const k = sellerKey(o.seller_name);
@@ -175,11 +186,11 @@ export function ComercialPage({
     .map((o) => ({ ...o, owner: o.seller_name!.trim() }));
   const noTaskRows = [...noTaskMap.values()].sort((a, b) => b.noTask - a.noTask);
   // Sem vendedor = oportunidades sem nenhum responsável atribuído (campo vazio), de todos os períodos.
-  const noSellerOpportunities = activeOpps
+  const noSellerOpportunities = chartActiveOpps
     .filter((o) => !o.seller_name?.trim())
     .sort((x, y) => y.created_at.localeCompare(x.created_at));
   const allTimeOpportunityRows: { name: string; oportunidades: number; reservas: number; key: string; selectKey?: string }[] = [
-    ...computeOpportunityTotalsBySeller(activeOpps.filter((o) => o.seller_name?.trim())),
+    ...computeOpportunityTotalsBySeller(chartActiveOpps.filter((o) => o.seller_name?.trim())),
     ...(noSellerOpportunities.length
       ? [{ key: "__none", name: "Sem vendedor", oportunidades: noSellerOpportunities.length, reservas: 0, selectKey: "__none" }]
       : []),
@@ -594,6 +605,25 @@ function MonthlyBarChart({
   );
 }
 
+/** Rótulo ao lado da barra, com a mesma fonte e cor do gráfico de Receita provisionada. */
+const barSideLabel = (texts: string[]) => (props: { x?: number | string | undefined; y?: number | string | undefined; width?: number | string | undefined; height?: number | string | undefined; index?: number | undefined }) => {
+  const text = texts[props.index ?? -1];
+  if (!text) return null;
+  return (
+    <text
+      x={Number(props.x) + Number(props.width) + 6}
+      y={Number(props.y) + Number(props.height) / 2}
+      dominantBaseline="central"
+      fontSize={11}
+      fontWeight={600}
+      fill="currentColor"
+      className="text-foreground"
+    >
+      {text}
+    </text>
+  );
+};
+
 function OpportunitySellerChart({
   data,
   height,
@@ -610,8 +640,10 @@ function OpportunitySellerChart({
   compare?: boolean;
   expandable?: boolean;
 }) {
+  const totalOpps = data.reduce((sum, row) => sum + row.oportunidades, 0);
   const chartData = data.map((row) => ({
     ...row,
+    sharePct: totalOpps ? pct(row.oportunidades / totalOpps) : "—",
     reservasPct: row.oportunidades && row.selectKey !== "__none" ? pct(row.reservas / row.oportunidades) : "—",
   }));
   return (
@@ -622,22 +654,39 @@ function OpportunitySellerChart({
       render={(expanded) => data.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 56, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} tickFormatter={axisName} {...axis} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                content={({ active, payload }) => {
+                  const row = active ? payload?.[0]?.payload as (typeof chartData)[number] | undefined : undefined;
+                  if (!row) return null;
+                  return (
+                    <div style={tooltipStyle} className="px-3 py-2 text-sm">
+                      <div className="font-medium">{row.name}</div>
+                      <div>Oportunidades: {row.oportunidades.toLocaleString("pt-BR")}</div>
+                      <div>% do total de oportunidades: {row.sharePct}</div>
+                      {compare ? <div>Reservas concluídas: {row.reservas.toLocaleString("pt-BR")}</div> : null}
+                      {compare ? <div>Taxa de conversão: {row.reservasPct}</div> : null}
+                    </div>
+                  );
+                }}
+              />
               <Bar
                 dataKey="oportunidades"
                 name="Oportunidades"
                 fill={compare ? "#44E500" : "#2f9c5a"}
                 radius={[0, 4, 4, 0]}
                 {...(onSelect ? { cursor: "pointer", onClick: (entry: { payload?: { name: string; selectKey?: string } }) => entry.payload && onSelect(entry.payload.selectKey ?? entry.payload.name) } : {})}
-              />
+              >
+                <LabelList dataKey="sharePct" content={barSideLabel(chartData.map((r) => r.sharePct))} />
+              </Bar>
               {compare ? (
                 <Bar dataKey="reservas" name="Reservas concluídas" fill="#2f9c5a" radius={[0, 4, 4, 0]}
                   {...(onSelect ? { cursor: "pointer", onClick: (entry: { payload?: { name: string; selectKey?: string } }) => entry.payload && onSelect(entry.payload.selectKey ?? entry.payload.name) } : {})}>
-                  <LabelList dataKey="reservasPct" position="right" formatter={(value: string) => value} />
+                  <LabelList dataKey="reservasPct" content={barSideLabel(chartData.map((r) => r.reservasPct))} />
                 </Bar>
               ) : null}
             </BarChart>
@@ -661,6 +710,11 @@ function NoTaskBySellerChart({
   height: number;
   expandable?: boolean;
 }) {
+  const total = data.reduce((sum, row) => sum + row.noTask, 0);
+  const chartData = data.map((row) => ({
+    ...row,
+    sharePct: total ? pct(row.noTask / total) : "—",
+  }));
   return (
     <ExpandableChartPanel
       title="Oportunidades sem tarefas por vendedor"
@@ -669,12 +723,27 @@ function NoTaskBySellerChart({
       render={(expanded) => data.length ? (
         <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 0, bottom: 8 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 10, right: 56, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
               <XAxis type="number" {...axis} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={sellerAxisWidth(data)} tickFormatter={axisName} {...axis} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => value.toLocaleString("pt-BR")} />
-              <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                content={({ active, payload }) => {
+                  const row = active ? payload?.[0]?.payload as (typeof chartData)[number] | undefined : undefined;
+                  if (!row) return null;
+                  return (
+                    <div style={tooltipStyle} className="px-3 py-2 text-sm">
+                      <div className="font-medium">{row.name}</div>
+                      <div>Sem tarefas: {row.noTask.toLocaleString("pt-BR")}</div>
+                      <div>% do total sem tarefas: {row.sharePct}</div>
+                    </div>
+                  );
+                }}
+              />
+              <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]}>
+                <LabelList dataKey="sharePct" content={barSideLabel(chartData.map((r) => r.sharePct))} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
