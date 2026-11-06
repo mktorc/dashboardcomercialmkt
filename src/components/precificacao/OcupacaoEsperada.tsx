@@ -12,8 +12,8 @@ const supabase = typedClient as unknown as SupabaseClient;
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
-export function OcupacaoEsperada() {
-  const q = useQuery({
+export function useForecast() {
+  return useQuery({
     queryKey: ["pricing-occupancy-forecast"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -26,6 +26,16 @@ export function OcupacaoEsperada() {
       return data as { generated_at: string; payload: ForecastPayload } | null;
     },
   });
+}
+
+/** Data e hora da última publicação, no formato do "Última atualização" dos demais hubs. */
+export function formatLastUpdate(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("pt-BR")} às ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+export function OcupacaoEsperada() {
+  const q = useForecast();
   const payload = q.data?.payload ?? null;
   const [date, setDate] = useState("");
   const min = payload ? payload.linhas[0]?.d : undefined;
