@@ -422,7 +422,7 @@ export function ComercialPage({
               <MonthlyBarChart title="Faturamento mensal" data={monthlyKpis} dataKey="faturamento" valueName="Faturamento" formatter={brl} currencyAxis comparisonKey="yearAgoRevenue" />
               <MonthlyBarChart title="Reservas mensais" data={monthlyKpis} dataKey="reservas" valueName="Reservas" formatter={(value) => value.toLocaleString("pt-BR")} integerAxis comparisonKey="yearAgoReservations" />
               <MonthlyBarChart title="Ticket médio mensal" data={monthlyKpis} dataKey="ticket" valueName="Ticket médio" formatter={brl} currencyAxis comparisonKey="yearAgoTicket" />
-              <MonthlyBarChart title="Desconto médio mensal" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" />
+              <MonthlyBarChart title="Desconto médio mensal" data={monthlyKpis} dataKey="descontoPct" valueName="Desconto médio" formatter={pct} percentageAxis comparisonKey="yearAgoDiscount" lowerIsBetter />
             </section>
           ) : null}
 
@@ -566,6 +566,7 @@ function MonthlyBarChart({
   currencyAxis = false,
   integerAxis = false,
   percentageAxis = false,
+  lowerIsBetter = false,
 }: {
   title: string;
   data: object[];
@@ -577,6 +578,8 @@ function MonthlyBarChart({
   currencyAxis?: boolean;
   integerAxis?: boolean;
   percentageAxis?: boolean;
+  /** Variação negativa em relação ao ano anterior é positiva (ex.: desconto). */
+  lowerIsBetter?: boolean;
 }) {
   return (
     <ExpandableChartPanel
@@ -585,7 +588,7 @@ function MonthlyBarChart({
       render={(expanded) => (
       <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : 284, minHeight: 0 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
+          <BarChart data={data} margin={{ top: 22, right: 24, left: 0, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey={dataKey === "rate" ? "label" : "mes"} interval={0} minTickGap={8} {...axis} />
             <YAxis
@@ -596,7 +599,33 @@ function MonthlyBarChart({
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number, name: string) => [formatter(value), name]} />
               {comparisonKey ? <Legend /> : null}
               {comparisonKey ? <Bar dataKey={comparisonKey} name={comparisonName} fill="#2f9c5a" radius={[4, 4, 0, 0]} /> : null}
-              <Bar dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]} />
+              <Bar dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]}>
+                {comparisonKey ? (
+                  <LabelList
+                    dataKey={dataKey}
+                    content={(props) => {
+                      const row = (data as Record<string, unknown>[])[props.index ?? -1];
+                      const prev = Number(row?.[comparisonKey]);
+                      const curr = Number(row?.[dataKey]);
+                      if (!row || !Number.isFinite(prev) || !(prev > 0) || !Number.isFinite(curr)) return null;
+                      const variation = ((curr - prev) / prev) * 100;
+                      const good = lowerIsBetter ? variation <= 0 : variation >= 0;
+                      return (
+                        <text
+                          x={Number(props.x) + Number(props.width) / 2}
+                          y={Number(props.y) - 6}
+                          textAnchor="middle"
+                          fontSize={11}
+                          fontWeight={600}
+                          fill={good ? "#44E500" : "#ef4444"}
+                        >
+                          {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                        </text>
+                      );
+                    }}
+                  />
+                ) : null}
+              </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
