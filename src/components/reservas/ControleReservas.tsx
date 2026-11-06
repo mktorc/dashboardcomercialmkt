@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarCheck, Maximize2, Minimize2, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,12 @@ type ReservationInfo = {
   created_at: string;
   status: string | null;
 };
+
+const RESPONSAVEIS_ONBOARDING = ["Vinicius", "Lizie"] as const;
+type Onboarding = { reservation_id: string; realizado: boolean; responsavel: string | null };
+
+// A tabela reservation_onboarding não está nos tipos gerados do Supabase.
+const onboardingTable = () => (supabase as unknown as { from: (t: string) => any }).from("reservation_onboarding");
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendente",
@@ -77,6 +83,50 @@ async function fetchPendingToOpen(from: string, to: string) {
   return changes.map((c) => ({ ...c, info: info.get(c.reservation_id) }));
 }
 
+/** Colunas de onboarding: checkbox "realizado" e responsável (só habilitado com onboarding realizado). */
+function OnboardingCells({
+  reservationId, onboarding, canEdit, className,
+}: { reservationId: string; onboarding: Onboarding | undefined; canEdit: boolean; className: string }) {
+  const queryClient = useQueryClient();
+  const realizado = onboarding?.realizado ?? false;
+  const salvar = useMutation({
+    mutationFn: async (next: { realizado: boolean; responsavel: string | null }) => {
+      const { error } = await onboardingTable().upsert(
+        { reservation_id: reservationId, ...next, updated_at: new Date().toISOString() },
+        { onConflict: "reservation_id" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reservas-onboarding"] }),
+  });
+  return (
+    <>
+      <td className={className}>
+        <input
+          type="checkbox"
+          aria-label={`Onboarding realizado da reserva ${reservationId}`}
+          checked={realizado}
+          disabled={!canEdit || salvar.isPending}
+          // desmarcar limpa o responsável
+          onChange={(e) => salvar.mutate({ realizado: e.target.checked, responsavel: e.target.checked ? onboarding?.responsavel ?? null : null })}
+        />
+      </td>
+      <td className={className}>
+        <select
+          aria-label={`Responsável pelo onboarding da reserva ${reservationId}`}
+          className="rounded-md border border-input bg-background px-2 py-1 text-sm disabled:opacity-50"
+          value={onboarding?.responsavel ?? ""}
+          disabled={!canEdit || !realizado || salvar.isPending}
+          onChange={(e) => salvar.mutate({ realizado: true, responsavel: e.target.value || null })}
+        >
+          <option value="">—</option>
+          {RESPONSAVEIS_ONBOARDING.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </td>
+    </>
+  );
+}
+
 export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const today = new Date();
   const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
@@ -86,6 +136,16 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const [search, setSearch] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const canEditOnboarding = true; // edição pública, como a página
+  const { data: onboardingList } = useQuery({
+    queryKey: ["reservas-onboarding"],
+    queryFn: async () => {
+      const res = await fetchAll((a, b) => onboardingTable().select("reservation_id, realizado, responsavel").order("reservation_id").range(a, b));
+      if (res.error) throw res.error;
+      return res.data as Onboarding[];
+    },
+  });
+  const onboardingById = useMemo(() => new Map((onboardingList ?? []).map((o) => [o.reservation_id, o])), [onboardingList]);
   const { data: allChanges, isLoading, error } = useQuery({
     queryKey: ["reservas-pending-open", from, to],
     queryFn: () => fetchPendingToOpen(from, to),
@@ -218,6 +278,8 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                       <th className="px-3 py-2 text-left">Vendedor</th>
                       <th className="px-3 py-2 text-left">Criada em</th>
                       <th className="py-2 text-right">Valor</th>
+                      <th className="px-3 py-2 text-left">Onboarding realizado</th>
+                      <th className="px-3 py-2 text-left">Responsável</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -229,10 +291,11 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                         <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
                         <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
                         <td className="py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
+                        <OnboardingCells reservationId={c.reservation_id} onboarding={onboardingById.get(c.reservation_id)} canEdit={canEditOnboarding} className="px-3 py-2" />
                       </tr>
                     ))}
                     {!dayList.length ? (
-                      <tr><td colSpan={6} className="py-6 text-center text-muted-foreground">Nenhuma reserva virou open nesse dia.</td></tr>
+                      <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">Nenhuma reserva virou open nesse dia.</td></tr>
                     ) : null}
                   </tbody>
                 </table>
@@ -277,6 +340,8 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   <th className="px-3 py-2 text-left">Vendedor</th>
                   <th className="px-3 py-2 text-left">Criada em</th>
                   <th className="px-5 py-2 text-right">Valor</th>
+                  <th className="px-3 py-2 text-left">Onboarding realizado</th>
+                  <th className="px-3 py-2 text-left">Responsável</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,10 +354,11 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                     <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
                     <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
                     <td className="px-5 py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
+                    <OnboardingCells reservationId={c.reservation_id} onboarding={onboardingById.get(c.reservation_id)} canEdit={canEditOnboarding} className="px-3 py-2" />
                   </tr>
                 ))}
                 {!isLoading && !tableRows.length ? (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">{query ? "Nenhuma reserva encontrada para essa busca." : "Nenhuma reserva mudou de pending para open no período."}</td></tr>
+                  <tr><td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">{query ? "Nenhuma reserva encontrada para essa busca." : "Nenhuma reserva mudou de pending para open no período."}</td></tr>
                 ) : null}
               </tbody>
             </table>

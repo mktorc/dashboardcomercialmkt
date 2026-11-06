@@ -393,6 +393,13 @@
       "when": 1793469590753,
       "tag": "0055_commission_partners",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793469650753,
+      "tag": "0056_reservation_onboarding",
+      "breakpoints": true
     }
   ]
 }
