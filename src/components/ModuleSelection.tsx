@@ -40,8 +40,8 @@ const RESERVAS_MODULE = {
 const PRICING_MODULE = {
   to: "/precificacao",
   icon: LineChart,
-  title: "Estudo de Precificação",
-  description: "Ocupação, antecedência e preço por categoria e sazonalidade. Acesso restrito.",
+  title: "Gestor de Precificação Dinâmico",
+  description: "Ocupação atual e esperada por categoria, data a data. Acesso restrito.",
   cta: "Acessar Precificação",
 } as const;
 

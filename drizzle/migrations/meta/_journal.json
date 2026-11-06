@@ -379,6 +379,13 @@
       "when": 1793469470753,
       "tag": "0053_push_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793469530753,
+      "tag": "0054_pricing_occupancy_forecast",
+      "breakpoints": true
     }
   ]
 }

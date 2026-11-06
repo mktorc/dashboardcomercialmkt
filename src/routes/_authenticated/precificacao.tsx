@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ArrowLeft, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { CalendarRange, ChevronsDownUp, ChevronsUpDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
+import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
+import {
+  PrecificacaoSidebar,
+  type PricingNavItem,
+} from "@/components/precificacao/PrecificacaoSidebar";
 import { guardPricingPage } from "@/lib/roles";
 import { pricingTabDocument, splitPricingReport, type PricingTab } from "@/lib/pricing-report";
 
@@ -16,7 +21,7 @@ const supabase = typedClient as unknown as SupabaseClient;
 export const Route = createFileRoute("/_authenticated/precificacao")({
   head: () => ({
     meta: [
-      { title: "Estudo de Precificação | Orlando Rent Car Analytics" },
+      { title: "Gestor de Precificação Dinâmico | Orlando Rent Car Analytics" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -24,7 +29,22 @@ export const Route = createFileRoute("/_authenticated/precificacao")({
   component: PricingHub,
 });
 
-export type Report = { id: string; generated_at: string; period_start: string; period_end: string; html: string };
+export type Report = {
+  id: string;
+  generated_at: string;
+  period_start: string;
+  period_end: string;
+  html: string;
+};
+
+// O estudo de precificação segue no código, mas fica oculto do menu até ser reativado aqui.
+const SHOW_ESTUDO = false;
+
+type Section = "ocupacao" | "estudo";
+const NAV: PricingNavItem<Section>[] = [
+  { key: "ocupacao", label: "Ocupação esperada", icon: CalendarRange },
+  ...(SHOW_ESTUDO ? [{ key: "estudo" as const, label: "Estudo", icon: FileText }] : []),
+];
 
 const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
@@ -92,62 +112,79 @@ function PricingHub() {
       return data as Report | null;
     },
   });
-  return <PricingHubView data={report.data ?? null} isLoading={report.isLoading} hasError={!!report.error} />;
+  return (
+    <PricingHubView
+      data={report.data ?? null}
+      isLoading={report.isLoading}
+      hasError={!!report.error}
+    />
+  );
 }
 
-export function PricingHubView({ data, isLoading, hasError }: { data: Report | null; isLoading: boolean; hasError: boolean }) {
+export function PricingHubView({
+  data,
+  isLoading,
+  hasError,
+}: {
+  data: Report | null;
+  isLoading: boolean;
+  hasError: boolean;
+}) {
   const parsed = useMemo(() => (data ? splitPricingReport(data.html) : null), [data]);
   const [aba, setAba] = useState<string | null>(null);
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
-  return (
-    <div className="min-h-screen bg-background">
-      <header
-        className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-4 sm:px-6"
-        style={{ background: "var(--gradient-brand)" }}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-9 shrink-0 rounded-lg object-cover" />
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">Estudo de Precificação</h1>
-            <p className="text-sm text-foreground/70">
-              Ocupação, antecedência e preço (HQ Rentals).
-              {data ? ` Período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.` : null}
-            </p>
-          </div>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/app">
-            <ArrowLeft className="mr-1 size-4" /> Módulos
-          </Link>
-        </Button>
-      </header>
+  const [secao, setSecao] = useState<Section>("ocupacao");
 
-      <main className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
-        {isLoading ? (
-          <Card className="p-6 text-sm text-muted-foreground">Carregando relatório…</Card>
-        ) : hasError ? (
-          <Card className="p-6 text-sm text-destructive">Não foi possível carregar o relatório.</Card>
-        ) : !parsed || parsed.tabs.length === 0 ? (
-          <Card className="p-6 text-sm text-muted-foreground">
-            Nenhum relatório publicado ainda. Rode o comando publicar em scripts/precificacao.
-          </Card>
-        ) : (
-          <Tabs value={ativa} onValueChange={setAba} className="space-y-4">
-            <TabsList className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto [&>*]:shrink-0">
-              {parsed.tabs.map((t) => (
-                <TabsTrigger key={t.id} value={t.id}>
-                  {t.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            {parsed.tabs.map((t) => (
-              <TabsContent key={t.id} value={t.id} className="mt-0">
-                <TabFrame css={parsed.css} tab={t} />
-              </TabsContent>
-            ))}
-          </Tabs>
-        )}
+  return (
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
+      <PrecificacaoSidebar items={NAV} active={secao} onSelect={setSecao} />
+      <main className="min-w-0 flex-1 overflow-x-hidden">
+        <header
+          className="border-b border-border px-4 py-4 sm:px-6 sm:py-5"
+          style={{ background: "var(--gradient-brand)" }}
+        >
+          <h1 className="text-xl font-semibold text-foreground">Gestor de Precificação Dinâmico</h1>
+          <p className="text-sm text-foreground/70">
+            {secao === "estudo" && data
+              ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
+              : "Ocupação atual e esperada por categoria, data a data."}
+          </p>
+        </header>
+        <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
+          {secao === "ocupacao" ? (
+            <OcupacaoEsperada />
+          ) : (
+            <>
+              {isLoading ? (
+                <Card className="p-6 text-sm text-muted-foreground">Carregando relatório…</Card>
+              ) : hasError ? (
+                <Card className="p-6 text-sm text-destructive">
+                  Não foi possível carregar o relatório.
+                </Card>
+              ) : !parsed || parsed.tabs.length === 0 ? (
+                <Card className="p-6 text-sm text-muted-foreground">
+                  Nenhum relatório publicado ainda. Rode o comando publicar em scripts/precificacao.
+                </Card>
+              ) : (
+                <Tabs value={ativa} onValueChange={setAba} className="space-y-4">
+                  <TabsList className="h-auto w-full flex-nowrap justify-start gap-1 overflow-x-auto [&>*]:shrink-0">
+                    {parsed.tabs.map((t) => (
+                      <TabsTrigger key={t.id} value={t.id}>
+                        {t.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {parsed.tabs.map((t) => (
+                    <TabsContent key={t.id} value={t.id} className="mt-0">
+                      <TabFrame css={parsed.css} tab={t} />
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              )}
+            </>
+          )}
+        </div>
       </main>
     </div>
   );

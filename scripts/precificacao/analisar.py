@@ -19,6 +19,11 @@ DB = Path("data/precificacao/hq_cache.duckdb")
 OUT = Path("data/precificacao/relatorio")
 INI = date(2024, 1, 1)
 LIMIAR_OCIOSO, LIMIAR_ESGOTADO, N_MIN = 0.40, 0.95, 30
+STATUS = "('completed','open','rental')"  # concluídas + confirmadas em aberto/em andamento; canceladas, orçamentos e pendentes ficam de fora
+CAT_INATIVAS = "(1, 7)"  # categorias desativadas: fora da frota e das vendas
+CUSTO_SEGURO_MES = 89.0  # US$ por carro por mês
+TAXA_DEPREC, TAXA_JUROS = 0.125, 0.101  # ao ano, sobre o valor do carro
+VALOR_VEICULO = {}  # categoria -> valor do carro em US$ (o HQ não traz); vazio = custo de capital mostrado por US$ 10 mil de valor
 FROTA_MIN = 3  # categoria com frota média menor que isso não entra em conclusões (1 veículo vendido 4 vezes = 400%)
 SAZ = ["Altíssima", "Alta", "Média", "Baixa", "Baixíssima"]
 BINS_ANT = [("0–3", 0, 3), ("4–7", 4, 7), ("8–14", 8, 14), ("15–30", 15, 30), ("31–60", 31, 60), ("61–90", 61, 90), ("90+", 91, 10_000)]
@@ -117,13 +122,14 @@ def preparar(con, fim):
       SELECT v.id, v.chave, v.categoria_id, coalesce(v.data_compra, v.data_entrada) AS entrada, v.data_saida AS saida,
              v.data_compra IS NULL AS entrada_alternativa
       FROM veiculos v
-      WHERE try_cast(v.chave AS INT) BETWEEN 1 AND 125 AND coalesce(v.data_compra, v.data_entrada) IS NOT NULL
+      WHERE try_cast(v.chave AS INT) BETWEEN 1 AND 125 AND v.categoria_id NOT IN (1, 7) AND coalesce(v.data_compra, v.data_entrada) IS NOT NULL
         AND coalesce(v.data_compra, v.data_entrada) <= DATE '{fim}' AND (v.data_saida IS NULL OR v.data_saida > DATE '{ini}')""")
     con.execute("DROP TABLE IF EXISTS frota_dia_categoria")
     con.execute(f"""CREATE TABLE frota_dia_categoria AS
       SELECT c.data, v.categoria_id, count(*) AS frota FROM dim_calendario c
       JOIN frota_valida v ON v.entrada <= c.data AND (v.saida IS NULL OR c.data < v.saida)
-      WHERE c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""")
+      WHERE NOT EXISTS(SELECT 1 FROM bloqueios b WHERE b.veiculo_id = v.id AND CAST(b.inicio AS DATE) <= c.data AND c.data <= CAST(b.fim AS DATE))
+        AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""")
     con.execute("DROP TABLE IF EXISTS reservas_flags")
     con.execute("""CREATE TABLE reservas_flags AS
       SELECT r.id,
@@ -134,10 +140,10 @@ def preparar(con, fim):
         r.dias <> greatest(1, ceil(epoch(r.devolucao - r.retirada) / 86400.0)) AS dias_divergente,
         coalesce(r.rack_total, 0) <= 0 AS rack_zero,
         NOT EXISTS(SELECT 1 FROM reserva_veiculos rv WHERE rv.reserva_id = r.id) AS sem_veiculo
-      FROM reservas r WHERE r.status = 'completed'""")
+      FROM reservas r WHERE r.status IN ('completed','open','rental') AND r.categoria_id NOT IN (1, 7)""")
     con.execute("DROP TABLE IF EXISTS diarias")
     con.execute(f"""CREATE TABLE diarias AS
-      WITH e AS (SELECT r.*, unnest(range(greatest(r.dias, 1))) AS k FROM reservas r WHERE r.status = 'completed')
+      WITH e AS (SELECT r.*, unnest(range(greatest(r.dias, 1))) AS k FROM reservas r WHERE r.status IN {STATUS} AND r.categoria_id NOT IN {CAT_INATIVAS})
       SELECT e.id AS reserva_id, e.categoria_id, coalesce(cat.nome, 'Categoria ' || e.categoria_id || ' (sem nome)') AS categoria,
         CAST(e.retirada AS DATE) + CAST(e.k AS INT) AS data,
         date_diff('day', CAST(e.criada_em AS DATE), CAST(e.retirada AS DATE) + CAST(e.k AS INT)) AS antecedencia,
@@ -187,18 +193,18 @@ def forca(rho):
 
 def sec_resumo(R, fim):
     q = R.q
-    n_res = q("SELECT count(*) FROM reservas WHERE status='completed' AND retirada::date BETWEEN ? AND ?", INI, fim)[0][0]
+    n_res = q("SELECT count(*) FROM reservas WHERE status IN " + STATUS + " AND categoria_id NOT IN " + CAT_INATIVAS + " AND retirada::date BETWEEN ? AND ?", INI, fim)[0][0]
     n_dia, preco_f, preco_b = q("SELECT count(*), avg(preco_final), avg(preco_base) FROM diarias")[0]
     ocup = q("SELECT sum(diarias_vendidas)::DOUBLE / sum(frota) FROM base_diaria")[0][0]
     frota_m = q("SELECT avg(frota) FROM base_diaria_total")[0][0]
-    h = kpis([("Reservas concluídas", num(n_res)), ("Diárias vendidas", num(n_dia)), ("Ocupação média", pct(ocup)),
+    h = kpis([("Reservas (concluídas, em andamento e abertas)", num(n_res)), ("Diárias vendidas", num(n_dia)), ("Ocupação média", pct(ocup)),
               ("Frota média (carros ativos)", num(frota_m, 1)), ("Preço médio pago por diária", usd(preco_f)), ("Preço médio antes do desconto", usd(preco_b))])
     corte, hoje, andamento = R.corte
     if corte:
         h += nota(f"<b>O período termina em {fim.strftime('%d/%m/%Y')}.</b> Há aluguéis ainda em andamento (o primeiro começou em {andamento.strftime('%d/%m/%Y')}). "
                   f"Como só entram reservas concluídas, incluir as semanas até hoje ({hoje.strftime('%d/%m/%Y')}) faria a ocupação parecer menor do que é.", "alerta")
-    h += nota(f"<b>O que está sendo medido.</b> Diárias de {INI.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}, só reservas concluídas, em dólar. "
-              "Frota = carros de chave 001 a 125 ativos em cada dia. Preço pago = valor da diária já com desconto (o “rack”). "
+    h += nota(f"<b>O que está sendo medido.</b> Diárias de {INI.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}, reservas concluídas, em andamento (rental) e confirmadas em aberto (open), em dólar; canceladas ficam de fora, assim como as categorias 1 e 7 (inativas). "
+              "Frota = carros de chave 001 a 125 ativos em cada dia, sem os dias de bloqueio cadastrados no HQ. Preço pago = valor da diária já com desconto (o “rack”). "
               "Preço antes do desconto = preço pago + desconto. Ocupação = diárias vendidas ÷ carros disponíveis.")
     top = q("""SELECT sazonalidade, categoria, avg(ocupacao) o FROM base_diaria GROUP BY 1,2 HAVING count(*) >= ? AND avg(frota) >= ? ORDER BY o DESC LIMIT 3""", N_MIN, FROTA_MIN)
     low = q("""SELECT sazonalidade, categoria, avg(ocupacao) o FROM base_diaria GROUP BY 1,2 HAVING count(*) >= ? AND avg(frota) >= ? ORDER BY o LIMIT 3""", N_MIN, FROTA_MIN)
@@ -376,7 +382,7 @@ def sec_preco(R):
 
     h += sub("20. A diária gravada muda dentro da mesma temporada do HQ?", "A API não mostra as tarifas de 2024 a 2026 (só a temporada base e um calendário diário de 2027), então não dá para comparar com a tabela da época. "
              "Aqui vemos quanto a diária gravada varia dentro da mesma temporada do HQ e categoria. Muita variação sugere preço alterado depois, ou faixas por duração.")
-    rows = q("""WITH x AS (SELECT d.season_id, r.categoria_id, round(d.diaria, 2) diaria, count(*) n FROM rack_detalhes d JOIN reservas r ON r.id = d.reserva_id AND r.status = 'completed'
+    rows = q("""WITH x AS (SELECT d.season_id, r.categoria_id, round(d.diaria, 2) diaria, count(*) n FROM rack_detalhes d JOIN reservas r ON r.id = d.reserva_id AND r.status IN ('completed','open','rental') AND r.categoria_id NOT IN (1, 7)
                             WHERE d.diaria > 0 GROUP BY 1, 2, 3),
                      m AS (SELECT season_id, categoria_id, sum(n) tot, max(n) moda_n, arg_max(diaria, n) moda, min(diaria) mn, max(diaria) mx FROM x GROUP BY 1, 2)
                 SELECT coalesce(t.nome, 'Temporada ' || m.season_id) nome, coalesce(c.nome, 'Categoria ' || m.categoria_id), m.tot, m.moda, m.moda_n::DOUBLE / m.tot, m.mn, m.mx
@@ -517,13 +523,23 @@ def sec_limitacoes(R):
         "<b>Preço da data da compra.</b> O valor gravado na reserva foi criado, em geral, uns 34 dias depois dela. Não dá para garantir que seja o preço que valia no dia da compra.",
         "<b>Tarifas da API.</b> A API só mostra a tarifa da temporada base e um calendário diário de 2027. Não há tarifas de 2024 a 2026, e muitas temporadas antigas foram editadas em 19/03/2026 sem histórico. Por isso o preço histórico de tabela não é recuperável.",
         "<b>Preço antes do desconto = preço pago + desconto.</b> É uma definição de negócio: mede o preço antes do desconto na reserva, não a tarifa de tabela do dia da compra.",
-        "<b>Frota.</b> Frota do dia = carros de chave 001 a 125 com data de compra até o dia e sem saída anterior. A API não informa carros parados em oficina ou bloqueados.",
+        "<b>Frota.</b> Frota do dia = carros de chave 001 a 125 com data de compra até o dia e sem saída anterior, menos os dias de bloqueio cadastrados no HQ (vehicles → blocked periods). Chaves 126–129, 220–223 e 999 não operam e ficam de fora; categorias 1 e 7 são inativas e também.",
+        "<b>Luxury.</b> Tem frota só futura, sem dados: não entra nas conclusões.",
+        "<b>Reservas confirmadas ainda não concluídas.</b> Open e rental entram como diárias vendidas; se forem canceladas depois, a ocupação das últimas semanas cai um pouco.",
         "<b>Diárias do HQ.</b> Usamos o total de diárias do HQ, que em parte das reservas difere da contagem por data e hora.",
         "<b>Upgrades e carros fora da faixa.</b> A venda conta na categoria reservada; diárias com carro de chave fora de 001–125 ficam marcadas.",
         "<b>Preços de hoje em diante.</b> O registro diário de tarifas começou em 29/10/2026; só cobre dados a partir dessa data.",
         "<b>Chave 091.</b> Não existe na API.",
     ]
-    R.secoes.append(("limitacoes", "Limitações dos dados", "<ul>" + "".join(f"<li>{i}</li>" for i in itens) + "</ul>"))
+    respostas = [
+        ("Degrau de 5% no preço", "Vem de desconto direto de influenciadores, não é ajuste do sistema."),
+        ("Quem decide 10%, 15% ou 20%", "O comercial tem meta de 10% de desconto médio e pode chegar a 15% nas negociações; 20% passa do limite."),
+        ("Queda de 33% da Mini Van (jul–set/2026)", "Efeito da Copa do Mundo: criou um pico e, depois, um vale. Como é a categoria mais relevante, sofreu mais."),
+        ("Carros em oficina", "Há registro de bloqueios no HQ; passam a ser descontados da frota."),
+        ("Custo por carro", "Depreciação 12,5% a.a., juros 10,1% a.a. (custo de capital médio) e seguro de US$ 89 por mês. Falta o valor de cada carro para converter em dólares."),
+    ]
+    itens_r = "".join(f"<li><b>{a}.</b> {b}</li>" for a, b in respostas)
+    R.secoes.append(("limitacoes", "Limitações dos dados", "<ul>" + "".join(f"<li>{i}</li>" for i in itens) + f"</ul><h4>Perguntas respondidas pelo time</h4><ul>{itens_r}</ul>"))
 
 
 ANALISES = Path(__file__).parent / "analises"
@@ -555,14 +571,13 @@ def com_analise(id_, html, fim):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fim", default=None, help="padrão: dia anterior à primeira reserva em andamento (status rental)")
+    ap.add_argument("--fim", default=None, help="padrão: ontem")
     a = ap.parse_args()
     con = duckdb.connect(str(DB))
     R = Rel(con)
     hoje = date.today()
-    andamento = con.execute("SELECT min(CAST(retirada AS DATE)) FROM reservas WHERE status = 'rental' AND retirada >= TIMESTAMP '2024-01-01'").fetchone()[0]
-    fim = date.fromisoformat(a.fim) if a.fim else (min(hoje, andamento - timedelta(days=1)) if andamento else hoje)
-    R.corte = (fim < hoje, hoje, andamento)
+    fim = date.fromisoformat(a.fim) if a.fim else hoje - timedelta(days=1)
+    R.corte = (False, hoje, None)
     preparar(con, fim)
     sec_resumo(R, fim)
     sec_ocupacao(R)

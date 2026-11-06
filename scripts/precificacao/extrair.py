@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS reserva_veiculos(reserva_id BIGINT, veiculo_id INT, r
 CREATE TABLE IF NOT EXISTS rack_detalhes(reserva_id BIGINT, season_id INT, dias INT, diaria DOUBLE, inicio TIMESTAMP, fim TIMESTAMP, criado_em TIMESTAMP);
 CREATE TABLE IF NOT EXISTS veiculos(id INT PRIMARY KEY, chave VARCHAR, categoria_id INT, data_compra DATE, data_saida DATE, status VARCHAR, na_lista BOOLEAN, data_entrada DATE);
 ALTER TABLE veiculos ADD COLUMN IF NOT EXISTS data_entrada DATE;
+CREATE TABLE IF NOT EXISTS bloqueios(id INT PRIMARY KEY, veiculo_id INT, inicio TIMESTAMP, fim TIMESTAMP, descricao VARCHAR);
 CREATE TABLE IF NOT EXISTS categorias(id INT PRIMARY KEY, nome VARCHAR, ativa BOOLEAN);
 CREATE TABLE IF NOT EXISTS temporadas(id INT PRIMARY KEY, nome VARCHAR, inicio DATE, fim DATE, versao INT, atualizada_em TIMESTAMP);
 CREATE TABLE IF NOT EXISTS tarifas_atuais(id INT PRIMARY KEY, season_id INT, categoria_id INT, diaria DOUBLE, semanal DOUBLE, mensal DOUBLE, versao INT);
@@ -99,6 +100,16 @@ def frota(con, hq):
             data_entrada=dt(v.get("vehicle_entry_date")))], ["id"])
 
 
+def bloqueios(con, hq):
+    """Períodos de bloqueio (oficina, indisponível) dos veículos de chave 001–125, de fleets/vehicles/{id}/blocked-periods."""
+    ids = [r[0] for r in con.execute("SELECT id FROM veiculos WHERE try_cast(chave AS INT) BETWEEN 1 AND 125").fetchall()]
+    for vid in ids:
+        j = hq.get(f"fleets/vehicles/{vid}/blocked-periods?limit=500") or {}
+        for b in j.get("blocked_periods") or []:
+            upsert(con, "bloqueios", [dict(id=b["id"], veiculo_id=vid, inicio=ts(b["start_date"].replace(" ", "T")), fim=ts(b["end_date"].replace(" ", "T")),
+                descricao=(b.get("description") or "")[:200])], ["id"])
+
+
 def categorias_tarifas(con, hq, com_tarifas=False):
     for c in hq.get("fleets/vehicle-classes?limit=100")["fleets_vehicle_classes"]:
         upsert(con, "categorias", [dict(id=c["id"], nome=c["name"], ativa=c["active"])], ["id"])
@@ -142,7 +153,7 @@ def snapshot(con, hq):
 
 def calendario(con):
     con.execute("DELETE FROM dim_calendario")
-    for d, s, r in tabela(date(2024, 1, 1), date(2026, 12, 31)):
+    for d, s, r in tabela(date(2024, 1, 1), date(2028, 12, 31)):
         con.execute("INSERT INTO dim_calendario VALUES (?,?,?)", [d, s, r])
 
 
@@ -166,8 +177,11 @@ if __name__ == "__main__":
     print("Frota...", flush=True)
     frota(con, hq)
     if a.so_frota:
-        print("Frota atualizada.")
+        bloqueios(con, hq)
+        print("Frota e bloqueios atualizados.")
         raise SystemExit(0)
+    print("Bloqueios...", flush=True)
+    bloqueios(con, hq)
     print("Categorias e temporadas...", flush=True)
     categorias_tarifas(con, hq, a.tarifas)
     print("Reservas...", flush=True)
