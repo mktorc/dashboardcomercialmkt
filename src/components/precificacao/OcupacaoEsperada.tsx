@@ -71,7 +71,12 @@ export function OcupacaoEsperada() {
                 <th className="p-3 text-right">Diárias vendidas</th>
                 <th className="p-3 text-right">Ocupação hoje</th>
                 <th className="p-3 text-right">Ocupação esperada</th>
-                <th className="p-3 text-right">Faixa (25%–75%)</th>
+                <th
+                  className="p-3 text-right"
+                  title="Pessimista: só 1 em cada 4 datas parecidas do passado ficou abaixo. Otimista: só 1 em cada 4 ficou acima."
+                >
+                  Cenário (pessimista – otimista)
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -111,6 +116,12 @@ export function OcupacaoEsperada() {
         Esperada = ocupação de hoje + quanto, em média, a ocupação de datas passadas da mesma
         categoria e sazonalidade cresceu entre esta antecedência e o dia. Passe o mouse na linha
         para ver quantas datas passadas sustentam o número.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Cenário pessimista – otimista: em datas parecidas do passado, só 1 em cada 4 ficou abaixo do
+        pessimista e só 1 em cada 4 ficou acima do otimista; o esperado fica no meio. Faixa estreita
+        indica histórico consistente; faixa larga, previsão menos firme (comum em categorias com
+        poucos carros). Não é garantia.
       </p>
     </div>
   );
