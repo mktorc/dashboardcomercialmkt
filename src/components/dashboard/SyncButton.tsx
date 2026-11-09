@@ -24,8 +24,9 @@ function format(iso: string) {
   return `${date} às ${time}`;
 }
 
-export function SyncButton() {
-  const run = useServerFn(syncAll);
+/** `fn` troca o conjunto de syncs disparado (padrão: todos); a precificação usa só HQ e Rate Calendar. */
+export function SyncButton({ fn = syncAll }: { fn?: typeof syncAll } = {}) {
+  const run = useServerFn(fn);
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
   const [last, setLast] = useState<string | null>(readStored);

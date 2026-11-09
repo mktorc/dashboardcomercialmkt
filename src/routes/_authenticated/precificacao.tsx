@@ -11,6 +11,8 @@ import {
   Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SyncButton } from "@/components/dashboard/SyncButton";
+import { syncPricing } from "@/lib/sync-all.functions";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
@@ -21,7 +23,6 @@ import {
   PrecificacaoSidebar,
   type PricingNavItem,
 } from "@/components/precificacao/PrecificacaoSidebar";
-import { formatLastUpdate, useForecast } from "@/lib/pricing-forecast";
 import { guardPricingPage } from "@/lib/roles";
 import { pricingTabDocument, splitPricingReport, type PricingTab } from "@/lib/pricing-report";
 
@@ -150,7 +151,6 @@ export function PricingHubView({
   const [aba, setAba] = useState<string | null>(null);
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
-  const forecast = useForecast();
   const [secao, setSecao] = useState<Section>(SHOW_OCUPACAO_ESPERADA ? "ocupacao" : "gestao");
 
   return (
@@ -175,11 +175,7 @@ export function PricingHubView({
                     : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
-          {forecast.data ? (
-            <span className="text-xs text-foreground/60">
-              Última atualização: {formatLastUpdate(forecast.data.generated_at)}
-            </span>
-          ) : null}
+          <SyncButton fn={syncPricing} />
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
           {secao === "ocupacao" ? (
