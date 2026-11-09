@@ -31,5 +31,39 @@ class T(unittest.TestCase):
         self.assertEqual(C.num("39,00"), 39.0)
 
 
+ALLY = """All SUV Truck Sedan Van/Minivan Available Vehicle Classes
+Tesla Y
+
+All-electric SUV with instant acceleration.
+
+ SUV  5 Seats  4-5 Suitcases
+$100,00 / day
+$700,00 total for 7 Days
+Excl. taxes
+Continue
+Chevrolet Suburban
+
+Extra-large SUV.
+
+ SUV  8+ Seats  6+ Suitcases
+$1.180,00 / day
+$1.260,00 total for 7 Days
+Excl. taxes
+Continue
+Summary
+Total $0,00"""
+
+
+class Ally(unittest.TestCase):
+    def test_le_modelo_tipo_e_precos(self):
+        r = C.parse_ally(ALLY)
+        self.assertEqual([x["categoria"] for x in r], ["Tesla Y", "Chevrolet Suburban"])
+        self.assertEqual((r[0]["diaria"], r[0]["total"], r[0]["dias"], r[0]["tipo"]), (100.0, 700.0, 7, "SUV 5 Seats 4-5 Suitcases"))
+        self.assertEqual(r[1]["total"], 1260.0)
+
+    def test_resumo_sem_preco_fica_fora(self):
+        self.assertEqual(C.parse_ally("Available Vehicle Classes\nSummary\nTotal $0,00"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

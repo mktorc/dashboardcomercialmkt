@@ -62,12 +62,21 @@ export function comparable(s: Snapshot, now: string, currency: string, maxAgeDay
   return Date.parse(now) - Date.parse(s.collectedAt) <= maxAgeDays * 86400000;
 }
 
-/** Última coleta de cada concorrente (nunca preço antigo no lugar do atual). */
+/**
+ * Uma coleta por concorrente: a mais recente e, se vários modelos dele caem na mesma categoria nossa nessa coleta,
+ * o de menor diária (a oferta mais barata comparável). Nunca preço antigo no lugar do atual.
+ */
 export function latestPerCompetitor(rows: Snapshot[]): Snapshot[] {
+  const latest = new Map<string, string>();
+  for (const r of rows) {
+    const cur = latest.get(r.competitor);
+    if (!cur || r.collectedAt > cur) latest.set(r.competitor, r.collectedAt);
+  }
   const by = new Map<string, Snapshot>();
   for (const r of rows) {
+    if (r.collectedAt !== latest.get(r.competitor)) continue;
     const cur = by.get(r.competitor);
-    if (!cur || r.collectedAt > cur.collectedAt) by.set(r.competitor, r);
+    if (!cur || (dailyOf(r) ?? Infinity) < (dailyOf(cur) ?? Infinity)) by.set(r.competitor, r);
   }
   return [...by.values()];
 }

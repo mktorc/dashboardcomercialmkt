@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install playwright && playwright install --with-deps chromium
-      - run: python scripts/precificacao/coletor.py up --gravar
+      - run: python scripts/precificacao/coletor.py todos --gravar
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

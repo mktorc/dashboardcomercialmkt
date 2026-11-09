@@ -29,5 +29,15 @@
     "PREÇO COMPACTO": null,
     "VAN 12 LUG": "Van 12 Seats",
     "MINIVAN PREÇO ECONOMICO": null
+  },
+  "Allycar": {
+    "Tesla Y": null,
+    "Mitsubishi Outlander": "Fullsize Suv",
+    "Hyundai Palisade": "Fullsize Suv",
+    "Toyota Grand Highlander": "Fullsize Suv",
+    "Toyota Sienna": "Mini Van 8 Seats",
+    "Chevrolet Suburban": "SUV Executive 8 Seats",
+    "GMC Yukon XL": null,
+    "Cadillac Escalade": "Luxury"
   }
 }

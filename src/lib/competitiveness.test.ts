@@ -52,6 +52,12 @@ describe("competitividade", () => {
     expect(latestPerCompetitor(rows)).toHaveLength(1);
     expect(marketOf(rows, NOW, "USD").median).toBe(120);
   });
+  it("vários modelos do mesmo concorrente na mesma categoria: usa o mais barato, uma vez", () => {
+    const rows = [snap("A", 120), snap("A", 100), snap("A", 140), snap("B", 200)];
+    const used = latestPerCompetitor(rows);
+    expect(used).toHaveLength(2);
+    expect(marketOf(rows, NOW, "USD").median).toBe(150); // A=100, B=200
+  });
   it("mercado: mediana, extremos e confiabilidade", () => {
     const m = marketOf([snap("A", 100), snap("B", 200), snap("C", 150)], NOW, "USD");
     expect(m).toMatchObject({ n: 3, median: 150, mean: 150, min: 100, max: 200, reliable: true });
