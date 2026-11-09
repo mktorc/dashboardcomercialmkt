@@ -1,0 +1,33 @@
+{
+  "_ajuda": "Categoria do concorrente -> uma das nossas (Midsize Suv, Midsize Sedan, Mini Van 8 Seats, Fullsize Suv, SUV Executive 7 Seats, SUV Executive 8 Seats, Van 12 Seats, Luxury). null = não mapeada: a coleta é guardada mas não entra em nenhuma comparação.",
+  "UP Rent a Car": {
+    "COMPACTO": null,
+    "SEDAN SIMPLES": "Midsize Sedan",
+    "SEDAN FULL SIZE": null,
+    "HYBRID": null,
+    "SUV SMALL": null,
+    "SUV MEDIUM": "Midsize Suv",
+    "SUV LARGE": null,
+    "SUV X LARGE": "SUV Executive 7 Seats",
+    "SUV XX LARGE": "SUV Executive 8 Seats",
+    "SUV LUXO": null,
+    "SUV PREMIUM": "Fullsize Suv",
+    "SUV - JEEP WRANGLER": null,
+    "SEDAN PREMIUM": null,
+    "SUV MASERATI": null,
+    "SUV - PORSCHE CAYENNE": null,
+    "GOLF GTI MANUAL": null,
+    "CORVETTE C8": null,
+    "DODGE CHALLENGER": null,
+    "CONVERSÍVEL MUSTANG": null,
+    "TESLA MODEL 3": null,
+    "TESLA MODEL Y": null,
+    "PACIFICA 7 LUG": null,
+    "MINIVAN 8 LUG SIMPLES": null,
+    "MINI VAN 8 LUG PREMIUM": "Mini Van 8 Seats",
+    "CAMINHONETE": null,
+    "PREÇO COMPACTO": null,
+    "VAN 12 LUG": "Van 12 Seats",
+    "MINIVAN PREÇO ECONOMICO": null
+  }
+}
