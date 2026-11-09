@@ -91,6 +91,7 @@ export const Route = createFileRoute("/api/public/sync/hq-rates")({
               .select("pickup_date,category,daily_rate,currency")
               .eq("source", "hq_rate_calendar")
               .order("collected_at", { ascending: false })
+              .order("id")
               .range(from, from + 999);
             if (error) throw error;
             const page = (data ?? []) as unknown as {

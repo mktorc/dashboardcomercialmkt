@@ -9,10 +9,12 @@ const JOBS = [
   { name: "HQ Rentals", path: "/api/public/sync/hqrentals?days=7" },
 ] as const;
 
-// Precificação: reservas do HQ (alimentam a ocupação) e o Rate Calendar (nossa tarifa de tabela).
+// Precificação: reservas do HQ (alimentam a ocupação), Rate Calendar (nossa tarifa de tabela) e coleta dos concorrentes.
 const PRICING_JOBS = [
   { name: "HQ Rentals", path: "/api/public/sync/hqrentals?days=7" },
   { name: "HQ Rate Calendar", path: "/api/public/sync/hq-rates" },
+  // Só pede o início: a coleta roda no GitHub Actions e leva alguns minutos.
+  { name: "Coleta de concorrentes", path: "/api/public/sync/coleta-concorrentes" },
 ] as const;
 
 export type SyncFailure = {

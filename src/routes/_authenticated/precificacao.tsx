@@ -24,6 +24,7 @@ import {
   type PricingNavItem,
 } from "@/components/precificacao/PrecificacaoSidebar";
 import { guardPricingPage } from "@/lib/roles";
+import { defaultRange, todayIso, type Range } from "@/lib/pricing-range";
 import { pricingTabDocument, splitPricingReport, type PricingTab } from "@/lib/pricing-report";
 
 // A tabela pricing_study_report ainda não está em types.ts (gerado): usa o cliente sem tipos, como em lib/comissoes.
@@ -151,6 +152,8 @@ export function PricingHubView({
   const [aba, setAba] = useState<string | null>(null);
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
+  // Período de retirada compartilhado entre Gestão de Ocupação e Competitividade.
+  const [range, setRange] = useState<Range>(() => defaultRange(todayIso()));
   const [secao, setSecao] = useState<Section>(SHOW_OCUPACAO_ESPERADA ? "ocupacao" : "gestao");
 
   return (
@@ -181,9 +184,9 @@ export function PricingHubView({
           {secao === "ocupacao" ? (
             <OcupacaoEsperada />
           ) : secao === "gestao" ? (
-            <GestaoOcupacao />
+            <GestaoOcupacao range={range} onRangeChange={setRange} />
           ) : secao === "competitividade" ? (
-            <Competitividade />
+            <Competitividade range={range} onRangeChange={setRange} />
           ) : (
             <>
               {isLoading ? (

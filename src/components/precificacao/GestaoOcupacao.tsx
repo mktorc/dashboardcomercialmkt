@@ -21,6 +21,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
+import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -106,19 +108,13 @@ const LEVEL: Record<GapLevel, { card: string; text: string; label: string }> = {
   },
 };
 
-const monthStart = (iso: string) => `${iso.slice(0, 7)}-01`;
-function monthEnd(iso: string) {
-  const d = new Date(`${monthStart(iso)}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + 1, 0);
-  return d.toISOString().slice(0, 10);
-}
-const addMonths = (iso: string, n: number) => {
-  const d = new Date(`${monthStart(iso)}T00:00:00Z`);
-  d.setUTCMonth(d.getUTCMonth() + n, 1);
-  return d.toISOString().slice(0, 10);
-};
-
-export function GestaoOcupacao() {
+export function GestaoOcupacao({
+  range,
+  onRangeChange,
+}: {
+  range: Range;
+  onRangeChange: (r: Range) => void;
+}) {
   const q = usePace();
   if (q.isLoading)
     return <Card className="p-6 text-sm text-muted-foreground">Carregando ocupação…</Card>;
@@ -141,12 +137,19 @@ export function GestaoOcupacao() {
         para atualizar.
       </Card>
     );
-  return <Painel payload={q.data.payload} />;
+  return <Painel payload={q.data.payload} range={range} onRangeChange={onRangeChange} />;
 }
 
-function Painel({ payload }: { payload: PacePayload }) {
-  const [from, setFrom] = useState(monthStart(payload.hoje));
-  const [to, setTo] = useState(monthEnd(payload.hoje));
+function Painel({
+  payload,
+  range,
+  onRangeChange,
+}: {
+  payload: PacePayload;
+  range: Range;
+  onRangeChange: (r: Range) => void;
+}) {
+  const { from, to } = range;
   const [cat, setCat] = useState(ALL);
   const [base, setBaseRaw] = useState(payload.hoje);
   const [bands, setBands] = useState<GapBands>(DEFAULT_BANDS);
@@ -165,10 +168,7 @@ function Painel({ payload }: { payload: PacePayload }) {
   const outOfRange = from < payload.de || to > payload.ate;
 
   const setRange = (a: string, b: string) => {
-    if (a && b && a <= b) {
-      setFrom(a);
-      setTo(b);
-    }
+    if (a && b && a <= b) onRangeChange({ from: a, to: b });
   };
   const fullMonth = from === monthStart(from) && to === monthEnd(from);
   const shift = (dir: 1 | -1) => {
@@ -182,110 +182,48 @@ function Painel({ payload }: { payload: PacePayload }) {
   return (
     <div className="space-y-4">
       <Card className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
-        <Field label="Mês">
-          <Input
-            type="month"
-            value={from.slice(0, 7)}
-            onChange={(e) =>
-              e.target.value && setRange(`${e.target.value}-01`, monthEnd(`${e.target.value}-01`))
-            }
-            className="w-40"
-          />
-        </Field>
-        <Field label="De">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => setRange(e.target.value, to < e.target.value ? e.target.value : to)}
-            className="w-40"
-          />
-        </Field>
-        <Field label="Até">
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) =>
-              setRange(from > e.target.value ? e.target.value : from, e.target.value)
-            }
-            className="w-40"
-          />
-        </Field>
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRange(monthStart(payload.hoje), monthEnd(payload.hoje))}
-          >
-            Mês atual
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const m = addMonths(payload.hoje, 1);
-              setRange(m, monthEnd(m));
-            }}
-          >
-            Próximo mês
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRange(payload.hoje, addDays(payload.hoje, 29))}
-          >
-            Próximos 30 dias
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRange(payload.hoje, addDays(payload.hoje, 59))}
-          >
-            Próximos 60 dias
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setRange(payload.hoje, addDays(payload.hoje, 89))}
-          >
-            Próximos 90 dias
-          </Button>
-        </div>
-        <Field label="Categoria">
-          <Select value={cat} onValueChange={setCat}>
-            <SelectTrigger className="w-52">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>Todas as categorias</SelectItem>
-              {payload.categorias.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Data-base da análise">
-          <div className="flex gap-1">
-            <Input
-              type="date"
-              value={base}
-              min={payload.de}
-              max={payload.hoje}
-              onChange={(e) => setBase(e.target.value)}
-              className="w-40"
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={base === payload.hoje}
-              onClick={() => setBase(payload.hoje)}
-            >
-              Hoje
-            </Button>
-          </div>
-        </Field>
-        <BandsConfig bands={bands} onChange={setBands} />
+        <PeriodFilter
+          from={from}
+          to={to}
+          onChange={setRange}
+          actions={<BandsConfig bands={bands} onChange={setBands} />}
+        >
+          <Field label="Categoria">
+            <Select value={cat} onValueChange={setCat}>
+              <SelectTrigger className="w-52">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Todas as categorias</SelectItem>
+                {payload.categorias.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Data-base da análise">
+            <div className="flex gap-1">
+              <Input
+                type="date"
+                value={base}
+                min={payload.de}
+                max={payload.hoje}
+                onChange={(e) => setBase(e.target.value)}
+                className="w-40"
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={base === payload.hoje}
+                onClick={() => setBase(payload.hoje)}
+              >
+                Hoje
+              </Button>
+            </div>
+          </Field>
+        </PeriodFilter>
       </Card>
 
       <p className="text-xs text-muted-foreground">

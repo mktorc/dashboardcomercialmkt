@@ -18,6 +18,9 @@ import {
   type OurRate,
 } from "@/lib/competitiveness";
 import { formatLastUpdate } from "@/lib/pricing-forecast";
+import { usePace } from "@/lib/occupancy-pace";
+import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
+import type { Range } from "@/lib/pricing-range";
 
 const ALL = "__all__";
 const money = (v: number | null, currency: string) =>
@@ -36,8 +39,15 @@ function ourRateFor(ours: Map<string, number>, s: SnapshotRow) {
   return ours.get(`${s.pickupAt.slice(0, 10)}|${s.category}`) ?? null;
 }
 
-export function Competitividade() {
+export function Competitividade({
+  range,
+  onRangeChange,
+}: {
+  range: Range;
+  onRangeChange: (r: Range) => void;
+}) {
   const snaps = useCompetitorSnapshots();
+  const pace = usePace();
   const rates = useOurRates();
   const [cat, setCat] = useState(ALL);
   const [comp, setComp] = useState(ALL);
@@ -75,17 +85,23 @@ export function Competitividade() {
       </Card>
     );
 
-  const categorias = [...new Set(rows.map((r) => r.category).filter(Boolean) as string[])].sort();
+  // Categorias do filtro: as nossas (lista publicada na Gestão de Ocupação; sem ela, as da nossa tarifa).
+  const categorias = [
+    ...(pace.data?.payload.categorias ?? [...new Set((rates.data ?? []).map((r) => r.category))]),
+  ].sort();
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
-  const filtered = rows.filter(
-    (r) => (cat === ALL || r.category === cat) && (comp === ALL || r.competitor === comp),
-  );
+  const mapped = rows.filter((r) => r.category);
+  const semMapa = rows.length - mapped.length;
+  const filtered = mapped.filter((r) => {
+    const d = r.pickupAt.slice(0, 10);
+    return (
+      d >= range.from &&
+      d <= range.to &&
+      (cat === ALL || r.category === cat) &&
+      (comp === ALL || r.competitor === comp)
+    );
+  });
   const now = new Date().toISOString();
-  const last =
-    filtered
-      .map((r) => r.collectedAt)
-      .sort()
-      .at(-1) ?? null;
 
   // Posicionamento: cada data de retirada e categoria é um mercado; contamos onde estamos acima/alinhado/abaixo.
   const groups = new Map<string, SnapshotRow[]>();
@@ -172,19 +188,41 @@ export function Competitividade() {
 
   return (
     <div className="space-y-4">
-      <Card className="flex flex-wrap items-end gap-3 p-4">
-        <Filtro label="Categoria" value={cat} onChange={setCat} options={categorias} all="Todas" />
-        <Filtro
-          label="Concorrente"
-          value={comp}
-          onChange={setComp}
-          options={concorrentes}
-          all="Todos"
-        />
-        <span className="ml-auto text-xs text-muted-foreground">
-          Última coleta: {last ? formatLastUpdate(last) : "—"}
-        </span>
+      <Card className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
+        <PeriodFilter
+          from={range.from}
+          to={range.to}
+          onChange={(from, to) => from && to && from <= to && onRangeChange({ from, to })}
+        >
+          <Filtro
+            label="Categoria"
+            value={cat}
+            onChange={setCat}
+            options={categorias}
+            all="Todas"
+          />
+          <Filtro
+            label="Concorrente"
+            value={comp}
+            onChange={setComp}
+            options={concorrentes}
+            all="Todos"
+          />
+        </PeriodFilter>
       </Card>
+
+      {filtered.length === 0 ? (
+        <Card className="p-3 text-sm text-muted-foreground">
+          Nenhuma coleta de concorrente para este período, categoria e concorrente. Ausência de
+          coleta não significa preço zero.
+        </Card>
+      ) : null}
+      {semMapa > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {semMapa} coletas de categorias dos concorrentes sem correspondência com as nossas ficam
+          ocultas (mapa em scripts/precificacao/mapa_categorias.json).
+        </p>
+      ) : null}
 
       {(rates.data ?? []).length === 0 ? (
         <Card className="p-3 text-sm text-muted-foreground">

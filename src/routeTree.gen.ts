@@ -28,6 +28,7 @@ import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoe
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
+import { Route as ApiPublicSyncColetaConcorrentesRouteImport } from './routes/api/public/sync/coleta-concorrentes'
 import { Route as ApiPublicSyncCronRouteImport } from './routes/api/public/sync/cron'
 import { Route as ApiPublicSyncGoogleAdsRouteImport } from './routes/api/public/sync/google-ads'
 import { Route as ApiPublicSyncHqRatesRouteImport } from './routes/api/public/sync/hq-rates'
@@ -136,6 +137,12 @@ const ApiPublicSyncClickmassaOpportunitiesRoute =
     path: '/api/public/sync/clickmassa-opportunities',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicSyncColetaConcorrentesRoute =
+  ApiPublicSyncColetaConcorrentesRouteImport.update({
+    id: '/api/public/sync/coleta-concorrentes',
+    path: '/api/public/sync/coleta-concorrentes',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicSyncCronRoute = ApiPublicSyncCronRouteImport.update({
   id: '/api/public/sync/cron',
   path: '/api/public/sync/cron',
@@ -199,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/coleta-concorrentes': typeof ApiPublicSyncColetaConcorrentesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hq-rates': typeof ApiPublicSyncHqRatesRoute
@@ -227,6 +235,7 @@ export interface FileRoutesByTo {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/coleta-concorrentes': typeof ApiPublicSyncColetaConcorrentesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hq-rates': typeof ApiPublicSyncHqRatesRoute
@@ -257,6 +266,7 @@ export interface FileRoutesById {
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  '/api/public/sync/coleta-concorrentes': typeof ApiPublicSyncColetaConcorrentesRoute
   '/api/public/sync/cron': typeof ApiPublicSyncCronRoute
   '/api/public/sync/google-ads': typeof ApiPublicSyncGoogleAdsRoute
   '/api/public/sync/hq-rates': typeof ApiPublicSyncHqRatesRoute
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/coleta-concorrentes'
     | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hq-rates'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/coleta-concorrentes'
     | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hq-rates'
@@ -344,6 +356,7 @@ export interface FileRouteTypes {
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
+    | '/api/public/sync/coleta-concorrentes'
     | '/api/public/sync/cron'
     | '/api/public/sync/google-ads'
     | '/api/public/sync/hq-rates'
@@ -370,6 +383,7 @@ export interface RootRouteChildren {
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
+  ApiPublicSyncColetaConcorrentesRoute: typeof ApiPublicSyncColetaConcorrentesRoute
   ApiPublicSyncCronRoute: typeof ApiPublicSyncCronRoute
   ApiPublicSyncGoogleAdsRoute: typeof ApiPublicSyncGoogleAdsRoute
   ApiPublicSyncHqRatesRoute: typeof ApiPublicSyncHqRatesRoute
@@ -515,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSyncClickmassaOpportunitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync/coleta-concorrentes': {
+      id: '/api/public/sync/coleta-concorrentes'
+      path: '/api/public/sync/coleta-concorrentes'
+      fullPath: '/api/public/sync/coleta-concorrentes'
+      preLoaderRoute: typeof ApiPublicSyncColetaConcorrentesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sync/cron': {
       id: '/api/public/sync/cron'
       path: '/api/public/sync/cron'
@@ -609,6 +630,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
     ApiPublicSyncClickmassaOpportunitiesRoute,
+  ApiPublicSyncColetaConcorrentesRoute: ApiPublicSyncColetaConcorrentesRoute,
   ApiPublicSyncCronRoute: ApiPublicSyncCronRoute,
   ApiPublicSyncGoogleAdsRoute: ApiPublicSyncGoogleAdsRoute,
   ApiPublicSyncHqRatesRoute: ApiPublicSyncHqRatesRoute,

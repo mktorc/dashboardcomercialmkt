@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: "0 9 * * *"
   workflow_dispatch:
+concurrency:
+  group: coleta-concorrentes
+  cancel-in-progress: false
 jobs:
   coletar:
     runs-on: ubuntu-latest

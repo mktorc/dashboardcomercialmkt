@@ -10,6 +10,7 @@ interface Props {
   fim: string
   onChange: (inicio: string, fim: string) => void
   className?: string
+  atalhos?: Atalho[] // padrão: ATALHOS
 }
 
 const iso = (d: Date) =>
@@ -36,7 +37,9 @@ const mesCheio = (delta: number): [Date, Date] => {
   return [new Date(h.getFullYear(), h.getMonth() + delta, 1), new Date(h.getFullYear(), h.getMonth() + delta + 1, 0)]
 }
 
-const ATALHOS: { label: string; faixa: () => [Date, Date] }[] = [
+export type Atalho = { label: string; faixa: () => [Date, Date] }
+
+const ATALHOS: Atalho[] = [
   { label: 'Hoje', faixa: () => [dia(0), dia(0)] },
   { label: 'Ontem', faixa: () => [dia(-1), dia(-1)] },
   { label: 'Últimos 7 dias', faixa: () => [dia(-6), dia(0)] },
@@ -49,7 +52,13 @@ const ATALHOS: { label: string; faixa: () => [Date, Date] }[] = [
   { label: 'Próximo mês', faixa: () => [mesCheio(1)[0], mesCheio(1)[1]] },
 ]
 
-export function PeriodoPicker({ inicio, fim, onChange, className = 'mt-1 w-full' }: Props) {
+// Atalhos da precificação: períodos de retirada à frente (mês atual e os próximos 30, 60, 90 e 120 dias)
+export const ATALHOS_PRECIFICACAO: Atalho[] = [
+  { label: 'Mês atual', faixa: () => mesCheio(0) },
+  ...[30, 60, 90, 120].map((n): Atalho => ({ label: `Próximos ${n} dias`, faixa: () => [dia(0), dia(n - 1)] })),
+]
+
+export function PeriodoPicker({ inicio, fim, onChange, className = 'mt-1 w-full', atalhos = ATALHOS }: Props) {
   const [aberto, setAberto] = useState(false)
   const selecionado: DateRange | undefined = inicio || fim ? { from: doIso(inicio), to: doIso(fim) } : undefined
   const texto = inicio || fim ? `${inicio ? br(inicio) : '…'} – ${fim ? br(fim) : '…'}` : 'Todo o período'
@@ -66,7 +75,7 @@ export function PeriodoPicker({ inicio, fim, onChange, className = 'mt-1 w-full'
       <PopoverContent align="start" collisionPadding={8} className="max-h-[85vh] w-[calc(100vw-1rem)] max-w-fit overflow-y-auto p-0">
         <div className="flex flex-col md:flex-row">
           <div className="grid grid-cols-2 gap-1 border-b border-border p-2 md:flex md:w-40 md:shrink-0 md:flex-col md:border-b-0 md:border-r">
-            {ATALHOS.map((a) => (
+            {atalhos.map((a) => (
               <button key={a.label} type="button"
                 onClick={() => {
                   const [i, f] = a.faixa()

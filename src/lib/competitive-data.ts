@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as typedClient } from "@/integrations/supabase/client";
+import { fetchAll } from "./fetch-all";
 import type { Equivalence, OurRate, Snapshot } from "./competitiveness";
 
 // Tabelas da migração 0058 ainda não estão em types.ts (gerado): cliente sem tipos, como em pricing-forecast.ts.
@@ -37,24 +38,31 @@ type RawSnapshot = {
   competitors: { name: string } | null;
 };
 
-const LIMIT = 5000;
+// O banco devolve no máximo 1.000 linhas por consulta: tudo é lido paginado (fetchAll), em ordem estável.
+// Coletas: só as dos últimos 30 dias (a referência de mercado usa coletas de até 7 dias).
+const JANELA_COLETAS_DIAS = 30;
 
 export function useCompetitorSnapshots() {
   return useQuery({
     queryKey: ["competitor-snapshots"],
     queryFn: async (): Promise<SnapshotRow[]> => {
-      const { data, error } = await supabase
-        .from("competitor_price_snapshots")
-        .select(
-          "id,source,source_url,location,normalized_category,source_category,collected_at,pickup_at,return_at,total_price,daily_price,currency,available,equivalence,protections,mileage,cancellation_policy,competitors(name)",
-        )
-        .order("collected_at", { ascending: false })
-        .limit(LIMIT);
+      const desde = new Date(Date.now() - JANELA_COLETAS_DIAS * 86400000).toISOString();
+      const { data, error } = await fetchAll((from, to) =>
+        supabase
+          .from("competitor_price_snapshots")
+          .select(
+            "id,source,source_url,location,normalized_category,source_category,collected_at,pickup_at,return_at,total_price,daily_price,currency,available,equivalence,protections,mileage,cancellation_policy,competitors(name)",
+          )
+          .gte("collected_at", desde)
+          .order("collected_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
       if (error) throw error;
       return ((data ?? []) as unknown as RawSnapshot[]).map((r) => ({
         id: r.id,
         competitor: r.competitors?.name ?? "—",
-        category: r.normalized_category ?? r.source_category,
+        category: r.normalized_category, // só categorias nossas: coleta sem categoria mapeada fica sem categoria e não entra na tela
         location: r.location,
         collectedAt: r.collected_at,
         pickupAt: r.pickup_at,
@@ -79,11 +87,14 @@ export function useOurRates() {
   return useQuery({
     queryKey: ["our-rate-snapshots"],
     queryFn: async (): Promise<OurRate[]> => {
-      const { data, error } = await supabase
-        .from("our_rate_snapshots")
-        .select("pickup_date,category,daily_rate,currency,collected_at")
-        .order("collected_at", { ascending: false })
-        .limit(LIMIT * 4);
+      const { data, error } = await fetchAll((from, to) =>
+        supabase
+          .from("our_rate_snapshots")
+          .select("pickup_date,category,daily_rate,currency,collected_at")
+          .order("collected_at", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
       if (error) throw error;
       const seen = new Set<string>();
       const out: OurRate[] = [];
