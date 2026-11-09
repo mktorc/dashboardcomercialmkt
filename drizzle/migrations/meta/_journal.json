@@ -400,6 +400,13 @@
       "when": 1793469650753,
       "tag": "0056_reservation_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793469710753,
+      "tag": "0057_pricing_occupancy_pace",
+      "breakpoints": true
     }
   ]
 }

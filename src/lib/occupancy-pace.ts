@@ -1,0 +1,283 @@
+import { useQuery } from "@tanstack/react-query";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { supabase as typedClient } from "@/integrations/supabase/client";
+
+// pricing_occupancy_pace ainda não está em types.ts (gerado): cliente sem tipos, como em pricing-forecast.ts.
+const supabase = typedClient as unknown as SupabaseClient;
+
+/** Uma data e categoria: carros disponíveis e a antecedência (dias entre a criação da reserva e a retirada) de cada diária vendida. */
+export type PaceRow = { d: string; c: string; f: number; a: number[] };
+export type PaceParams = {
+  n_evento: number;
+  n_dow: number;
+  n_saz: number;
+  estatistica: "media" | "mediana";
+};
+/** Calendário sazonal de cada data: [sazonalidade, evento móvel | null, posição relativa ao evento | null]. */
+export type PaceCal = Record<string, [string, string | null, number | null]>;
+export type PacePayload = {
+  versao: number;
+  gerado_em: string;
+  hoje: string;
+  de: string;
+  ate: string;
+  categorias: string[];
+  params: PaceParams;
+  cal: PaceCal;
+  linhas: PaceRow[];
+};
+
+/** Faixas do gap (pontos percentuais) que separam as cores. Configuráveis na tela. */
+export type GapBands = { strong: number; mild: number };
+export const DEFAULT_BANDS: GapBands = { strong: 15, mild: 5 };
+export type GapLevel = "muito-abaixo" | "abaixo" | "neutro" | "acima" | "muito-acima";
+
+export function gapLevel(gapPp: number, b: GapBands = DEFAULT_BANDS): GapLevel {
+  if (gapPp < -b.strong) return "muito-abaixo";
+  if (gapPp < -b.mild) return "abaixo";
+  if (gapPp <= b.mild) return "neutro";
+  if (gapPp <= b.strong) return "acima";
+  return "muito-acima";
+}
+
+export const EVENT_LABEL: Record<string, string> = {
+  carnaval: "Carnaval",
+  semana_santa: "Semana Santa",
+  corpus_christi: "Corpus Christi",
+};
+export type BenchLevel = "evento" | "dow" | "saz";
+export const BENCH_LEVEL_LABEL: Record<BenchLevel, string> = {
+  evento: "mesmo evento e mesma posição relativa",
+  dow: "mesma sazonalidade e dia da semana",
+  saz: "mesma sazonalidade (menor precisão: sem separar dia da semana)",
+};
+
+export function addDays(iso: string, n: number) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+export const daysBetween = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+
+/**
+ * Antecedência da data de retirada na data-base: retirada − data-base. Data já encerrada (retirada antes da base)
+ * não tem antecedência: é lida em D-0, a ocupação final.
+ */
+export function leadOf(date: string, base: string) {
+  const diff = daysBetween(base, date);
+  return { lead: Math.max(0, diff), closed: diff < 0 };
+}
+
+/** Diárias da linha vendidas quando faltavam L dias: criadas até T−L (antecedência ≥ L); D-0 = todas. */
+export const soldAt = (row: PaceRow, L: number) =>
+  L <= 0 ? row.a.length : row.a.reduce((n, x) => n + (x >= L ? 1 : 0), 0);
+/** Ocupação (0–1) da linha quando faltavam L dias. */
+export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
+
+/** Índice dos grupos comparáveis: evento (categoria, evento, posição) ou data comum (categoria, sazonalidade[, dia da semana]). */
+export type PaceModel = { payload: PacePayload; groups: Map<string, PaceRow[]> };
+const kEvento = (c: string, ev: string, rel: number) => `ev|${c}|${ev}|${rel}`;
+const kDow = (c: string, s: string, w: number) => `dow|${c}|${s}|${w}`;
+const kSaz = (c: string, s: string) => `saz|${c}|${s}`;
+
+export function buildModel(payload: PacePayload): PaceModel {
+  const groups = new Map<string, PaceRow[]>();
+  const push = (k: string, r: PaceRow) => {
+    const l = groups.get(k);
+    if (l) l.push(r);
+    else groups.set(k, [r]);
+  };
+  for (const r of payload.linhas) {
+    const cal = payload.cal[r.d];
+    if (!cal) continue;
+    const [s, ev, rel] = cal;
+    if (ev && rel != null) push(kEvento(r.c, ev, rel), r);
+    else {
+      push(kDow(r.c, s, weekday(r.d)), r);
+      push(kSaz(r.c, s), r);
+    }
+  }
+  return { payload, groups };
+}
+
+export type Benchmark = { value: number; n: number; level: BenchLevel };
+
+const central = (xs: number[], how: PaceParams["estatistica"]) => {
+  if (how === "media") return xs.reduce((s, x) => s + x, 0) / xs.length;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+};
+
+/**
+ * Benchmark histórico da linha na antecedência L, na data-base `base`:
+ *  1. data de evento móvel: mesmo evento e mesma posição relativa (só datas de evento; sem fallback para outro critério);
+ *  2. data comum: mesma sazonalidade e dia da semana; 3. mesma sazonalidade (datas de evento ficam de fora).
+ * Todos: mesma categoria, ocupação lida na mesma antecedência L, só datas encerradas antes da base (sem futuro) e
+ * nunca a própria data. Abaixo do mínimo de amostras, null: não se completa com ocupação final nem com outro evento.
+ */
+export function benchmarkFor(
+  model: PaceModel,
+  row: PaceRow,
+  L: number,
+  base: string,
+): Benchmark | null {
+  const { params, cal } = model.payload;
+  const info = cal[row.d];
+  if (!info) return null;
+  const [s, ev, rel] = info;
+  const steps: [string, number, BenchLevel][] =
+    ev && rel != null
+      ? [[kEvento(row.c, ev, rel), params.n_evento, "evento"]]
+      : [
+          [kDow(row.c, s, weekday(row.d)), params.n_dow, "dow"],
+          [kSaz(row.c, s), params.n_saz, "saz"],
+        ];
+  for (const [key, min, level] of steps) {
+    const xs: number[] = [];
+    for (const h of model.groups.get(key) ?? [])
+      if (h.d < base && h.d !== row.d) xs.push(occupancyAt(h, L));
+    if (xs.length >= min) return { value: central(xs, params.estatistica), n: xs.length, level };
+  }
+  return null;
+}
+
+/** Uma data (somando as categorias escolhidas) na antecedência efetiva da data-base. atual/esperada em 0–1; gap em p.p. */
+export type DayPace = {
+  date: string;
+  lead: number;
+  closed: boolean;
+  capacity: number;
+  booked: number | null;
+  atual: number | null;
+  esperada: number | null;
+  gap: number | null;
+  n: number;
+  level: BenchLevel | null;
+  event: string | null;
+  eventRel: number | null;
+  season: string | null;
+};
+
+const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+
+/**
+ * Atual e esperada vêm da mesma data de retirada, das mesmas categorias e da mesma antecedência (a da data-base, ou `L`
+ * na curva de pickup). Só há ocupação atual se a foto em L já existe na data-base (L ≥ antecedência efetiva).
+ * Esperada = benchmark ponderado pela frota; sem benchmark em alguma categoria, fica null (nada é completado).
+ */
+export function dayPace(
+  model: PaceModel,
+  rows: PaceRow[],
+  date: string,
+  base: string,
+  L?: number,
+): DayPace {
+  const { lead, closed } = leadOf(date, base);
+  const at = L ?? lead;
+  const info = model.payload.cal[date];
+  const capacity = sum(rows.map((r) => r.f));
+  const booked = rows.length > 0 && at >= lead ? sum(rows.map((r) => soldAt(r, at))) : null;
+  const bench = rows.map((r) => benchmarkFor(model, r, at, base));
+  const complete = rows.length > 0 && bench.every((b) => b != null);
+  const atual = booked != null && capacity ? booked / capacity : null;
+  const esperada =
+    complete && capacity ? sum(rows.map((r, i) => bench[i]!.value * r.f)) / capacity : null;
+  return {
+    date,
+    lead,
+    closed,
+    capacity,
+    booked,
+    atual,
+    esperada,
+    gap: atual != null && esperada != null ? (atual - esperada) * 100 : null,
+    n: complete ? Math.min(...bench.map((b) => b!.n)) : 0,
+    level: complete ? bench[0]!.level : null,
+    event: info?.[1] ?? null,
+    eventRel: info?.[2] ?? null,
+    season: info?.[0] ?? null,
+  };
+}
+
+export function rowsByDate(payload: PacePayload, categoria: string | null): Map<string, PaceRow[]> {
+  const m = new Map<string, PaceRow[]>();
+  for (const r of payload.linhas) {
+    if (categoria && r.c !== categoria) continue;
+    const list = m.get(r.d);
+    if (list) list.push(r);
+    else m.set(r.d, [r]);
+  }
+  return m;
+}
+
+export function dailySeries(
+  model: PaceModel,
+  byDate: Map<string, PaceRow[]>,
+  from: string,
+  to: string,
+  base: string,
+): DayPace[] {
+  const out: DayPace[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1))
+    out.push(dayPace(model, byDate.get(d) ?? [], d, base));
+  return out;
+}
+
+export type PaceSummary = {
+  atual: number | null;
+  esperada: number | null;
+  gap: number | null;
+  below: number;
+  above: number;
+  compared: number;
+};
+
+/** KPIs do período: médias só das datas com atual E esperada, para que atual, esperada, gap e contagens descrevam as mesmas datas do calendário. */
+export function summarize(days: DayPace[], bands: GapBands = DEFAULT_BANDS): PaceSummary {
+  const ok = days.filter((d) => d.atual != null && d.esperada != null);
+  if (!ok.length)
+    return { atual: null, esperada: null, gap: null, below: 0, above: 0, compared: 0 };
+  const atual = sum(ok.map((d) => d.atual!)) / ok.length;
+  const esperada = sum(ok.map((d) => d.esperada!)) / ok.length;
+  const lv = ok.map((d) => gapLevel(d.gap!, bands));
+  return {
+    atual,
+    esperada,
+    gap: (atual - esperada) * 100,
+    below: lv.filter((l) => l === "muito-abaixo" || l === "abaixo").length,
+    above: lv.filter((l) => l === "acima" || l === "muito-acima").length,
+    compared: ok.length,
+  };
+}
+
+/** Antecedências do eixo X da curva de pickup (a antecedência efetiva da data entra sempre). */
+export const CURVE_LEADS = [90, 60, 45, 30, 21, 15, 7, 3, 1, 0];
+
+/**
+ * Curva de pickup da data: benchmark em cada antecedência e ocupação observada só onde a foto já existe
+ * (antecedência ≥ a efetiva). Antecedências ainda não alcançadas ficam sem dado, sem interpolar nem prever.
+ */
+export function pickupCurve(model: PaceModel, rows: PaceRow[], date: string, base: string) {
+  const { lead } = leadOf(date, base);
+  const leads = [...new Set([...CURVE_LEADS, lead])].sort((a, b) => b - a);
+  return leads.map((L) => ({ ...dayPace(model, rows, date, base, L), L, effective: L === lead }));
+}
+
+export function usePace() {
+  return useQuery({
+    queryKey: ["pricing-occupancy-pace"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pricing_occupancy_pace")
+        .select("generated_at,payload")
+        .order("generated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { generated_at: string; payload: PacePayload } | null;
+    },
+  });
+}

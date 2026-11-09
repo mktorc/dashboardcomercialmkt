@@ -2,11 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { CalendarRange, ChevronsDownUp, ChevronsUpDown, FileText } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarRange,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  FileText,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
+import { GestaoOcupacao } from "@/components/precificacao/GestaoOcupacao";
 import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
 import {
   PrecificacaoSidebar,
@@ -41,9 +48,10 @@ export type Report = {
 // O estudo de precificação segue no código, mas fica oculto do menu até ser reativado aqui.
 const SHOW_ESTUDO = false;
 
-type Section = "ocupacao" | "estudo";
+type Section = "ocupacao" | "gestao" | "estudo";
 const NAV: PricingNavItem<Section>[] = [
   { key: "ocupacao", label: "Ocupação esperada", icon: CalendarRange },
+  { key: "gestao", label: "Gestão de Ocupação", icon: CalendarDays },
   ...(SHOW_ESTUDO ? [{ key: "estudo" as const, label: "Estudo", icon: FileText }] : []),
 ];
 
@@ -153,7 +161,9 @@ export function PricingHubView({
             <p className="text-sm text-foreground/70">
               {secao === "estudo" && data
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
-                : "Ocupação atual e esperada por categoria, data a data."}
+                : secao === "gestao"
+                  ? "Ocupação atual contra o benchmark histórico, na antecedência escolhida."
+                  : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           {forecast.data ? (
@@ -165,6 +175,8 @@ export function PricingHubView({
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
           {secao === "ocupacao" ? (
             <OcupacaoEsperada />
+          ) : secao === "gestao" ? (
+            <GestaoOcupacao />
           ) : (
             <>
               {isLoading ? (
