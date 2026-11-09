@@ -24,8 +24,10 @@ export type OurRate = { pickupDate: string; category: string; dailyRate: number;
 /** Faixas (em %) da diferença entre nossa tarifa e a mediana. Configuráveis na tela. */
 export type PriceBands = { significant: number; close: number };
 export const DEFAULT_PRICE_BANDS: PriceBands = { significant: 10, close: 3 };
-/** Número mínimo de concorrentes comparáveis para classificar; abaixo disso, "dados insuficientes". */
-export const MIN_COMPETITORS = 3;
+/** Classifica com qualquer número de concorrentes comparáveis (mínimo 1); sem nenhum, "dados insuficientes". */
+export const MIN_COMPETITORS = 1;
+/** Com menos concorrentes que isto a referência é frágil: classifica, mas a comparação não é marcada como confiável. */
+export const RELIABLE_MIN_COMPETITORS = 3;
 
 export type PriceLevel =
   "muito-abaixo" | "abaixo" | "alinhado" | "acima" | "muito-acima" | "sem-dados";
@@ -87,7 +89,7 @@ export type Market = {
   mean: number | null;
   min: number | null;
   max: number | null;
-  /** Há concorrentes suficientes para tirar conclusão. */
+  /** Há concorrentes suficientes (RELIABLE_MIN_COMPETITORS) e todos equivalentes: confiança alta. */
   reliable: boolean;
   /** Alguma coleta usada é só parcialmente equivalente. */
   partial: boolean;
@@ -104,7 +106,8 @@ export function marketOf(rows: Snapshot[], now: string, currency: string): Marke
     mean: mean(prices),
     min: prices.length ? Math.min(...prices) : null,
     max: prices.length ? Math.max(...prices) : null,
-    reliable: used.length >= MIN_COMPETITORS && used.every((r) => r.equivalence === "equivalente"),
+    reliable:
+      used.length >= RELIABLE_MIN_COMPETITORS && used.every((r) => r.equivalence === "equivalente"),
     partial: used.some((r) => r.equivalence === "parcial"),
     lastCollectedAt: used.length
       ? used

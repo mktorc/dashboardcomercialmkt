@@ -26,19 +26,30 @@ async function run(request: Request) {
   const secret = process.env["SYNC_CRON_TOKEN"] || process.env["CRON_SECRET"] || process.env["LOVABLE_CRON_SECRET"];
   if (!secret) return Response.json({ error: "Segredo do cron não configurado" }, { status: 500 });
   const origin = originOf(request);
-  const results = await Promise.all(
-    JOBS.map(async (job) => {
-      try {
-        const r = await fetch(`${origin}${job.path}`, { method: "POST", headers: { Authorization: `Bearer ${secret}` } });
-        const body = (await r.text()).slice(0, 300);
-        if (!r.ok) console.error(`[cron] ${job.name} HTTP ${r.status}: ${body}`);
-        return { job: job.name, status: r.status, ok: r.ok, body };
-      } catch (e) {
-        console.error(`[cron] ${job.name}`, e);
-        return { job: job.name, status: 0, ok: false, body: (e as Error).message };
-      }
-    }),
+  const runOne = async (job: (typeof JOBS)[number]) => {
+    try {
+      const r = await fetch(`${origin}${job.path}`, { method: "POST", headers: { Authorization: `Bearer ${secret}` } });
+      const body = (await r.text()).slice(0, 300);
+      if (!r.ok) console.error(`[cron] ${job.name} HTTP ${r.status}: ${body}`);
+      return { job: job.name, status: r.status, ok: r.ok, body };
+    } catch (e) {
+      console.error(`[cron] ${job.name}`, e);
+      return { job: job.name, status: 0, ok: false, body: (e as Error).message };
+    }
+  };
+  // O HQ limita as chamadas por janela: hqrentals e hq-rates dividem a cota e rodam em sequência; os demais, em paralelo.
+  const grupos = JOBS.filter((j) => j.name !== "hq-rates").map((j) =>
+    j.name === "hqrentals" ? JOBS.filter((x) => x.name === "hqrentals" || x.name === "hq-rates") : [j],
   );
+  const results = (
+    await Promise.all(
+      grupos.map(async (g) => {
+        const out = [];
+        for (const job of g) out.push(await runOne(job));
+        return out;
+      }),
+    )
+  ).flat();
   return Response.json({ ok: results.every((r) => r.ok), results });
 }
 

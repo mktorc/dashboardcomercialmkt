@@ -17,6 +17,9 @@ const PRICING_JOBS = [
   { name: "Coleta de concorrentes", path: "/api/public/sync/coleta-concorrentes" },
 ] as const;
 
+// HQ Rentals e o Rate Calendar usam a mesma cota da API do HQ: rodam em sequência; a coleta dos concorrentes (GitHub) roda ao lado.
+const PRICING_GROUPS = [PRICING_JOBS.slice(0, 2), PRICING_JOBS.slice(2)] as const;
+
 export type SyncFailure = {
   service: string;
   error: string;
@@ -51,7 +54,8 @@ export function resolveOrigin(request: Request): string {
 type Job = { name: string; path: string };
 
 // Nunca lança: devolve o erro detalhado de cada serviço no corpo da resposta.
-async function runJobs(jobs: readonly Job[]) {
+// Cada grupo roda em paralelo aos demais; dentro de um grupo, em sequência (jobs que dividem a cota do HQ não competem entre si).
+async function runJobs(groups: readonly (readonly Job[])[]) {
   const failures: SyncFailure[] = [];
   try {
     const secret =
@@ -78,30 +82,33 @@ async function runJobs(jobs: readonly Job[]) {
       !!process.env["HQ_TENANT_TOKEN"] && !!process.env["HQ_USER_TOKEN"],
     );
 
-    await Promise.all(
-      jobs.map(async (j) => {
-        try {
-          const r = await fetch(`${origin}${j.path}`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${secret}` },
-          });
-          if (!r.ok) {
-            const body = (await r.text()).slice(0, 500);
-            let msg = body;
-            try {
-              const parsed = JSON.parse(body) as { error?: string; detail?: string };
-              msg = [parsed.error, parsed.detail].filter(Boolean).join(" — ") || body;
-            } catch {
-              /* corpo não é JSON */
-            }
-            console.error(`[syncAll] ${j.name} HTTP ${r.status}: ${msg}`);
-            failures.push({ service: j.name, status: r.status, error: msg || `HTTP ${r.status}` });
+    const runOne = async (j: Job) => {
+      try {
+        const r = await fetch(`${origin}${j.path}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}` },
+        });
+        if (!r.ok) {
+          const body = (await r.text()).slice(0, 500);
+          let msg = body;
+          try {
+            const parsed = JSON.parse(body) as { error?: string; detail?: string };
+            msg = [parsed.error, parsed.detail].filter(Boolean).join(" — ") || body;
+          } catch {
+            /* corpo não é JSON */
           }
-        } catch (e) {
-          const err = e as Error;
-          console.error(`[syncAll] ${j.name} exceção:`, err);
-          failures.push({ service: j.name, error: err.message, stack: err.stack });
+          console.error(`[syncAll] ${j.name} HTTP ${r.status}: ${msg}`);
+          failures.push({ service: j.name, status: r.status, error: msg || `HTTP ${r.status}` });
         }
+      } catch (e) {
+        const err = e as Error;
+        console.error(`[syncAll] ${j.name} exceção:`, err);
+        failures.push({ service: j.name, error: err.message, stack: err.stack });
+      }
+    };
+    await Promise.all(
+      groups.map(async (g) => {
+        for (const j of g) await runOne(j);
       }),
     );
   } catch (e) {
@@ -114,8 +121,8 @@ async function runJobs(jobs: readonly Job[]) {
 
 export const syncAll = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(() => runJobs(JOBS));
+  .handler(() => runJobs(JOBS.map((j) => [j])));
 
 export const syncPricing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(() => runJobs(PRICING_JOBS));
+  .handler(() => runJobs(PRICING_GROUPS));

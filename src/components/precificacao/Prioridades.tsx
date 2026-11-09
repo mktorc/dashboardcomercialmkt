@@ -615,9 +615,13 @@ function Detalhe({
               </dl>
               {p.level === "sem-dados" ? (
                 <p className="text-xs text-muted-foreground">
-                  {p.n < 3 && p.n > 0
-                    ? `Só ${p.n} concorrente(s) comparável(is): mínimo de 3 para posicionar.`
-                    : "Sem dados de concorrência (ou sem nossa tarifa) para esta data: nenhum posicionamento é assumido."}
+                  Sem dados de concorrência (ou sem nossa tarifa) para esta data: nenhum
+                  posicionamento é assumido.
+                </p>
+              ) : p.n < 3 ? (
+                <p className="text-xs text-muted-foreground">
+                  Referência com {p.n === 1 ? "apenas 1 concorrente" : `apenas ${p.n} concorrentes`}
+                  : posiciona, mas com confiança menor.
                 </p>
               ) : null}
               {concorrentes.length ? (

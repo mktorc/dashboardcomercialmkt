@@ -69,6 +69,16 @@ describe("competitividade", () => {
     expect(p.reliable).toBe(false);
     expect(p.partial).toBe(true);
   });
+  it("com 1 ou 2 concorrentes classifica, mas não marca a comparação como confiável", () => {
+    const m = marketOf([snap("A", 100), snap("B", 200)], NOW, "USD");
+    expect(m).toMatchObject({ n: 2, median: 150, reliable: false });
+    expect(priceLevel(diffPct(180, m.median), m.n)).toBe("muito-acima");
+    expect(marketOf([snap("A", 100)], NOW, "USD")).toMatchObject({
+      n: 1,
+      median: 100,
+      reliable: false,
+    });
+  });
   it("sem concorrentes: sem mediana e sem classificação", () => {
     const m = marketOf([], NOW, "USD");
     expect(m.median).toBeNull();
@@ -81,7 +91,8 @@ describe("competitividade", () => {
     expect(priceLevel(-2, 3)).toBe("alinhado");
     expect(priceLevel(-12, 3)).toBe("muito-abaixo");
     expect(priceLevel(5, 3, { significant: 4, close: 1 })).toBe("muito-acima");
-    expect(priceLevel(10, 2)).toBe("sem-dados"); // poucos concorrentes
+    expect(priceLevel(10, 2)).toBe("acima"); // classifica mesmo com poucos concorrentes
+    expect(priceLevel(10, 0)).toBe("sem-dados"); // sem nenhum, não classifica
   });
   it("matriz de diagnóstico", () => {
     expect(diagnose("abaixo", "acima")).toBe("perda-competitividade");

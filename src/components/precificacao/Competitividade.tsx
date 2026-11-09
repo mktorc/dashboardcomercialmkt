@@ -319,8 +319,8 @@ export function Competitividade({
         </div>
         <p className="text-xs text-muted-foreground">
           Só coletas equivalentes ou parciais, na mesma moeda da nossa tarifa (sem conversão
-          cambial), com até 7 dias e ao menos 3 concorrentes entram na referência de mercado.
-          Mostrando até 200 linhas.
+          cambial), com até 7 dias entram na referência de mercado (a mediana usa quantos
+          concorrentes houver; com menos de 3, a confiança é menor). Mostrando até 200 linhas.
         </p>
       </Card>
     </div>

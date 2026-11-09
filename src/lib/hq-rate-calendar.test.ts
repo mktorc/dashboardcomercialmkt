@@ -50,6 +50,12 @@ describe("calendário de tarifas do HQ", () => {
       ),
     ).toEqual(["Midsize Sedan"]);
   });
+  it("arredonda a diária para 2 casas, como o banco, para não reinserir tarifa que não mudou", () => {
+    const fresh = dailyRatesOf(season([rate(2, "75.7894737")]), CATS);
+    expect(fresh[0]!.daily_rate).toBe(75.79);
+    const guardada = new Map([["2027-02-01|Midsize Suv", { daily_rate: 75.79, currency: "USD" }]]);
+    expect(changedRates(fresh, guardada)).toEqual([]);
+  });
   it("só grava o que mudou", () => {
     const fresh = dailyRatesOf(season([rate(2, "75.8"), rate(3, "62.32")]), CATS);
     const latest = new Map([["2027-02-01|Midsize Suv", { daily_rate: 75.8, currency: "USD" }]]);

@@ -32,7 +32,7 @@ export function dailyRatesOf(season: unknown, categories: Map<number, string>): 
     out.set(category, {
       pickup_date: start,
       category,
-      daily_rate: rate,
+      daily_rate: Math.round(rate * 100) / 100, // o banco guarda 2 casas; sem arredondar, a comparação "mudou?" nunca bate
       season: String(s["name"] ?? ""),
       currency: String(r["currency"] ?? "").toUpperCase() || "USD",
       source: "hq_rate_calendar",

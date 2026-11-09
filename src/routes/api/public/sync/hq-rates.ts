@@ -10,7 +10,8 @@ import { changedRates, dailyRatesOf, type OurRateRow } from "@/lib/hq-rate-calen
 
 const MAX_CALLS = 700; // folga sob o limite de subchamadas por execução e de 1.000 requisições da API do HQ
 const MAX_MISSES = 20; // fim do calendário: ids seguidos que não são dia programado
-const CONCURRENCY = 8;
+const CONCURRENCY = 4; // baixo de propósito: o HQ limita a 1.000 chamadas por janela e outros syncs dividem a mesma cota
+const MAX_RETRIES = 4;
 
 export const Route = createFileRoute("/api/public/sync/hq-rates")({
   server: {
@@ -30,13 +31,22 @@ export const Route = createFileRoute("/api/public/sync/hq-rates")({
           Accept: "application/json",
         };
         let calls = 0;
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+        // 429 (Too Many Attempts): espera o tempo que o HQ indicar (ou um recuo crescente) e tenta de novo.
         const get = async (path: string) => {
-          calls += 1;
-          const r = await fetch(`${base}/${path}`, { headers });
-          if (r.status === 404) return null;
-          if (!r.ok)
-            throw new Error(`HQ ${r.status} em ${path}: ${(await r.text()).slice(0, 200)}`);
-          return (await r.json()) as unknown;
+          for (let attempt = 0; ; attempt++) {
+            calls += 1;
+            const r = await fetch(`${base}/${path}`, { headers });
+            if (r.status === 404) return null;
+            if (r.status === 429 && attempt < MAX_RETRIES) {
+              const retryAfter = Number(r.headers.get("retry-after"));
+              await sleep(Math.min(45, retryAfter > 0 ? retryAfter : 10 * (attempt + 1)) * 1000);
+              continue;
+            }
+            if (!r.ok)
+              throw new Error(`HQ ${r.status} em ${path}: ${(await r.text()).slice(0, 200)}`);
+            return (await r.json()) as unknown;
+          }
         };
 
         try {
@@ -62,23 +72,29 @@ export const Route = createFileRoute("/api/public/sync/hq-rates")({
 
           const fresh: OurRateRow[] = [];
           let misses = 0;
-          while (misses < MAX_MISSES && calls < MAX_CALLS) {
-            const ids = Array.from({ length: CONCURRENCY }, (_, i) => id + i);
-            id += CONCURRENCY;
-            const got = await Promise.all(
-              ids.map(async (i) => {
-                const j = (await get(`car-rental/seasons/${i}`)) as {
-                  car_rental_season?: unknown;
-                } | null;
-                return dailyRatesOf(j?.car_rental_season, categories);
-              }),
-            );
-            for (const rows of got) {
-              if (rows.length) {
-                fresh.push(...rows);
-                misses = 0;
-              } else misses += 1;
+          // Falha no meio da varredura (por exemplo, 429 persistente): o que já foi lido ainda é gravado e o erro é devolvido.
+          let scanError: string | null = null;
+          try {
+            while (misses < MAX_MISSES && calls < MAX_CALLS) {
+              const ids = Array.from({ length: CONCURRENCY }, (_, i) => id + i);
+              id += CONCURRENCY;
+              const got = await Promise.all(
+                ids.map(async (i) => {
+                  const j = (await get(`car-rental/seasons/${i}`)) as {
+                    car_rental_season?: unknown;
+                  } | null;
+                  return dailyRatesOf(j?.car_rental_season, categories);
+                }),
+              );
+              for (const rows of got) {
+                if (rows.length) {
+                  fresh.push(...rows);
+                  misses = 0;
+                } else misses += 1;
+              }
             }
+          } catch (e) {
+            scanError = (e as Error).message;
           }
           if (fresh.length === 0)
             throw new Error("Nenhuma tarifa diária encontrada no calendário do HQ");
@@ -116,6 +132,18 @@ export const Route = createFileRoute("/api/public/sync/hq-rates")({
           }
           await recordSyncRun("hq-rates");
           const days = new Set(fresh.map((r) => r.pickup_date));
+          if (scanError)
+            return Response.json(
+              {
+                ok: false,
+                partial: true,
+                error: scanError,
+                rates: fresh.length,
+                inserted: novas.length,
+                calls,
+              },
+              { status: 502 },
+            );
           return Response.json({
             ok: true,
             days: days.size,
