@@ -62,6 +62,7 @@ export function useCompetitorSnapshots() {
       return ((data ?? []) as unknown as RawSnapshot[]).map((r) => ({
         id: r.id,
         competitor: r.competitors?.name ?? "—",
+        sourceCategory: r.source_category,
         category: r.normalized_category, // só categorias nossas: coleta sem categoria mapeada fica sem categoria e não entra na tela
         location: r.location,
         collectedAt: r.collected_at,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   comparable,
+  latestOffers,
   dailyOf,
   diagnose,
   diffPct,
@@ -57,6 +58,21 @@ describe("competitividade", () => {
     const used = latestPerCompetitor(rows);
     expect(used).toHaveLength(2);
     expect(marketOf(rows, NOW, "USD").median).toBe(150); // A=100, B=200
+  });
+  it("mostra só a coleta mais recente de cada oferta (concorrente + modelo + datas)", () => {
+    const o = (competitor: string, modelo: string, preco: number, coleta: string) =>
+      snap(competitor, preco, { sourceCategory: modelo, collectedAt: coleta });
+    const rows = [
+      o("A", "Palisade", 120, "2026-11-09T20:31:00Z"),
+      o("A", "Palisade", 118, "2026-11-09T20:32:00Z"), // repetida, mais recente: vale
+      o("A", "Outlander", 100, "2026-11-09T20:32:00Z"), // outro modelo do mesmo concorrente: é outra oferta
+      o("B", "Palisade", 130, "2026-11-08T10:00:00Z"),
+    ];
+    const r = latestOffers(rows);
+    expect(r).toHaveLength(3);
+    expect(r.find((x) => x.competitor === "A" && x.sourceCategory === "Palisade")!.dailyPrice).toBe(
+      118,
+    );
   });
   it("mercado: mediana, extremos e confiabilidade", () => {
     const m = marketOf([snap("A", 100), snap("B", 200), snap("C", 150)], NOW, "USD");

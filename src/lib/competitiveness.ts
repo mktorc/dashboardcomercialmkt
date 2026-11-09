@@ -7,6 +7,8 @@ export type Equivalence = "equivalente" | "parcial" | "nao_equivalente" | "nao_a
 export type Snapshot = {
   competitor: string;
   category: string | null;
+  /** Modelo/categoria do concorrente como ele chama (ex.: "Hyundai Palisade"). */
+  sourceCategory?: string | null;
   location: string;
   collectedAt: string; // ISO
   pickupAt: string;
@@ -62,6 +64,20 @@ export function comparable(s: Snapshot, now: string, currency: string, maxAgeDay
   if (s.equivalence === "nao_equivalente" || s.equivalence === "nao_avaliada") return false;
   if (s.currency.toUpperCase() !== currency.toUpperCase() || dailyOf(s) == null) return false;
   return Date.parse(now) - Date.parse(s.collectedAt) <= maxAgeDays * 86400000;
+}
+
+/**
+ * Só a coleta mais recente de cada oferta (concorrente + modelo dele + retirada + devolução): coletas repetidas do mesmo dia ou antigas
+ * não aparecem como se fossem atuais. O histórico completo continua no banco.
+ */
+export function latestOffers<T extends Snapshot>(rows: T[]): T[] {
+  const by = new Map<string, T>();
+  for (const r of rows) {
+    const k = `${r.competitor}|${r.sourceCategory ?? r.category}|${r.pickupAt}|${r.returnAt}`;
+    const cur = by.get(k);
+    if (!cur || r.collectedAt > cur.collectedAt) by.set(k, r);
+  }
+  return [...by.values()];
 }
 
 /**

@@ -12,6 +12,7 @@ import { useCompetitorSnapshots, useOurRates, type SnapshotRow } from "@/lib/com
 import {
   dailyOf,
   diffPct,
+  latestOffers,
   marketOf,
   priceLevel,
   type Equivalence,
@@ -53,7 +54,8 @@ export function Competitividade({
   const [comp, setComp] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("diferenca");
 
-  const rows = useMemo(() => snaps.data ?? [], [snaps.data]);
+  // Só a coleta mais recente de cada oferta: coletas repetidas ou antigas não aparecem como atuais.
+  const rows = useMemo(() => latestOffers(snaps.data ?? []), [snaps.data]);
   // Moeda da nossa tarifa (HQ): concorrentes só entram na referência se estiverem nela, sem conversão cambial.
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
   const ours = useMemo(
@@ -91,7 +93,6 @@ export function Competitividade({
   ].sort();
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
   const mapped = rows.filter((r) => r.category);
-  const semMapa = rows.length - mapped.length;
   const filtered = mapped.filter((r) => {
     const d = r.pickupAt.slice(0, 10);
     return (
@@ -217,13 +218,6 @@ export function Competitividade({
           coleta não significa preço zero.
         </Card>
       ) : null}
-      {semMapa > 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {semMapa} coletas de categorias dos concorrentes sem correspondência com as nossas ficam
-          ocultas (mapa em scripts/precificacao/mapa_categorias.json).
-        </p>
-      ) : null}
-
       {(rates.data ?? []).length === 0 ? (
         <Card className="p-3 text-sm text-muted-foreground">
           Nossa tarifa de tabela do HQ ainda não foi publicada: sem ela não há comparação, só os
@@ -271,6 +265,7 @@ export function Competitividade({
               <tr>
                 {[
                   "Concorrente",
+                  "Modelo",
                   "Categoria",
                   "Tarifa deles",
                   "Nossa tarifa",
@@ -292,6 +287,7 @@ export function Competitividade({
               {table.map(({ r, mine, theirs, abs, pct }) => (
                 <tr key={r.id} className="border-t border-border">
                   <td className="px-2 py-1">{r.competitor}</td>
+                  <td className="px-2 py-1">{r.sourceCategory ?? "—"}</td>
                   <td className="px-2 py-1">{r.category ?? "—"}</td>
                   <td className="px-2 py-1 tabular-nums">
                     {r.available === false
