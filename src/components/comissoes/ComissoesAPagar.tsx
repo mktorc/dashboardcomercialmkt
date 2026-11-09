@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Card, Carregando, Erro, Vazio } from './Estados'
 import { EditarComissaoDialog } from './EditarComissaoDialog'
 import { FiltrosBar } from './FiltrosBar'
-import { filtrosVazios, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
+import { filtrosPadraoAPagar, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
 import { data, moeda } from '@/lib/comissoes/format'
 import { definirIncluirManualCharge, definirIncluirManualChargeEmLote, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
 import { descontoPct, podeEditarComissao, precisaValidar, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
@@ -18,7 +18,7 @@ interface GrupoParceiro {
 }
 
 export default function ComissoesAPagar() {
-  const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
+  const [filtros, setFiltros] = useState<Filtros>(filtrosPadraoAPagar)
   const parceiros = useParceiros()
   const notas = useNotasParceiros()
   const { podePagar, podeValidar, podeEditar } = usePerfil()
@@ -161,7 +161,7 @@ export default function ComissoesAPagar() {
         <Card titulo="Parceiros a receber" valor={String(resumo.parceiros)} />
       </div>
 
-      <FiltrosBar filtros={filtros} parceiros={parceiros} onChange={setFiltros} />
+      <FiltrosBar filtros={filtros} parceiros={parceiros} onChange={setFiltros} padrao={filtrosPadraoAPagar()} />
 
       {aviso && (
         <div role="alert" className={`rounded-md p-3 text-sm ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>

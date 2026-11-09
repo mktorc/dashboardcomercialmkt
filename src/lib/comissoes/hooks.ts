@@ -6,6 +6,15 @@ import { listarNotasParceiros, listarParceiros } from './service'
 
 export const filtrosVazios: Filtros = { parceiro: '', reserva: '', dataInicio: '', dataFim: '' }
 
+const iso = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+/** Padrão do "a pagar": de 01/01/2022 até o último dia do mês anterior. */
+export function filtrosPadraoAPagar(): Filtros {
+  const hoje = new Date()
+  return { ...filtrosVazios, dataInicio: '2022-01-01', dataFim: iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)) }
+}
+
 export function useReservas(carregar: (f: Filtros) => Promise<Reserva[]>, filtros: Filtros) {
   const [linhas, setLinhas] = useState<Reserva[]>([])
   const [carregando, setCarregando] = useState(true)
