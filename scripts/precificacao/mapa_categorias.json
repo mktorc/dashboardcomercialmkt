@@ -39,5 +39,15 @@
     "Chevrolet Suburban": "SUV Executive 8 Seats",
     "GMC Yukon XL": "SUV Executive 8 Seats",
     "Cadillac Escalade": "Luxury"
+  },
+  "Orlando Rent Car": {
+    "Mini Van 8 Lugares": "Mini Van 8 Seats",
+    "SUV Executive 8 Seats": "SUV Executive 8 Seats",
+    "SUV Executive 7 Lugares": "SUV Executive 7 Seats",
+    "Van 12 Assentos": "Van 12 Seats",
+    "Luxury": "Luxury",
+    "Midsize Sedan": "Midsize Sedan",
+    "Fullsize Suv": "Fullsize Suv",
+    "Midsize Suv": "Midsize Suv"
   }
 }

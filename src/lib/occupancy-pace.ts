@@ -11,7 +11,7 @@ export type PaceParams = {
   n_evento: number;
   n_dow: number;
   n_saz: number;
-  estatistica: "media" | "mediana";
+  estatistica: "media" | "mediana" | "maximo";
 };
 /** Calendário sazonal de cada data: [sazonalidade, evento móvel | null, posição relativa ao evento | null]. */
 export type PaceCal = Record<string, [string, string | null, number | null]>;
@@ -45,11 +45,12 @@ export const EVENT_LABEL: Record<string, string> = {
   semana_santa: "Semana Santa",
   corpus_christi: "Corpus Christi",
 };
-export type BenchLevel = "evento" | "dow" | "saz";
+export type BenchLevel = "evento" | "dow" | "saz" | "aniversario";
 export const BENCH_LEVEL_LABEL: Record<BenchLevel, string> = {
   evento: "mesmo evento e mesma posição relativa",
   dow: "mesma sazonalidade e dia da semana",
   saz: "mesma sazonalidade (menor precisão: sem separar dia da semana)",
+  aniversario: "mesmo dia da semana em períodos anteriores",
 };
 
 export function addDays(iso: string, n: number) {
@@ -77,12 +78,24 @@ export const soldAt = (row: PaceRow, L: number) =>
 export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
 
 /** Índice dos grupos comparáveis: evento (categoria, evento, posição) ou data comum (categoria, sazonalidade[, dia da semana]). */
-export type PaceModel = { payload: PacePayload; groups: Map<string, PaceRow[]> };
+export type PaceModel = {
+  payload: PacePayload;
+  groups: Map<string, PaceRow[]>;
+  byKey: Map<string, PaceRow>;
+};
 const kEvento = (c: string, ev: string, rel: number) => `ev|${c}|${ev}|${rel}`;
 const kDow = (c: string, s: string, w: number) => `dow|${c}|${s}|${w}`;
 const kSaz = (c: string, s: string) => `saz|${c}|${s}`;
 
-export function buildModel(payload: PacePayload): PaceModel {
+/** Referência de "esperada" das telas de precificação: a melhor ocupação já registrada em datas comparáveis (na mesma antecedência). */
+export const ESPERADA_ESTATISTICA: PaceParams["estatistica"] = "maximo";
+
+/** `estatistica` sobrescreve a do payload (que vem publicada como média); sem ele vale a do payload. */
+export function buildModel(
+  payload: PacePayload,
+  estatistica?: PaceParams["estatistica"],
+): PaceModel {
+  if (estatistica) payload = { ...payload, params: { ...payload.params, estatistica } };
   const groups = new Map<string, PaceRow[]>();
   const push = (k: string, r: PaceRow) => {
     const l = groups.get(k);
@@ -99,12 +112,17 @@ export function buildModel(payload: PacePayload): PaceModel {
       push(kSaz(r.c, s), r);
     }
   }
-  return { payload, groups };
+  return { payload, groups, byKey: new Map(payload.linhas.map((r) => [`${r.d}|${r.c}`, r])) };
 }
+
+/** Períodos anteriores comparados no "melhor registro": o mesmo dia da semana 1 e 2 anos antes (364 e 728 dias). */
+export const PERIODOS_ANTERIORES = [364, 728];
 
 export type Benchmark = { value: number; n: number; level: BenchLevel };
 
 const central = (xs: number[], how: PaceParams["estatistica"]) => {
+  // Ocupação não passa de 100%: um dia histórico com mais diárias do que a frota registrada não vira meta acima disso.
+  if (how === "maximo") return Math.min(1, Math.max(...xs));
   if (how === "media") return xs.reduce((s, x) => s + x, 0) / xs.length;
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
@@ -118,30 +136,65 @@ const central = (xs: number[], how: PaceParams["estatistica"]) => {
  * Todos: mesma categoria, ocupação lida na mesma antecedência L, só datas encerradas antes da base (sem futuro) e
  * nunca a própria data. Abaixo do mínimo de amostras, null: não se completa com ocupação final nem com outro evento.
  */
+export type BenchSample = { date: string; fleet: number; occ: number };
+
+/**
+ * Datas históricas que definem o benchmark na antecedência L.
+ * Modo "maximo" (melhor registro): data comum = o mesmo dia da semana nos períodos anteriores (PERIODOS_ANTERIORES), ao menos um
+ * disponível; data de evento móvel = as edições passadas do mesmo evento na mesma posição relativa (mínimo n_evento).
+ * Demais modos (média/mediana): grupos de datas comparáveis por sazonalidade e dia da semana.
+ */
+function samplesFor(
+  model: PaceModel,
+  row: PaceRow,
+  L: number,
+  base: string,
+): { level: BenchLevel; items: BenchSample[] } | null {
+  const { params, cal } = model.payload;
+  const info = cal[row.d];
+  if (!info) return null;
+  const [s, ev, rel] = info;
+  const isEvent = !!(ev && rel != null);
+  if (params.estatistica === "maximo" && !isEvent) {
+    const items: BenchSample[] = [];
+    for (const n of PERIODOS_ANTERIORES) {
+      const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
+      if (h && h.f > 0 && h.d < base) items.push({ date: h.d, fleet: h.f, occ: occupancyAt(h, L) });
+    }
+    return items.length ? { level: "aniversario", items } : null;
+  }
+  const steps: [string, number, BenchLevel][] = isEvent
+    ? [[kEvento(row.c, ev!, rel!), params.n_evento, "evento"]]
+    : [
+        [kDow(row.c, s, weekday(row.d)), params.n_dow, "dow"],
+        [kSaz(row.c, s), params.n_saz, "saz"],
+      ];
+  for (const [key, min, level] of steps) {
+    const items: BenchSample[] = [];
+    for (const h of model.groups.get(key) ?? [])
+      if (h.d < base && h.d !== row.d)
+        items.push({ date: h.d, fleet: h.f, occ: occupancyAt(h, L) });
+    if (items.length >= min) return { level, items };
+  }
+  return null;
+}
+
 export function benchmarkFor(
   model: PaceModel,
   row: PaceRow,
   L: number,
   base: string,
 ): Benchmark | null {
-  const { params, cal } = model.payload;
-  const info = cal[row.d];
-  if (!info) return null;
-  const [s, ev, rel] = info;
-  const steps: [string, number, BenchLevel][] =
-    ev && rel != null
-      ? [[kEvento(row.c, ev, rel), params.n_evento, "evento"]]
-      : [
-          [kDow(row.c, s, weekday(row.d)), params.n_dow, "dow"],
-          [kSaz(row.c, s), params.n_saz, "saz"],
-        ];
-  for (const [key, min, level] of steps) {
-    const xs: number[] = [];
-    for (const h of model.groups.get(key) ?? [])
-      if (h.d < base && h.d !== row.d) xs.push(occupancyAt(h, L));
-    if (xs.length >= min) return { value: central(xs, params.estatistica), n: xs.length, level };
-  }
-  return null;
+  const smp = samplesFor(model, row, L, base);
+  if (!smp) return null;
+  return {
+    value: central(
+      smp.items.map((i) => i.occ),
+      model.payload.params.estatistica,
+    ),
+    n: smp.items.length,
+    level: smp.level,
+  };
 }
 
 /** Uma data (somando as categorias escolhidas) na antecedência efetiva da data-base. atual/esperada em 0–1; gap em p.p. */

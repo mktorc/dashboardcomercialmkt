@@ -90,31 +90,37 @@ export function useOurRates() {
       const { data, error } = await fetchAll((from, to) =>
         supabase
           .from("our_rate_snapshots")
-          .select("pickup_date,category,daily_rate,currency,collected_at")
+          .select("pickup_date,category,daily_rate,currency,source,collected_at")
           .order("collected_at", { ascending: false })
           .order("id")
           .range(from, to),
       );
       if (error) throw error;
-      const seen = new Set<string>();
-      const out: OurRate[] = [];
+      // Por data e categoria vale a cotação do nosso site (mesma base dos concorrentes: N diárias, sem taxas e seguros); sem ela,
+      // a tarifa do calendário do HQ. Dentro da mesma fonte, a mais recente (a lista já vem do mais novo para o mais antigo).
+      const prefer = (source: string) => (source === "site_cotacao" ? 1 : 0);
+      const best = new Map<string, { rate: OurRate; source: string }>();
       for (const r of (data ?? []) as {
         pickup_date: string;
         category: string;
         daily_rate: number;
         currency: string;
+        source: string;
       }[]) {
         const k = `${r.pickup_date}|${r.category}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push({
-          pickupDate: r.pickup_date,
-          category: r.category,
-          dailyRate: Number(r.daily_rate),
-          currency: r.currency,
+        const cur = best.get(k);
+        if (cur && prefer(cur.source) >= prefer(r.source)) continue;
+        best.set(k, {
+          source: r.source,
+          rate: {
+            pickupDate: r.pickup_date,
+            category: r.category,
+            dailyRate: Number(r.daily_rate),
+            currency: r.currency,
+          },
         });
       }
-      return out;
+      return [...best.values()].map((b) => b.rate);
     },
   });
 }

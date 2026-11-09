@@ -17,7 +17,7 @@ import tema
 
 DB = Path("data/precificacao/hq_cache.duckdb")
 OUT = Path("data/precificacao/relatorio")
-INI = date(2024, 1, 1)
+INI = date(2023, 6, 24)  # primeira reserva do HQ (criada em 24/06/2023); antes disso não há dados
 LIMIAR_OCIOSO, LIMIAR_ESGOTADO, N_MIN = 0.40, 0.95, 30
 STATUS = "('completed','open','rental')"  # concluídas + confirmadas em aberto/em andamento; canceladas, orçamentos e pendentes ficam de fora
 CAT_INATIVAS = "(1, 7)"  # categorias desativadas: fora da frota e das vendas

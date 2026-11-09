@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
+import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   DEFAULT_BANDS,
+  ESPERADA_ESTATISTICA,
   BENCH_LEVEL_LABEL,
   CURVE_LEADS,
   EVENT_LABEL,
@@ -61,9 +63,6 @@ import {
 } from "@/lib/occupancy-pace";
 
 const ALL = "__all__";
-const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(0)}%`);
-const gapTxt = (g: number | null) => (g == null ? "—" : `${g > 0 ? "+" : ""}${g.toFixed(0)} p.p.`);
-const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 const MONTHS = [
   "Janeiro",
   "Fevereiro",
@@ -79,34 +78,6 @@ const MONTHS = [
   "Dezembro",
 ];
 const WEEK = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-const LEVEL: Record<GapLevel, { card: string; text: string; label: string }> = {
-  "muito-abaixo": {
-    card: "border-red-500/60 bg-red-500/20",
-    text: "text-red-700 dark:text-red-300",
-    label: "Muito abaixo",
-  },
-  abaixo: {
-    card: "border-orange-400/50 bg-orange-400/15",
-    text: "text-orange-700 dark:text-orange-300",
-    label: "Abaixo do esperado",
-  },
-  neutro: {
-    card: "border-border bg-card",
-    text: "text-muted-foreground",
-    label: "Dentro do esperado",
-  },
-  acima: {
-    card: "border-green-500/40 bg-green-500/10",
-    text: "text-green-700 dark:text-green-300",
-    label: "Acima do esperado",
-  },
-  "muito-acima": {
-    card: "border-green-600/60 bg-green-600/25",
-    text: "text-green-800 dark:text-green-200",
-    label: "Muito acima",
-  },
-};
 
 export function GestaoOcupacao({
   range,
@@ -158,7 +129,7 @@ function Painel({
   // Data-base: padrão hoje; nunca depois de hoje (o histórico do benchmark só vai até hoje) nem antes do início dos dados.
   const setBase = (v: string) =>
     v && setBaseRaw(v < payload.de ? payload.de : v > payload.hoje ? payload.hoje : v);
-  const model = useMemo(() => buildModel(payload), [payload]);
+  const model = useMemo(() => buildModel(payload, ESPERADA_ESTATISTICA), [payload]);
   const byDate = useMemo(() => rowsByDate(payload, cat === ALL ? null : cat), [payload, cat]);
   const days = useMemo(
     () => dailySeries(model, byDate, from, to, base),
@@ -228,11 +199,11 @@ function Painel({
 
       <p className="text-xs text-muted-foreground">
         A antecedência de cada data é a retirada menos a data-base ({dataBR(base)}): por exemplo,{" "}
-        {dataBR(addDays(base, 49))} está em D-49. Esperada = benchmark histórico: a ocupação que
+        {dataBR(addDays(base, 49))} está em D-49. Esperada = a melhor ocupação já registrada em
         datas passadas comparáveis (mesma categoria; mesmo evento e posição relativa no Carnaval,
-        Semana Santa e Corpus Christi; nas demais, mesma sazonalidade e dia da semana) tinham na
-        mesma antecedência, usando só datas encerradas antes da data-base. Não é previsão da
-        ocupação final. Datas já encerradas aparecem em D-0, com a ocupação final.
+        Semana Santa e Corpus Christi; nas demais, mesma sazonalidade e dia da semana) na mesma
+        antecedência, usando só datas encerradas antes da data-base. Não é previsão da ocupação
+        final. Datas já encerradas aparecem em D-0, com a ocupação final.
       </p>
       {outOfRange ? (
         <Card className="p-3 text-sm text-muted-foreground">
@@ -252,7 +223,7 @@ function Painel({
           icon={Target}
           label="Ocupação esperada média"
           value={pct(sum.esperada)}
-          hint="benchmark histórico"
+          hint="melhor já registrada"
         />
         <Kpi
           icon={sum.gap != null && sum.gap < 0 ? TrendingDown : TrendingUp}
@@ -311,7 +282,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Kpi({
+export function Kpi({
   icon: Icon,
   label,
   value,
@@ -655,7 +626,7 @@ function Pickup({
   );
 }
 
-function PickupChart({
+export function PickupChart({
   title,
   data,
   note,
@@ -815,7 +786,7 @@ function Detalhe({
             <PickupChart
               title="Curva de pickup da data"
               data={curve}
-              note="Histórica = ocupação que datas comparáveis tinham em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
+              note="Esperada = melhor ocupação já registrada por datas comparáveis em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
             />
             <Card className="space-y-1 p-4 text-sm">
               <h3 className="font-semibold">

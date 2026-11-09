@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   CalendarDays,
   CalendarRange,
+  ListChecks,
   ChevronsDownUp,
   ChevronsUpDown,
   FileText,
@@ -18,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { GestaoOcupacao } from "@/components/precificacao/GestaoOcupacao";
 import { Competitividade } from "@/components/precificacao/Competitividade";
+import { Prioridades } from "@/components/precificacao/Prioridades";
 import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
 import {
   PrecificacaoSidebar,
@@ -54,8 +56,9 @@ const SHOW_ESTUDO = false;
 // A aba "Ocupação esperada" está oculta por enquanto.
 const SHOW_OCUPACAO_ESPERADA = false;
 
-type Section = "ocupacao" | "gestao" | "competitividade" | "estudo";
+type Section = "prioridades" | "ocupacao" | "gestao" | "competitividade" | "estudo";
 const NAV: PricingNavItem<Section>[] = [
+  { key: "prioridades", label: "Prioridades", icon: ListChecks },
   ...(SHOW_OCUPACAO_ESPERADA
     ? [{ key: "ocupacao" as const, label: "Ocupação esperada", icon: CalendarRange }]
     : []),
@@ -154,7 +157,7 @@ export function PricingHubView({
 
   // Período de retirada compartilhado entre Gestão de Ocupação e Competitividade.
   const [range, setRange] = useState<Range>(() => defaultRange(todayIso()));
-  const [secao, setSecao] = useState<Section>(SHOW_OCUPACAO_ESPERADA ? "ocupacao" : "gestao");
+  const [secao, setSecao] = useState<Section>("prioridades");
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
@@ -171,17 +174,21 @@ export function PricingHubView({
             <p className="text-sm text-foreground/70">
               {secao === "estudo" && data
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
-                : secao === "competitividade"
-                  ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
-                  : secao === "gestao"
-                    ? "Ocupação atual contra o benchmark histórico, na antecedência escolhida."
-                    : "Ocupação atual e esperada por categoria, data a data."}
+                : secao === "prioridades"
+                  ? "Datas abaixo do esperado, o que pode explicar e o que avaliar agora."
+                  : secao === "competitividade"
+                    ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
+                    : secao === "gestao"
+                      ? "Ocupação atual contra a melhor ocupação já registrada, na antecedência escolhida."
+                      : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           <SyncButton fn={syncPricing} />
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
-          {secao === "ocupacao" ? (
+          {secao === "prioridades" ? (
+            <Prioridades range={range} onRangeChange={setRange} />
+          ) : secao === "ocupacao" ? (
             <OcupacaoEsperada />
           ) : secao === "gestao" ? (
             <GestaoOcupacao range={range} onRangeChange={setRange} />

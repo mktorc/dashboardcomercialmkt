@@ -1,6 +1,6 @@
 """Extrai dados do HQ Rentals (somente GET) para o cache DuckDB local.
 
-Uso: python3 -I scripts/precificacao/extrair.py --inicio 2024-01-01 --fim 2024-01-31
+Uso: python3 -I scripts/precificacao/extrair.py --inicio 2023-06-24 --fim 2024-01-31
 Reexecutável: upsert por id; checkpoint de página em controle_extracao (retoma se falhar).
 Guarda apenas campos necessários; o objeto `customer` e demais dados pessoais são descartados.
 """
@@ -153,13 +153,13 @@ def snapshot(con, hq):
 
 def calendario(con):
     con.execute("DELETE FROM dim_calendario")
-    for d, s, r in tabela(date(2024, 1, 1), date(2028, 12, 31)):
+    for d, s, r in tabela(date(2023, 1, 1), date(2028, 12, 31)):
         con.execute("INSERT INTO dim_calendario VALUES (?,?,?)", [d, s, r])
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--inicio", default="2024-01-01")
+    ap.add_argument("--inicio", default="2023-06-24")
     ap.add_argument("--fim", default=date.today().isoformat())
     ap.add_argument("--snapshot", action="store_true", help="grava cópia datada das temporadas e tarifas e sai")
     ap.add_argument("--so-frota", action="store_true", help="atualiza só veículos (e calendário)")

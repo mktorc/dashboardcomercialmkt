@@ -65,5 +65,55 @@ class Ally(unittest.TestCase):
         self.assertEqual(C.parse_ally("Available Vehicle Classes\nSummary\nTotal $0,00"), [])
 
 
+NOSSO = """1
+Datas
+2
+Veículos
+Classe de Veículo Disponível
+Mini Van 8 Lugares
+
+As minivans são veículos projetados para oferecer espaço.
+CarPlay 8 Lugares
+$71.58 / dia
+$501.06 total para 7 Dias
+Excl. taxes & insurance(s)
+Alugar este Veículo
+Luxury
+
+Os SUVs de grande porte.
+$240.00 / dia
+$1,680.00 total para 7 Dias
+Excl. taxes & insurance(s)
+Ultimas Unidades
+Não disponível - Contate-nos
+Van 12 Assentos
+Sem preço nesta data.
+Não disponível - Contate-nos"""
+
+
+class Nosso(unittest.TestCase):
+    def test_le_categorias_precos_e_disponibilidade(self):
+        r = C.parse_nosso(NOSSO)
+        self.assertEqual([x["categoria"] for x in r], ["Mini Van 8 Lugares", "Luxury"])
+        self.assertEqual((r[0]["diaria"], r[0]["total"], r[0]["dias"], r[0]["disponivel"]), (71.58, 501.06, 7, True))
+        self.assertEqual((r[1]["diaria"], r[1]["total"], r[1]["disponivel"]), (240.0, 1680.0, False))
+
+    def test_numeros_com_ponto_e_virgula(self):
+        self.assertEqual(C.num("71.58"), 71.58)
+        self.assertEqual(C.num("1,680.00"), 1680.0)
+        self.assertEqual(C.num("1.260,00"), 1260.0)
+        self.assertEqual(C.num("39,00"), 39.0)
+        self.assertEqual(C.num("700"), 700.0)
+
+    def test_linhas_nossas_so_com_mapa_e_diaria_media(self):
+        from datetime import date, datetime, timezone
+        it = [dict(categoria="Mini Van 8 Lugares", diaria=71.58, total=501.06, dias=7, disponivel=True, retirada=date(2026, 11, 23), devolucao=date(2026, 11, 30), coletado_em=datetime(2026, 11, 9, tzinfo=timezone.utc)),
+              dict(categoria="Outra", diaria=10.0, total=70.0, dias=7, disponivel=True, retirada=date(2026, 11, 23), devolucao=date(2026, 11, 30), coletado_em=datetime(2026, 11, 9, tzinfo=timezone.utc))]
+        rows, sem = C.linhas_nossas(it, {"Mini Van 8 Lugares": "Mini Van 8 Seats"})
+        self.assertEqual(sem, ["Outra"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0]["category"], rows[0]["daily_rate"], rows[0]["source"], rows[0]["currency"]), ("Mini Van 8 Seats", 71.58, "site_cotacao", "USD"))
+
+
 if __name__ == "__main__":
     unittest.main()
