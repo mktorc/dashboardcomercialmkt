@@ -235,6 +235,20 @@ function Painel({ payload }: { payload: PacePayload }) {
           >
             Próximos 30 dias
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setRange(payload.hoje, addDays(payload.hoje, 59))}
+          >
+            Próximos 60 dias
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setRange(payload.hoje, addDays(payload.hoje, 89))}
+          >
+            Próximos 90 dias
+          </Button>
         </div>
         <Field label="Categoria">
           <Select value={cat} onValueChange={setCat}>

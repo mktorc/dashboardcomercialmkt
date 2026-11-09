@@ -8,12 +8,14 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   FileText,
+  Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { GestaoOcupacao } from "@/components/precificacao/GestaoOcupacao";
+import { Competitividade } from "@/components/precificacao/Competitividade";
 import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
 import {
   PrecificacaoSidebar,
@@ -47,11 +49,16 @@ export type Report = {
 
 // O estudo de precificação segue no código, mas fica oculto do menu até ser reativado aqui.
 const SHOW_ESTUDO = false;
+// A aba "Ocupação esperada" está oculta por enquanto.
+const SHOW_OCUPACAO_ESPERADA = false;
 
-type Section = "ocupacao" | "gestao" | "estudo";
+type Section = "ocupacao" | "gestao" | "competitividade" | "estudo";
 const NAV: PricingNavItem<Section>[] = [
-  { key: "ocupacao", label: "Ocupação esperada", icon: CalendarRange },
+  ...(SHOW_OCUPACAO_ESPERADA
+    ? [{ key: "ocupacao" as const, label: "Ocupação esperada", icon: CalendarRange }]
+    : []),
   { key: "gestao", label: "Gestão de Ocupação", icon: CalendarDays },
+  { key: "competitividade", label: "Competitividade", icon: Swords },
   ...(SHOW_ESTUDO ? [{ key: "estudo" as const, label: "Estudo", icon: FileText }] : []),
 ];
 
@@ -144,7 +151,7 @@ export function PricingHubView({
   const ativa = aba ?? parsed?.tabs[0]?.id ?? "";
 
   const forecast = useForecast();
-  const [secao, setSecao] = useState<Section>("ocupacao");
+  const [secao, setSecao] = useState<Section>(SHOW_OCUPACAO_ESPERADA ? "ocupacao" : "gestao");
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
@@ -161,9 +168,11 @@ export function PricingHubView({
             <p className="text-sm text-foreground/70">
               {secao === "estudo" && data
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
-                : secao === "gestao"
-                  ? "Ocupação atual contra o benchmark histórico, na antecedência escolhida."
-                  : "Ocupação atual e esperada por categoria, data a data."}
+                : secao === "competitividade"
+                  ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
+                  : secao === "gestao"
+                    ? "Ocupação atual contra o benchmark histórico, na antecedência escolhida."
+                    : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           {forecast.data ? (
@@ -177,6 +186,8 @@ export function PricingHubView({
             <OcupacaoEsperada />
           ) : secao === "gestao" ? (
             <GestaoOcupacao />
+          ) : secao === "competitividade" ? (
+            <Competitividade />
           ) : (
             <>
               {isLoading ? (

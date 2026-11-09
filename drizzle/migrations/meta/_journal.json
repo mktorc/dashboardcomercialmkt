@@ -407,6 +407,20 @@
       "when": 1793469710753,
       "tag": "0057_pricing_occupancy_pace",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1793469770753,
+      "tag": "0058_competitive_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793469830753,
+      "tag": "0059_our_rate_currency",
+      "breakpoints": true
     }
   ]
 }
