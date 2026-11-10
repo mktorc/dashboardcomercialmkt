@@ -9,6 +9,7 @@ import {
   leadOf,
   occupancyAt,
   pickupCurve,
+  revenueOf,
   rowsByDate,
   summarize,
   type PaceParams,
@@ -350,5 +351,21 @@ describe("esperada escolhida pelo dia todo", () => {
     const m = buildModel({ ...payload, linhas: l2 } as never, "maximo");
     const d = dayPace(m, l2.slice(0, 2) as never, "2026-11-12", "2026-11-10");
     expect(d.esperada).toBeCloseTo(9 / 12, 5);
+  });
+});
+
+describe("revenueOf com categoria sem tarifa", () => {
+  const a = { d: "2027-02-03", c: "A", f: 4, a: [30, 30], m: [100, 200] };
+  const lux = { d: "2027-02-03", c: "Luxury", f: 2, a: [30] };
+  it("ignora a linha sem preço em vez de zerar a data", () => {
+    const r = revenueOf([a, lux] as never, 10);
+    expect(r.diaria).toBe(150);
+    expect(r.porVeiculo).toBe(300 / 4);
+    expect(r.semPreco).toEqual(["Luxury"]);
+  });
+  it("só categorias sem preço: sem valor", () => {
+    const r = revenueOf([lux] as never, 10);
+    expect(r.diaria).toBeNull();
+    expect(r.porVeiculo).toBeNull();
   });
 });

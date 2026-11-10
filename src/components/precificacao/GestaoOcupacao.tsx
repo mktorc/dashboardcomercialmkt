@@ -777,6 +777,11 @@ function Detalhe({
                 <dt className="text-muted-foreground">Faturamento por veículo</dt>
                 <dd className="font-medium tabular-nums">{usd(rev.porVeiculo)}</dd>
               </div>
+              {rev.semPreco.length > 0 && rev.semPreco.length < rows.length ? (
+                <p className="col-span-2 text-xs text-muted-foreground">
+                  Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")} (sem tarifa lançada).
+                </p>
+              ) : null}
               <div>
                 <dt className="text-muted-foreground">Sazonalidade</dt>
                 <dd className="font-medium">{d.season ?? "—"}</dd>

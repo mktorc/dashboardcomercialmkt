@@ -133,20 +133,30 @@ function revenueRow(r: PaceRow, L?: number): { v: number; p: number } | null {
 
 /**
  * Diária média (faturamento ÷ diárias com preço) e faturamento por veículo (faturamento ÷ frota do dia) das linhas, lidos na
- * antecedência L (a mesma da ocupação mostrada); null sem dado. A frota é a do próprio dia de cada linha.
+ * antecedência L (a mesma da ocupação mostrada); null sem dado. A frota é a do próprio dia de cada linha, só das linhas com preço.
  */
 export function revenueOf(rows: PaceRow[], L?: number) {
   let v = 0;
   let p = 0;
   let f = 0;
+  const semPreco: string[] = [];
   for (const r of rows) {
     const x = revenueRow(r, L);
-    if (!x) return { diaria: null as number | null, porVeiculo: null as number | null };
+    // Linha sem tarifa lançada (ex.: categoria sem preço no HQ) fica fora da conta, em vez de zerar a data toda.
+    if (!x || !x.p) {
+      semPreco.push(r.c);
+      continue;
+    }
     v += x.v;
     p += x.p;
     f += r.f;
   }
-  return { diaria: p ? v / p : null, porVeiculo: f ? v / f : null };
+  return {
+    diaria: p ? v / p : null,
+    porVeiculo: f ? v / f : null,
+    /** Categorias da data sem preço (fora de diária média e faturamento por veículo, que cobrem só as demais). */
+    semPreco,
+  };
 }
 
 /** Índice dos grupos comparáveis: evento (categoria, evento, posição) ou data comum (categoria, sazonalidade[, dia da semana]). */
