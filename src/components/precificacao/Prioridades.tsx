@@ -1754,6 +1754,10 @@ function Detalhe({
                 />
                 <ReferenciasAnteriores
                   model={model}
+                  rows={(() => {
+                    const r0 = model.byKey.get(`${row.date}|${row.category}`);
+                    return r0 ? [r0] : [];
+                  })()}
                   date={row.date}
                   base={base}
                   lead={row.lead}

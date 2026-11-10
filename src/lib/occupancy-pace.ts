@@ -344,42 +344,95 @@ export const REF_FROTA_MIN = 0.5;
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 
+/** Uma data de referência da esperada, com os números que a escolha usa (os mesmos que o painel mostra). */
+export type RefItem = {
+  date: string;
+  /** Ocupação da referência na antecedência L: diárias ativas ÷ frota que existia na época. */
+  occ: number | null;
+  /** Faturamento por veículo da referência (diárias da antecedência L ÷ frota da época). */
+  rev: number | null;
+  fleet: number;
+  /** Parcela da frota atual que a referência cobre. */
+  cobertura: number;
+  eligible: boolean;
+  motivo: string | null;
+  chosen: boolean;
+  cov: PaceRow[];
+  capCov: number;
+};
+
 /**
- * Esperada do dia no modo "melhor registro", escolhida pelo DIA TODO (como a tabela de períodos anteriores): cada data de referência
- * (mesmo dia da semana 1 e 2 anos antes, ou as edições passadas do evento na mesma posição) soma as categorias das linhas, com a
- * frota que existia na época e as diárias vendidas na mesma antecedência; vale a de maior faturamento por veículo (sem faturamento,
- * a de maior ocupação). Só entram referências que cobrem ao menos REF_COBERTURA_MIN da frota atual; as categorias sem linha na referência
- * ficam de fora dos dois lados (`cov` = linhas atuais comparadas).
+ * Datas de referência do dia no modo "melhor registro", escolhidas pelo DIA TODO: cada data soma as categorias das linhas, com a frota
+ * que existia na época (com os veículos depois vendidos) e as diárias vendidas na mesma antecedência L. Vale a de maior faturamento por
+ * veículo (sem faturamento, a de maior ocupação) entre as elegíveis: cobrem ao menos REF_COBERTURA_MIN da frota atual e a frota da
+ * época de cada categoria é ao menos REF_FROTA_MIN da atual. Categorias sem linha na referência ficam de fora dos dois lados (`cov`).
  */
+export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number): RefItem[] {
+  const capacity = sum(rows.map((r) => r.f));
+  const truncated = (d: string) => L > 0 && addDays(d, -L) < model.payload.de;
+  const items: RefItem[] = [];
+  for (const d of referenceDates(model, date, base).datas) {
+    if (d >= base || d === date) continue;
+    const base0 = { date: d, occ: null, rev: null, fleet: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
+    if (truncated(d)) {
+      items.push({ ...base0, motivo: "sem registro de vendas nessa antecedência" });
+      continue;
+    }
+    const all = rows
+      .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
+      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
+    if (!all.length) {
+      items.push({ ...base0, motivo: "sem dados" });
+      continue;
+    }
+    const ok = all.filter((x) => histFleet(x.h) >= REF_FROTA_MIN * x.r.f);
+    const pairs = ok.length ? ok : all;
+    const capCov = sum(ok.map((x) => x.r.f));
+    const cobertura = capacity ? capCov / capacity : 0;
+    const fh = sum(pairs.map((x) => histFleet(x.h)));
+    const revs = pairs.map((x) => revenueRow(x.h, L));
+    const rev = revs.every((x) => x) ? sum(revs.map((x) => x!.v)) / fh : null;
+    const eligible = ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
+    items.push({
+      date: d,
+      occ: sum(pairs.map((x) => activeAt(x.h, L))) / fh,
+      rev,
+      fleet: fh,
+      cobertura,
+      eligible,
+      motivo: !ok.length
+        ? "frota da época menor que a metade da atual"
+        : cobertura < REF_COBERTURA_MIN
+          ? `cobre só ${Math.round(cobertura * 100)}% da frota atual`
+          : null,
+      chosen: false,
+      cov: ok.map((x) => x.r),
+      capCov,
+    });
+  }
+  let best: RefItem | null = null;
+  for (const it of items) {
+    if (!it.eligible) continue;
+    if (!best || (it.rev != null && best.rev != null ? it.rev > best.rev : it.rev != null ? true : best.rev != null ? false : it.occ! > best.occ!)) best = it;
+  }
+  if (best) best.chosen = true;
+  return items;
+}
+
 function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number) {
   if (!rows.length) return null;
   const info = model.payload.cal[date];
   const isEvent = !!(info?.[1] && info[2] != null);
-  const capacity = sum(rows.map((r) => r.f));
-  const truncated = (d: string) => L > 0 && addDays(d, -L) < model.payload.de;
-  const dates = referenceDates(model, date, base).datas;
-  let best: { occ: number; rev: number | null; cov: PaceRow[]; capCov: number } | null = null;
-  let n = 0;
-  for (const d of dates) {
-    if (d >= base || d === date || truncated(d)) continue;
-    const pairs = rows
-      .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
-      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0 && histFleet(x.h) >= REF_FROTA_MIN * x.r.f);
-    if (!pairs.length) continue;
-    const capCov = sum(pairs.map((x) => x.r.f));
-    if (!capacity || capCov / capacity < REF_COBERTURA_MIN) continue;
-    n++;
-    const fh = sum(pairs.map((x) => histFleet(x.h)));
-    const occ = sum(pairs.map((x) => activeAt(x.h, L))) / fh;
-    const revs = pairs.map((x) => revenueRow(x.h));
-    const rev = revs.every((x) => x) ? sum(revs.map((x) => x!.v)) / fh : null;
-    const better =
-      !best ||
-      (rev != null && best.rev != null ? rev > best.rev : rev != null ? true : best.rev != null ? false : occ > best.occ);
-    if (better) best = { occ, rev, cov: pairs.map((x) => x.r), capCov };
-  }
+  const items = referenceItems(model, rows, date, base, L);
+  const best = items.find((i) => i.chosen);
   if (!best) return null;
-  return { value: Math.min(1, best.occ), cov: best.cov, capCov: best.capCov, n, level: (isEvent ? "evento" : "aniversario") as BenchLevel };
+  return {
+    value: Math.min(1, best.occ!),
+    cov: best.cov,
+    capCov: best.capCov,
+    n: items.filter((i) => i.eligible).length,
+    level: (isEvent ? "evento" : "aniversario") as BenchLevel,
+  };
 }
 
 /**

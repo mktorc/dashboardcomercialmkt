@@ -810,6 +810,7 @@ function Detalhe({
             />
             <ReferenciasAnteriores
               model={model}
+              rows={rows}
               date={date!}
               base={base}
               lead={d.lead}

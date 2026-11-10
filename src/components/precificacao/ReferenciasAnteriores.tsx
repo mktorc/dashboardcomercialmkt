@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import {
   EVENT_LABEL,
-  dayPace,
+  referenceItems,
   referenceDates,
   revenueOf,
   type PaceModel,
@@ -15,6 +15,7 @@ import { dataBR, pct, usd } from "@/lib/pricing-format";
  */
 export function ReferenciasAnteriores({
   model,
+  rows,
   date,
   base,
   lead,
@@ -22,6 +23,8 @@ export function ReferenciasAnteriores({
   rowsFor,
 }: {
   model: PaceModel;
+  /** Linhas (data × categoria) da data analisada: as mesmas que a esperada usa. */
+  rows: PaceRow[];
   date: string;
   base: string;
   lead: number;
@@ -30,9 +33,11 @@ export function ReferenciasAnteriores({
   rowsFor: (date: string) => PaceRow[];
 }) {
   const ref = referenceDates(model, date, base);
+  // Os mesmos números e as mesmas referências que a esperada usa (ocupação ÷ frota da época, faturamento por veículo).
+  const todos = referenceItems(model, rows, date, base, lead);
   const itens = ref.datas.map((dt) => ({
     dt,
-    p: dayPace(model, rowsFor(dt), dt, base, lead),
+    it: todos.find((i) => i.date === dt),
     r: revenueOf(rowsFor(dt), lead),
   }));
   const titulo = ref.evento
@@ -46,7 +51,7 @@ export function ReferenciasAnteriores({
       {itens.length === 0 ? (
         <p className="text-muted-foreground">Sem edição anterior comparável.</p>
       ) : (
-        itens.map(({ dt, p, r }, i) => (
+        itens.map(({ dt, it, r }, i) => (
           <div key={dt} className="space-y-0.5">
             <div className="flex justify-between">
               <span className="text-muted-foreground">
@@ -58,14 +63,18 @@ export function ReferenciasAnteriores({
                 ({dataBR(dt)})
               </span>
               <span className="tabular-nums">
-                {pct(p.atual)}
-                {p.atual == null ? " · sem dado" : ""}
+                {pct(it?.occ ?? null)}
+                {it?.occ == null ? " · sem dado" : ""}
+                {it?.chosen ? " · usada na esperada" : ""}
               </span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Diária média {usd(r.diaria)}</span>
-              <span>Faturamento/veículo {usd(r.porVeiculo)}</span>
+              <span>Faturamento/veículo {usd(it?.rev ?? null)}</span>
             </div>
+            {it && !it.eligible && it.motivo ? (
+              <div className="text-xs text-amber-700 dark:text-amber-300">Fora da esperada: {it.motivo}</div>
+            ) : null}
           </div>
         ))
       )}
