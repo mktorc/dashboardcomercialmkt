@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
+import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -101,7 +102,7 @@ export function GestaoOcupacao({
         Nenhum dado de ritmo publicado ainda. Rode ritmo.py --publicar em scripts/precificacao.
       </Card>
     );
-  if (q.data.payload.versao !== 2)
+  if (q.data.payload.versao < 2)
     return (
       <Card className="p-6 text-sm text-muted-foreground">
         Os dados publicados usam um formato antigo. Rode ritmo.py --publicar em scripts/precificacao
@@ -722,14 +723,6 @@ function Detalhe({
         : [],
     [model, rows, date, base],
   );
-  // mesma antecedência no mesmo dia da semana, 1 e 2 anos antes (364 e 728 dias)
-  const hist =
-    date && d
-      ? [364, 728].map((n) => {
-          const dt = addDays(date, -n);
-          return dayPace(model, byDate.get(dt) ?? [], dt, base, d.lead);
-        })
-      : [];
   const lv = d?.gap != null ? LEVEL[gapLevel(d.gap, bands)] : null;
   const leadTxt = d ? (d.closed ? "encerrada (D-0)" : `D-${d.lead}`) : "";
   return (
@@ -788,22 +781,14 @@ function Detalhe({
               data={curve}
               note="Esperada = melhor ocupação já registrada por datas comparáveis em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
             />
-            <Card className="space-y-1 p-4 text-sm">
-              <h3 className="font-semibold">
-                Mesmo dia da semana em períodos anteriores · {d.closed ? "D-0" : `D-${d.lead}`}
-              </h3>
-              {hist.map((h, i) => (
-                <div key={h.date} className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    {i === 0 ? "1 ano antes" : "2 anos antes"} ({dataBR(h.date)})
-                  </span>
-                  <span className="tabular-nums">
-                    {pct(h.atual)}
-                    {h.atual == null ? " · sem dado" : ""}
-                  </span>
-                </div>
-              ))}
-            </Card>
+            <ReferenciasAnteriores
+              model={model}
+              date={date!}
+              base={base}
+              lead={d.lead}
+              leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
+              rowsFor={(dt) => byDate.get(dt) ?? []}
+            />
           </>
         ) : null}
       </SheetContent>

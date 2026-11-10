@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
-  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   Gauge,
+  Lightbulb,
   Settings2,
+  Tag,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -26,6 +30,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
+import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
+import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
 import { Kpi, PickupChart } from "@/components/precificacao/GestaoOcupacao";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { useCompetitorSnapshots, useOurRates, type SnapshotRow } from "@/lib/competitive-data";
@@ -36,59 +42,111 @@ import {
   EVENT_LABEL,
   addDays,
   buildModel,
-  dayPace,
   gapLevel,
   pickupCurve,
   usePace,
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
+import { captureCurve, captureInfo } from "@/lib/capture";
 import { formatLastUpdate } from "@/lib/pricing-forecast";
-import type { Range } from "@/lib/pricing-range";
+import { todayIso, type Range } from "@/lib/pricing-range";
 import {
   DEFAULT_CRIT,
+  JANELA_LABEL,
+  MARKET_BUCKETS,
+  MARKET_LABEL,
+  MATRIX_TEXT,
+  NIVEIS_RANKING,
+  NIVEL_LABEL,
+  NIVEL_ORDEM,
   NO_PRICE,
-  byPriority,
+  OCC_BUCKETS,
+  acompanhamento,
+  janelaRange,
+  TENDENCIA_LABEL,
+  byRank,
+  enrich,
   fatos,
   hipoteses,
-  isOportunidade,
+  matrix,
+  occBucket,
   priorityRows,
+  priceConfidence,
   recommend,
-  resumir,
-  rhythm,
+  rhythmPooled,
+  histContext,
+  worstByDate,
   type Confianca,
   type CritConfig,
-  type Criticidade,
+  type EnrichedRow,
+  type MarketBucket,
+  type Nivel,
+  type OccBucket,
   type PriceCtx,
-  type PriorityRow,
 } from "@/lib/prioridades";
 
 const ALL = "__all__";
-const PAGE = 50;
-const LEADS: { key: string; label: string; min: number; max: number }[] = [
+const PAGE = 24;
+const leadBands = (c: CritConfig) => [
   { key: "all", label: "Todas as antecedências", min: 0, max: 400 },
-  { key: "0-7", label: "D-0 a D-7", min: 0, max: 7 },
-  { key: "8-14", label: "D-8 a D-14", min: 8, max: 14 },
-  { key: "15-30", label: "D-15 a D-30", min: 15, max: 30 },
-  { key: "31-60", label: "D-31 a D-60", min: 31, max: 60 },
-  { key: "61-90", label: "D-61 a D-90", min: 61, max: 90 },
-  { key: "91+", label: "D-91 ou mais", min: 91, max: 400 },
+  {
+    key: "p60",
+    label: `Janela de atuação (D-${c.leadInterv} ou mais)`,
+    min: c.leadInterv,
+    max: 400,
+  },
+  ...(["plan", "estrat", "atenc", "interv", "recup", "curto"] as const).map((j) => {
+    const min = {
+      plan: c.leadPlan,
+      estrat: c.leadStrat,
+      atenc: c.leadAtenc,
+      interv: c.leadInterv,
+      recup: c.leadRecup,
+      curto: 0,
+    }[j];
+    const max = {
+      plan: 400,
+      estrat: c.leadPlan - 1,
+      atenc: c.leadStrat - 1,
+      interv: c.leadAtenc - 1,
+      recup: c.leadInterv - 1,
+      curto: c.leadRecup - 1,
+    }[j];
+    return { key: j, label: `${JANELA_LABEL[j]} (${janelaRange(j, c)})`, min, max };
+  }),
 ];
-const CRIT_STYLE: Record<Criticidade, { label: string; cls: string }> = {
+const NIVEL_STYLE: Record<Nivel, { badge: string; bar: string; cell: string }> = {
   critica: {
-    label: "Crítica",
-    cls: "border-red-500/60 bg-red-500/20 text-red-700 dark:text-red-300",
+    badge: "border-red-500/60 bg-red-500/15 text-red-700 dark:text-red-300",
+    bar: "bg-red-500",
+    cell: "bg-red-500/80 text-white border-red-600",
   },
   atencao: {
-    label: "Atenção",
-    cls: "border-orange-400/50 bg-orange-400/15 text-orange-700 dark:text-orange-300",
+    badge: "border-orange-400/60 bg-orange-400/15 text-orange-700 dark:text-orange-300",
+    bar: "bg-orange-400",
+    cell: "bg-orange-400/80 text-black border-orange-500",
   },
   monitorar: {
-    label: "Monitorar",
-    cls: "border-yellow-500/40 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300",
+    badge: "border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300",
+    bar: "bg-yellow-400",
+    cell: "bg-yellow-300/70 text-black border-yellow-500",
   },
-  ok: { label: "Dentro do esperado", cls: "border-border bg-card text-muted-foreground" },
-  "sem-dados": { label: "Sem benchmark", cls: "border-border bg-card text-muted-foreground" },
+  oportunidade: {
+    badge: "border-sky-500/50 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+    bar: "bg-sky-500",
+    cell: "bg-sky-500/70 text-white border-sky-600",
+  },
+  ok: {
+    badge: "border-border bg-card text-muted-foreground",
+    bar: "bg-emerald-500/60",
+    cell: "bg-emerald-500/15 text-foreground border-emerald-500/30",
+  },
+  "sem-dados": {
+    badge: "border-border bg-card text-muted-foreground",
+    bar: "bg-muted-foreground/40",
+    cell: "bg-muted text-muted-foreground border-dashed border-border",
+  },
 };
 const CONF_LABEL: Record<Confianca, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
 const PRIO_LABEL = { alta: "Alta", media: "Média", baixa: "Baixa" } as const;
@@ -98,14 +156,25 @@ const EQ_LABEL: Record<Equivalence, string> = {
   nao_equivalente: "Não equivalente",
   nao_avaliada: "Não avaliada",
 };
+const OCC_LABEL: Record<OccBucket, string> = {
+  abaixo: "Abaixo do esperado",
+  neutro: "Dentro do esperado",
+  acima: "Acima do esperado",
+};
 const money = (v: number | null, cur: string) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: cur });
 const pctTxt = (v: number | null) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`);
+const weekday = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+const rowKey = (r: { date: string; category: string }) => `${r.date}|${r.category}`;
 
-function Badge({ c }: { c: Criticidade }) {
-  const s = CRIT_STYLE[c];
+function NivelBadge({ n }: { n: Nivel }) {
   return (
-    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>
+    <span
+      className={`rounded border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${NIVEL_STYLE[n].badge}`}
+    >
+      {NIVEL_LABEL[n]}
+    </span>
   );
 }
 
@@ -125,54 +194,51 @@ export function Prioridades({
         scripts/precificacao).
       </Card>
     );
-  return <Painel payload={q.data.payload} range={range} onRangeChange={onRangeChange} />;
+  return (
+    <Painel
+      payload={q.data.payload}
+      geradoEm={q.data.generated_at}
+      range={range}
+      onRangeChange={onRangeChange}
+    />
+  );
 }
 
 function Painel({
   payload,
+  geradoEm,
   range,
   onRangeChange,
 }: {
   payload: NonNullable<ReturnType<typeof usePace>["data"]>["payload"];
+  geradoEm: string;
   range: Range;
   onRangeChange: (r: Range) => void;
 }) {
   const snaps = useCompetitorSnapshots();
   const rates = useOurRates();
   const [cat, setCat] = useState(ALL);
-  const [leadKey, setLeadKey] = useState("all");
+  const [leadKey, setLeadKey] = useState("p60");
+  const [nivelF, setNivelF] = useState<string>(ALL);
+  const [mktF, setMktF] = useState<string>(ALL);
   const [crit, setCrit] = useState<CritConfig>(DEFAULT_CRIT);
   const [shown, setShown] = useState(PAGE);
-  const [sel, setSel] = useState<PriorityRow | null>(null);
+  const [selKey, setSelKey] = useState<string | null>(null);
+  const [month, setMonth] = useState<string | null>(null);
 
   // Antecedência atual: a data-base é sempre hoje (nunca se compara uma data em D-49 com a ocupação histórica de D-7).
   const base = payload.hoje;
   const model = useMemo(() => buildModel(payload, ESPERADA_ESTATISTICA), [payload]);
   // O ritmo recente (reservas novas na semana) é comparado com o histórico típico (média), não com o melhor registro.
   const modelRitmo = useMemo(() => buildModel(payload, "media"), [payload]);
-  const lead = LEADS.find((l) => l.key === leadKey) ?? LEADS[0]!;
-  const all = useMemo(
-    () =>
-      priorityRows(
-        model,
-        base,
-        {
-          from: range.from,
-          to: range.to,
-          category: cat === ALL ? null : cat,
-          minLead: lead.min,
-          maxLead: lead.max,
-        },
-        crit,
-      ),
-    [model, base, range, cat, lead, crit],
-  );
-
+  const bands = leadBands(crit);
+  const lead = bands.find((b) => b.key === leadKey) ?? bands[0]!;
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
   const ours = useMemo(
     () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate])),
     [rates.data],
   );
+  // Coletas de concorrência agrupadas por data × categoria.
   const groups = useMemo(() => {
     const g = new Map<string, SnapshotRow[]>();
     for (const r of snaps.data ?? []) {
@@ -183,6 +249,14 @@ function Painel({
     return g;
   }, [snaps.data]);
   const now = useMemo(() => new Date().toISOString(), []);
+  const ultimaColeta = useMemo(
+    () =>
+      (snaps.data ?? []).reduce<string | null>(
+        (m, r) => (!m || r.collectedAt > m ? r.collectedAt : m),
+        null,
+      ),
+    [snaps.data],
+  );
   const priceOf = useMemo(() => {
     const cache = new Map<string, PriceCtx>();
     return (date: string, category: string): PriceCtx => {
@@ -206,24 +280,90 @@ function Painel({
               partial: m.partial,
               ourRate: mine,
               currency: moeda,
+              lastCollectedAt: m.lastCollectedAt,
             };
       cache.set(k, ctx);
       return ctx;
     };
   }, [ours, groups, now, moeda]);
 
-  const ranking = useMemo(
+  // Uma única lista filtrada alimenta resumo, ranking, matriz e calendário (mesmos critérios de agregação).
+  const base_rows = useMemo(
     () =>
-      all
-        .filter((r) => ["critica", "atencao", "monitorar"].includes(r.criticidade))
-        .sort(byPriority),
-    [all],
+      priorityRows(
+        model,
+        base,
+        {
+          from: range.from,
+          to: range.to,
+          category: cat === ALL ? null : cat,
+          minLead: lead.min,
+          maxLead: lead.max,
+        },
+        crit,
+      ).map((r) => {
+        const pr = model.byKey.get(rowKey(r));
+        const rh = pr ? rhythmPooled(modelRitmo, r.date, r.category, base, crit) : null;
+        const hs = pr ? histContext(modelRitmo, pr, r.date, base) : null;
+        const cp = pr ? captureInfo(modelRitmo, pr, r.date, base) : null;
+        return enrich(r, priceOf(r.date, r.category), crit, rh, cp, hs);
+      }),
+    [model, modelRitmo, base, range, cat, lead, crit, priceOf],
   );
-  const sum = useMemo(
-    () => resumir(all, crit, (r) => isOportunidade(r, priceOf(r.date, r.category), crit)),
-    [all, crit, priceOf],
+  // Só para explicar um recorte vazio: quantas datas existem se a antecedência não filtrasse.
+  const semFiltroAntecedencia = useMemo(
+    () =>
+      base_rows.length
+        ? base_rows.length
+        : priorityRows(
+            model,
+            base,
+            {
+              from: range.from,
+              to: range.to,
+              category: cat === ALL ? null : cat,
+              minLead: 0,
+              maxLead: 400,
+            },
+            crit,
+          ).length,
+    [base_rows, model, base, range, cat, crit],
   );
-  const dadosSuf = sum.total ? Math.round((sum.analisadas / sum.total) * 100) : null;
+  const rows = useMemo(
+    () =>
+      base_rows.filter(
+        (r) => (nivelF === ALL || r.nivel === nivelF) && (mktF === ALL || r.market === mktF),
+      ),
+    [base_rows, nivelF, mktF],
+  );
+  const ranking = useMemo(
+    () => rows.filter((r) => NIVEIS_RANKING.includes(r.nivel)).sort(byRank),
+    [rows],
+  );
+  const mx = useMemo(() => matrix(rows, crit), [rows, crit]);
+  const byDate = useMemo(() => worstByDate(rows), [rows]);
+  const sel = selKey ? (base_rows.find((r) => rowKey(r) === selKey) ?? null) : null;
+
+  // Indicadores: tudo respeita os mesmos filtros; "D-60+" = a partir do início da janela de intervenção.
+  const noJanela = rows.filter((r) => r.lead >= crit.leadInterv);
+  const gapJ = noJanela.filter((r) => r.gap != null);
+  const problemas = rows.filter((r) => r.nivel === "critica" || r.nivel === "atencao");
+  const resumo = {
+    criticas: noJanela.filter((r) => r.nivel === "critica").length,
+    criticas90: rows.filter((r) => r.nivel === "critica" && r.lead >= crit.leadStrat).length,
+    abaixo: noJanela.filter((r) => occBucket(r, crit) === "abaixo").length,
+    ritmo: rows.filter((r) => r.pickupAbaixo || r.tendencia === "desacelerando").length,
+    gapMedio: gapJ.length ? gapJ.reduce((a, r) => a + r.gap!, 0) / gapJ.length : null,
+    nGap: gapJ.length,
+    oportunidades: rows.filter((r) => r.nivel === "oportunidade").length,
+    precoDesfavoravel: rows.filter((r) => r.market === "acima" && occBucket(r, crit) === "abaixo")
+      .length,
+    pctNaJanela: problemas.length
+      ? Math.round(
+          (problemas.filter((r) => r.lead >= crit.leadInterv).length / problemas.length) * 100,
+        )
+      : null,
+  };
 
   return (
     <div className="space-y-4">
@@ -234,167 +374,661 @@ function Painel({
           onChange={(from, to) => from && to && from <= to && onRangeChange({ from, to })}
           actions={<CritConfigPopover crit={crit} onChange={setCrit} />}
         >
-          <label className="space-y-1 text-sm">
-            <span className="block text-muted-foreground">Categoria</span>
-            <Select value={cat} onValueChange={(v) => (setCat(v), setShown(PAGE))}>
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Todas as categorias</SelectItem>
-                {payload.categorias.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-          <label className="space-y-1 text-sm">
-            <span className="block text-muted-foreground">Antecedência atual</span>
-            <Select value={leadKey} onValueChange={(v) => (setLeadKey(v), setShown(PAGE))}>
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LEADS.map((l) => (
-                  <SelectItem key={l.key} value={l.key}>
-                    {l.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
+          <FilterSelect
+            label="Categoria"
+            value={cat}
+            onChange={(v) => (setCat(v), setShown(PAGE))}
+            options={[
+              [ALL, "Todas as categorias"],
+              ...payload.categorias.map((c) => [c, c] as [string, string]),
+            ]}
+          />
+          <FilterSelect
+            label="Antecedência atual"
+            value={leadKey}
+            onChange={(v) => (setLeadKey(v), setShown(PAGE))}
+            options={bands.map((l) => [l.key, l.label] as [string, string])}
+          />
+          <FilterSelect
+            label="Criticidade"
+            value={nivelF}
+            onChange={(v) => (setNivelF(v), setShown(PAGE))}
+            options={[
+              [ALL, "Todos os níveis"],
+              ...NIVEL_ORDEM.map((n) => [n, NIVEL_LABEL[n]] as [string, string]),
+            ]}
+          />
+          <FilterSelect
+            label="Situação de mercado"
+            value={mktF}
+            onChange={(v) => (setMktF(v), setShown(PAGE))}
+            options={[
+              [ALL, "Todas"],
+              ...MARKET_BUCKETS.map((m) => [m, MARKET_LABEL[m]] as [string, string]),
+            ]}
+          />
         </PeriodFilter>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        Análise por data de retirada, em {dataBR(base)} (antecedência atual de cada data). Esperada
-        = melhor ocupação já registrada em datas passadas comparáveis, na mesma antecedência (não é
-        previsão da ocupação final).
-      </p>
+      <StatusDados
+        base={base}
+        geradoEm={geradoEm}
+        ultimaColeta={ultimaColeta}
+        coletasCarregando={snaps.isLoading}
+        total={base_rows.length}
+        aposFiltros={rows.length}
+        comBenchmark={base_rows.filter((r) => r.gap != null).length}
+      />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-        <Kpi icon={TrendingDown} label="Datas abaixo do esperado" value={String(sum.below)} />
-        <Kpi icon={TrendingUp} label="Datas acima do esperado" value={String(sum.above)} />
-        <Kpi
-          icon={Gauge}
-          label="Gap médio"
-          value={sum.gapMedio == null ? "—" : gapTxt(sum.gapMedio)}
-          hint="datas com benchmark"
+      {base_rows.length === 0 ? (
+        <RecorteVazio
+          todas={semFiltroAntecedencia}
+          leadKey={leadKey}
+          range={range}
+          base={base}
+          crit={crit}
+          onTodas={() => setLeadKey("all")}
+          onProximos={() =>
+            onRangeChange({ from: addDays(base, crit.leadInterv), to: addDays(base, 180) })
+          }
         />
-        <Kpi
-          icon={AlertTriangle}
-          label="Categorias críticas"
-          value={String(sum.criticalCategories)}
-        />
-        <Kpi
-          icon={TrendingUp}
-          label="Oportunidades de preço"
-          value={String(sum.opportunities)}
-          hint="acima do esperado e tarifa abaixo do mercado"
-        />
-        <Kpi
-          icon={CalendarClock}
-          label="Com dados suficientes"
-          value={dadosSuf == null ? "—" : `${dadosSuf}%`}
-          hint={`${sum.analisadas} de ${sum.total}`}
-        />
-      </div>
-
-      <Card className="space-y-3 p-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="font-semibold">Datas que precisam de atenção</h2>
-          <span className="text-xs text-muted-foreground">{ranking.length} no ranking</span>
-        </div>
-        {ranking.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma data com gap negativo relevante neste recorte (ou sem benchmark suficiente).
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
-              <thead className="text-left text-xs text-muted-foreground">
-                <tr>
-                  {[
-                    "Retirada",
-                    "Categoria",
-                    "Antec.",
-                    "Atual",
-                    "Esperada",
-                    "Gap",
-                    "Veículos",
-                    "Sazonalidade",
-                    "Criticidade",
-                    "Preço vs. mercado",
-                  ].map((h) => (
-                    <th key={h} className="px-2 py-1 font-medium">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ranking.slice(0, shown).map((r) => {
-                  const p = priceOf(r.date, r.category);
-                  return (
-                    <tr
-                      key={`${r.date}|${r.category}`}
-                      className="cursor-pointer border-t border-border hover:bg-muted/40"
-                      onClick={() => setSel(r)}
-                    >
-                      <td className="px-2 py-1.5">{dataBR(r.date)}</td>
-                      <td className="px-2 py-1.5">{r.category}</td>
-                      <td className="px-2 py-1.5 tabular-nums">D-{r.lead}</td>
-                      <td className="px-2 py-1.5 tabular-nums">{pct(r.atual)}</td>
-                      <td className="px-2 py-1.5 tabular-nums">{pct(r.esperada)}</td>
-                      <td
-                        className={`px-2 py-1.5 font-medium tabular-nums ${LEVEL[gapLevel(r.gap!, { strong: crit.gapStrong, mild: crit.gapMild })].text}`}
-                      >
-                        {gapTxt(r.gap)}
-                      </td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {r.booked}/{r.capacity}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        {r.event ? EVENT_LABEL[r.event] : (r.season ?? "—")}
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Badge c={r.criticidade} />
-                      </td>
-                      <td className="px-2 py-1.5 tabular-nums">
-                        {p.pct != null ? pctTxt(p.pct) : "sem dados"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <Kpi
+              icon={AlertTriangle}
+              label={`Críticas em D-${crit.leadInterv}+`}
+              value={String(resumo.criticas)}
+              hint={`${resumo.criticas90} em D-${crit.leadStrat}+`}
+              tone={resumo.criticas ? "text-red-600 dark:text-red-400" : undefined}
+            />
+            <Kpi
+              icon={TrendingDown}
+              label={`Abaixo do esperado em D-${crit.leadInterv}+`}
+              value={String(resumo.abaixo)}
+              hint={
+                resumo.pctNaJanela == null
+                  ? "—"
+                  : `${resumo.pctNaJanela}% dos problemas ainda na janela`
+              }
+            />
+            <Kpi
+              icon={Gauge}
+              label="Ritmo abaixo do histórico"
+              value={String(resumo.ritmo)}
+              hint="reservas novas na janela recente"
+            />
+            <Kpi
+              icon={Gauge}
+              label={`Gap médio em D-${crit.leadInterv}+`}
+              value={resumo.gapMedio == null ? "—" : gapTxt(resumo.gapMedio)}
+              hint={`${resumo.nGap} com benchmark`}
+            />
+            <Kpi
+              icon={TrendingUp}
+              label="Oportunidades"
+              value={String(resumo.oportunidades)}
+              hint="acima do esperado, tarifa abaixo do mercado"
+              tone={resumo.oportunidades ? "text-sky-600 dark:text-sky-400" : undefined}
+            />
+            <Kpi
+              icon={Tag}
+              label="Preço desfavorável"
+              value={String(resumo.precoDesfavoravel)}
+              hint="abaixo do esperado e tarifa acima do mercado"
+            />
           </div>
-        )}
-        {ranking.length > shown ? (
-          <Button size="sm" variant="outline" onClick={() => setShown((n) => n + PAGE)}>
-            Mostrar mais ({ranking.length - shown} restantes)
-          </Button>
-        ) : null}
-        <p className="text-xs text-muted-foreground">
-          Criticidade combina intensidade do gap, antecedência, veículos ainda livres e relevância
-          do período, e é limitada a "Atenção" quando a referência histórica é pouco confiável.
-          Clique em uma linha para o diagnóstico.
-        </p>
-      </Card>
+
+          <Card className="space-y-3 p-4">
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="text-lg font-semibold">Prioridades de ação</h2>
+              <span className="text-xs text-muted-foreground">{ranking.length} no ranking</span>
+            </div>
+            {ranking.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma data exige atenção neste recorte (ou não há benchmark suficiente).
+              </p>
+            ) : (
+              NIVEIS_RANKING.map((n) => {
+                const group = ranking.slice(0, shown).filter((r) => r.nivel === n);
+                if (!group.length) return null;
+                return (
+                  <section key={n} className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-sm font-medium">
+                      <span className={`size-2.5 rounded-full ${NIVEL_STYLE[n].bar}`} />
+                      {NIVEL_LABEL[n]}
+                      <span className="text-muted-foreground">
+                        ({ranking.filter((r) => r.nivel === n).length})
+                      </span>
+                    </h3>
+                    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+                      {group.map((r) => (
+                        <PriorityCard
+                          key={rowKey(r)}
+                          r={r}
+                          crit={crit}
+                          model={model}
+                          modelRitmo={modelRitmo}
+                          base={base}
+                          onOpen={() => setSelKey(rowKey(r))}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })
+            )}
+            {ranking.length > shown ? (
+              <Button size="sm" variant="outline" onClick={() => setShown((n) => n + PAGE)}>
+                Mostrar mais ({ranking.length - shown} restantes)
+              </Button>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Ordem: nível de criticidade e, dentro dele, prioridade de ação (gap, antecedência,
+              veículos livres, sazonalidade e evidência de mercado). Referência de baixa confiança
+              nunca gera “Crítica”. Nenhuma tarifa é alterada automaticamente.
+            </p>
+          </Card>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <DiagnosticMatrix mx={mx} />
+            <CriticalityCalendar
+              range={range}
+              byDate={byDate}
+              month={month}
+              setMonth={setMonth}
+              onOpen={(r) => setSelKey(rowKey(r))}
+            />
+          </div>
+        </>
+      )}
+
+      <CapturaReservas
+        rows={payload.linhas}
+        base={base}
+        historyStart={payload.de}
+        category={cat === ALL ? null : cat}
+      />
 
       <Detalhe
         row={sel}
-        onClose={() => setSel(null)}
+        siblings={sel ? rows.filter((r) => r.date === sel.date) : []}
+        onSwitch={(r) => setSelKey(rowKey(r))}
+        onClose={() => setSelKey(null)}
         model={model}
         modelRitmo={modelRitmo}
         base={base}
         crit={crit}
-        priceOf={priceOf}
         groups={groups}
         moeda={moeda}
       />
     </div>
+  );
+}
+
+const diasAtras = (iso: string) =>
+  Math.max(
+    0,
+    Math.round(
+      (Date.parse(`${todayIso()}T00:00:00Z`) - Date.parse(`${iso.slice(0, 10)}T00:00:00Z`)) /
+        86400000,
+    ),
+  );
+
+/** Datas e atualizações separadas: referência da análise, geração dos dados de ocupação e última coleta de concorrentes. */
+function StatusDados({
+  base,
+  geradoEm,
+  ultimaColeta,
+  coletasCarregando,
+  total,
+  aposFiltros,
+  comBenchmark,
+}: {
+  base: string;
+  geradoEm: string;
+  ultimaColeta: string | null;
+  coletasCarregando: boolean;
+  total: number;
+  aposFiltros: number;
+  comBenchmark: number;
+}) {
+  const defasagem = diasAtras(base);
+  const coletaAge = ultimaColeta ? (Date.now() - Date.parse(ultimaColeta)) / 86400000 : null;
+  return (
+    <div className="space-y-1 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-x-5 gap-y-1">
+        <span>
+          Referência da análise: <b className="text-foreground">{dataBR(base)}</b> (antecedências
+          contadas a partir dessa data)
+        </span>
+        <span>
+          Ocupação atualizada em: <b className="text-foreground">{formatLastUpdate(geradoEm)}</b>
+        </span>
+        <span>
+          Última coleta de concorrentes:{" "}
+          <b className="text-foreground">
+            {coletasCarregando
+              ? "carregando…"
+              : ultimaColeta
+                ? formatLastUpdate(ultimaColeta)
+                : "sem coletas nos últimos 30 dias"}
+          </b>
+        </span>
+      </div>
+      {defasagem > 0 ? (
+        <p className="text-amber-700 dark:text-amber-300">
+          Dados de ocupação defasados: a posição das reservas é de {defasagem} dia
+          {defasagem > 1 ? "s" : ""} atrás. A análise não reflete reservas feitas desde então (rode
+          ritmo.py --publicar).
+        </p>
+      ) : null}
+      {coletaAge != null && coletaAge > 7 ? (
+        <p className="text-amber-700 dark:text-amber-300">
+          A última coleta de concorrentes tem mais de 7 dias: ela não entra no posicionamento de
+          mercado.
+        </p>
+      ) : null}
+      <p>
+        Ocupação esperada representa o melhor resultado histórico comparável na mesma antecedência.
+        Não é uma previsão.
+      </p>
+      {total > 0 ? (
+        <p>
+          {total} combinações de data × categoria no período ({comBenchmark} com benchmark)
+          {aposFiltros !== total ? `; ${aposFiltros} após os filtros de criticidade e mercado` : ""}
+          .
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function RecorteVazio({
+  todas,
+  leadKey,
+  range,
+  base,
+  crit,
+  onTodas,
+  onProximos,
+}: {
+  todas: number;
+  leadKey: string;
+  range: Range;
+  base: string;
+  crit: CritConfig;
+  onTodas: () => void;
+  onProximos: () => void;
+}) {
+  const porAntecedencia = leadKey !== "all" && todas > 0;
+  return (
+    <Card className="space-y-3 p-6 text-sm">
+      <p className="font-medium">Nenhuma data no recorte selecionado.</p>
+      {porAntecedencia ? (
+        <p className="text-muted-foreground">
+          Há {todas} combinações de data × categoria em {dataBR(range.from)} a {dataBR(range.to)},
+          mas nenhuma na antecedência escolhida
+          {leadKey === "p60"
+            ? ` (D-${crit.leadInterv} ou mais): o período está a menos de ${crit.leadInterv} dias de ${dataBR(base)}`
+            : ""}
+          .
+        </p>
+      ) : (
+        <p className="text-muted-foreground">
+          Não há datas futuras com ocupação carregada entre {dataBR(range.from)} e{" "}
+          {dataBR(range.to)} para a categoria escolhida (a base de ocupação é de {dataBR(base)}).
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {porAntecedencia ? (
+          <Button size="sm" variant="outline" onClick={onTodas}>
+            Mostrar todas as antecedências
+          </Button>
+        ) : null}
+        <Button size="sm" variant="outline" onClick={onProximos}>
+          Ver os próximos meses (D-{crit.leadInterv} em diante)
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: [string, string][];
+}) {
+  return (
+    <label className="space-y-1 text-sm">
+      <span className="block text-muted-foreground">{label}</span>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-48">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map(([v, l]) => (
+            <SelectItem key={v} value={v}>
+              {l}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
+  );
+}
+
+function PriorityCard({
+  r,
+  crit,
+  model,
+  modelRitmo,
+  base,
+  onOpen,
+}: {
+  r: EnrichedRow;
+  crit: CritConfig;
+  model: PaceModel;
+  modelRitmo: PaceModel;
+  base: string;
+  onOpen: () => void;
+}) {
+  const p = r.price;
+  const rec = recommend(r, p, r.ritmo, crit)[0];
+  const atual = r.atual == null ? 0 : Math.min(100, r.atual * 100);
+  const esperada = r.esperada == null ? null : Math.min(100, r.esperada * 100);
+  const lowConf = r.confianca === "baixa";
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left transition hover:border-foreground/40 hover:shadow-sm focus-visible:outline-2"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="font-semibold">
+            {dataBR(r.date)}{" "}
+            <span className="font-normal text-muted-foreground">{weekday(r.date)}</span>
+          </div>
+          <div className="text-sm text-muted-foreground">{r.category}</div>
+        </div>
+        <NivelBadge n={r.nivel} />
+      </div>
+      <div>
+        <div className="relative h-2 rounded bg-muted">
+          <div
+            className={`h-2 rounded ${NIVEL_STYLE[r.nivel].bar}`}
+            style={{ width: `${atual}%` }}
+          />
+          {esperada != null ? (
+            <div
+              className="absolute -top-0.5 h-3 w-0.5 bg-foreground"
+              style={{ left: `${esperada}%` }}
+              title="Ocupação esperada"
+            />
+          ) : null}
+        </div>
+        <div className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs tabular-nums">
+          <span>
+            Atual <b>{pct(r.atual)}</b> · Esperada <b>{pct(r.esperada)}</b>
+          </span>
+          <b
+            className={
+              LEVEL[gapLevel(r.gap ?? 0, { strong: crit.gapStrong, mild: crit.gapMild })].text
+            }
+          >
+            {gapTxt(r.gap)}
+          </b>
+        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+          {r.capture ? (
+            <>
+              Captura{" "}
+              <b className="text-foreground">
+                {r.capture.atualShare == null ? "—" : pct(r.capture.atualShare)}
+              </b>{" "}
+              · histórico <b className="text-foreground">{pct(r.capture.histShare)}</b>
+              {r.capture.faltam != null && r.capture.faltam >= 1
+                ? ` · faltam ${Math.round(r.capture.faltam)} diárias`
+                : ""}
+            </>
+          ) : (
+            "Captura: sem referência histórica válida"
+          )}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        <span className="rounded bg-muted px-1.5 py-0.5">
+          D-{r.lead} · {JANELA_LABEL[r.janela]}
+        </span>
+        <span
+          className={`rounded bg-muted px-1.5 py-0.5 ${r.tendencia === "desacelerando" ? "text-amber-700 dark:text-amber-300" : ""}`}
+          title={r.ritmo?.confianca ? `Confiança ${r.ritmo.confianca}` : undefined}
+        >
+          {r.tendencia
+            ? `Ritmo: ${TENDENCIA_LABEL[r.tendencia].toLowerCase()} (${r.ritmo?.confianca ?? ""})`
+            : "Tendência indisponível"}
+        </span>
+        <span className="rounded bg-muted px-1.5 py-0.5">
+          {r.vacant} de {r.capacity} livres
+        </span>
+        <span className="rounded bg-muted px-1.5 py-0.5">
+          {p.pct != null
+            ? `${pctTxt(p.pct)} vs. mercado${p.partial ? " (parcial)" : ""}${p.n < 3 ? ` · ${p.n} conc.` : ""}`
+            : "sem dados de mercado"}
+        </span>
+        {lowConf ? (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-amber-700 dark:text-amber-300">
+            referência frágil
+          </span>
+        ) : null}
+      </div>
+      {rec ? (
+        <div className="space-y-0.5 text-sm">
+          <p className="font-medium leading-snug">{rec.problema}</p>
+          <p className="text-muted-foreground leading-snug">
+            <Lightbulb className="mr-1 inline size-3.5" />
+            {rec.acao}
+          </p>
+        </div>
+      ) : null}
+    </button>
+  );
+}
+
+const CELL_TONE: Record<OccBucket, Record<MarketBucket, string>> = {
+  abaixo: {
+    acima: "bg-red-500/20 border-red-500/50",
+    alinhado: "bg-orange-400/15 border-orange-400/50",
+    abaixo: "bg-orange-400/15 border-orange-400/50",
+    "sem-dados": "bg-muted border-border",
+  },
+  neutro: {
+    acima: "bg-card border-border",
+    alinhado: "bg-card border-border",
+    abaixo: "bg-card border-border",
+    "sem-dados": "bg-card border-border",
+  },
+  acima: {
+    acima: "bg-emerald-500/10 border-emerald-500/40",
+    alinhado: "bg-emerald-500/10 border-emerald-500/40",
+    abaixo: "bg-sky-500/20 border-sky-500/50",
+    "sem-dados": "bg-muted border-border",
+  },
+};
+
+function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
+  const [pick, setPick] = useState<{ occ: OccBucket; market: MarketBucket } | null>(null);
+  const cell = (o: OccBucket, m: MarketBucket) =>
+    mx.cells.find((c) => c.occ === o && c.market === m)!;
+  const cur =
+    pick ??
+    mx.cells
+      .filter((c) => c.count)
+      .sort((a, b) => b.critical - a.critical || b.count - a.count)[0] ??
+    null;
+  const txt = cur ? MATRIX_TEXT[cur.occ][cur.market] : null;
+  return (
+    <Card className="space-y-3 p-4">
+      <h2 className="text-lg font-semibold">Ocupação × preço</h2>
+      <div className="overflow-x-auto">
+        <div className="grid min-w-[420px] grid-cols-[110px_repeat(4,1fr)] gap-1.5 text-xs">
+          <div />
+          {MARKET_BUCKETS.map((m) => (
+            <div key={m} className="px-1 text-center text-muted-foreground">
+              {MARKET_LABEL[m]}
+            </div>
+          ))}
+          {OCC_BUCKETS.map((o) => (
+            <div key={o} className="contents">
+              <div className="flex items-center text-muted-foreground">{OCC_LABEL[o]}</div>
+              {MARKET_BUCKETS.map((m) => {
+                const c = cell(o, m);
+                const active = cur?.occ === o && cur.market === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setPick({ occ: o, market: m })}
+                    className={`rounded border p-2 text-center ${CELL_TONE[o][m]} ${active ? "ring-2 ring-foreground" : ""} ${c.count ? "" : "opacity-50"}`}
+                  >
+                    <div className="text-xl font-semibold tabular-nums">{c.count}</div>
+                    {c.critical ? (
+                      <div className="text-red-600 dark:text-red-400">{c.critical} crít.</div>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      {txt && cur ? (
+        <div className="space-y-1 rounded border border-border p-3 text-sm">
+          <p className="font-medium">{txt.leitura}</p>
+          <p className="text-muted-foreground">Investigar: {txt.investigar}</p>
+          <p className="text-xs text-muted-foreground">
+            Leitura sugerida a partir de dois sinais; não confirma causa.
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Sem datas com benchmark neste recorte.</p>
+      )}
+      {mx.semBenchmark ? (
+        <p className="text-xs text-muted-foreground">
+          {mx.semBenchmark} data×categoria sem benchmark de ocupação não entram na matriz.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+const monthOf = (iso: string) => iso.slice(0, 7);
+const addMonth = (m: string, n: number) => {
+  const d = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+function CriticalityCalendar({
+  range,
+  byDate,
+  month,
+  setMonth,
+  onOpen,
+}: {
+  range: Range;
+  byDate: ReturnType<typeof worstByDate>;
+  month: string | null;
+  setMonth: (m: string) => void;
+  onOpen: (r: EnrichedRow) => void;
+}) {
+  const first = monthOf(range.from);
+  const last = monthOf(range.to);
+  const m = month && month >= first && month <= last ? month : first;
+  const [y, mo] = [Number(m.slice(0, 4)), Number(m.slice(5, 7))];
+  const lead = new Date(y, mo - 1, 1).getDay();
+  const days = new Date(y, mo, 0).getDate();
+  const title = new Date(y, mo - 1, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+  return (
+    <Card className="space-y-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Calendário de criticidade</h2>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={m <= first}
+            onClick={() => setMonth(addMonth(m, -1))}
+            aria-label="Mês anterior"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="w-32 text-center text-sm capitalize">{title}</span>
+          <Button
+            size="icon"
+            variant="ghost"
+            disabled={m >= last}
+            onClick={() => setMonth(addMonth(m, 1))}
+            aria-label="Próximo mês"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground">
+        {["D", "S", "T", "Q", "Q", "S", "S"].map((d, i) => (
+          <div key={i}>{d}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: lead }, (_, i) => (
+          <div key={`b${i}`} />
+        ))}
+        {Array.from({ length: days }, (_, i) => {
+          const iso = `${m}-${String(i + 1).padStart(2, "0")}`;
+          const w = byDate.get(iso);
+          if (!w)
+            return (
+              <div
+                key={iso}
+                className="rounded border border-transparent py-2 text-center text-xs text-muted-foreground/40"
+              >
+                {i + 1}
+              </div>
+            );
+          return (
+            <button
+              key={iso}
+              type="button"
+              onClick={() => onOpen(w.row)}
+              title={`${dataBR(iso)} · ${NIVEL_LABEL[w.nivel]}${w.count > 1 ? ` · ${w.count} categorias` : ""}`}
+              className={`rounded border py-2 text-center text-xs font-medium hover:ring-2 hover:ring-foreground ${NIVEL_STYLE[w.nivel].cell}`}
+            >
+              {i + 1}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {NIVEL_ORDEM.map((n) => (
+          <span key={n} className="flex items-center gap-1">
+            <span className={`size-3 rounded border ${NIVEL_STYLE[n].cell}`} />
+            {NIVEL_LABEL[n]}
+          </span>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Cada dia mostra o pior nível entre as categorias do recorte; clique para o diagnóstico.
+      </p>
+    </Card>
   );
 }
 
@@ -405,34 +1039,50 @@ function CritConfigPopover({
   crit: CritConfig;
   onChange: (c: CritConfig) => void;
 }) {
-  const campos: { k: keyof CritConfig; label: string }[] = [
+  const campos: { k: keyof CritConfig; label: string; step?: number; neg?: boolean }[] = [
     { k: "gapMild", label: "Gap que entra no radar (p.p.)" },
     { k: "gapStrong", label: "Gap de intensidade máxima (p.p.)" },
-    { k: "leadUrgent", label: "Urgente até (dias)" },
-    { k: "leadNear", label: "Próxima até (dias)" },
-    { k: "leadFar", label: "Intermediária até (dias)" },
+    { k: "leadPlan", label: "Planejamento: a partir de D-" },
+    { k: "leadStrat", label: "Estratégica: a partir de D-" },
+    { k: "leadAtenc", label: "Atenção prioritária: a partir de D-" },
+    { k: "leadInterv", label: "Intervenção: a partir de D-" },
+    { k: "leadRecup", label: "Recuperação: a partir de D-" },
+    { k: "pRel", label: "Desvio relevante: percentil histórico ≤", step: 0.05 },
+    { k: "capDef", label: "Evidência: déficit de captura (p.p.)", neg: true },
+    { k: "faltamMin", label: "Evidência: diárias faltantes ≥" },
+    { k: "evidMin", label: "Evidências para Crítica" },
+    { k: "ritmoZ", label: "Tendência: z mínimo", step: 0.1 },
+    { k: "ritmoDisp", label: "Tendência: dispersão (var/média)", step: 0.5 },
+    { k: "ritmoVizinhos", label: "Tendência: datas vizinhas (±)" },
+    { k: "wGrav", label: "Peso: gravidade", step: 0.05 },
+    { k: "wFalt", label: "Peso: diárias faltantes", step: 0.05 },
+    { k: "wRitmo", label: "Peso: ritmo", step: 0.05 },
+    { k: "wJanela", label: "Peso: janela", step: 0.05 },
+    { k: "wFrota", label: "Peso: frota livre", step: 0.05 },
+    { k: "wPreco", label: "Peso: preço", step: 0.05 },
   ];
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button size="sm" variant="outline">
-          <Settings2 className="mr-1 size-4" /> Criticidade
+          <Settings2 className="mr-1 size-4" /> Níveis
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 space-y-2">
+      <PopoverContent align="start" className="max-h-[70vh] w-96 space-y-2 overflow-y-auto">
         <p className="text-xs text-muted-foreground">
-          Limiares da classificação de criticidade (não alteram a ocupação nem as tarifas).
+          Janelas, critérios dos níveis e pesos da pontuação (não alteram a ocupação nem as
+          tarifas). Padrões calibrados no histórico: docs/central-prioridades-captura.md.
         </p>
-        {campos.map(({ k, label }) => (
+        {campos.map(({ k, label, step, neg }) => (
           <label key={k} className="flex items-center justify-between gap-2 text-sm">
             <span>{label}</span>
             <Input
               type="number"
-              min={1}
+              step={step ?? 1}
               value={crit[k]}
               onChange={(e) => {
                 const v = Number(e.target.value);
-                if (v > 0) onChange({ ...crit, [k]: v });
+                if (neg ? v < 0 : v > 0) onChange({ ...crit, [k]: v });
               }}
               className="w-20"
             />
@@ -448,32 +1098,33 @@ function CritConfigPopover({
 
 function Detalhe({
   row,
+  siblings,
+  onSwitch,
   onClose,
   model,
   modelRitmo,
   base,
   crit,
-  priceOf,
   groups,
   moeda,
 }: {
-  row: PriorityRow | null;
+  row: EnrichedRow | null;
+  siblings: EnrichedRow[];
+  onSwitch: (r: EnrichedRow) => void;
   onClose: () => void;
   model: PaceModel;
   modelRitmo: PaceModel;
   base: string;
   crit: CritConfig;
-  priceOf: (date: string, category: string) => PriceCtx;
   groups: Map<string, SnapshotRow[]>;
   moeda: string;
 }) {
   const paceRow: PaceRow | undefined = useMemo(
-    () =>
-      row ? model.payload.linhas.find((l) => l.d === row.date && l.c === row.category) : undefined,
+    () => (row ? model.byKey.get(rowKey(row)) : undefined),
     [row, model],
   );
-  const p = row ? priceOf(row.date, row.category) : NO_PRICE;
-  const r = row && paceRow ? rhythm(modelRitmo, paceRow, row.date, base, row.lead) : null;
+  const p = row?.price ?? NO_PRICE;
+  const r = row?.ritmo ?? null;
   const recs = row ? recommend(row, p, r, crit) : [];
   const curve = useMemo(
     () =>
@@ -486,32 +1137,43 @@ function Detalhe({
         : [],
     [row, paceRow, model, base],
   );
-  const hist =
-    row && paceRow
-      ? [364, 728].map((n) => {
-          const dt = addDays(row.date, -n);
-          const hr = model.payload.linhas.find((l) => l.d === dt && l.c === row.category);
-          return dayPace(model, hr ? [hr] : [], dt, base, row.lead);
-        })
-      : [];
-  // Preços individuais: a coleta mais recente de cada concorrente para a data e a categoria.
+  // Preços individuais: a coleta mais recente de cada oferta de concorrente para a data e a categoria.
   const concorrentes = useMemo(() => {
     if (!row) return [];
-    const list = groups.get(`${row.date}|${row.category}`) ?? [];
+    const list = groups.get(rowKey(row)) ?? [];
     const last = new Map<string, string>();
     for (const s of list)
       if (!last.get(s.competitor) || s.collectedAt > last.get(s.competitor)!)
         last.set(s.competitor, s.collectedAt);
     return list.filter((s) => s.collectedAt === last.get(s.competitor));
   }, [row, groups]);
-  const fts = row ? fatos(row, p, r) : [];
+  const cap = row?.capture ?? null;
+  const capCurve = useMemo(
+    () =>
+      row && paceRow
+        ? captureCurve(modelRitmo, paceRow, row.date, base).map((c) => ({
+            label: c.label,
+            atual: c.atual,
+            esperada: c.hist,
+          }))
+        : [],
+    [row, paceRow, modelRitmo, base],
+  );
+  const fts = row ? fatos(row, p, r, cap) : [];
   const hips = row ? hipoteses(row, p, r, crit) : [];
+  const occ = row ? occBucket(row, crit) : null;
+  const leitura = occ ? MATRIX_TEXT[occ][row!.market] : null;
+  const confGeral = row
+    ? ((["baixa", "media", "alta"] as Confianca[]).find(
+        (c) => c === row.confianca || c === priceConfidence(p),
+      ) ?? row.confianca)
+    : "baixa";
   return (
     <Sheet open={!!row} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full space-y-4 overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full space-y-3 overflow-y-auto sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>
-            Retirada em {row ? dataBR(row.date) : ""} · {row?.category}
+            {row ? `${dataBR(row.date)} ${weekday(row.date)}` : ""} · {row?.category}
           </SheetTitle>
           <SheetDescription>
             {row ? `D-${row.lead} em ${dataBR(base)}` : ""}
@@ -520,155 +1182,278 @@ function Detalhe({
         </SheetHeader>
         {row ? (
           <>
-            <div className="flex items-center gap-2">
-              <Badge c={row.criticidade} />
-              <span className="text-xs text-muted-foreground">
-                Confiança da referência: {CONF_LABEL[row.confianca]}
-                {row.level ? ` · ${BENCH_LEVEL_LABEL[row.level]} (${row.n} datas)` : ""}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <NivelBadge n={row.nivel} />
+              {siblings.length > 1
+                ? siblings.map((s) => (
+                    <Button
+                      key={s.category}
+                      size="sm"
+                      variant={s.category === row.category ? "default" : "outline"}
+                      onClick={() => onSwitch(s)}
+                    >
+                      {s.category}
+                    </Button>
+                  ))
+                : null}
             </div>
+            <Tabs defaultValue="demanda" key={rowKey(row)}>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="demanda">Demanda</TabsTrigger>
+                <TabsTrigger value="concorrencia">Concorrência</TabsTrigger>
+                <TabsTrigger value="diagnostico">Diagnóstico</TabsTrigger>
+                <TabsTrigger value="plano">Plano</TabsTrigger>
+              </TabsList>
 
-            <Card className="space-y-2 p-4">
-              <h3 className="font-semibold">O que fazer agora</h3>
-              {recs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {row.criticidade === "sem-dados"
-                    ? "Sem benchmark histórico para esta data: nenhuma recomendação é feita."
-                    : "Sem ação sugerida: ocupação dentro do esperado."}
+              <TabsContent value="demanda" className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <Kpi icon={Gauge} label="Atual" value={pct(row.atual)} />
+                  <Kpi icon={TrendingUp} label="Benchmark" value={pct(row.esperada)} />
+                  <Kpi icon={TrendingDown} label="Gap" value={gapTxt(row.gap)} />
+                </div>
+                <p className="text-sm">
+                  Frota {row.capacity} · reservados {row.booked ?? "—"} · sem reserva {row.vacant}.
                 </p>
-              ) : (
-                recs.map((rc, i) => (
-                  <div key={i} className="space-y-1 rounded border border-border p-3 text-sm">
-                    <p className="font-medium">{rc.problema}</p>
-                    <p>
-                      <span className="text-muted-foreground">Ação sugerida: </span>
-                      {rc.acao}
+                <p className="text-xs text-muted-foreground">
+                  Referência: {CONF_LABEL[row.confianca]}
+                  {row.level ? ` · ${BENCH_LEVEL_LABEL[row.level]} (${row.n} datas)` : ""}.
+                  Benchmark = melhor registro comparável em D-{row.lead}.
+                </p>
+                <Card className="space-y-2 p-4 text-sm">
+                  <h3 className="font-semibold">Captura de reservas</h3>
+                  {cap ? (
+                    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Esperado (histórico)</dt>
+                        <dd className="font-medium tabular-nums">{pct(cap.histShare)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Atual</dt>
+                        <dd className="font-medium tabular-nums">{pct(cap.atualShare)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Diferença</dt>
+                        <dd className="font-medium tabular-nums">{gapTxt(cap.diffPp)}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">Faltam vs. padrão</dt>
+                        <dd className="font-medium tabular-nums">
+                          {cap.faltam == null ? "—" : `${Math.round(cap.faltam)} diárias`}
+                        </dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Sem referência histórica válida de captura para esta data (amostra
+                      insuficiente): nada é estimado.
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Prioridade {PRIO_LABEL[rc.prioridade]} · Confiança {CONF_LABEL[rc.confianca]}
-                    </p>
-                    {rc.impacto ? <p className="text-xs">Impacto potencial: {rc.impacto}</p> : null}
-                  </div>
-                ))
-              )}
-              <p className="text-xs text-muted-foreground">
-                Evidências: fatos observados no Diagnóstico abaixo. Sugestões para avaliação:
-                nenhuma tarifa é alterada automaticamente.
-              </p>
-            </Card>
-
-            <Card className="space-y-2 p-4 text-sm">
-              <h3 className="font-semibold">Diagnóstico</h3>
-              <p className="text-xs font-medium text-muted-foreground">Fatos observados</p>
-              <ul className="list-disc space-y-0.5 pl-5">
-                {fts.map((f) => (
-                  <li key={f}>{f}</li>
-                ))}
-              </ul>
-              {hips.length ? (
-                <>
-                  <p className="pt-1 text-xs font-medium text-muted-foreground">
-                    Hipóteses (não são causas confirmadas)
+                  )}
+                  <p className="text-xs">
+                    {r && r.tendencia ? (
+                      <>
+                        Ritmo (janela de {r.dias ?? 7} dias, {r.datas ?? 1} datas vizinhas somadas):{" "}
+                        {r.novas} diárias novas contra {r.esperadas!.toFixed(1)} esperadas
+                        {r.anteriores != null ? ` (janela anterior: ${r.anteriores})` : ""} →{" "}
+                        <b>{TENDENCIA_LABEL[r.tendencia].toLowerCase()}</b>, confiança {r.confianca}
+                        .
+                      </>
+                    ) : (
+                      <>
+                        <b>Tendência indisponível</b>
+                        {r?.esperadas != null
+                          ? `: o histórico esperaria só ${r.esperadas.toFixed(1)} diárias na janela (amostra insuficiente); isso não significa ritmo estável.`
+                          : ": sem referência histórica comparável."}
+                      </>
+                    )}
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Captura = % da ocupação final típica já contratada; não é a ocupação da frota
+                    acima.
+                    {cap ? ` ${cap.n} datas comparáveis (${BENCH_LEVEL_LABEL[cap.level]}).` : ""}
+                  </p>
+                </Card>
+                <PickupChart
+                  title="Curva de captura (% da ocupação final)"
+                  data={capCurve}
+                  note={`A linha tracejada é a captura histórica em cada antecedência; a linha cheia é esta data, só até D-${row.lead} (hoje). Sem previsão além disso.`}
+                />
+                <PickupChart
+                  title="Curva de pickup da data"
+                  data={curve}
+                  note="A curva atual só tem pontos até a antecedência de hoje; depois dela nada é previsto."
+                />
+                <ReferenciasAnteriores
+                  model={model}
+                  date={row.date}
+                  base={base}
+                  lead={row.lead}
+                  leadLabel={`D-${row.lead}`}
+                  rowsFor={(dt) => {
+                    const h = model.byKey.get(`${dt}|${row.category}`);
+                    return h ? [h] : [];
+                  }}
+                />
+              </TabsContent>
+
+              <TabsContent value="concorrencia" className="space-y-3 text-sm">
+                <dl className="grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-muted-foreground">Nossa tarifa (tabela HQ)</dt>
+                    <dd className="font-medium tabular-nums">{money(p.ourRate, moeda)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Mediana do mercado</dt>
+                    <dd className="font-medium tabular-nums">{money(p.median, moeda)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Menor / maior preço</dt>
+                    <dd className="font-medium tabular-nums">
+                      {money(p.min, moeda)} / {money(p.max, moeda)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Diferença vs. mediana</dt>
+                    <dd className="font-medium tabular-nums">{pctTxt(p.pct)}</dd>
+                  </div>
+                </dl>
+                {p.level === "sem-dados" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Sem dados de concorrência comparáveis (ou sem nossa tarifa) para esta data:
+                    nenhum posicionamento é assumido.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {p.n} concorrente{p.n > 1 ? "s" : ""} comparável
+                    {p.n > 1 ? "is" : ""}
+                    {p.n < 3 || !p.reliable ? " · benchmark de baixa confiabilidade" : ""}
+                    {p.lastCollectedAt
+                      ? ` · última coleta ${formatLastUpdate(p.lastCollectedAt)}`
+                      : ""}
+                    . Só entram ofertas equivalentes, na mesma moeda e coletadas nos últimos 7 dias.
+                  </p>
+                )}
+                {concorrentes.length ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Preços individuais (coleta mais recente)
+                    </p>
+                    {concorrentes.map((c) => (
+                      <div key={c.id} className="flex justify-between gap-2 text-xs">
+                        <span>{c.competitor}</span>
+                        <span className="text-right tabular-nums">
+                          {money(dailyOf(c), c.currency.toUpperCase())} · {EQ_LABEL[c.equivalence]}{" "}
+                          · {formatLastUpdate(c.collectedAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </TabsContent>
+
+              <TabsContent value="diagnostico" className="space-y-3 text-sm">
+                {leitura ? (
+                  <div className="rounded border border-border p-3">
+                    <p className="font-medium">{leitura.leitura}</p>
+                    <p className="text-muted-foreground">Investigar: {leitura.investigar}</p>
+                  </div>
+                ) : null}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Fatos observados</p>
                   <ul className="list-disc space-y-0.5 pl-5">
-                    {hips.map((h) => (
-                      <li key={h}>{h}</li>
+                    {fts.map((f) => (
+                      <li key={f}>{f}</li>
                     ))}
                   </ul>
-                </>
-              ) : null}
-            </Card>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Kpi icon={Gauge} label="Atual" value={pct(row.atual)} />
-              <Kpi icon={TrendingUp} label="Esperada" value={pct(row.esperada)} />
-              <Kpi icon={TrendingDown} label="Gap" value={gapTxt(row.gap)} />
-            </div>
-
-            <PickupChart
-              title="Curva de pickup da data"
-              data={curve}
-              note="Esperada = melhor ocupação já registrada por datas comparáveis em cada antecedência. A curva atual só tem pontos até a antecedência de hoje; depois dela nada é previsto."
-            />
-
-            <Card className="space-y-1 p-4 text-sm">
-              <h3 className="font-semibold">Posicionamento comercial</h3>
-              <dl className="grid grid-cols-2 gap-2">
-                <div>
-                  <dt className="text-muted-foreground">Nossa tarifa (tabela HQ)</dt>
-                  <dd className="font-medium tabular-nums">{money(p.ourRate, moeda)}</dd>
                 </div>
                 <div>
-                  <dt className="text-muted-foreground">Mediana dos concorrentes</dt>
-                  <dd className="font-medium tabular-nums">{money(p.median, moeda)}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Menor / maior preço</dt>
-                  <dd className="font-medium tabular-nums">
-                    {money(p.min, moeda)} / {money(p.max, moeda)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Diferença vs. mediana</dt>
-                  <dd className="font-medium tabular-nums">{pctTxt(p.pct)}</dd>
-                </div>
-              </dl>
-              {p.level === "sem-dados" ? (
-                <p className="text-xs text-muted-foreground">
-                  Sem dados de concorrência (ou sem nossa tarifa) para esta data: nenhum
-                  posicionamento é assumido.
-                </p>
-              ) : p.n < 3 ? (
-                <p className="text-xs text-muted-foreground">
-                  Referência com {p.n === 1 ? "apenas 1 concorrente" : `apenas ${p.n} concorrentes`}
-                  : posiciona, mas com confiança menor.
-                </p>
-              ) : null}
-              {concorrentes.length ? (
-                <div className="pt-2">
                   <p className="text-xs font-medium text-muted-foreground">
-                    Preços individuais (coleta mais recente)
+                    Possíveis causas (hipóteses, não confirmadas)
                   </p>
-                  {concorrentes.map((c) => (
-                    <div key={c.id} className="flex justify-between gap-2 text-xs">
-                      <span>{c.competitor}</span>
-                      <span className="tabular-nums">
-                        {money(dailyOf(c), c.currency.toUpperCase())} · {EQ_LABEL[c.equivalence]} ·{" "}
-                        {formatLastUpdate(c.collectedAt)}
-                      </span>
+                  {hips.length ? (
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {hips.map((h) => (
+                        <li key={h}>{h}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted-foreground">Nenhuma hipótese a levantar.</p>
+                  )}
+                </div>
+                <p className="text-xs">
+                  Nível de confiança do diagnóstico: <b>{CONF_LABEL[confGeral]}</b> (menor entre
+                  referência de ocupação — {CONF_LABEL[row.confianca]} — e de preço —{" "}
+                  {CONF_LABEL[priceConfidence(p)]}).
+                </p>
+              </TabsContent>
+
+              <TabsContent value="plano" className="space-y-3 text-sm">
+                <div className="space-y-1 rounded border border-border p-3">
+                  <p className="font-medium">
+                    Por que está nesta posição: {row.rank.toFixed(0)} pontos
+                  </p>
+                  {row.fatores.length ? (
+                    row.fatores.map((f) => (
+                      <div key={f.chave} className="text-xs">
+                        <div className="flex justify-between gap-2">
+                          <span>
+                            {f.label}{" "}
+                            <span className="text-muted-foreground">
+                              (peso {(f.peso * 100).toFixed(0)}%)
+                            </span>
+                          </span>
+                          <b className="tabular-nums">
+                            {f.valor == null ? "indisponível" : `+${f.pontos.toFixed(1)}`}
+                          </b>
+                        </div>
+                        <div className="text-muted-foreground">{f.detalhe}</div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Oportunidade: pontuação pela intensidade do gap positivo e pela janela.
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Fatores indisponíveis saem e os pesos são renormalizados; referência frágil
+                    reduz a pontuação.
+                    {row.evidencias.length
+                      ? ` Evidências: ${row.evidencias.join("; ")}.`
+                      : " Nenhuma evidência adicional."}
+                  </p>
+                </div>
+                {recs.length === 0 ? (
+                  <p className="text-muted-foreground">
+                    {row.nivel === "sem-dados"
+                      ? "Sem benchmark histórico para esta data: nenhuma recomendação é feita."
+                      : "Sem ação sugerida: ocupação dentro do esperado."}
+                  </p>
+                ) : (
+                  recs.map((rc, i) => (
+                    <div key={i} className="space-y-1 rounded border border-border p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Prioridade {PRIO_LABEL[rc.prioridade]} · Confiança{" "}
+                        {CONF_LABEL[rc.confianca]}
+                      </p>
+                      <p>
+                        <b>Ação sugerida:</b> {rc.acao}
+                      </p>
+                      <p>
+                        <b>Justificativa:</b> {rc.problema}
+                      </p>
+                      {rc.impacto ? (
+                        <p className="text-xs">Impacto potencial: {rc.impacto}</p>
+                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        Acompanhamento: {acompanhamento(row.lead, crit)}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              ) : null}
-            </Card>
-
-            <Card className="space-y-1 p-4 text-sm">
-              <h3 className="font-semibold">Disponibilidade</h3>
-              <p>
-                Frota {row.capacity} · reservados {row.booked ?? "—"} · sem reserva {row.vacant}.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Bloqueios operacionais já estão descontados da frota disponível (não detalhados
-                aqui). Cancelamentos: sem dados confiáveis, não são exibidos.
-              </p>
-            </Card>
-
-            <Card className="space-y-1 p-4 text-sm">
-              <h3 className="font-semibold">
-                Mesmo dia da semana em períodos anteriores · D-{row.lead}
-              </h3>
-              {hist.map((h, i) => (
-                <div key={h.date} className="flex justify-between">
-                  <span className="text-muted-foreground">
-                    {i === 0 ? "1 ano antes" : "2 anos antes"} ({dataBR(h.date)})
-                  </span>
-                  <span className="tabular-nums">
-                    {pct(h.atual)}
-                    {h.atual == null ? " · sem dado" : ""}
-                  </span>
-                </div>
-              ))}
-            </Card>
+                  ))
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Sugestões para avaliação: nenhuma tarifa é alterada automaticamente.
+                </p>
+              </TabsContent>
+            </Tabs>
           </>
         ) : null}
       </SheetContent>

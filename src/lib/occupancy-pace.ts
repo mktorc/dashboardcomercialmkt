@@ -6,7 +6,17 @@ import { supabase as typedClient } from "@/integrations/supabase/client";
 const supabase = typedClient as unknown as SupabaseClient;
 
 /** Uma data e categoria: carros disponíveis e a antecedência (dias entre a criação da reserva e a retirada) de cada diária vendida. */
-export type PaceRow = { d: string; c: string; f: number; a: number[] };
+/**
+ * `x` (payload v3+): diárias de reservas hoje canceladas, [antecedência da criação, antecedência do cancelamento | null].
+ * O cancelamento é a data da última atualização da reserva (proxy); null quando ela é posterior à retirada (não dá para saber).
+ */
+export type PaceRow = {
+  d: string;
+  c: string;
+  f: number;
+  a: number[];
+  x?: [number, number | null][];
+};
 export type PaceParams = {
   n_evento: number;
   n_dow: number;
@@ -74,6 +84,18 @@ export function leadOf(date: string, base: string) {
 /** Diárias da linha vendidas quando faltavam L dias: criadas até T−L (antecedência ≥ L); D-0 = todas. */
 export const soldAt = (row: PaceRow, L: number) =>
   L <= 0 ? row.a.length : row.a.reduce((n, x) => n + (x >= L ? 1 : 0), 0);
+/**
+ * Diárias que estavam ATIVAS (na foto de então) quando faltavam L dias: as confirmadas hoje criadas até T−L, mais as hoje canceladas que
+ * já existiam e ainda não tinham sido canceladas. É o equivalente histórico do que a tela vê hoje numa data aberta, que também
+ * contém reservas que podem cancelar. Sem `x` (payload antigo), igual a soldAt.
+ */
+export const activeAt = (row: PaceRow, L: number) =>
+  L <= 0 || !row.x
+    ? soldAt(row, L)
+    : soldAt(row, L) + row.x.reduce((n, [c, k]) => n + (k != null && c >= L && k < L ? 1 : 0), 0);
+/** Todas as diárias criadas até T−L, inclusive as depois canceladas (captura bruta). */
+export const grossAt = (row: PaceRow, L: number) =>
+  soldAt(row, L) + (!row.x ? 0 : row.x.reduce((n, [c]) => n + (c >= L ? 1 : 0), 0));
 /** Ocupação (0–1) da linha quando faltavam L dias. */
 export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
 
@@ -141,10 +163,10 @@ export type BenchSample = { date: string; fleet: number; occ: number };
 /**
  * Datas históricas que definem o benchmark na antecedência L.
  * Modo "maximo" (melhor registro): data comum = o mesmo dia da semana nos períodos anteriores (PERIODOS_ANTERIORES), ao menos um
- * disponível; data de evento móvel = as edições passadas do mesmo evento na mesma posição relativa (mínimo n_evento).
+ * disponível; data de evento móvel = as edições passadas do mesmo evento na mesma posição relativa (ao menos uma).
  * Demais modos (média/mediana): grupos de datas comparáveis por sazonalidade e dia da semana.
  */
-function samplesFor(
+export function samplesFor(
   model: PaceModel,
   row: PaceRow,
   L: number,
@@ -155,16 +177,21 @@ function samplesFor(
   if (!info) return null;
   const [s, ev, rel] = info;
   const isEvent = !!(ev && rel != null);
+  // A foto em L só é confiável se a reserva poderia existir no histórico: antes do início da base, as vendas estariam truncadas.
+  const truncated = (d: string) => L > 0 && addDays(d, -L) < model.payload.de;
   if (params.estatistica === "maximo" && !isEvent) {
     const items: BenchSample[] = [];
     for (const n of PERIODOS_ANTERIORES) {
       const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
-      if (h && h.f > 0 && h.d < base) items.push({ date: h.d, fleet: h.f, occ: occupancyAt(h, L) });
+      if (h && h.f > 0 && h.d < base && !truncated(h.d))
+        items.push({ date: h.d, fleet: h.f, occ: activeAt(h, L) / h.f });
     }
     return items.length ? { level: "aniversario", items } : null;
   }
+  // Melhor registro: basta uma edição passada do mesmo evento (algumas categorias só existem desde 2026); média/mediana mantêm n_evento.
+  const minEvento = params.estatistica === "maximo" ? 1 : params.n_evento;
   const steps: [string, number, BenchLevel][] = isEvent
-    ? [[kEvento(row.c, ev!, rel!), params.n_evento, "evento"]]
+    ? [[kEvento(row.c, ev!, rel!), minEvento, "evento"]]
     : [
         [kDow(row.c, s, weekday(row.d)), params.n_dow, "dow"],
         [kSaz(row.c, s), params.n_saz, "saz"],
@@ -172,8 +199,8 @@ function samplesFor(
   for (const [key, min, level] of steps) {
     const items: BenchSample[] = [];
     for (const h of model.groups.get(key) ?? [])
-      if (h.d < base && h.d !== row.d)
-        items.push({ date: h.d, fleet: h.f, occ: occupancyAt(h, L) });
+      if (h.d < base && h.d !== row.d && !truncated(h.d))
+        items.push({ date: h.d, fleet: h.f, occ: activeAt(h, L) / h.f });
     if (items.length >= min) return { level, items };
   }
   return null;
@@ -195,6 +222,28 @@ export function benchmarkFor(
     n: smp.items.length,
     level: smp.level,
   };
+}
+
+/**
+ * Datas históricas que servem de referência para uma data, na ordem em que o painel as mostra:
+ *  - data de evento móvel (Carnaval, Semana Santa, Corpus Christi): a MESMA posição relativa ao evento nas edições passadas
+ *    (a mais recente primeiro), pois o mesmo dia do calendário ou da semana não cai no evento;
+ *  - data comum: o mesmo dia da semana nos períodos anteriores (PERIODOS_ANTERIORES).
+ */
+export type RefDates = { evento: string | null; posicao: number | null; datas: string[] };
+export function referenceDates(model: PaceModel, date: string, base: string): RefDates {
+  const info = model.payload.cal[date];
+  const ev = info?.[1] ?? null;
+  const rel = info?.[2] ?? null;
+  if (ev && rel != null) {
+    const datas = Object.entries(model.payload.cal)
+      .filter(([d, c]) => c[1] === ev && c[2] === rel && d < date && d < base)
+      .map(([d]) => d)
+      .sort()
+      .reverse();
+    return { evento: ev, posicao: rel, datas };
+  }
+  return { evento: null, posicao: null, datas: PERIODOS_ANTERIORES.map((n) => addDays(date, -n)) };
 }
 
 /** Uma data (somando as categorias escolhidas) na antecedência efetiva da data-base. atual/esperada em 0–1; gap em p.p. */

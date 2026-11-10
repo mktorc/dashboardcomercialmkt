@@ -12,7 +12,10 @@ O benchmark NÃO é pré-calculado: a tela o calcula com a data-base escolhida, 
   2. data comum: mesma categoria, sazonalidade e dia da semana (sem datas de evento);
   3. data comum: mesma categoria e sazonalidade (sem datas de evento).
   Abaixo do mínimo de amostras de cada nível, sem benchmark; nunca se usa ocupação final no lugar de uma antecedência.
-Limitação: reservas canceladas depois não aparecem nas fotos antigas (o HQ só guarda o status atual).
+  - x: reservas CANCELADAS (cancelled/cancelled-paid), uma entrada [criada, cancelada] por diária: antecedência da criação e da
+    última atualização da reserva (proxy da data do cancelamento; null se a atualização é posterior à retirada, quando não dá para
+    saber). Permite separar captura bruta, líquida e a posição "ativa" em D-L (criada até D-L e ainda não cancelada).
+Limitação: o HQ só guarda o status atual: não há histórico de alterações de data/categoria, e a data do cancelamento é o proxy acima.
 """
 import argparse, json, sys
 from collections import defaultdict
@@ -46,6 +49,16 @@ def main():
     for d, c, x in con.execute("SELECT data, categoria_id, antecedencia FROM diarias").fetchall():
         ant[(d, c)].append(max(-1, min(int(x), MAX_ANT)))
 
+    canc = defaultdict(list)
+    for d, c, x, y in con.execute("""WITH e AS (SELECT r.*, unnest(range(greatest(r.dias, 1))) AS k FROM reservas r
+                 WHERE r.status IN ('cancelled', 'cancelled-paid') AND r.categoria_id NOT IN (1, 7))
+               SELECT CAST(e.retirada AS DATE) + CAST(e.k AS INT) AS data, e.categoria_id,
+                 date_diff('day', CAST(e.criada_em AS DATE), CAST(e.retirada AS DATE) + CAST(e.k AS INT)),
+                 CASE WHEN CAST(e.atualizada_em AS DATE) <= CAST(e.retirada AS DATE)
+                      THEN date_diff('day', CAST(e.atualizada_em AS DATE), CAST(e.retirada AS DATE) + CAST(e.k AS INT)) END
+               FROM e""").fetchall():
+        canc[(d, c)].append([max(-1, min(int(x), MAX_ANT)), None if y is None else max(-1, min(int(y), MAX_ANT))])
+
     linhas, cal = [], {}
     d = ini
     while d <= fim:
@@ -54,12 +67,15 @@ def main():
         for c, nome in cats.items():
             f = frota.get((d, c))
             if f:
-                linhas.append(dict(d=d.isoformat(), c=nome, f=int(f), a=sorted(ant.get((d, c), []))))
+                row = dict(d=d.isoformat(), c=nome, f=int(f), a=sorted(ant.get((d, c), [])))
+                if canc.get((d, c)):
+                    row["x"] = sorted(canc[(d, c)], key=lambda t: (t[0], -1 if t[1] is None else t[1]))
+                linhas.append(row)
                 linhas_dia += 1
         if linhas_dia:
             cal[d.isoformat()] = [s, ev, rel]
         d += timedelta(days=1)
-    payload = dict(versao=2, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
+    payload = dict(versao=3, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
                    ate=fim.isoformat(), categorias=sorted(cats.values()), params=PARAMS, cal=cal, linhas=linhas)
     out = Path("data/precificacao/relatorio/ritmo.json")
     out.parent.mkdir(parents=True, exist_ok=True)

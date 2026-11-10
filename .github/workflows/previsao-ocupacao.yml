@@ -2,7 +2,8 @@ name: Previsão de ocupação (Gestor de Precificação)
 
 on:
   schedule:
-    # Uma vez por dia, 09:00 UTC (05:00 em Orlando): renova o cache do HQ e republica a previsão.
+    # Uma vez por dia, 09:00 UTC (05:00 em Orlando): renova o cache do HQ e republica a previsão e o ritmo de reservas
+    # (ritmo alimenta Gestão de Ocupação e Central de Prioridades).
     - cron: '0 9 * * *'
   workflow_dispatch:
 
@@ -21,6 +22,7 @@ jobs:
           python-version: '3.12'
       - run: pip install duckdb numpy
       - name: Extrair reservas, frota e bloqueios do HQ (somente GET)
+        id: extrair
         env:
           HQ_BASE_URL: ${{ secrets.HQ_BASE_URL }}
           HQ_TENANT_TOKEN: ${{ secrets.HQ_TENANT_TOKEN }}
@@ -31,3 +33,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python3 scripts/precificacao/previsao.py --publicar
+      # Ritmo de reservas (pickup, captura e cancelamentos por data × categoria). Roda mesmo se a previsão falhar, desde que a extração
+      # tenha dado certo: as duas leituras usam o mesmo cache do HQ.
+      - name: Calcular e publicar o ritmo de reservas
+        if: ${{ !cancelled() && steps.extrair.outcome == 'success' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/precificacao/ritmo.py --publicar
