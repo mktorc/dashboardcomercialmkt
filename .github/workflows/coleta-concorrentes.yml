@@ -4,6 +4,12 @@ name: Coleta de concorrentes
 on:
   schedule:
     - cron: "0 9 * * *"
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/precificacao/coletor.py'
+      - 'scripts/precificacao/mapa_categorias.json'
+      - '.github/workflows/coleta-concorrentes.yml'
   workflow_dispatch:
 concurrency:
   group: coleta-concorrentes

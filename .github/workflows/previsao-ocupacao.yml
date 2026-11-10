@@ -5,6 +5,12 @@ on:
     # Uma vez por dia, 09:00 UTC (05:00 em Orlando): renova o cache do HQ e republica a previsão e o ritmo de reservas
     # (ritmo alimenta Gestão de Ocupação e Central de Prioridades).
     - cron: '0 9 * * *'
+  # Também roda sozinha quando os scripts de precificação ou este fluxo mudam na main (confere o ciclo sem ação manual).
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/precificacao/**'
+      - '.github/workflows/previsao-ocupacao.yml'
   workflow_dispatch:
 
 concurrency:
