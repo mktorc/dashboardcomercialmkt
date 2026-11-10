@@ -16,7 +16,9 @@ export type PaceRow = {
   f: number;
   a: number[];
   x?: [number, number | null][];
-  /** payload v4+: faturamento da data (soma do preço pago por diária) e nº de diárias com preço. */
+  /** payload v6+: preço pago (US$) de cada diária, na mesma ordem de `a` (0 = reserva sem preço). */
+  m?: number[];
+  /** payload v4–v5: faturamento final da data e nº de diárias com preço (sem leitura por antecedência). */
   v?: number;
   p?: number;
 };
@@ -102,14 +104,40 @@ export const grossAt = (row: PaceRow, L: number) =>
 /** Ocupação (0–1) da linha quando faltavam L dias. */
 export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
 
-/** Diária média (faturamento ÷ diárias com preço) e faturamento por veículo (faturamento ÷ frota) de uma ou mais linhas; null sem dado. */
-export function revenueOf(rows: PaceRow[]) {
-  const withRev = rows.filter((r) => r.v != null && r.p);
-  if (!withRev.length) return { diaria: null as number | null, porVeiculo: null as number | null };
-  const tot = (g: (r: PaceRow) => number) => withRev.reduce((n, r) => n + g(r), 0);
-  const v = tot((r) => r.v!);
-  const p = tot((r) => r.p!);
-  const f = tot((r) => r.f);
+/** Faturamento (US$) e diárias com preço de uma linha na antecedência L (diárias criadas até T−L; sem L ou L ≤ 0, a data fechada). */
+function revenueRow(r: PaceRow, L?: number): { v: number; p: number } | null {
+  if (r.m) {
+    let v = 0;
+    let p = 0;
+    for (let i = 0; i < r.a.length; i++)
+      if ((L ?? 0) <= 0 || r.a[i]! >= L!) {
+        const x = r.m[i] ?? 0;
+        if (x > 0) {
+          v += x;
+          p++;
+        }
+      }
+    return { v, p };
+  }
+  // Payload antigo (v4–v5): só há o faturamento final.
+  return r.v != null && r.p && (L ?? 0) <= 0 ? { v: r.v, p: r.p } : null;
+}
+
+/**
+ * Diária média (faturamento ÷ diárias com preço) e faturamento por veículo (faturamento ÷ frota do dia) das linhas, lidos na
+ * antecedência L (a mesma da ocupação mostrada); null sem dado. A frota é a do próprio dia de cada linha.
+ */
+export function revenueOf(rows: PaceRow[], L?: number) {
+  let v = 0;
+  let p = 0;
+  let f = 0;
+  for (const r of rows) {
+    const x = revenueRow(r, L);
+    if (!x) return { diaria: null as number | null, porVeiculo: null as number | null };
+    v += x.v;
+    p += x.p;
+    f += r.f;
+  }
   return { diaria: p ? v / p : null, porVeiculo: f ? v / f : null };
 }
 
@@ -202,7 +230,7 @@ export function samplesFor(
           date: h.d,
           fleet: h.f,
           occ: activeAt(h, L) / h.f,
-          rev: h.v != null ? h.v / h.f : undefined,
+          rev: revenueRow(h) ? revenueRow(h)!.v / h.f : undefined,
         });
     }
     return items.length ? { level: "aniversario", items } : null;
@@ -223,7 +251,7 @@ export function samplesFor(
           date: h.d,
           fleet: h.f,
           occ: activeAt(h, L) / h.f,
-          rev: h.v != null ? h.v / h.f : undefined,
+          rev: revenueRow(h) ? revenueRow(h)!.v / h.f : undefined,
         });
     if (items.length >= min) return { level, items };
   }

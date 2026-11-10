@@ -11,7 +11,7 @@ import { dataBR, pct, usd } from "@/lib/pricing-format";
 
 /**
  * Ocupação das datas históricas de referência na mesma antecedência: o mesmo dia da semana 1 e 2 anos antes, ou, em datas de
- * evento móvel, a mesma posição do evento nas edições anteriores. Mostra também diária média e faturamento por veículo de cada ano (do dia fechado).
+ * evento móvel, a mesma posição do evento nas edições anteriores. Mostra também diária média e faturamento por veículo de cada ano (lidos na mesma antecedência da ocupação).
  */
 export function ReferenciasAnteriores({
   model,
@@ -33,7 +33,7 @@ export function ReferenciasAnteriores({
   const itens = ref.datas.map((dt) => ({
     dt,
     p: dayPace(model, rowsFor(dt), dt, base, lead),
-    r: revenueOf(rowsFor(dt)),
+    r: revenueOf(rowsFor(dt), lead),
   }));
   const titulo = ref.evento
     ? `${EVENT_LABEL[ref.evento]} (${ref.posicao! > 0 ? "+" : ""}${ref.posicao} dias) em edições anteriores`

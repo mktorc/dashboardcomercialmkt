@@ -5,7 +5,7 @@ Publica, para cada data de retirada T e categoria c (T entre o início do histó
   - f: carros disponíveis em T (frota sem bloqueios, igual a previsao.py);
   - a: antecedência (dias entre a criação da reserva e T) de cada diária vendida para T (open/rental/completed; canceladas fora).
     Com ela a tela reconstrói a ocupação de T em qualquer antecedência L: diárias com a ≥ L ÷ f (D-0 = todas).
-  - v, p: faturamento da data (soma do preço pago por diária) e nº de diárias com preço; diária média = v/p, faturamento por veículo = v/f.
+  - m: preço pago de cada diária (mesma ordem de a; 0 = sem preço). Em antecedência L: faturamento = soma de m onde a ≥ L; diária média = ÷ nº de m > 0; por veículo = ÷ f.
   - cal: sazonalidade, evento móvel e posição relativa ao evento de cada data, pelas regras GESTAO de calendario.py.
 O benchmark NÃO é pré-calculado: a tela o calcula com a data-base escolhida, usando só datas já encerradas antes dela
 (sem vazamento de futuro). Hierarquia (src/lib/occupancy-pace.ts, parâmetros em `params`):
@@ -16,10 +16,10 @@ O benchmark NÃO é pré-calculado: a tela o calcula com a data-base escolhida, 
   - x: reservas CANCELADAS (cancelled/cancelled-paid), uma entrada [criada, cancelada] por diária: antecedência da criação e da
     última atualização da reserva (proxy da data do cancelamento; null se a atualização é posterior à retirada, quando não dá para
     saber). Permite separar captura bruta, líquida e a posição "ativa" em D-L (criada até D-L e ainda não cancelada).
-Fonte (v5): trechos por veículo e frota sem bloqueios, igual ao Utilization do HQ (ver comentário em main()).
+Fonte (v6): trechos por veículo, regra por mês e frota igual ao dashboard comercial (ver comentário em main()).
 Limitação: o HQ só guarda o status atual: não há histórico de alterações de data/categoria, e a data do cancelamento é o proxy acima.
 """
-import argparse, json, sys
+import argparse, json, math, sys
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -45,36 +45,50 @@ def main():
     ini = A.INI
     con = duckdb.connect(str(A.DB))
     A.preparar(con, fim)
-    # Mesma regra do Utilization do HQ (src/lib/occupancy.ts): cada TRECHO de veículo (reserva_veiculos) vira dias = max(1, ceil((horas − 5 h) / 24)),
-    # a partir da data de retirada do trecho, na categoria do VEÍCULO que rodou (a da reserva só se o trecho não tem veículo).
-    # Reserva com 2 veículos ou troca de carro gera 2 trechos. Preço da diária = rack_total ÷ soma dos dias dos trechos da reserva.
-    # Capacidade = veículos na frota no dia (entrada ≤ dia < saída), como fleet_vehicles do Supabase: sem descontar bloqueios.
-    SEG = """WITH s AS (SELECT rv.reserva_id, rv.retirada AS p, rv.devolucao AS d, r.criada_em, r.atualizada_em, r.retirada AS r_ret, r.rack_total, r.status,
-                   coalesce(v.categoria_id, r.categoria_id) AS cat
-                 FROM reserva_veiculos rv JOIN reservas r ON r.id = rv.reserva_id LEFT JOIN veiculos v ON v.id = rv.veiculo_id
-                 WHERE rv.retirada IS NOT NULL AND rv.devolucao IS NOT NULL AND rv.ativo IS NOT FALSE
-                   AND coalesce(v.categoria_id, r.categoria_id) NOT IN (1, 7)),
-               sd AS (SELECT *, greatest(1, CAST(ceil((epoch(d - p) / 3600.0 - 5) / 24 - 1e-9) AS INT)) AS n FROM s),
-               tot AS (SELECT reserva_id, sum(n) AS tn FROM sd GROUP BY 1),
-               dd AS (SELECT sd.*, tot.tn, CAST(sd.p AS DATE) + CAST(k AS INT) AS dt FROM (SELECT *, unnest(range(n)) AS k FROM sd) sd JOIN tot USING (reserva_id))"""
-    cats = dict(con.execute("SELECT id, nome FROM categorias WHERE id NOT IN (1, 7) AND id IN (SELECT categoria_id FROM frota_valida)").fetchall())
+    # Mesma regra do dashboard comercial (src/lib/occupancy.ts, Utilização do HQ), por TRECHO de veículo (reserva_veiculos) e por MÊS:
+    # o trecho conta no mês se encosta em algum dia dele; dias = max(1, ceil((horas dentro do mês − 5 h) / 24)). Os dias do mês são
+    # distribuídos em sequência a partir do 1º dia do trecho no mês, de modo que a soma dos dias de um mês é exatamente a do dashboard.
+    # Categoria = a do VEÍCULO que rodou (a da reserva só se o trecho não tem veículo). Todos os trechos entram (como reservation_segments).
+    # Preço da diária = rack_total ÷ soma dos dias de todos os trechos da reserva (reserva com rack zerado fica sem preço).
+    # Capacidade = veículos na frota no dia (data_entrada ≤ dia < saída, como fleet_vehicles), sem descontar bloqueios.
+    cats = dict(con.execute("SELECT id, nome FROM categorias WHERE id NOT IN (1, 7) AND id IN (SELECT categoria_id FROM veiculos WHERE coalesce(data_entrada, data_compra) IS NOT NULL)").fetchall())
     frota = {(d, c): n for d, c, n in con.execute(f"""SELECT c.data, v.categoria_id, count(*) FROM dim_calendario c JOIN veiculos v
-        ON coalesce(v.data_compra, v.data_entrada) <= c.data AND (v.data_saida IS NULL OR c.data < v.data_saida)
+        ON coalesce(v.data_entrada, v.data_compra) <= c.data AND (v.data_saida IS NULL OR c.data < v.data_saida)
         WHERE v.categoria_id NOT IN (1, 7) AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""").fetchall()}
-    ant = defaultdict(list)
-    fat = {}
-    for d, c, x, v, n in con.execute(SEG + """ SELECT dt, cat, date_diff('day', CAST(criada_em AS DATE), dt), CASE WHEN rack_total > 0 THEN rack_total / tn END, 1
-                 FROM dd WHERE status IN ('completed', 'open', 'rental')""").fetchall():
-        ant[(d, c)].append(max(-1, min(int(x), MAX_ANT)))
-        if v is not None:
-            t = fat.get((d, c), (0.0, 0))
-            fat[(d, c)] = (t[0] + float(v), t[1] + 1)
 
-    canc = defaultdict(list)
-    for d, c, x, y in con.execute(SEG + """ SELECT dt, cat, date_diff('day', CAST(criada_em AS DATE), dt),
-                 CASE WHEN CAST(atualizada_em AS DATE) <= CAST(r_ret AS DATE) THEN date_diff('day', CAST(atualizada_em AS DATE), dt) END
-               FROM dd WHERE status IN ('cancelled', 'cancelled-paid')""").fetchall():
-        canc[(d, c)].append([max(-1, min(int(x), MAX_ANT)), None if y is None else max(-1, min(int(y), MAX_ANT))])
+    def dias_mes(p, d):
+        """[(data, dias)] por mês: dia inicial do trecho no mês e dias contados pela regra do dashboard."""
+        out, m = [], date(p.year, p.month, 1)
+        while m <= d.date():
+            nxt = date(m.year + (m.month == 12), m.month % 12 + 1, 1)
+            ini_m, fim_m = datetime(m.year, m.month, 1), datetime(nxt.year, nxt.month, 1)
+            if d.date() >= m and p.date() < nxt:
+                h = (min(d, fim_m) - max(p, ini_m)).total_seconds() / 3600
+                out.append((max(p.date(), m), max(1, math.ceil((h - 5) / 24 - 1e-9))))
+            m = nxt
+        return out
+
+    ant, canc = defaultdict(list), defaultdict(list)
+    por_res = defaultdict(list)
+    for rid, p_, d_, criada, atual, r_ret, rack, st, cat in con.execute(
+        """SELECT rv.reserva_id, rv.retirada, rv.devolucao, r.criada_em, r.atualizada_em, r.retirada, r.rack_total, r.status,
+                  coalesce(v.categoria_id, r.categoria_id)
+           FROM reserva_veiculos rv JOIN reservas r ON r.id = rv.reserva_id LEFT JOIN veiculos v ON v.id = rv.veiculo_id
+           WHERE rv.retirada IS NOT NULL AND rv.devolucao IS NOT NULL
+             AND r.status IN ('completed', 'open', 'rental', 'cancelled', 'cancelled-paid')""").fetchall():
+        por_res[rid].append((p_, d_, criada, atual, r_ret, rack, st, cat))
+    for rid, trechos in por_res.items():
+        itens = [(d0 + timedelta(days=k), t) for t in trechos for d0, n in dias_mes(t[0], t[1]) for k in range(n)]
+        total = len(itens)
+        for dia, (p_, d_, criada, atual, r_ret, rack, st, cat) in itens:
+            if dia < ini or dia > fim or cat in (1, 7):
+                continue
+            x = max(-1, min((dia - criada.date()).days, MAX_ANT))
+            if st in ("completed", "open", "rental"):
+                ant[(dia, cat)].append((x, round(rack / total, 1) if rack and rack > 0 else 0))
+            else:
+                y = (dia - atual.date()).days if atual.date() <= r_ret.date() else None
+                canc[(dia, cat)].append([x, None if y is None else max(-1, min(y, MAX_ANT))])
 
     linhas, cal = [], {}
     d = ini
@@ -84,9 +98,10 @@ def main():
         for c, nome in cats.items():
             f = frota.get((d, c))
             if f:
-                row = dict(d=d.isoformat(), c=nome, f=int(f), a=sorted(ant.get((d, c), [])))
-                if fat.get((d, c)):
-                    row["v"], row["p"] = round(fat[(d, c)][0], 2), fat[(d, c)][1]
+                par = sorted(ant.get((d, c), []))
+                row = dict(d=d.isoformat(), c=nome, f=int(f), a=[x for x, _ in par])
+                if any(m for _, m in par):
+                    row["m"] = [m for _, m in par]  # preço de cada diária (US$, igual ordem de `a`; 0 = sem preço)
                 if canc.get((d, c)):
                     row["x"] = sorted(canc[(d, c)], key=lambda t: (t[0], -1 if t[1] is None else t[1]))
                 linhas.append(row)
@@ -94,7 +109,7 @@ def main():
         if linhas_dia:
             cal[d.isoformat()] = [s, ev, rel]
         d += timedelta(days=1)
-    payload = dict(versao=5, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
+    payload = dict(versao=6, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
                    ate=fim.isoformat(), categorias=sorted(cats.values()), params=PARAMS, cal=cal, linhas=linhas)
     out = Path("data/precificacao/relatorio/ritmo.json")
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -713,7 +713,7 @@ function Detalhe({
 }) {
   const rows = useMemo(() => (date ? (byDate.get(date) ?? []) : []), [byDate, date]);
   const d = date ? dayPace(model, rows, date, base) : null;
-  const rev = revenueOf(rows);
+  const rev = revenueOf(rows, d?.lead);
   const curve = useMemo(
     () =>
       date
