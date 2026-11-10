@@ -64,6 +64,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         // Sem o parâmetro: histórico completo (acionamento manual).
         const daysParam = Number(new URL(request.url).searchParams.get("days"));
         const cutoff = daysParam > 0 ? Date.now() - daysParam * 86400000 : null;
+        const openFrom = Date.now() - 86400000;
 
         const all: HqReservation[] = [];
         let page = 1;
@@ -87,9 +88,16 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           lastPage = payload.last_page ?? 1;
           page += 1;
           if (cutoff !== null) {
-            const recent = data.filter((r) => Date.parse(String(r["created_at"] ?? "")) >= cutoff);
-            all.push(...recent);
-            if (recent.length < data.length) break;
+            // Reservas em aberto (devolução de ontem em diante) também entram: cancelamentos e
+            // mudanças de data feitos depois da criação alteram a ocupação futura. Por isso percorre
+            // todas as páginas, mas só grava as recentes ou em aberto.
+            all.push(
+              ...data.filter(
+                (r) =>
+                  Date.parse(String(r["created_at"] ?? "")) >= cutoff ||
+                  Date.parse(String(r["return_date"] ?? "")) >= openFrom,
+              ),
+            );
           } else {
             all.push(...data);
           }
