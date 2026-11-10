@@ -116,6 +116,16 @@ def checar_dados():
         reg(3, "Nossa tarifa (site)", "ok" if ida <= LIMITE_DADO else "falha", f"última coleta há {txt(ida)} ({o[0]['source']})")
 
     # qualidade do mercado (aviso, não falha): cobertura e equivalência
+    ult26 = supabase(f"competitor_price_snapshots?select=equivalence_notes,competitors(name)&collected_at=gte.{(AGORA - LIMITE_DADO).strftime('%Y-%m-%dT%H:%M:%S')}&limit=1000")
+    if ult26:
+        # Extras (motorista adicional e bebê conforto): cada fonte precisa trazer a marca; sem ela a tela não usa a cotação.
+        por_fonte = {}
+        for r in ult26:
+            nome = (r.get("competitors") or {}).get("name") or "—"
+            tot, com = por_fonte.get(nome, (0, 0))
+            por_fonte[nome] = (tot + 1, com + (1 if "extras: motorista=" in (r.get("equivalence_notes") or "") else 0))
+        for nome, (tot, com) in por_fonte.items():
+            reg(3, f"Extras: {nome}", "ok" if com == tot else "aviso", f"{com} de {tot} cotações das últimas 26 h com os extras (motorista adicional e bebê conforto) lidos")
     recentes = supabase(f"competitor_price_snapshots?select=equivalence,pickup_at&collected_at=gte.{(AGORA - timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%S')}&limit=1000")
     if recentes:
         eq = sum(1 for s in recentes if s["equivalence"] == "equivalente")

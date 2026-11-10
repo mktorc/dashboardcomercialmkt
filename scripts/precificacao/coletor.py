@@ -13,6 +13,12 @@ Requer playwright (pip install playwright && playwright install chromium) e, com
 Cada coleta é uma linha nova; o mapa de categorias fica em scripts/precificacao/mapa_categorias.json (null = ainda não mapeada,
 a coleta fica registrada mas não entra em nenhuma comparação). Equivalência é sempre "parcial" aqui: taxas e proteções são excluídas
 pelo concorrente e a franquia de km não é informada; nunca se marca "equivalente" sem evidência.
+
+Extras: alguns concorrentes cobram motorista adicional e bebê conforto (cadeirinha), outros não. O preço gravado é SEMPRE o da cotação (veículo,
+sem taxas e seguros); os extras são lidos no passo "Características" do próprio motor, na mesma data (nada é preenchido nem enviado: só se
+lê a tela) e gravados à parte, em equivalence_notes (concorrentes) e em season (nosso site), no formato
+"extras: motorista=29.99/uma_vez; bebe=5.99/dia; bebe_nome=...". A tela soma 1 motorista adicional e 1 bebê conforto (cadeirinha se não
+houver bebê conforto) quando o usuário marca a opção. Grátis = 0. Sem leitura dos extras, a nota diz "extras não coletados".
 """
 import json, re, sys, time
 from datetime import date, datetime, timedelta, timezone
@@ -36,6 +42,95 @@ def num(s):
         inteiro = re.sub(r"[.,]", "", s[: m.start()])
         return float(f"{inteiro}.{m.group(1)}")
     return float(re.sub(r"[.,]", "", s))
+
+
+EXTRAS_TAG = "extras:"  # formato lido pela tela (parseExtras em src/lib/competitiveness.ts)
+_NOME_MOTORISTA = re.compile(r"additional driver|motorista adicional", re.I)
+_NOME_BEBE = re.compile(r"beb[êe] conforto|baby seat|infant seat", re.I)
+_NOME_CADEIRA = re.compile(r"cadeirinha|child seat", re.I)
+_PRECO_EXTRA = re.compile(r"\$\s?([\d.,]+)\s*(?:/\s*(dia|day)|(uma vez|one time))", re.I)
+_GRATIS = re.compile(r"^(livre|free)$", re.I)
+_IGNORAR = {"", "read more", "consulte mais informação", "select", "selected", "recommended", "(obrigatório)"}
+
+
+def _preco_apos(linhas, i):
+    """Preço do item que começa na linha i: (valor, 'dia'|'uma_vez'); grátis = (0, 'uma_vez'); None se não achar antes de outro item."""
+    for ln in linhas[i + 1 : i + 10]:
+        if ln.isdigit() or ln.lower() in _IGNORAR:
+            continue
+        m = _PRECO_EXTRA.search(ln)
+        if m:
+            return num(m.group(1)), "dia" if m.group(2) else "uma_vez"
+        if _GRATIS.match(ln):
+            return 0.0, "uma_vez"
+        break  # começou outro item sem preço para este
+    return None
+
+
+def parse_extras(texto):
+    """Lê o passo 'Características' do motor HQ: {'motorista': (valor, unidade), 'bebe': (valor, unidade), 'bebe_nome': str} ou None.
+    Bebê conforto; se o motor não tiver, cadeirinha. Sem preço claro (nem 'grátis') de qualquer um dos dois, devolve None: nada é presumido."""
+    linhas = [ln.strip() for ln in texto.replace("\xa0", " ").splitlines() if ln.strip()]
+    ini = next((i for i, ln in enumerate(linhas) if re.match(r"(equipamentos e servi[çc]os|equipment & services)", ln, re.I)), None)
+    if ini is None:
+        return None
+    fim = next((i for i in range(ini + 1, len(linhas)) if re.match(r"(descontos|discounts)", linhas[i], re.I)), len(linhas))
+    sec = linhas[ini + 1 : fim]
+
+    def achar(rx):
+        for i, ln in enumerate(sec):
+            if rx.search(ln) and not ln.startswith("$"):
+                p = _preco_apos(sec, i)
+                if p:
+                    return ln, p
+        return None
+
+    motorista, bebe = achar(_NOME_MOTORISTA), achar(_NOME_BEBE) or achar(_NOME_CADEIRA)
+    if not motorista or not bebe:
+        return None
+    return dict(motorista=motorista[1], bebe=bebe[1], bebe_nome=bebe[0])
+
+
+def custo_extras(extras, dias):
+    """Custo de 1 motorista adicional + 1 bebê conforto para `dias` diárias ('dia' multiplica; 'uma_vez' é fixo)."""
+    def c(v):
+        valor, unidade = v
+        return valor * dias if unidade == "dia" else valor
+    return round(c(extras["motorista"]) + c(extras["bebe"]), 2)
+
+
+def _usd(v):
+    return f"US$ {v:.2f}".replace(".", ",")
+
+
+def _fmt_extra(v):
+    valor, unidade = v
+    return "grátis" if valor == 0 else _usd(valor) + (" /dia" if unidade == "dia" else " uma vez")
+
+
+def nota_extras(it):
+    """Nota com os extras lidos nesta data (formato lido pela tela) ou 'extras não coletados'. O preço da cotação não muda."""
+    extras = it.get("extras")
+    if not extras:
+        return "extras não coletados (motorista adicional e bebê conforto desconhecidos)"
+    def f(v):
+        valor, unidade = v
+        return f"{valor:.2f}/{unidade}"
+    return f"{EXTRAS_TAG} motorista={f(extras['motorista'])}; bebe={f(extras['bebe'])}; bebe_nome={extras['bebe_nome']}; dias={it['dias']}"
+
+
+def _extras_apos_escolher(pg, fr, texto_botao):
+    """Escolhe o primeiro veículo disponível e lê os extras do passo seguinte (só leitura: nada é preenchido nem enviado)."""
+    try:
+        fr.locator(f"text={texto_botao}").first.click()
+        pg.wait_for_load_state("networkidle", timeout=60000)
+        pg.wait_for_timeout(6000)
+        for f in pg.frames:
+            if "step3" in f.url:
+                return parse_extras(f.inner_text("body"))
+    except Exception as e:
+        print(f"  extras não coletados ({str(e)[:80]})")
+    return None
 
 
 ROTULOS = {"RECOMENDADO", "DISPONÍVEL", "DISPONIVEL", "CLASSE DE VEÍCULO", "CLASSE DE VEICULO", "CONSULTE MAIS INFORMAÇÃO"}
@@ -74,14 +169,16 @@ def coleta_up(pickups, dias):
             agora = datetime.now(timezone.utc)
             pg.goto(UP_URL.format(ini=d.isoformat(), fim=fim.isoformat()), wait_until="networkidle", timeout=90000)
             pg.wait_for_timeout(5000)
-            texto = ""
+            texto, f2 = "", None
             for fr in pg.frames:
                 if "hqrentals.app/public/car-rental/reservations/step2" in fr.url:
-                    texto = fr.inner_text("body")
+                    texto, f2 = fr.inner_text("body"), fr
             itens = parse_up(texto)
-            print(f"{d}: {len(itens)} categorias com preço")
+            url = pg.url
+            extras = _extras_apos_escolher(pg, f2, "Alugar Este Veículo") if itens and f2 else None
+            print(f"{d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
-                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url=pg.url))
+                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url=url, extras=extras))
             time.sleep(PAUSA)
         b.close()
     return res
@@ -124,14 +221,15 @@ def coleta_ally(pickups, dias):
             pg.click(".bq-painel button[type=submit]")
             pg.wait_for_load_state("networkidle", timeout=60000)
             pg.wait_for_timeout(8000)
-            texto = ""
+            texto, f2 = "", None
             for fr in pg.frames:
                 if "hqrentals.app/public/car-rental/reservations/step2" in fr.url:
-                    texto = fr.inner_text("body")
+                    texto, f2 = fr.inner_text("body"), fr
             itens = parse_ally(texto)
-            print(f"Allycar {d}: {len(itens)} categorias com preço")
+            extras = _extras_apos_escolher(pg, f2, "Continue") if itens and f2 else None
+            print(f"Allycar {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
-                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url="https://allycar.com/booking.html"))
+                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url="https://allycar.com/booking.html", extras=extras))
             time.sleep(PAUSA)
         b.close()
     return res
@@ -208,14 +306,15 @@ def coleta_nosso(pickups, dias):
             fr.click("button[type=submit]:has-text('Próximo Passo')")
             pg.wait_for_load_state("networkidle", timeout=60000)
             pg.wait_for_timeout(8000)
-            texto = ""
+            texto, f2 = "", None
             for f in pg.frames:
                 if "reservations/step2" in f.url:
-                    texto = f.inner_text("body")
+                    texto, f2 = f.inner_text("body"), f
             itens = parse_nosso(texto)
-            print(f"Nosso site {d}: {len(itens)} categorias com preço")
+            extras = _extras_apos_escolher(pg, f2, "Alugar este Veículo") if itens and f2 else None
+            print(f"Nosso site {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
-                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora))
+                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, extras=extras))
             time.sleep(PAUSA)
         b.close()
     return res
@@ -230,7 +329,7 @@ def linhas_nossas(itens, mapa):
             sem_mapa.add(it["categoria"])
             continue
         rows.append(dict(pickup_date=it["retirada"].isoformat(), category=cat, daily_rate=round(it["total"] / it["dias"], 2),
-                         season=f"cotação do site, {it['dias']} diárias", currency="USD", source="site_cotacao",
+                         season=f"cotação do site, {it['dias']} diárias; {nota_extras(it)}", currency="USD", source="site_cotacao",
                          collected_at=it["coletado_em"].isoformat()))
     return rows, sorted(sem_mapa)
 
@@ -239,7 +338,7 @@ def linhas_banco(itens, mapa, concorrente, local, notas, protecoes):
     """Converte coletas em linhas de competitor_price_snapshots (equivalência 'parcial'; categoria não mapeada fica sem normalizada)."""
     rows = []
     for it in itens:
-        extra = [notas]
+        extra = [notas, nota_extras(it)]
         if it.get("tipo"):
             extra.append(it["tipo"])
         if it["promo"]:

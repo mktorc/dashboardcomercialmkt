@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  extrasCost,
+  latestExtrasByCompetitor,
+  withKnownExtras,
+  parseExtras,
   comparable,
   latestOffers,
   dailyOf,
@@ -38,6 +42,77 @@ describe("competitividade", () => {
     expect(dailyOf(snap("A", null))).toBeNull();
     expect(dailyOf(snap("A", 100, { available: false }))).toBeNull();
     expect(dailyOf(snap("A", null, { totalPrice: 500 }))).toBe(100); // 5 diárias
+  });
+  const NOTA_UP =
+    "Preço sem taxas; extras: motorista=29.99/uma_vez; bebe=5.99/dia; bebe_nome=Bebê Conforto; dias=7";
+  it("lê os extras gravados pelo coletor e calcula o custo para N diárias", () => {
+    const e = parseExtras(NOTA_UP)!;
+    expect(e.motorista).toEqual({ valor: 29.99, unidade: "uma_vez" });
+    expect(e.bebe).toEqual({ valor: 5.99, unidade: "dia" });
+    expect(e.dias).toBe(7);
+    expect(extrasCost(e, 7)).toBeCloseTo(71.92);
+    expect(
+      parseExtras("extras: motorista=0.00/uma_vez; bebe=0.00/uma_vez; bebe_nome=Baby Seat; dias=7"),
+    ).not.toBeNull();
+    expect(
+      parseExtras("extras não coletados (motorista adicional e bebê conforto desconhecidos)"),
+    ).toBeNull();
+    expect(parseExtras(null)).toBeNull();
+  });
+  it("diária: preço do veículo por padrão; com extras soma motorista adicional e bebê conforto", () => {
+    const up = snap("UP", 42, { notes: NOTA_UP });
+    expect(dailyOf(up)).toBe(42);
+    expect(dailyOf(up, true)).toBeCloseTo(42 + (29.99 + 5.99 * 5) / 5, 6); // a coleta de teste tem 5 diárias
+    const gratis = snap("Ally", 100, {
+      notes: "extras: motorista=0.00/uma_vez; bebe=0.00/uma_vez; bebe_nome=Baby Seat; dias=7",
+    });
+    expect(dailyOf(gratis, true)).toBe(100);
+  });
+  it("com extras, coleta sem os extras lidos não entra (não se presume que sejam grátis); sem extras entra normalmente", () => {
+    const antiga = snap("UP", 42, { notes: "Preço sem taxas" });
+    expect(comparable(antiga, NOW, "USD")).toBe(true);
+    expect(comparable(antiga, NOW, "USD", 7, true)).toBe(false);
+    expect(comparable(snap("UP", 42, { notes: NOTA_UP }), NOW, "USD", 7, true)).toBe(true);
+  });
+  it("mercado: a opção de extras muda a mediana e o número de comparáveis", () => {
+    const rows = [
+      snap("UP", 42, { notes: NOTA_UP }),
+      snap("Allycar", 100, {
+        notes: "extras: motorista=0.00/uma_vez; bebe=0.00/uma_vez; bebe_nome=B; dias=7",
+      }),
+      snap("Antigo", 30, { notes: "Preço sem taxas" }),
+    ];
+    const base = marketOf(rows, NOW, "USD");
+    expect(base.n).toBe(3);
+    expect(base.min).toBe(30);
+    const comExtras = marketOf(rows, NOW, "USD", true);
+    expect(comExtras.n).toBe(2);
+    expect(comExtras.min).toBeCloseTo(42 + (29.99 + 5.99 * 5) / 5, 6);
+  });
+  it("coleta antiga sem extras usa o último valor lido do mesmo concorrente, marcada como estimada", () => {
+    const rows = [
+      snap("UP", 42, { collectedAt: "2026-11-09T10:00:00Z", notes: "Preço sem taxas" }),
+      snap("UP", 44, { collectedAt: "2026-11-08T10:00:00Z", notes: "Preço sem taxas" }),
+      snap("UP", 45, {
+        collectedAt: "2026-11-09T11:00:00Z",
+        notes: "x; extras: motorista=29.99/uma_vez; bebe=5.99/dia",
+      }),
+      snap("UP", 46, {
+        collectedAt: "2026-11-09T09:00:00Z",
+        notes: "x; extras: motorista=10.00/uma_vez; bebe=1.00/dia",
+      }),
+      snap("Allycar", 100, { notes: "Preço sem taxas" }), // nenhuma leitura de extras: continua de fora
+    ];
+    const known = latestExtrasByCompetitor(rows);
+    expect(known.get("UP")?.extras.motorista.valor).toBe(29.99); // a leitura mais recente
+    expect(known.has("Allycar")).toBe(false);
+    const eff = withKnownExtras(rows, known);
+    expect(eff[0]!.extrasEstimados).toBe(true);
+    expect(eff[2]!.extrasEstimados).toBeUndefined(); // já tinha a própria leitura
+    expect(eff[4]!.extrasEstimados).toBeUndefined();
+    expect(dailyOf(eff[0]!, true)).toBeCloseTo(42 + (29.99 + 5.99 * 5) / 5, 6);
+    expect(dailyOf(eff[4]!, true)).toBeNull();
+    expect(dailyOf(eff[0]!)).toBe(42); // sem extras, o preço do veículo não muda
   });
   it("só compara equivalentes, na mesma moeda e recentes", () => {
     expect(comparable(snap("A", 100), NOW, "USD")).toBe(true);

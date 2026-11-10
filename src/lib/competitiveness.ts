@@ -18,10 +18,75 @@ export type Snapshot = {
   currency: string;
   available: boolean | null;
   equivalence: Equivalence;
+  /** Observações da coleta (equivalence_notes): trazem os extras lidos no motor ("extras: motorista=29.99/uma_vez; bebe=5.99/dia"). */
+  notes?: string | null;
+  /** Extras preenchidos pelo último valor lido do mesmo concorrente (a coleta em si não os leu). */
+  extrasEstimados?: boolean;
 };
 
+/** Extra cobrado por diária ("dia") ou uma vez só ("uma_vez"); grátis = valor 0. */
+export type Extra = { valor: number; unidade: "dia" | "uma_vez" };
+/** 1 motorista adicional e 1 bebê conforto (ou cadeirinha): alguns concorrentes cobram, outros não. */
+export type Extras = { motorista: Extra; bebe: Extra; dias?: number };
+
+const EXTRAS_RE =
+  /extras:\s*motorista=([\d.]+)\/(dia|uma_vez);\s*bebe=([\d.]+)\/(dia|uma_vez)(?:;[^;]*)?(?:;\s*dias=(\d+))?/;
+/** Extras gravados pelo coletor na nota da coleta; null quando não foram lidos (nada é presumido). */
+export function parseExtras(notes: string | null | undefined): Extras | null {
+  const m = notes ? EXTRAS_RE.exec(notes) : null;
+  if (!m) return null;
+  return {
+    motorista: { valor: Number(m[1]), unidade: m[2] as Extra["unidade"] },
+    bebe: { valor: Number(m[3]), unidade: m[4] as Extra["unidade"] },
+    ...(m[5] ? { dias: Number(m[5]) } : {}),
+  };
+}
+/**
+ * Extras conhecidos de cada concorrente: os da coleta mais recente em que foram lidos. Usados para preencher coletas antigas, que não os
+ * leram, partindo de que o concorrente cobra o mesmo valor (premissa explícita: sempre aparece como "estimado").
+ */
+export function latestExtrasByCompetitor(
+  rows: Snapshot[],
+): Map<string, { extras: Extras; collectedAt: string }> {
+  const out = new Map<string, { extras: Extras; collectedAt: string }>();
+  for (const r of rows) {
+    const e = parseExtras(r.notes);
+    if (!e) continue;
+    const cur = out.get(r.competitor);
+    if (!cur || r.collectedAt > cur.collectedAt)
+      out.set(r.competitor, { extras: e, collectedAt: r.collectedAt });
+  }
+  return out;
+}
+
+/** Coletas sem extras lidos recebem o último valor lido do mesmo concorrente, marcadas como estimadas; sem valor conhecido, ficam como estão. */
+export function withKnownExtras<T extends Snapshot>(
+  rows: T[],
+  known: Map<string, { extras: Extras }>,
+): T[] {
+  return rows.map((r) => {
+    if (parseExtras(r.notes)) return r;
+    const k = known.get(r.competitor);
+    if (!k) return r;
+    const f = (x: Extra) => `${x.valor.toFixed(2)}/${x.unidade}`;
+    const nota = `extras: motorista=${f(k.extras.motorista)}; bebe=${f(k.extras.bebe)}`;
+    return { ...r, notes: r.notes ? `${r.notes}; ${nota}` : nota, extrasEstimados: true };
+  });
+}
+
+/** Custo dos extras em `dias` diárias. */
+export const extrasCost = (e: Extras, dias: number) =>
+  [e.motorista, e.bebe].reduce((s, x) => s + (x.unidade === "dia" ? x.valor * dias : x.valor), 0);
+
 /** Referência nossa para a mesma data e categoria (tabela do HQ). */
-export type OurRate = { pickupDate: string; category: string; dailyRate: number; currency: string };
+export type OurRate = {
+  pickupDate: string;
+  category: string;
+  dailyRate: number;
+  currency: string;
+  /** Extras lidos na cotação do nosso site (season); sem leitura, null: nosso site não cobra esses extras. */
+  extras?: Extras | null;
+};
 
 /** Faixas (em %) da diferença entre nossa tarifa e a mediana. Configuráveis na tela. */
 export type PriceBands = { significant: number; close: number };
@@ -43,26 +108,36 @@ export function median(values: number[]): number | null {
 export const mean = (v: number[]) => (v.length ? v.reduce((s, x) => s + x, 0) / v.length : null);
 
 /** Diária de uma coleta: nunca zero nem vazia. Sem preço ou indisponível = null (ausência não é preço zero). */
-export function dailyOf(s: Snapshot): number | null {
+export function dailyOf(s: Snapshot, comExtras = false): number | null {
   if (s.available === false) return null;
-  if (s.dailyPrice && s.dailyPrice > 0) return s.dailyPrice;
-  if (s.totalPrice && s.totalPrice > 0) {
-    const days = Math.max(
-      1,
-      Math.ceil((Date.parse(s.returnAt) - Date.parse(s.pickupAt)) / 86400000),
-    );
-    return s.totalPrice / days;
-  }
-  return null;
+  const days = Math.max(1, Math.ceil((Date.parse(s.returnAt) - Date.parse(s.pickupAt)) / 86400000));
+  const base =
+    s.dailyPrice && s.dailyPrice > 0
+      ? s.dailyPrice
+      : s.totalPrice && s.totalPrice > 0
+        ? s.totalPrice / days
+        : null;
+  if (base == null || !comExtras) return base;
+  // Com extras: soma 1 motorista adicional e 1 bebê conforto (por diária), se foram lidos nesta coleta.
+  const e = parseExtras(s.notes);
+  return e ? base + extrasCost(e, days) / days : null;
 }
 
 /**
  * Só entram na referência de mercado coletas equivalentes ou parciais, na MESMA moeda da nossa tarifa (sem conversão cambial:
  * câmbio seria um dado inventado), com preço, e não obsoletas.
  */
-export function comparable(s: Snapshot, now: string, currency: string, maxAgeDays = 7): boolean {
+export function comparable(
+  s: Snapshot,
+  now: string,
+  currency: string,
+  maxAgeDays = 7,
+  comExtras = false,
+): boolean {
   if (s.equivalence === "nao_equivalente" || s.equivalence === "nao_avaliada") return false;
-  if (s.currency.toUpperCase() !== currency.toUpperCase() || dailyOf(s) == null) return false;
+  // Com extras, só entra a coleta cujos extras foram lidos: sem eles não dá para somar (e não se presume que sejam grátis).
+  if (s.currency.toUpperCase() !== currency.toUpperCase() || dailyOf(s, comExtras) == null)
+    return false;
   return Date.parse(now) - Date.parse(s.collectedAt) <= maxAgeDays * 86400000;
 }
 
@@ -113,9 +188,14 @@ export type Market = {
 };
 
 /** Mercado de UMA data de retirada e categoria: rows já devem ser dessa combinação. */
-export function marketOf(rows: Snapshot[], now: string, currency: string): Market {
-  const used = latestPerCompetitor(rows.filter((r) => comparable(r, now, currency)));
-  const prices = used.map((r) => dailyOf(r) as number);
+export function marketOf(
+  rows: Snapshot[],
+  now: string,
+  currency: string,
+  comExtras = false,
+): Market {
+  const used = latestPerCompetitor(rows.filter((r) => comparable(r, now, currency, 7, comExtras)));
+  const prices = used.map((r) => dailyOf(r, comExtras) as number);
   return {
     n: used.length,
     median: median(prices),

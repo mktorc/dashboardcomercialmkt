@@ -74,3 +74,17 @@ baixa (1 concorrente) ou média (2 sem parcial exige equivalente); preço de bai
 Falha do monitor = workflow vermelho + issue "Alerta: dados de precificação" (atualizada a cada rodada com falha e fechada sozinha quando tudo volta
 ao normal). Avisos (ex.: nenhuma cotação equivalente) não falham. Limites: agendador do GitHub pode atrasar; o próprio monitor para se o repositório
 ficar 60 dias sem atividade.
+
+## Extras na comparação de preço (motorista adicional e bebê conforto)
+Auditoria em 2026-11-10 (passo "Características" de cada motor): a **UP cobra** motorista adicional (US$ 29,99, valor único) e bebê conforto /
+cadeirinha (US$ 5,99/dia; booster US$ 3,99/dia); **Allycar e nosso site são grátis**. Para 7 diárias a UP soma US$ 71,92 (~US$ 10,27/dia).
+
+O preço gravado é **sempre o do veículo** (sem taxas e seguros). `coletor.py` lê os extras na mesma data de cada cotação (só leitura, nada é
+preenchido nem enviado) e os grava à parte, em `equivalence_notes` (concorrentes) e `season` (nosso site):
+`extras: motorista=29.99/uma_vez; bebe=5.99/dia; bebe_nome=Bebê Conforto; dias=7` (cadeirinha se não houver bebê conforto; grátis = 0).
+Sem leitura, a nota diz "extras não coletados".
+
+Na tela de Prioridades, o checkbox **"Incluir motorista adicional e bebê conforto"** (desligado por padrão) soma 1 motorista adicional e 1 bebê
+conforto ao preço de cada concorrente e ao nosso (`parseExtras`, `dailyOf(s, true)`, `marketOf(..., true)` em `competitiveness.ts`). Ligado, só
+entram cotações com extras lidos (não se presume grátis); coletas antigas continuam valendo com a opção desligada. Nosso site sem leitura de
+extras é tratado como sem custo adicional (hoje é grátis).

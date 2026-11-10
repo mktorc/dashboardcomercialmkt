@@ -115,5 +115,114 @@ class Nosso(unittest.TestCase):
         self.assertEqual((rows[0]["category"], rows[0]["daily_rate"], rows[0]["source"], rows[0]["currency"]), ("Mini Van 8 Seats", 71.58, "site_cotacao", "USD"))
 
 
+# Trechos reais do passo "Características" (lidos em 2026-11-10) de cada motor.
+EXTRAS_UP = """Equipamentos e Serviços
+Additional Driver
+ $29,99 Uma vez
+Bebê Conforto
+0
+1
+2
+3
+4
+ $5,99 /Dia
+Cadeirinha de Bebê
+0
+1
+ $5,99 /Dia
+MENOR 25 ANOS
+Consulte Mais Informação
+ $95,00 Uma vez
+Descontos
+Código do Cupom"""
+EXTRAS_ALLY = """Equipment & Services
+ 
+Unlimited tolls
+Free
+Selected
+ 
+Baby Seat
+Free
+0
+ 
+Child Seat
+Free
+0
+ 
+Additional Driver
+Free
+0
+ 
+Prepaid Refuel
+Read More
+$75,00 One Time
+Select
+Discounts"""
+EXTRAS_NOSSO = """Equipment & Services
+  Motorista Adicional
+0
+1
+2
+3
+4
+ Livre
+  Cadeirinha Infantil (1,5 - 4 anos)
+0
+1
+ Livre
+  Transfer em Orlando - Chegada
+ $100.00 Uma vez
+  Bebe Conforto (0 - 1,5 anos )
+0
+1
+ Livre
+Descontos"""
+
+
+class Extras(unittest.TestCase):
+    def test_up_cobra_motorista_e_bebe_conforto(self):
+        e = C.parse_extras(EXTRAS_UP)
+        self.assertEqual(e["motorista"], (29.99, "uma_vez"))
+        self.assertEqual(e["bebe"], (5.99, "dia"))
+        self.assertEqual(C.custo_extras(e, 7), 71.92)  # 29,99 + 5,99 x 7
+
+    def test_allycar_e_nosso_site_sao_gratis(self):
+        for texto in (EXTRAS_ALLY, EXTRAS_NOSSO):
+            e = C.parse_extras(texto)
+            self.assertEqual(C.custo_extras(e, 7), 0.0)
+
+    def test_nao_confunde_com_outros_extras(self):
+        e = C.parse_extras(EXTRAS_NOSSO)  # transfer ($100) vem entre a cadeirinha e o bebê conforto
+        self.assertEqual(e["bebe"][0], 0.0)
+
+    def test_sem_secao_ou_sem_preco_claro_nao_presume_nada(self):
+        self.assertIsNone(C.parse_extras("Detalhes de Retirada\nLocal de Retirada"))
+        self.assertIsNone(C.parse_extras("Equipment & Services\nAdditional Driver\nBaby Seat\nDiscounts"))
+        self.assertIsNone(C.parse_extras("Equipment & Services\nBaby Seat\nFree\nDiscounts"))  # sem motorista adicional
+
+    def test_cadeirinha_quando_nao_ha_bebe_conforto(self):
+        e = C.parse_extras("Equipamentos e Serviços\nMotorista Adicional\n $10,00 Uma vez\nCadeirinha Infantil\n $4,00 /Dia\nDescontos")
+        self.assertEqual(e["bebe"], (4.0, "dia"))
+
+    def test_nota_de_extras_tem_o_formato_lido_pela_tela(self):
+        it = dict(categoria="SEDAN SIMPLES", diaria=42.0, total=294.0, dias=7, promo=False, extras=C.parse_extras(EXTRAS_UP))
+        self.assertEqual(C.nota_extras(it), "extras: motorista=29.99/uma_vez; bebe=5.99/dia; bebe_nome=Bebê Conforto; dias=7")
+
+    def test_sem_extras_lidos_a_nota_diz_que_nao_coletou(self):
+        it = dict(categoria="X", diaria=42.0, total=294.0, dias=7, promo=False, extras=None)
+        self.assertTrue(C.nota_extras(it).startswith("extras não coletados"))
+
+    def test_o_preco_gravado_e_sempre_o_base_e_os_extras_ficam_na_nota(self):
+        from datetime import date, datetime, timezone
+        it = dict(categoria="SEDAN SIMPLES", diaria=42.0, total=294.0, dias=7, promo=False, url="u", retirada=date(2027, 1, 12),
+                  devolucao=date(2027, 1, 19), coletado_em=datetime(2026, 11, 10, tzinfo=timezone.utc), extras=C.parse_extras(EXTRAS_UP))
+        r = C.linhas_banco([it], {"SEDAN SIMPLES": "Midsize Sedan"}, "UP", "MCO", "n", "p")[0]
+        self.assertEqual((r["total_price"], r["daily_price"]), (294.0, 42.0))  # nunca mistura extras no preço do veículo
+        self.assertIn("extras: motorista=29.99/uma_vez; bebe=5.99/dia", r["equivalence_notes"])
+        n, _ = C.linhas_nossas([dict(it, extras=C.parse_extras(EXTRAS_NOSSO), categoria="Mini Van 8 Lugares")], {"Mini Van 8 Lugares": "Mini Van 8 Seats"})
+        self.assertEqual(n[0]["daily_rate"], 42.0)
+        self.assertIn("motorista=0.00/uma_vez; bebe=0.00/uma_vez", n[0]["season"])
+
+
 if __name__ == "__main__":
     unittest.main()

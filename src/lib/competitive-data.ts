@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { fetchAll } from "./fetch-all";
-import type { Equivalence, OurRate, Snapshot } from "./competitiveness";
+import { parseExtras, type Equivalence, type OurRate, type Snapshot } from "./competitiveness";
 
 // Tabelas da migração 0058 ainda não estão em types.ts (gerado): cliente sem tipos, como em pricing-forecast.ts.
 const supabase = typedClient as unknown as SupabaseClient;
@@ -35,6 +35,7 @@ type RawSnapshot = {
   protections: string | null;
   mileage: string | null;
   cancellation_policy: string | null;
+  equivalence_notes: string | null;
   competitors: { name: string } | null;
 };
 
@@ -51,7 +52,7 @@ export function useCompetitorSnapshots() {
         supabase
           .from("competitor_price_snapshots")
           .select(
-            "id,source,source_url,location,normalized_category,source_category,collected_at,pickup_at,return_at,total_price,daily_price,currency,available,equivalence,protections,mileage,cancellation_policy,competitors(name)",
+            "id,source,source_url,location,normalized_category,source_category,collected_at,pickup_at,return_at,total_price,daily_price,currency,available,equivalence,protections,mileage,cancellation_policy,equivalence_notes,competitors(name)",
           )
           .gte("collected_at", desde)
           .order("collected_at", { ascending: false })
@@ -78,6 +79,7 @@ export function useCompetitorSnapshots() {
         protections: r.protections,
         mileage: r.mileage,
         cancellation: r.cancellation_policy,
+        notes: r.equivalence_notes ?? null,
       }));
     },
   });
@@ -91,7 +93,7 @@ export function useOurRates() {
       const { data, error } = await fetchAll((from, to) =>
         supabase
           .from("our_rate_snapshots")
-          .select("pickup_date,category,daily_rate,currency,source,collected_at")
+          .select("pickup_date,category,daily_rate,currency,source,collected_at,season")
           .order("collected_at", { ascending: false })
           .order("id")
           .range(from, to),
@@ -107,6 +109,7 @@ export function useOurRates() {
         daily_rate: number;
         currency: string;
         source: string;
+        season: string | null;
       }[]) {
         const k = `${r.pickup_date}|${r.category}`;
         const cur = best.get(k);
@@ -118,6 +121,7 @@ export function useOurRates() {
             category: r.category,
             dailyRate: Number(r.daily_rate),
             currency: r.currency,
+            extras: parseExtras(r.season),
           },
         });
       }

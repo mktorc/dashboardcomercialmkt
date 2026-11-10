@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,9 @@ import {
 import {
   DEFAULT_PRICE_BANDS,
   dailyOf,
+  extrasCost,
+  latestExtrasByCompetitor,
+  withKnownExtras,
   diffPct,
   marketOf,
   priceLevel,
@@ -222,6 +226,8 @@ function Painel({
   const rates = useOurRates();
   const nossaColeta = useOurRateFreshness();
   const [cat, setCat] = useState(ALL);
+  // Preço com 1 motorista adicional e 1 bebê conforto (alguns concorrentes cobram): desligado = só o preço do veículo.
+  const [comExtras, setComExtras] = useState(false);
   const [leadKey, setLeadKey] = useState("p60");
   // Faixa livre: quando o período escolhido não coincide com nenhuma faixa pronta, a antecedência vira "D-x a D-y".
   const [custom, setCustom] = useState<{ min: number; max: number } | null>(null);
@@ -289,19 +295,30 @@ function Painel({
   }, []);
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
   const ours = useMemo(
-    () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate])),
-    [rates.data],
+    () =>
+      new Map(
+        (rates.data ?? []).map((r) => {
+          // Nossa cotação: com extras soma o que foi lido no nosso site (grátis hoje); sem leitura, nosso site não cobra esses extras.
+          const dias = r.extras?.dias ?? 7;
+          const extra = comExtras && r.extras ? extrasCost(r.extras, dias) / dias : 0;
+          return [`${r.pickupDate}|${r.category}`, r.dailyRate + extra] as [string, number];
+        }),
+      ),
+    [rates.data, comExtras],
   );
   // Coletas de concorrência agrupadas por data × categoria.
   const groups = useMemo(() => {
+    // Com extras, coleta antiga (sem leitura) usa o último valor lido do mesmo concorrente, marcado como estimado.
+    const todas = snaps.data ?? [];
+    const efetivas = comExtras ? withKnownExtras(todas, latestExtrasByCompetitor(todas)) : todas;
     const g = new Map<string, SnapshotRow[]>();
-    for (const r of snaps.data ?? []) {
+    for (const r of efetivas) {
       if (!r.category) continue;
       const k = `${r.pickupAt.slice(0, 10)}|${r.category}`;
       g.set(k, [...(g.get(k) ?? []), r]);
     }
     return g;
-  }, [snaps.data]);
+  }, [snaps.data, comExtras]);
   const now = useMemo(() => new Date().toISOString(), []);
   // Última coleta de cada concorrente esperado (uma fonte parada não pode ficar escondida pela outra).
   const fontes = useMemo(() => {
@@ -321,7 +338,7 @@ function Painel({
       const hit = cache.get(k);
       if (hit) return hit;
       const mine = ours.get(k) ?? null;
-      const m = marketOf(groups.get(k) ?? [], now, moeda);
+      const m = marketOf(groups.get(k) ?? [], now, moeda, comExtras);
       const pct_ = mine != null ? diffPct(mine, m.median) : null;
       const ctx: PriceCtx =
         mine == null || m.median == null
@@ -342,7 +359,7 @@ function Painel({
       cache.set(k, ctx);
       return ctx;
     };
-  }, [ours, groups, now, moeda]);
+  }, [ours, groups, now, moeda, comExtras]);
 
   // Uma única lista filtrada alimenta resumo, ranking, matriz e calendário (mesmos critérios de agregação).
   const base_rows = useMemo(
@@ -469,6 +486,14 @@ function Painel({
               ...MARKET_BUCKETS.map((m) => [m, MARKET_LABEL[m]] as [string, string]),
             ]}
           />
+          <label className="flex items-center gap-2 self-end pb-2 text-sm">
+            <Checkbox
+              checked={comExtras}
+              onCheckedChange={(v) => (setComExtras(v === true), setShown(PAGE))}
+            />
+            <span>Incluir motorista adicional e bebê conforto</span>
+            <AjudaExtras />
+          </label>
         </PeriodFilter>
       </Card>
 
@@ -554,6 +579,7 @@ function Painel({
                         model={model}
                         modelRitmo={modelRitmo}
                         base={base}
+                        comExtras={comExtras}
                         onOpen={() => setSelKey(rowKey(r))}
                       />
                     )}
@@ -613,6 +639,7 @@ function Painel({
         crit={crit}
         groups={groups}
         moeda={moeda}
+        comExtras={comExtras}
       />
     </div>
   );
@@ -952,13 +979,37 @@ function AjudaCriticidade({ crit }: { crit: CritConfig }) {
   );
 }
 
+function AjudaExtras() {
+  return (
+    <Ajuda titulo="Motorista adicional e bebê conforto">
+      <p>
+        Alguns concorrentes cobram motorista adicional e bebê conforto (ou cadeirinha); outros não.
+        Por padrão os preços são só os do veículo (sem taxas e seguros).
+      </p>
+      <p>
+        Marcado, soma 1 motorista adicional e 1 bebê conforto ao preço de cada concorrente (valor
+        único ou por diária, como cobrado na data) e ao nosso (hoje grátis), para comparar o custo
+        equivalente.
+      </p>
+      <p>
+        Cotações antigas, que não leram os extras, usam o último valor lido do mesmo concorrente e
+        aparecem como “estimados” (premissa: ele cobra o mesmo valor). Concorrente sem nenhuma
+        leitura de extras fica de fora enquanto a opção estiver marcada: não se presume que seja
+        grátis. As coletas novas leem os extras na própria data.
+      </p>
+    </Ajuda>
+  );
+}
+
 function AjudaMercado() {
   const { close, significant } = DEFAULT_PRICE_BANDS;
   return (
     <Ajuda titulo="Situação de mercado">
       <p>
         Nossa tarifa comparada com a mediana dos concorrentes para a mesma data e categoria (coletas
-        dos últimos 7 dias, na mesma moeda).
+        dos últimos 7 dias, na mesma moeda). Por padrão compara só o preço do veículo; marque
+        “Incluir motorista adicional e bebê conforto” para somar esses extras, que alguns
+        concorrentes cobram.
       </p>
       <AjudaItem nome="Acima do mercado">
         nossa tarifa está mais de {close}% acima da mediana.
@@ -1020,6 +1071,7 @@ function PriorityCard({
   model,
   modelRitmo,
   base,
+  comExtras,
   onOpen,
 }: {
   r: EnrichedRow;
@@ -1027,6 +1079,7 @@ function PriorityCard({
   model: PaceModel;
   modelRitmo: PaceModel;
   base: string;
+  comExtras: boolean;
   onOpen: () => void;
 }) {
   const p = r.price;
@@ -1108,7 +1161,7 @@ function PriorityCard({
         </span>
         <span className="rounded bg-muted px-1.5 py-0.5">
           {p.pct != null
-            ? `${pctTxt(p.pct)} vs. mercado${p.partial ? " (parcial)" : ""}${p.n < 3 ? ` · ${p.n} conc.` : ""}`
+            ? `${pctTxt(p.pct)} vs. mercado${p.partial ? " (parcial)" : ""}${p.n < 3 ? ` · ${p.n} conc.` : ""}${comExtras ? " · c/ extras" : ""}`
             : "sem dados de mercado"}
         </span>
         {lowConf ? (
@@ -1522,6 +1575,7 @@ function Detalhe({
   crit,
   groups,
   moeda,
+  comExtras,
 }: {
   row: EnrichedRow | null;
   siblings: EnrichedRow[];
@@ -1533,6 +1587,7 @@ function Detalhe({
   crit: CritConfig;
   groups: Map<string, SnapshotRow[]>;
   moeda: string;
+  comExtras: boolean;
 }) {
   const paceRow: PaceRow | undefined = useMemo(
     () => (row ? model.byKey.get(rowKey(row)) : undefined),
@@ -1756,8 +1811,13 @@ function Detalhe({
                       <div key={c.id} className="flex justify-between gap-2 text-xs">
                         <span>{c.competitor}</span>
                         <span className="text-right tabular-nums">
-                          {money(dailyOf(c), c.currency.toUpperCase())} · {EQ_LABEL[c.equivalence]}{" "}
-                          · {formatLastUpdate(c.collectedAt)}
+                          {money(dailyOf(c, comExtras), c.currency.toUpperCase())}
+                          {comExtras
+                            ? c.extrasEstimados
+                              ? " (c/ extras estimados)"
+                              : " (c/ extras)"
+                            : ""}{" "}
+                          · {EQ_LABEL[c.equivalence]} · {formatLastUpdate(c.collectedAt)}
                         </span>
                       </div>
                     ))}
