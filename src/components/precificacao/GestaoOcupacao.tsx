@@ -50,6 +50,7 @@ import {
   buildModel,
   dailySeries,
   dayPace,
+  windowOccupancy,
   revenueOf,
   gapLevel,
   pickupCurve,
@@ -138,6 +139,11 @@ function Painel({
     [model, byDate, from, to, base],
   );
   const sum = useMemo(() => summarize(days, bands), [days, bands]);
+  // Ocupação atual do intervalo = a do relatório de Utilização do HQ para a janela inteira (só com a data-base de hoje: os trechos são os de hoje).
+  const hqWindow = useMemo(
+    () => (base === payload.hoje ? windowOccupancy(payload, cat === ALL ? null : cat, from, to) : null),
+    [payload, cat, from, to, base],
+  );
   const outOfRange = from < payload.de || to > payload.ate;
 
   const setRange = (a: string, b: string) => {
@@ -217,9 +223,13 @@ function Painel({
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Kpi
           icon={Gauge}
-          label="Ocupação atual média"
-          value={pct(sum.atual)}
-          hint={`base ${dataBR(base).slice(0, 5)} · ${sum.compared} datas`}
+          label="Ocupação atual"
+          value={pct(hqWindow ? hqWindow.rate : sum.atual)}
+          hint={
+            hqWindow
+              ? `igual ao HQ · ${hqWindow.carDays} de ${hqWindow.capacity} dias`
+              : `base ${dataBR(base).slice(0, 5)} · ${sum.compared} datas`
+          }
         />
         <Kpi
           icon={Target}

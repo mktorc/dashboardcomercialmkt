@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as typedClient } from "@/integrations/supabase/client";
+import { segmentDays } from "@/lib/occupancy";
 
 // pricing_occupancy_pace ainda não está em types.ts (gerado): cliente sem tipos, como em pricing-forecast.ts.
 const supabase = typedClient as unknown as SupabaseClient;
@@ -40,6 +41,8 @@ export type PacePayload = {
   params: PaceParams;
   cal: PaceCal;
   linhas: PaceRow[];
+  /** payload v7+: trechos confirmados [índice em `categorias`, retirada, devolução] (minutos desde 1970, horário do HQ sem fuso). */
+  t?: [number, number, number][];
 };
 
 /** Faixas do gap (pontos percentuais) que separam as cores. Configuráveis na tela. */
@@ -455,4 +458,23 @@ export function usePace() {
       return data as { generated_at: string; payload: PacePayload } | null;
     },
   });
+}
+
+/**
+ * Ocupação de um intervalo [from, to] (datas ISO, inclusive) igual à Utilização do HQ filtrada nesse intervalo: dias de cada trecho
+ * na janela inteira (max(1, ceil((horas − 5 h) / 24))) ÷ frota somada dos dias da janela. null sem trechos publicados (payload < v7).
+ */
+export function windowOccupancy(payload: PacePayload, categoria: string | null, from: string, to: string) {
+  if (!payload.t) return null;
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${addDays(to, 1)}T00:00:00Z`);
+  const only = categoria == null ? null : payload.categorias.indexOf(categoria);
+  let carDays = 0;
+  for (const [c, p, r] of payload.t) {
+    if (only != null && c !== only) continue;
+    carDays += segmentDays(new Date(p * 60000).toISOString(), new Date(r * 60000).toISOString(), start, end);
+  }
+  let capacity = 0;
+  for (const l of payload.linhas) if (l.d >= from && l.d <= to && (categoria == null || l.c === categoria)) capacity += l.f;
+  return capacity ? { rate: carDays / capacity, carDays, capacity } : null;
 }

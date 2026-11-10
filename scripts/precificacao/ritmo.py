@@ -46,15 +46,17 @@ def main():
     con = duckdb.connect(str(A.DB))
     A.preparar(con, fim)
     # Mesma regra do dashboard comercial (src/lib/occupancy.ts, Utilização do HQ), por TRECHO de veículo (reserva_veiculos) e por MÊS:
-    # o trecho conta no mês se encosta em algum dia dele; dias = max(1, ceil((horas dentro do mês − 5 h) / 24)). Os dias do mês são
-    # distribuídos em sequência a partir do 1º dia do trecho no mês, de modo que a soma dos dias de um mês é exatamente a do dashboard.
+    # POR DIA (o relatório do HQ para uma data): o trecho conta 1 em cada data que ele encosta, da retirada à devolução inclusive
+    # (com janela de um dia, max(1, ceil((horas − 5 h) / 24)) é sempre 1). Assim cada data bate com a Utilização do HQ filtrada nela;
+    # a soma das datas de um mês não é a do relatório mensal (que arredonda o trecho inteiro no mês).
     # Categoria = a do VEÍCULO que rodou (a da reserva só se o trecho não tem veículo). Todos os trechos entram (como reservation_segments).
     # Preço da diária = rack_total ÷ soma dos dias de todos os trechos da reserva (reserva com rack zerado fica sem preço).
-    # Capacidade = veículos na frota no dia (data_entrada ≤ dia < saída, como fleet_vehicles), sem descontar bloqueios.
+    # Capacidade = veículos na frota no dia (data_entrada ≤ dia < saída, como fleet_vehicles), sem descontar bloqueios e sem os
+    # vendidos: o relatório de Utilização do HQ não os conta na capacidade, nem nos meses em que ainda estavam na frota.
     cats = dict(con.execute("SELECT id, nome FROM categorias WHERE id NOT IN (1, 7) AND id IN (SELECT categoria_id FROM veiculos WHERE coalesce(data_entrada, data_compra) IS NOT NULL)").fetchall())
     frota = {(d, c): n for d, c, n in con.execute(f"""SELECT c.data, v.categoria_id, count(*) FROM dim_calendario c JOIN veiculos v
         ON coalesce(v.data_entrada, v.data_compra) <= c.data AND (v.data_saida IS NULL OR c.data < v.data_saida)
-        WHERE v.categoria_id NOT IN (1, 7) AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""").fetchall()}
+        WHERE v.categoria_id NOT IN (1, 7) AND v.status IS DISTINCT FROM 'sold' AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""").fetchall()}
 
     def dias_mes(p, d):
         """[(data, dias)] por mês: dia inicial do trecho no mês e dias contados pela regra do dashboard."""
@@ -77,8 +79,18 @@ def main():
            WHERE rv.retirada IS NOT NULL AND rv.devolucao IS NOT NULL
              AND r.status IN ('completed', 'open', 'rental', 'cancelled', 'cancelled-paid')""").fetchall():
         por_res[rid].append((p_, d_, criada, atual, r_ret, rack, st, cat))
+    # Trechos confirmados (por categoria) para a tela calcular a ocupação de QUALQUER intervalo com a regra do HQ para a janela exata:
+    # [índice da categoria em `categorias`, retirada, devolução], em minutos desde 1970 (horários do HQ como estão, sem fuso).
+    nomes_ord = sorted(cats.values())
+    idx = {c: nomes_ord.index(n) for c, n in cats.items()}
+    epoch = datetime(1970, 1, 1)
+    trechos_conf = [
+        [idx[t[7]], int((t[0] - epoch).total_seconds() // 60), int((t[1] - epoch).total_seconds() // 60)]
+        for ts in por_res.values() for t in ts
+        if t[6] in ("completed", "open", "rental") and t[7] in idx
+    ]
     for rid, trechos in por_res.items():
-        itens = [(d0 + timedelta(days=k), t) for t in trechos for d0, n in dias_mes(t[0], t[1]) for k in range(n)]
+        itens = [(t[0].date() + timedelta(days=k), t) for t in trechos for k in range((t[1].date() - t[0].date()).days + 1)]
         total = len(itens)
         for dia, (p_, d_, criada, atual, r_ret, rack, st, cat) in itens:
             if dia < ini or dia > fim or cat in (1, 7):
@@ -109,8 +121,8 @@ def main():
         if linhas_dia:
             cal[d.isoformat()] = [s, ev, rel]
         d += timedelta(days=1)
-    payload = dict(versao=6, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
-                   ate=fim.isoformat(), categorias=sorted(cats.values()), params=PARAMS, cal=cal, linhas=linhas)
+    payload = dict(versao=7, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
+                   ate=fim.isoformat(), categorias=sorted(cats.values()), params=PARAMS, cal=cal, linhas=linhas, t=trechos_conf)
     out = Path("data/precificacao/relatorio/ritmo.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

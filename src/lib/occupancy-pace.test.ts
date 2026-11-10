@@ -14,6 +14,7 @@ import {
   type PaceParams,
   type PaceRow,
   type PacePayload,
+  windowOccupancy,
 } from "./occupancy-pace";
 
 const BASE = "2026-11-06";
@@ -298,5 +299,26 @@ describe("categoria sem histórico não anula a data inteira", () => {
     expect(d.esperada).toBeNull();
     expect(d.gap).toBeNull();
     expect(d.cobertura).toBeCloseTo(0.75);
+  });
+});
+
+describe("windowOccupancy (igual à Utilização do HQ na janela)", () => {
+  const min = (iso: string) => Date.parse(`${iso}:00Z`) / 60000;
+  const payload = {
+    versao: 7, gerado_em: "", hoje: "2026-01-10", de: "2026-01-01", ate: "2026-01-31", categorias: ["A", "B"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal: {},
+    linhas: ["2026-01-01", "2026-01-02", "2026-01-03"].flatMap((d) => [{ d, c: "A", f: 1, a: [] }, { d, c: "B", f: 1, a: [] }]),
+    t: [[0, min("2026-01-01T15:00"), min("2026-01-03T12:00")], [1, min("2026-01-02T10:00"), min("2026-01-02T12:00")]],
+  } as unknown as Parameters<typeof windowOccupancy>[0];
+  it("um dia: o trecho conta em toda data que toca", () => {
+    expect(windowOccupancy(payload, null, "2026-01-02", "2026-01-02")).toMatchObject({ carDays: 2, capacity: 2 });
+    expect(windowOccupancy(payload, null, "2026-01-03", "2026-01-03")).toMatchObject({ carDays: 1, capacity: 2 });
+  });
+  it("intervalo: arredonda o trecho inteiro na janela (45 h − 5 h → 2 dias), não a soma dos dias", () => {
+    expect(windowOccupancy(payload, "A", "2026-01-01", "2026-01-03")).toMatchObject({ carDays: 2, capacity: 3 });
+  });
+  it("sem trechos publicados devolve null", () => {
+    const { t: _t, ...sem } = payload;
+    expect(windowOccupancy(sem as typeof payload, null, "2026-01-01", "2026-01-03")).toBeNull();
   });
 });
