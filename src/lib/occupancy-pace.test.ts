@@ -322,3 +322,33 @@ describe("windowOccupancy (igual à Utilização do HQ na janela)", () => {
     expect(windowOccupancy(sem as typeof payload, null, "2026-01-01", "2026-01-03")).toBeNull();
   });
 });
+
+describe("esperada escolhida pelo dia todo", () => {
+  const mk = (d: string, c: string, f: number, n: number, preco: number, g?: number) => ({
+    d, c, f, ...(g ? { g } : {}), a: Array(n).fill(30), m: Array(n).fill(preco),
+  });
+  const linhas = [
+    // 2025 (364 dias antes): ocupação 6/10, US$ 40 por veículo. 2024 (728): 9/10, US$ 90 por veículo (a de maior faturamento).
+    mk("2026-11-12", "A", 5, 3, 50), mk("2026-11-12", "B", 5, 3, 50),
+    mk("2025-11-13", "A", 5, 3, 40), mk("2025-11-13", "B", 5, 3, 40),
+    mk("2024-11-14", "A", 5, 5, 90), mk("2024-11-14", "B", 5, 4, 90),
+  ];
+  const payload = {
+    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2026-12-31", categorias: ["A", "B"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+    cal: { "2026-11-12": ["Média", null, null], "2025-11-13": ["Média", null, null], "2024-11-14": ["Média", null, null] },
+    linhas,
+  } as unknown as Parameters<typeof buildModel>[0];
+  it("usa a ocupação da data de maior faturamento por veículo, somando as categorias", () => {
+    const m = buildModel(payload, "maximo");
+    const d = dayPace(m, linhas.slice(0, 2) as never, "2026-11-12", "2026-11-10");
+    expect(d.esperada).toBeCloseTo(0.9, 5);
+    expect(d.atual).toBeCloseTo(0.6, 5);
+  });
+  it("capacidade da referência inclui os veículos depois vendidos (g)", () => {
+    const l2 = linhas.map((r) => (r.d === "2024-11-14" ? { ...r, g: 6 } : r));
+    const m = buildModel({ ...payload, linhas: l2 } as never, "maximo");
+    const d = dayPace(m, l2.slice(0, 2) as never, "2026-11-12", "2026-11-10");
+    expect(d.esperada).toBeCloseTo(9 / 12, 5);
+  });
+});

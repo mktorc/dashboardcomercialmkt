@@ -57,6 +57,10 @@ def main():
     frota = {(d, c): n for d, c, n in con.execute(f"""SELECT c.data, v.categoria_id, count(*) FROM dim_calendario c JOIN veiculos v
         ON coalesce(v.data_entrada, v.data_compra) <= c.data AND (v.data_saida IS NULL OR c.data < v.data_saida)
         WHERE v.categoria_id NOT IN (1, 7) AND v.status IS DISTINCT FROM 'sold' AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""").fetchall()}
+    # Frota histórica (com os veículos depois vendidos): capacidade das datas passadas usadas como referência da esperada.
+    frota_g = {(d, c): n for d, c, n in con.execute(f"""SELECT c.data, v.categoria_id, count(*) FROM dim_calendario c JOIN veiculos v
+        ON coalesce(v.data_entrada, v.data_compra) <= c.data AND (v.data_saida IS NULL OR c.data < v.data_saida)
+        WHERE v.categoria_id NOT IN (1, 7) AND c.data BETWEEN DATE '{ini}' AND DATE '{fim}' GROUP BY 1, 2""").fetchall()}
 
     def dias_mes(p, d):
         """[(data, dias)] por mês: dia inicial do trecho no mês e dias contados pela regra do dashboard."""
@@ -108,10 +112,13 @@ def main():
         s, _, ev, rel = CAL.classificar_dia(d, CAL.GESTAO)
         linhas_dia = 0
         for c, nome in cats.items():
-            f = frota.get((d, c))
-            if f:
+            f = frota.get((d, c)) or 0
+            g = frota_g.get((d, c)) or 0
+            if f or g:
                 par = sorted(ant.get((d, c), []))
                 row = dict(d=d.isoformat(), c=nome, f=int(f), a=[x for x, _ in par])
+                if g != f:
+                    row["g"] = int(g)
                 if any(m for _, m in par):
                     row["m"] = [m for _, m in par]  # preço de cada diária (US$, igual ordem de `a`; 0 = sem preço)
                 if canc.get((d, c)):

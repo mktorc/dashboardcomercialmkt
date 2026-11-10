@@ -15,6 +15,8 @@ export type PaceRow = {
   d: string;
   c: string;
   f: number;
+  /** payload v7+: frota do dia incluindo os veículos depois vendidos (capacidade das datas passadas usadas como referência). */
+  g?: number;
   a: number[];
   x?: [number, number | null][];
   /** payload v6+: preço pago (US$) de cada diária, na mesma ordem de `a` (0 = reserva sem preço). */
@@ -44,6 +46,9 @@ export type PacePayload = {
   /** payload v7+: trechos confirmados [índice em `categorias`, retirada, devolução] (minutos desde 1970, horário do HQ sem fuso). */
   t?: [number, number, number][];
 };
+
+/** Frota da linha como capacidade de referência histórica: a que existia na época (com os veículos depois vendidos). */
+export const histFleet = (r: PaceRow) => r.g ?? r.f;
 
 /** Faixas do gap (pontos percentuais) que separam as cores. Configuráveis na tela. */
 export type GapBands = { strong: number; mild: number };
@@ -228,12 +233,12 @@ export function samplesFor(
     const items: BenchSample[] = [];
     for (const n of PERIODOS_ANTERIORES) {
       const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
-      if (h && h.f > 0 && h.d < base && !truncated(h.d))
+      if (h && histFleet(h) > 0 && h.d < base && !truncated(h.d))
         items.push({
           date: h.d,
-          fleet: h.f,
-          occ: activeAt(h, L) / h.f,
-          rev: revenueRow(h) ? revenueRow(h)!.v / h.f : undefined,
+          fleet: histFleet(h),
+          occ: activeAt(h, L) / histFleet(h),
+          rev: revenueRow(h) ? revenueRow(h)!.v / histFleet(h) : undefined,
         });
     }
     return items.length ? { level: "aniversario", items } : null;
@@ -249,12 +254,12 @@ export function samplesFor(
   for (const [key, min, level] of steps) {
     const items: BenchSample[] = [];
     for (const h of model.groups.get(key) ?? [])
-      if (h.d < base && h.d !== row.d && !truncated(h.d))
+      if (histFleet(h) > 0 && h.d < base && h.d !== row.d && !truncated(h.d))
         items.push({
           date: h.d,
-          fleet: h.f,
-          occ: activeAt(h, L) / h.f,
-          rev: revenueRow(h) ? revenueRow(h)!.v / h.f : undefined,
+          fleet: histFleet(h),
+          occ: activeAt(h, L) / histFleet(h),
+          rev: revenueRow(h) ? revenueRow(h)!.v / histFleet(h) : undefined,
         });
     if (items.length >= min) return { level, items };
   }
@@ -331,8 +336,49 @@ export type DayPace = {
 
 /** Abaixo dessa parcela da frota com benchmark, a data fica sem esperada (não se afirma um esperado que cobre pouco da frota). */
 export const COBERTURA_MIN = 0.9;
+/** Cobertura mínima de uma data de referência (parcela da frota atual com linha nela): 2024 não tinha duas categorias novas e ainda vale. */
+export const REF_COBERTURA_MIN = 0.85;
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
+
+
+/**
+ * Esperada do dia no modo "melhor registro", escolhida pelo DIA TODO (como a tabela de períodos anteriores): cada data de referência
+ * (mesmo dia da semana 1 e 2 anos antes, ou as edições passadas do evento na mesma posição) soma as categorias das linhas, com a
+ * frota que existia na época e as diárias vendidas na mesma antecedência; vale a de maior faturamento por veículo (sem faturamento,
+ * a de maior ocupação). Só entram referências que cobrem ao menos REF_COBERTURA_MIN da frota atual; as categorias sem linha na referência
+ * ficam de fora dos dois lados (`cov` = linhas atuais comparadas).
+ */
+function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number) {
+  if (!rows.length) return null;
+  const info = model.payload.cal[date];
+  const isEvent = !!(info?.[1] && info[2] != null);
+  const capacity = sum(rows.map((r) => r.f));
+  const truncated = (d: string) => L > 0 && addDays(d, -L) < model.payload.de;
+  const dates = referenceDates(model, date, base).datas;
+  let best: { occ: number; rev: number | null; cov: PaceRow[]; capCov: number } | null = null;
+  let n = 0;
+  for (const d of dates) {
+    if (d >= base || d === date || truncated(d)) continue;
+    const pairs = rows
+      .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
+      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
+    if (!pairs.length) continue;
+    const capCov = sum(pairs.map((x) => x.r.f));
+    if (!capacity || capCov / capacity < REF_COBERTURA_MIN) continue;
+    n++;
+    const fh = sum(pairs.map((x) => histFleet(x.h)));
+    const occ = sum(pairs.map((x) => activeAt(x.h, L))) / fh;
+    const revs = pairs.map((x) => revenueRow(x.h));
+    const rev = revs.every((x) => x) ? sum(revs.map((x) => x!.v)) / fh : null;
+    const better =
+      !best ||
+      (rev != null && best.rev != null ? rev > best.rev : rev != null ? true : best.rev != null ? false : occ > best.occ);
+    if (better) best = { occ, rev, cov: pairs.map((x) => x.r), capCov };
+  }
+  if (!best) return null;
+  return { value: Math.min(1, best.occ), cov: best.cov, capCov: best.capCov, n, level: (isEvent ? "evento" : "aniversario") as BenchLevel };
+}
 
 /**
  * Atual e esperada vêm da mesma data de retirada, das mesmas categorias e da mesma antecedência (a da data-base, ou `L`
@@ -351,6 +397,28 @@ export function dayPace(
   const info = model.payload.cal[date];
   const capacity = sum(rows.map((r) => r.f));
   const booked = rows.length > 0 && at >= lead ? sum(rows.map((r) => soldAt(r, at))) : null;
+  if (model.payload.params.estatistica === "maximo") {
+    const w = wholeDayBenchmark(model, rows, date, base, at);
+    const atualB = booked != null && capacity ? booked / capacity : null;
+    const atualCobB = w && at >= lead ? sum(w.cov.map((r) => soldAt(r, at))) / w.capCov : null;
+    return {
+      date,
+      lead,
+      closed,
+      capacity,
+      booked,
+      atual: atualB,
+      esperada: w ? w.value : null,
+      gap: atualCobB != null && w ? (atualCobB - w.value) * 100 : null,
+      n: w ? w.n : 0,
+      level: w ? w.level : null,
+      event: info?.[1] ?? null,
+      eventRel: info?.[2] ?? null,
+      season: info?.[0] ?? null,
+      cobertura: w ? w.capCov / capacity : 0,
+      semBenchmark: rows.filter((r) => !w || !w.cov.includes(r)).map((r) => r.c),
+    };
+  }
   const bench = rows.map((r) => benchmarkFor(model, r, at, base));
   // Categoria sem histórico (ex.: criada há menos de 1 ano) não anula a data: sai da comparação, nos dois lados, e a cobertura da
   // frota fica registrada. Com menos de COBERTURA_MIN da frota coberta, não há esperada.
