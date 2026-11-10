@@ -16,6 +16,9 @@ export type PaceRow = {
   f: number;
   a: number[];
   x?: [number, number | null][];
+  /** payload v4+: faturamento da data (soma do preço pago por diária) e nº de diárias com preço. */
+  v?: number;
+  p?: number;
 };
 export type PaceParams = {
   n_evento: number;
@@ -99,6 +102,17 @@ export const grossAt = (row: PaceRow, L: number) =>
 /** Ocupação (0–1) da linha quando faltavam L dias. */
 export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
 
+/** Diária média (faturamento ÷ diárias com preço) e faturamento por veículo (faturamento ÷ frota) de uma ou mais linhas; null sem dado. */
+export function revenueOf(rows: PaceRow[]) {
+  const withRev = rows.filter((r) => r.v != null && r.p);
+  if (!withRev.length) return { diaria: null as number | null, porVeiculo: null as number | null };
+  const tot = (g: (r: PaceRow) => number) => withRev.reduce((n, r) => n + g(r), 0);
+  const v = tot((r) => r.v!);
+  const p = tot((r) => r.p!);
+  const f = tot((r) => r.f);
+  return { diaria: p ? v / p : null, porVeiculo: f ? v / f : null };
+}
+
 /** Índice dos grupos comparáveis: evento (categoria, evento, posição) ou data comum (categoria, sazonalidade[, dia da semana]). */
 export type PaceModel = {
   payload: PacePayload;
@@ -158,7 +172,7 @@ const central = (xs: number[], how: PaceParams["estatistica"]) => {
  * Todos: mesma categoria, ocupação lida na mesma antecedência L, só datas encerradas antes da base (sem futuro) e
  * nunca a própria data. Abaixo do mínimo de amostras, null: não se completa com ocupação final nem com outro evento.
  */
-export type BenchSample = { date: string; fleet: number; occ: number };
+export type BenchSample = { date: string; fleet: number; occ: number; rev?: number | undefined };
 
 /**
  * Datas históricas que definem o benchmark na antecedência L.
@@ -184,7 +198,12 @@ export function samplesFor(
     for (const n of PERIODOS_ANTERIORES) {
       const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
       if (h && h.f > 0 && h.d < base && !truncated(h.d))
-        items.push({ date: h.d, fleet: h.f, occ: activeAt(h, L) / h.f });
+        items.push({
+          date: h.d,
+          fleet: h.f,
+          occ: activeAt(h, L) / h.f,
+          rev: h.v != null ? h.v / h.f : undefined,
+        });
     }
     return items.length ? { level: "aniversario", items } : null;
   }
@@ -200,7 +219,12 @@ export function samplesFor(
     const items: BenchSample[] = [];
     for (const h of model.groups.get(key) ?? [])
       if (h.d < base && h.d !== row.d && !truncated(h.d))
-        items.push({ date: h.d, fleet: h.f, occ: activeAt(h, L) / h.f });
+        items.push({
+          date: h.d,
+          fleet: h.f,
+          occ: activeAt(h, L) / h.f,
+          rev: h.v != null ? h.v / h.f : undefined,
+        });
     if (items.length >= min) return { level, items };
   }
   return null;
@@ -214,11 +238,19 @@ export function benchmarkFor(
 ): Benchmark | null {
   const smp = samplesFor(model, row, L, base);
   if (!smp) return null;
+  // Melhor registro: a ocupação esperada é a do período anterior que teve o MELHOR FATURAMENTO (por veículo), não a maior ocupação.
+  // Sem faturamento nos períodos (payload antigo), cai na maior ocupação.
+  const best =
+    model.payload.params.estatistica === "maximo"
+      ? smp.items.filter((i) => i.rev != null).sort((a, b) => b.rev! - a.rev!)[0]
+      : undefined;
   return {
-    value: central(
-      smp.items.map((i) => i.occ),
-      model.payload.params.estatistica,
-    ),
+    value: best
+      ? Math.min(1, best.occ)
+      : central(
+          smp.items.map((i) => i.occ),
+          model.payload.params.estatistica,
+        ),
     n: smp.items.length,
     level: smp.level,
   };

@@ -5,6 +5,7 @@ Publica, para cada data de retirada T e categoria c (T entre o início do histó
   - f: carros disponíveis em T (frota sem bloqueios, igual a previsao.py);
   - a: antecedência (dias entre a criação da reserva e T) de cada diária vendida para T (open/rental/completed; canceladas fora).
     Com ela a tela reconstrói a ocupação de T em qualquer antecedência L: diárias com a ≥ L ÷ f (D-0 = todas).
+  - v, p: faturamento da data (soma do preço pago por diária) e nº de diárias com preço; diária média = v/p, faturamento por veículo = v/f.
   - cal: sazonalidade, evento móvel e posição relativa ao evento de cada data, pelas regras GESTAO de calendario.py.
 O benchmark NÃO é pré-calculado: a tela o calcula com a data-base escolhida, usando só datas já encerradas antes dela
 (sem vazamento de futuro). Hierarquia (src/lib/occupancy-pace.ts, parâmetros em `params`):
@@ -49,6 +50,10 @@ def main():
     for d, c, x in con.execute("SELECT data, categoria_id, antecedencia FROM diarias").fetchall():
         ant[(d, c)].append(max(-1, min(int(x), MAX_ANT)))
 
+    # Faturamento do dia: soma do preço pago por diária (rack_total/dias) e quantas diárias têm preço (reservas com rack zerado ficam fora).
+    fat = {(d, c): (float(v), int(n)) for d, c, v, n in con.execute(
+        "SELECT data, categoria_id, sum(preco_final), count(preco_final) FROM diarias WHERE preco_final IS NOT NULL GROUP BY 1, 2").fetchall()}
+
     canc = defaultdict(list)
     for d, c, x, y in con.execute("""WITH e AS (SELECT r.*, unnest(range(greatest(r.dias, 1))) AS k FROM reservas r
                  WHERE r.status IN ('cancelled', 'cancelled-paid') AND r.categoria_id NOT IN (1, 7))
@@ -68,6 +73,8 @@ def main():
             f = frota.get((d, c))
             if f:
                 row = dict(d=d.isoformat(), c=nome, f=int(f), a=sorted(ant.get((d, c), [])))
+                if fat.get((d, c)):
+                    row["v"], row["p"] = round(fat[(d, c)][0], 2), fat[(d, c)][1]
                 if canc.get((d, c)):
                     row["x"] = sorted(canc[(d, c)], key=lambda t: (t[0], -1 if t[1] is None else t[1]))
                 linhas.append(row)
@@ -75,7 +82,7 @@ def main():
         if linhas_dia:
             cal[d.isoformat()] = [s, ev, rel]
         d += timedelta(days=1)
-    payload = dict(versao=3, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
+    payload = dict(versao=4, gerado_em=datetime.now().isoformat(timespec="seconds"), hoje=hoje.isoformat(), de=linhas[0]["d"],
                    ate=fim.isoformat(), categorias=sorted(cats.values()), params=PARAMS, cal=cal, linhas=linhas)
     out = Path("data/precificacao/relatorio/ritmo.json")
     out.parent.mkdir(parents=True, exist_ok=True)

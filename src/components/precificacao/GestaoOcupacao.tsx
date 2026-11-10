@@ -23,7 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
-import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
+import { LEVEL, dataBR, gapTxt, pct, usd } from "@/lib/pricing-format";
 import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -50,6 +50,7 @@ import {
   buildModel,
   dailySeries,
   dayPace,
+  revenueOf,
   gapLevel,
   pickupCurve,
   rowsByDate,
@@ -712,6 +713,7 @@ function Detalhe({
 }) {
   const rows = useMemo(() => (date ? (byDate.get(date) ?? []) : []), [byDate, date]);
   const d = date ? dayPace(model, rows, date, base) : null;
+  const rev = revenueOf(rows);
   const curve = useMemo(
     () =>
       date
@@ -758,6 +760,14 @@ function Detalhe({
                 <dd className="font-medium tabular-nums">{d.capacity}</dd>
               </div>
               <div>
+                <dt className="text-muted-foreground">Diária média (hoje)</dt>
+                <dd className="font-medium tabular-nums">{usd(rev.diaria)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Faturamento por veículo</dt>
+                <dd className="font-medium tabular-nums">{usd(rev.porVeiculo)}</dd>
+              </div>
+              <div>
                 <dt className="text-muted-foreground">Sazonalidade</dt>
                 <dd className="font-medium">{d.season ?? "—"}</dd>
               </div>
@@ -786,7 +796,7 @@ function Detalhe({
             <PickupChart
               title="Curva de pickup da data"
               data={curve}
-              note="Esperada = melhor ocupação já registrada por datas comparáveis em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
+              note="Esperada = ocupação do período anterior comparável que teve o melhor faturamento por veículo, lida em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
             />
             <ReferenciasAnteriores
               model={model}

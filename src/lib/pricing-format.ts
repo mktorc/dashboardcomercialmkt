@@ -4,6 +4,9 @@ import type { GapLevel } from "./occupancy-pace";
 export const pct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(0)}%`);
 export const gapTxt = (g: number | null) =>
   g == null ? "—" : `${g > 0 ? "+" : ""}${g.toFixed(0)} p.p.`;
+/** Valor em dólar (o HQ fatura em US$), sem centavos. */
+export const usd = (v: number | null) =>
+  v == null ? "—" : `US$ ${v.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 export const dataBR = (iso: string) => iso.split("-").reverse().join("/");
 
 export const LEVEL: Record<GapLevel, { card: string; text: string; label: string }> = {
