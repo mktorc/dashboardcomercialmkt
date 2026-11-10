@@ -16,8 +16,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   coletar:
+    name: Coletar (${{ matrix.fonte }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 40
+    strategy:
+      # Uma fonte por job: se uma falha ou demora, as outras seguem e cada uma tem o seu próprio limite de tempo.
+      fail-fast: false
+      matrix:
+        fonte: [nosso, up, ally]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -26,7 +32,7 @@ jobs:
       - run: pip install playwright && playwright install --with-deps chromium
       # 26 semanas (~D-185): cobre o horizonte de 180 dias da ocupação. O início desloca 1 dia da semana por dia, então em 7 dias
       # todas as datas entram na janela de 7 dias usada na comparação de preço.
-      - run: python scripts/precificacao/coletor.py todos --gravar --semanas 26
+      - run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --semanas 26
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
