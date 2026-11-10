@@ -118,9 +118,15 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           if (!pageUsers.length) break;
           if (uj.data?.last_page && up >= uj.data.last_page) break;
         }
-        const mapped = all
-          .map((raw) => ({ raw, row: mapReservation(raw, users) }))
-          .filter(({ row }) => row.reservation_id !== "");
+        // A paginação do HQ pode repetir uma reserva entre páginas (criação durante a leitura): o upsert não aceita duplicadas.
+        const mapped = [
+          ...new Map(
+            all
+              .map((raw) => ({ raw, row: mapReservation(raw, users) }))
+              .filter(({ row }) => row.reservation_id !== "")
+              .map((m) => [m.row.reservation_id, m] as const),
+          ).values(),
+        ];
         const rows = mapped.map(({ row }) => row);
         // Trechos de veículo de cada reserva (base da ocupação, no critério do relatório de Utilização do HQ)
         const segments = [
