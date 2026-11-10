@@ -21,6 +21,7 @@ import {
   DollarSign,
   Maximize2,
   Search,
+  ArrowLeft,
   CarFront,
   Target,
   UserCheck,
@@ -31,7 +32,6 @@ import {
 import { toast } from "sonner";
 
 import { guardPage } from "@/lib/roles";
-import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { InfoPopover, KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
@@ -319,7 +319,6 @@ export function ComercialPage({
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      {publicView ? null : <Sidebar active={active} />}
       <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
           className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
@@ -329,17 +328,14 @@ export function ComercialPage({
             <h1 className="text-xl font-semibold text-foreground">{title}</h1>
             <p className="text-sm text-foreground/70">Equipe de vendas — ClickMassa + HQ Rentals</p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
-            {publicView ? (
-              <Button asChild variant="outline" size="sm" className="h-9">
-                <Link to="/app">Voltar aos Módulos</Link>
-              </Button>
-            ) : (
-              <SyncButton />
-            )}
+          <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+            <Button asChild variant="outline" size="sm" className="h-9">
+              <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
+            </Button>
+            {publicView ? null : <SyncButton />}
             <div className="text-xs text-foreground/70">
               Período
-              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-56 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-full bg-card sm:w-56" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
             </div>
           </div>
         </header>

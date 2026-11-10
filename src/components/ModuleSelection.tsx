@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, ClipboardList, HandCoins, LineChart, LogIn, LogOut, Globe, Settings } from "lucide-react";
+import { Briefcase, ClipboardList, Megaphone, Users, HandCoins, LineChart, LogIn, LogOut, Globe, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { canAccess, canSeePricing, getMyEmail, getMyRole, type PageKey } from "@/lib/roles";
@@ -12,10 +13,26 @@ const MODULES = [
   {
     page: "dashboard" as PageKey,
     to: "/app/dashboard",
-    icon: BarChart3,
-    title: "Dashboard Comercial",
-    description: "Indicadores comerciais e de mídia: reservas do HQ Rentals, Meta Ads e Google Ads.",
-    cta: "Acessar Dashboard",
+    icon: Megaphone,
+    title: "Marketing",
+    description: "Mídia paga, oportunidades ClickMassa e reservas HQ: investimento, CPL, CAC e ROAS.",
+    cta: "Acessar Marketing",
+  },
+  {
+    page: "comercial" as PageKey,
+    to: "/comercial",
+    icon: Briefcase,
+    title: "Comercial Gerencial",
+    description: "Visão gerencial da equipe de vendas: desempenho, metas e remuneração variável.",
+    cta: "Acessar Gerencial",
+  },
+  {
+    page: "comercial-operacional" as PageKey,
+    to: "/comercial-operacional",
+    icon: Users,
+    title: "Comercial Operacional",
+    description: "Visão operacional: desempenho individual e da equipe de vendas.",
+    cta: "Acessar Operacional",
   },
   {
     page: "comissoes" as PageKey,
@@ -49,8 +66,8 @@ const PRICING_MODULE = {
 const PUBLIC_MODULES = [
   {
     to: "/comercial-operacional",
-    icon: BarChart3,
-    title: "Dashboard Comercial",
+    icon: Users,
+    title: "Comercial Operacional",
     description: "Visão operacional: desempenho individual e da equipe de vendas.",
     cta: "Acessar Operacional",
   },
@@ -93,6 +110,7 @@ export function ModuleSelection() {
     }
   };
 
+  const [busca, setBusca] = useState("");
   const irParaLogin = () => navigate({ to: "/auth", search: { next: "/app" } });
 
   async function signOut() {
@@ -108,7 +126,11 @@ export function ModuleSelection() {
   const logado = role != null;
   const base = logado ? MODULES.filter((m) => canAccess(role, m.page)) : publico ? PUBLIC_MODULES : [];
   const comReservas = logado ? [...base, RESERVAS_MODULE] : base;
-  const modulos = logado && canSeePricing(email) ? [...comReservas, PRICING_MODULE] : comReservas;
+  const todos = logado && canSeePricing(email) ? [...comReservas, PRICING_MODULE] : comReservas;
+  const termo = busca.trim().toLowerCase();
+  const modulos = [...todos]
+    .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
+    .filter((m) => !termo || `${m.title} ${m.description}`.toLowerCase().includes(termo));
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,7 +165,19 @@ export function ModuleSelection() {
         ) : null}
       </header>
 
-      <main className="mx-auto grid max-w-4xl grid-cols-1 gap-4 p-4 sm:p-6 md:grid-cols-2">
+      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+        {(logado || publico) && todos.length > 0 ? (
+          <div className="relative sm:col-span-2 lg:col-span-3">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Pesquisar módulo…"
+              aria-label="Pesquisar módulo"
+              className="pl-9"
+            />
+          </div>
+        ) : null}
         {!logado && !publico ? (
           <>
             <Card className="flex flex-col justify-between gap-6 p-6">
@@ -179,11 +213,13 @@ export function ModuleSelection() {
             </Card>
           ))
         )}
-        {logado && modulos.length === 0 ? (
-          <Card className="p-6 text-sm text-muted-foreground md:col-span-2">Nenhum módulo disponível para o seu perfil.</Card>
+        {(logado || publico) && modulos.length === 0 ? (
+          <Card className="p-6 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+            {todos.length === 0 ? "Nenhum módulo disponível para o seu perfil." : "Nenhum módulo encontrado para a pesquisa."}
+          </Card>
         ) : null}
         {!logado && publico ? (
-          <p className="text-center text-sm text-muted-foreground md:col-span-2">
+          <p className="text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
             <button className="underline" onClick={() => setPublico(false)}>Voltar à escolha de acesso</button>
           </p>
         ) : null}

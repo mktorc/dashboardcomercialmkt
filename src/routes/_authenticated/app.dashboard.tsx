@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
@@ -15,10 +15,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet } from "lucide-react";
 
 import { guardPage } from "@/lib/roles";
-import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
@@ -274,7 +273,6 @@ function Dashboard() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
-      <Sidebar active="dashboard" />
       <main className="min-w-0 flex-1 overflow-x-hidden">
         <header
           className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6 sm:py-5"
@@ -284,11 +282,14 @@ function Dashboard() {
             <h1 className="text-xl font-semibold text-foreground">Painel de Performance</h1>
             <p className="text-sm text-foreground/70">Mídia paga, oportunidades ClickMassa e reservas HQ</p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
+            <Button asChild variant="outline" size="sm" className="h-9">
+              <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
+            </Button>
             <SyncButton />
             <div className="text-xs text-foreground/70">
               Período
-              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-56 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-full bg-card sm:w-56" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
             </div>
             <label className="text-xs text-foreground/70">
               Origem
