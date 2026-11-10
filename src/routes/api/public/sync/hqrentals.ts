@@ -167,6 +167,37 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           if (vehicleIds.size === before || vp >= (vj.last_page ?? 1)) break;
         }
         const vehicles = vehicleIds.size;
+        // A lista do HQ omite os veículos que já saíram da frota, mas o histórico precisa deles na
+        // capacidade. Os que aparecem nas reservas e não estão na lista vêm do endpoint de detalhe,
+        // que devolve a data de saída. Os que já constam como saídos no banco não são buscados de novo.
+        {
+          const referenced = new Set<number>();
+          for (const raw of all) {
+            const info = Array.isArray(raw["reservation_vehicle_information"])
+              ? (raw["reservation_vehicle_information"] as HqReservation[])
+              : [];
+            for (const v of info) {
+              const id = Number(v["vehicle_id"]);
+              if (Number.isFinite(id) && id > 0 && !fleetRows.has(id)) referenced.add(id);
+            }
+          }
+          if (referenced.size > 0) {
+            const { data: known } = await supabaseAdmin.from("fleet_vehicles").select("id, exit_date").in("id", [...referenced]);
+            const done = new Set((known ?? []).filter((k) => k.exit_date).map((k) => k.id));
+            for (const id of referenced) {
+              if (done.has(id)) continue;
+              const dr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles/${id}`, {
+                headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
+              });
+              if (!dr.ok) continue;
+              const dj = (await dr.json()) as { data?: HqReservation };
+              const detail = dj.data;
+              if (!detail || detail["deleted_at"]) continue;
+              const fleetRow = extractFleetVehicle(detail);
+              if (fleetRow?.exit_date) fleetRows.set(fleetRow.id, fleetRow);
+            }
+          }
+        }
         if (vehicles > 0) {
           await supabaseAdmin
             .from("fleet_stats")
@@ -178,8 +209,9 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
             .from("fleet_vehicles")
             .upsert([...fleetRows.values()].map((v) => ({ ...v, updated_at: new Date().toISOString() })), { onConflict: "id" });
           if (fleetError) return Response.json({ error: fleetError.message }, { status: 500 });
-          const { data: stored } = await supabaseAdmin.from("fleet_vehicles").select("id");
-          const gone = (stored ?? []).map((v) => v.id).filter((id) => !fleetRows.has(id));
+          const { data: stored } = await supabaseAdmin.from("fleet_vehicles").select("id, exit_date");
+          // Veículos já saídos (com data de saída) ficam: contam na capacidade dos meses em que estavam na frota.
+          const gone = (stored ?? []).filter((v) => !fleetRows.has(v.id) && !v.exit_date).map((v) => v.id);
           if (gone.length > 0) await supabaseAdmin.from("fleet_vehicles").delete().in("id", gone);
         }
         // Upsert em lotes para não estourar o limite de payload
