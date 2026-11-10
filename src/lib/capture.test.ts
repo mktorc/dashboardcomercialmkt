@@ -5,9 +5,17 @@ import {
   grossAt,
   soldAt,
   type PacePayload,
+  type PaceCal,
   type PaceRow,
 } from "./occupancy-pace";
-import { captureCurve, captureInfo, captureProfile, captureSpeed, expectedShare } from "./capture";
+import {
+  mesmaEpoca,
+  captureCurve,
+  captureInfo,
+  captureProfile,
+  captureSpeed,
+  expectedShare,
+} from "./capture";
 import { enrich, NO_PRICE, DEFAULT_CRIT, tendenciaOf, type PriorityRow } from "./prioridades";
 
 const BASE = "2026-11-09";
@@ -145,5 +153,79 @@ describe("captura bruta, líquida e ativa; monotonicidade", () => {
     );
     const semX = captureProfile([hist("2026-01-11"), hist("2026-01-12")], BASE, "2023-06-24");
     expect(semX.every((p) => p.cancelamento == null)).toBe(true);
+  });
+});
+
+describe("curva de captura por época", () => {
+  const cedo = (d: string): PaceRow => ({
+    d,
+    c: "SUV",
+    f: 10,
+    a: [130, 125, 100, 95, 80, 70, 40, 35, 10, 5],
+  });
+  const tarde = (d: string): PaceRow => ({
+    d,
+    c: "SUV",
+    f: 10,
+    a: [40, 35, 30, 20, 15, 10, 8, 5, 3, 1],
+  });
+  const rows = [
+    ...Array.from({ length: 5 }, (_, i) => cedo(`2026-01-0${i + 1}`)),
+    ...Array.from({ length: 5 }, (_, i) => tarde(`2026-02-0${i + 1}`)),
+  ];
+  it("o filtro restringe as datas históricas e muda a curva", () => {
+    const todas = captureProfile(rows, BASE, "2023-06-24");
+    const soCedo = captureProfile(rows, BASE, "2023-06-24", null, (r) => r.d.startsWith("2026-01"));
+    const d90 = (p: typeof todas) => p.find((x) => x.L === 90)!;
+    expect(d90(soCedo).n).toBe(5);
+    expect(d90(todas).n).toBe(10);
+    expect(d90(soCedo).share!).toBeGreaterThan(d90(todas).share!);
+  });
+  it("filtro que não casa com nenhuma data não inventa curva", () => {
+    const vazio = captureProfile(rows, BASE, "2023-06-24", null, () => false);
+    expect(vazio.filter((p) => p.L > 0).every((p) => p.share == null)).toBe(true);
+  });
+});
+
+describe("época comparável: mesmos meses e edições anteriores do evento móvel", () => {
+  const cal: PaceCal = {
+    "2027-01-10": ["Alta", null, null],
+    "2027-02-10": ["Alta", null, null],
+    "2027-02-03": ["Alta", null, null],
+    "2025-01-15": ["Alta", null, null],
+    "2025-02-20": ["Média", null, null],
+    "2025-07-15": ["Média", null, null],
+    // Carnaval: 2025 (posição 0 e 1) e 2027 (posição 0)
+    "2025-03-03": ["Alta", "carnaval", 0],
+    "2025-03-04": ["Alta", "carnaval", 1],
+    "2027-02-08": ["Alta", "carnaval", 0],
+    "2024-02-12": ["Alta", "carnaval", 0],
+  };
+  const row = (d: string): PaceRow => ({ d, c: "SUV", f: 10, a: [60, 30, 10] });
+  it("datas comuns usam os mesmos meses; datas de evento ficam de fora", () => {
+    const e = mesmaEpoca(cal, "2027-01-01", "2027-02-05");
+    expect(e.meses).toEqual([1, 2]);
+    expect(e.eventos.size).toBe(0);
+    expect(e.filtro(row("2025-01-15"))).toBe(true);
+    expect(e.filtro(row("2025-02-20"))).toBe(true);
+    expect(e.filtro(row("2025-07-15"))).toBe(false);
+    expect(e.filtro(row("2025-03-03"))).toBe(false); // evento: não entra por mês
+    expect(e.filtro(row("2024-02-12"))).toBe(false); // evento em fevereiro, mas a época é de datas comuns
+  });
+  it("período com evento móvel usa as edições anteriores do mesmo evento na mesma posição", () => {
+    const e = mesmaEpoca(cal, "2027-02-08", "2027-02-08");
+    expect(e.meses).toEqual([]);
+    expect([...e.eventos.keys()]).toEqual(["carnaval"]);
+    expect(e.filtro(row("2025-03-03"))).toBe(true); // posição 0
+    expect(e.filtro(row("2024-02-12"))).toBe(true); // posição 0, edição de 2024
+    expect(e.filtro(row("2025-03-04"))).toBe(false); // posição 1 (não coberta pelo período)
+    expect(e.filtro(row("2025-01-15"))).toBe(false); // data comum fora
+  });
+  it("período misto combina meses das datas comuns e a edição anterior do evento", () => {
+    const e = mesmaEpoca(cal, "2027-02-08", "2027-02-10");
+    expect(e.meses).toEqual([2]);
+    expect(e.filtro(row("2025-02-20"))).toBe(true);
+    expect(e.filtro(row("2025-03-03"))).toBe(true);
+    expect(e.filtro(row("2025-07-15"))).toBe(false);
   });
 });

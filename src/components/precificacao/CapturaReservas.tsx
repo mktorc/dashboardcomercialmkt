@@ -1,8 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cancelByCategory, captureProfile, captureSpeed, hasCancelData } from "@/lib/capture";
-import type { PaceRow } from "@/lib/occupancy-pace";
+import {
+  cancelByCategory,
+  captureProfile,
+  captureSpeed,
+  hasCancelData,
+  mesmaEpoca,
+} from "@/lib/capture";
+import { EVENT_LABEL, type PaceCal, type PaceRow } from "@/lib/occupancy-pace";
 import { dataBR } from "@/lib/pricing-format";
 
 const pct = (v: number | null, d = 0) => (v == null ? "—" : `${(v * 100).toFixed(d)}%`);
@@ -17,15 +24,38 @@ export function CapturaReservas({
   base,
   historyStart,
   category,
+  cal,
+  from,
+  to,
 }: {
   rows: PaceRow[];
   base: string;
   historyStart: string;
   category: string | null;
+  /** Calendário e período selecionado: a curva usa só a mesma época (meses; edições anteriores do evento móvel). */
+  cal: PaceCal;
+  from: string;
+  to: string;
 }) {
+  const [porEpoca, setPorEpoca] = useState(true);
+  const epoca = useMemo(() => mesmaEpoca(cal, from, to), [cal, from, to]);
+  const temEpoca = epoca.meses.length > 0 || epoca.eventos.size > 0;
+  const usaEpoca = porEpoca && temEpoca;
+  const mesesTxt = epoca.meses
+    .map((m) =>
+      new Date(2000, m - 1, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+    )
+    .join(", ");
+  const eventosTxt = [...epoca.eventos.keys()].map((e) => EVENT_LABEL[e] ?? e).join(", ");
+  const epocaTxt = [
+    mesesTxt && `meses ${mesesTxt}`,
+    eventosTxt && `edições anteriores de ${eventosTxt}`,
+  ]
+    .filter(Boolean)
+    .join(" + ");
   const profile = useMemo(
-    () => captureProfile(rows, base, historyStart, category),
-    [rows, base, historyStart, category],
+    () => captureProfile(rows, base, historyStart, category, usaEpoca ? epoca.filtro : undefined),
+    [rows, base, historyStart, category, usaEpoca, epoca],
   );
   const speed = useMemo(() => captureSpeed(profile), [profile]);
   const cancels = useMemo(() => hasCancelData(rows), [rows]);
@@ -66,6 +96,14 @@ export function CapturaReservas({
               pontos percentuais da ocupação final que entram por dia até o próximo ponto da curva.
             </AjudaItem>
             <p>
+              Por padrão usa só datas passadas dos <b>mesmos meses</b> do período selecionado (a
+              entrada de reservas varia com a época). Se o período tem um evento móvel (Carnaval,
+              Semana Santa, Corpus Christi), esses dias usam as{" "}
+              <b>edições anteriores do mesmo evento</b>, na mesma posição. “Todas as épocas” usa
+              todo o histórico. A categoria também filtra; antecedência, criticidade e mercado não
+              se aplicam ao histórico.
+            </p>
+            <p>
               Serve para saber até quando ainda dá para influenciar a demanda e para comparar cada
               data com o padrão (nos cards: “Captura X% · histórico Y%”). Captura é % da ocupação{" "}
               <b>final da data</b>; ocupação é % da
@@ -74,9 +112,32 @@ export function CapturaReservas({
           </Ajuda>
         </div>
         <span className="text-xs text-muted-foreground">
-          {category ?? "todas as categorias"} · datas encerradas até {dataBR(base)}
+          {category ?? "todas as categorias"} · {usaEpoca ? epocaTxt : "todas as épocas"} · datas
+          encerradas até {dataBR(base)}
         </span>
       </div>
+      {temEpoca ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Button
+            size="sm"
+            variant={porEpoca ? "default" : "outline"}
+            onClick={() => setPorEpoca(true)}
+          >
+            Épocas do período
+          </Button>
+          <Button
+            size="sm"
+            variant={porEpoca ? "outline" : "default"}
+            onClick={() => setPorEpoca(false)}
+          >
+            Todas as épocas
+          </Button>
+          <span className="text-muted-foreground">
+            Baseada em {profile.find((p) => p.L === 60)?.n ?? 0} datas passadas
+            {usaEpoca ? ` (${epocaTxt})` : ""}.
+          </span>
+        </div>
+      ) : null}
       {!has ? (
         <p className="text-sm text-muted-foreground">Sem histórico suficiente para este recorte.</p>
       ) : (

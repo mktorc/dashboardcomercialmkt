@@ -15,6 +15,7 @@ import {
   samplesFor,
   soldAt,
   type BenchLevel,
+  type PaceCal,
   type PaceModel,
   type PaceRow,
 } from "./occupancy-pace";
@@ -145,9 +146,15 @@ export function captureProfile(
   base: string,
   historyStart: string,
   category: string | null = null,
+  /** Restringe as datas históricas (ex.: mesma sazonalidade do período analisado). */
+  filtro?: (r: PaceRow) => boolean,
 ): CaptureProfilePoint[] {
   const closed = rows.filter(
-    (r) => r.d < base && (!category || r.c === category) && soldAt(r, 0) >= MIN_FINAL,
+    (r) =>
+      r.d < base &&
+      (!category || r.c === category) &&
+      soldAt(r, 0) >= MIN_FINAL &&
+      (!filtro || filtro(r)),
   );
   const cancels = hasCancelData(rows);
   return CAPTURE_LEADS.map((L) => {
@@ -222,4 +229,42 @@ export function captureSpeed(profile: CaptureProfilePoint[]) {
     out.push({ from: a.L, to: b.L, ppPerDay: ((b.share - a.share) * 100) / (a.L - b.L) });
   }
   return out;
+}
+
+export type Epoca = {
+  /** Meses (1–12) das datas comuns do período. */
+  meses: number[];
+  /** Eventos móveis (Carnaval, Semana Santa…) do período, com as posições relativas ao evento que ele cobre. */
+  eventos: Map<string, Set<number>>;
+  /** Datas históricas comparáveis: mesmos meses (só datas comuns) e edições anteriores do mesmo evento na mesma posição. */
+  filtro: (r: PaceRow) => boolean;
+};
+
+/**
+ * Época do período selecionado. Datas comuns comparam com os MESMOS MESES de anos anteriores (datas de evento ficam de fora, pois
+ * se comportam diferente). Datas de evento móvel comparam com as EDIÇÕES ANTERIORES do mesmo evento, na mesma posição relativa.
+ */
+export function mesmaEpoca(cal: PaceCal, from: string, to: string): Epoca {
+  const meses = new Set<number>();
+  const eventos = new Map<string, Set<number>>();
+  for (const [d, c] of Object.entries(cal)) {
+    if (d < from || d > to) continue;
+    const [, ev, rel] = c;
+    if (ev && rel != null) {
+      const set = eventos.get(ev) ?? new Set<number>();
+      set.add(rel);
+      eventos.set(ev, set);
+    } else meses.add(Number(d.slice(5, 7)));
+  }
+  return {
+    meses: [...meses].sort((a, b) => a - b),
+    eventos,
+    filtro: (r) => {
+      const c = cal[r.d];
+      if (!c) return false;
+      const [, ev, rel] = c;
+      if (ev && rel != null) return eventos.get(ev)?.has(rel) ?? false;
+      return meses.has(Number(r.d.slice(5, 7)));
+    },
+  };
 }

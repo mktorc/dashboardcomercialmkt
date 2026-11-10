@@ -586,6 +586,9 @@ function Painel({
         base={base}
         historyStart={payload.de}
         category={cat === ALL ? null : cat}
+        cal={payload.cal}
+        from={range.from}
+        to={range.to}
       />
 
       <Detalhe
