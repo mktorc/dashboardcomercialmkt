@@ -176,7 +176,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         const soldIds: number[] = [];
         // A lista do HQ omite os veículos que já saíram da frota, mas o histórico precisa deles na
         // capacidade. Os que aparecem nas reservas e não estão na lista vêm do endpoint de detalhe,
-        // que devolve a data de saída. Os que já constam como saídos no banco não são buscados de novo.
+        // que devolve a data de saída.
         {
           const referenced = new Set<number>();
           for (const raw of all) {
@@ -189,10 +189,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
             }
           }
           if (referenced.size > 0) {
-            const { data: known } = await supabaseAdmin.from("fleet_vehicles").select("id, exit_date").in("id", [...referenced]);
-            const done = new Set((known ?? []).filter((k) => k.exit_date).map((k) => k.id));
             for (const id of referenced) {
-              if (done.has(id)) continue;
               const dr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles/${id}`, {
                 headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
               });
