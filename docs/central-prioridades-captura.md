@@ -68,6 +68,9 @@ baixa (1 concorrente) ou média (2 sem parcial exige equivalente); preço de bai
 4. **Aplicação:** o painel "Saúde dos dados" em Prioridades lê as mesmas tabelas e mostra a idade de cada dado (verde ≤ 26 h, âmbar ≤ 50 h,
    vermelho acima). O monitor não enxerga o navegador nem se o deploy está atualizado.
 
+**Autocorreção:** se o agendamento falhou e a rotina ficou 24 h sem nenhuma execução (de qualquer evento), o monitor a dispara por
+`workflow_dispatch` (no máximo uma vez por dia por rotina) e registra no resumo; a falha continua valendo, pois o agendador é o problema.
+
 Falha do monitor = workflow vermelho + issue "Alerta: dados de precificação" (atualizada a cada rodada com falha e fechada sozinha quando tudo volta
 ao normal). Avisos (ex.: nenhuma cotação equivalente) não falham. Limites: agendador do GitHub pode atrasar; o próprio monitor para se o repositório
 ficar 60 dias sem atividade.

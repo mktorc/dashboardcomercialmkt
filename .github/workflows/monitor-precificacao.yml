@@ -19,7 +19,7 @@ concurrency:
 
 permissions:
   contents: read
-  actions: read
+  actions: write # ler execuções e, se o agendador falhar, redisparar a rotina parada (workflow_dispatch)
   issues: write
 
 jobs:

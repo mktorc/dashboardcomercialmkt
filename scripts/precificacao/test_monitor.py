@@ -110,6 +110,58 @@ class Monitor(unittest.TestCase):
         self.assertEqual(r["previsao-ocupacao.yml (agendada)"], "ok")
         self.assertEqual(r["previsao-ocupacao.yml (última execução)"], "falha")
 
+    def _gh_com(self, agend, todas, chamadas):
+        def gh(caminho, metodo="GET", corpo=None):
+            if metodo == "POST":
+                chamadas.append((caminho, corpo))
+                return None
+            return {"workflow_runs": agend if "event=schedule" in caminho else todas}
+
+        return gh
+
+    def _prep(self):
+        M.resultados.clear()
+        os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"] = "t", "o/r"
+        sys.argv = ["monitor.py"]
+
+    def test_autocorrecao_dispara_rotina_parada(self):
+        self._prep()
+        chamadas = []
+        antiga = [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(60)}]
+        M.github = self._gh_com(antiga, antiga, chamadas)  # sem nenhuma execução nas últimas 24 h
+        M.checar_workflows()
+        self.assertEqual(len(chamadas), 2)  # as duas rotinas
+        self.assertTrue(chamadas[0][0].endswith("/dispatches"))
+        self.assertEqual(chamadas[0][1], {"ref": "main"})
+        r = {i: n for _, i, n, _ in M.resultados}
+        self.assertEqual(r["previsao-ocupacao.yml (agendada)"], "falha")  # a falha do agendamento continua valendo
+        self.assertEqual(r["previsao-ocupacao.yml (autocorreção)"], "aviso")
+
+    def test_autocorrecao_nao_dispara_se_houve_execucao_recente(self):
+        self._prep()
+        chamadas = []
+        agend_antiga = [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(60)}]
+        recente = [{"status": "in_progress", "conclusion": None, "event": "push", "created_at": iso(2)}]
+        M.github = self._gh_com(agend_antiga, recente, chamadas)
+        M.checar_workflows()
+        self.assertEqual(chamadas, [])
+
+    def test_autocorrecao_nao_dispara_com_agendamento_em_dia(self):
+        self._prep()
+        chamadas = []
+        ok = [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(5)}]
+        M.github = self._gh_com(ok, ok, chamadas)
+        M.checar_workflows()
+        self.assertEqual(chamadas, [])
+
+    def test_sem_github_nao_dispara_nada(self):
+        M.resultados.clear()
+        sys.argv = ["monitor.py", "--sem-github"]
+        chamadas = []
+        M.github = lambda *a, **k: chamadas.append(a)
+        M.checar_workflows()
+        self.assertEqual(chamadas, [])
+
 
 if __name__ == "__main__":
     unittest.main()
