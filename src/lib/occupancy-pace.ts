@@ -336,10 +336,10 @@ export type DayPace = {
 
 /** Abaixo dessa parcela da frota com benchmark, a data fica sem esperada (não se afirma um esperado que cobre pouco da frota). */
 export const COBERTURA_MIN = 0.9;
-/** Cobertura mínima de uma data de referência (parcela da frota atual com linha nela): 2024 não tinha duas categorias novas e ainda vale. */
-export const REF_COBERTURA_MIN = 0.85;
-/** Uma referência com menos que essa parcela da frota atual da categoria não vale (1 carro alugado = 100% e vira meta para 10). */
-export const REF_FROTA_MIN = 0.5;
+/** Cobertura mínima de uma data de referência (parcela da frota atual com linha nela). 0 = desligado por enquanto: vale a de maior faturamento por veículo. */
+export const REF_COBERTURA_MIN = 0;
+/** Frota mínima da época, em parcela da atual da categoria (1 carro alugado = 100% e vira meta para 10). 0 = desligado por enquanto. */
+export const REF_FROTA_MIN = 0;
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
