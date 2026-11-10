@@ -233,7 +233,7 @@ export function samplesFor(
     const items: BenchSample[] = [];
     for (const n of PERIODOS_ANTERIORES) {
       const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
-      if (h && histFleet(h) > 0 && h.d < base && !truncated(h.d))
+      if (h && histFleet(h) >= REF_FROTA_MIN * row.f && histFleet(h) > 0 && h.d < base && !truncated(h.d))
         items.push({
           date: h.d,
           fleet: histFleet(h),
@@ -254,7 +254,7 @@ export function samplesFor(
   for (const [key, min, level] of steps) {
     const items: BenchSample[] = [];
     for (const h of model.groups.get(key) ?? [])
-      if (histFleet(h) > 0 && h.d < base && h.d !== row.d && !truncated(h.d))
+      if (histFleet(h) >= REF_FROTA_MIN * row.f && histFleet(h) > 0 && h.d < base && h.d !== row.d && !truncated(h.d))
         items.push({
           date: h.d,
           fleet: histFleet(h),
@@ -338,6 +338,8 @@ export type DayPace = {
 export const COBERTURA_MIN = 0.9;
 /** Cobertura mínima de uma data de referência (parcela da frota atual com linha nela): 2024 não tinha duas categorias novas e ainda vale. */
 export const REF_COBERTURA_MIN = 0.85;
+/** Uma referência com menos que essa parcela da frota atual da categoria não vale (1 carro alugado = 100% e vira meta para 10). */
+export const REF_FROTA_MIN = 0.5;
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
@@ -362,7 +364,7 @@ function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base
     if (d >= base || d === date || truncated(d)) continue;
     const pairs = rows
       .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
-      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
+      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0 && histFleet(x.h) >= REF_FROTA_MIN * x.r.f);
     if (!pairs.length) continue;
     const capCov = sum(pairs.map((x) => x.r.f));
     if (!capacity || capCov / capacity < REF_COBERTURA_MIN) continue;
