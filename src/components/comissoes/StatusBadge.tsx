@@ -1,7 +1,7 @@
 import type { StatusExibicao } from '@/lib/comissoes/types'
 
 const ESTILOS: Record<StatusExibicao, { texto: string; classe: string }> = {
-  retida: { texto: 'Retido na Agência / Quitado', classe: 'bg-violet-500/15 text-violet-300 ring-violet-500/30' },
+  retida: { texto: 'Pagamento Antecipado', classe: 'bg-violet-500/15 text-violet-300 ring-violet-500/30' },
   paga: { texto: 'Paga', classe: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30' },
   liberada: {
     texto: 'Aguardando Pagamento / Liberada',

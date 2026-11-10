@@ -76,7 +76,7 @@ export default function Historico() {
                 <tr>
                   <th className="px-4 py-3">Parceiro</th>
                   <th className="px-4 py-3 text-right">Reservas</th>
-                  <th className="px-4 py-3 text-right">Retida na agência</th>
+                  <th className="px-4 py-3 text-right">Pagamento Antecipado</th>
                   <th className="px-4 py-3 text-right">Paga</th>
                   <th className="px-4 py-3 text-right">Liberada (a pagar)</th>
                   <th className="px-4 py-3 text-right">Abaixo do rack rate</th>

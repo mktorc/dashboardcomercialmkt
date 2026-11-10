@@ -1,7 +1,7 @@
 // Uso: node --env-file=.env.local scripts/comissoes/importar-hq.mjs
 // Importa as reservas do HQ Rentals (America 3) para public.reservas.
 // Só entram reservas com parceiro (tour_operator) de comissão > 0%.
-// Reservas com pagamento "Retenção de comissão" são marcadas como retida_agencia.
+// Reservas com pagamento "Pagamento antecipado" (antes "Retenção de comissão") são marcadas como retida_agencia.
 // O upsert não toca em status_repasse/paga_em, então repasses já feitos são preservados.
 import { createClient } from '@supabase/supabase-js'
 
@@ -23,10 +23,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: {
 const n = (v) => Number(v ?? 0)
 
 const semAcento = (t) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-// método de pagamento "Retenção de comissão" (tolerante a acento, caixa e variações de texto)
+// método de pagamento "Pagamento antecipado" (novo nome no HQ) ou o antigo "Retenção de comissão"
+// (tolerante a acento, caixa e variações de texto)
 const ehRetencao = (tipo) => {
   const t = semAcento(tipo)
-  return t.includes('retencao') && t.includes('comiss')
+  return (t.includes('pagamento') && t.includes('antecipad')) || (t.includes('retencao') && t.includes('comiss'))
 }
 const pagamentoValido = (p) => !/declin|fail|void|cancel/i.test(p.status ?? '')
 
