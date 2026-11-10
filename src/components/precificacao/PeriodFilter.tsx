@@ -7,6 +7,7 @@ export function PeriodFilter({
   onChange,
   children,
   actions,
+  ajuda,
 }: {
   from: string;
   to: string;
@@ -15,11 +16,16 @@ export function PeriodFilter({
   children?: React.ReactNode;
   /** Botões extras, depois dos filtros. */
   actions?: React.ReactNode;
+  /** Ajuda (interrogação) ao lado do rótulo do período. */
+  ajuda?: React.ReactNode;
 }) {
   return (
     <>
       <div className="space-y-1 text-sm">
-        <span className="block text-muted-foreground">Período de retirada</span>
+        <span className="flex items-center gap-1 text-muted-foreground">
+          Período de retirada
+          {ajuda}
+        </span>
         <PeriodoPicker
           inicio={from}
           fim={to}

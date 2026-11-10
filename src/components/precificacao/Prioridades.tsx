@@ -29,13 +29,21 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
 import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
 import { Kpi, PickupChart } from "@/components/precificacao/GestaoOcupacao";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { useCompetitorSnapshots, useOurRates, type SnapshotRow } from "@/lib/competitive-data";
-import { dailyOf, diffPct, marketOf, priceLevel, type Equivalence } from "@/lib/competitiveness";
+import {
+  DEFAULT_PRICE_BANDS,
+  dailyOf,
+  diffPct,
+  marketOf,
+  priceLevel,
+  type Equivalence,
+} from "@/lib/competitiveness";
 import {
   BENCH_LEVEL_LABEL,
   ESPERADA_ESTATISTICA,
@@ -63,6 +71,8 @@ import {
   NO_PRICE,
   OCC_BUCKETS,
   acompanhamento,
+  JANELA_LABEL,
+  JANELA_ORDEM,
   janelaRange,
   TENDENCIA_LABEL,
   byRank,
@@ -408,15 +418,18 @@ function Painel({
           to={range.to}
           onChange={(from, to) => from && to && from <= to && aplicarPeriodo({ from, to })}
           actions={<CritConfigPopover crit={crit} onChange={setCrit} />}
+          ajuda={<AjudaPeriodo />}
         >
           <FilterSelect
             label="Antecedência atual"
+            ajuda={<AjudaAntecedencia crit={crit} />}
             value={leadKey}
             onChange={(v) => (aplicarAntecedencia(v), setShown(PAGE))}
             options={bands.map((l) => [l.key, l.label] as [string, string])}
           />
           <FilterSelect
             label="Categoria"
+            ajuda={<AjudaCategoria />}
             value={cat}
             onChange={(v) => (setCat(v), setShown(PAGE))}
             options={[
@@ -426,6 +439,7 @@ function Painel({
           />
           <FilterSelect
             label="Criticidade"
+            ajuda={<AjudaCriticidade crit={crit} />}
             value={nivelF}
             onChange={(v) => (setNivelF(v), setShown(PAGE))}
             options={[
@@ -435,6 +449,7 @@ function Painel({
           />
           <FilterSelect
             label="Situação de mercado"
+            ajuda={<AjudaMercado />}
             value={mktF}
             onChange={(v) => (setMktF(v), setShown(PAGE))}
             options={[
@@ -728,20 +743,193 @@ function RecorteVazio({
   );
 }
 
+function AjudaMatriz() {
+  return (
+    <Ajuda titulo="Ocupação × preço">
+      <p>
+        Cruza dois sinais de cada data × categoria: a <b>ocupação</b> contra o esperado (linhas) e o{" "}
+        <b>preço</b> contra o mercado (colunas). Cada número é a quantidade de datas × categorias
+        naquela combinação; “crít.” é quantas delas são Críticas.
+      </p>
+      <p>Clique numa célula para ver a leitura sugerida e o que investigar:</p>
+      <AjudaItem nome="Abaixo do esperado + preço acima">
+        possível perda de competitividade: avaliar a tarifa, conferindo se as ofertas dos
+        concorrentes são equivalentes.
+      </AjudaItem>
+      <AjudaItem nome="Abaixo + preço alinhado ou abaixo">
+        o preço sozinho não explica: investigar demanda, canais e disponibilidade. Reduzir mais o
+        preço não é o primeiro passo.
+      </AjudaItem>
+      <AjudaItem nome="Acima do esperado + preço abaixo">
+        possível espaço para aumento gradual de tarifa (oportunidade).
+      </AjudaItem>
+      <AjudaItem nome="Acima + preço acima">
+        demanda forte: preservar o posicionamento e monitorar.
+      </AjudaItem>
+      <AjudaItem nome="Sem dados de mercado">
+        não há comparação de preço confiável: nenhuma conclusão sobre preço é tirada (veja a ajuda
+        de “Situação de mercado”).
+      </AjudaItem>
+      <p>
+        São hipóteses para investigar, não causas confirmadas. Datas sem benchmark de ocupação ficam
+        fora da matriz.
+      </p>
+    </Ajuda>
+  );
+}
+
+function AjudaCalendario() {
+  return (
+    <Ajuda titulo="Calendário de criticidade">
+      <p>
+        Cada dia é uma data de retirada, colorida pelo <b>pior nível de criticidade</b> entre as
+        categorias do recorte. Clique no dia para abrir o diagnóstico completo.
+      </p>
+      <p>
+        A cor <b>não é o percentual de ocupação</b>: mostra o quanto a data está fora do padrão
+        histórico comparável, na mesma antecedência.
+      </p>
+      <AjudaItem nome="Vermelho">Crítica</AjudaItem>
+      <AjudaItem nome="Laranja">Atenção</AjudaItem>
+      <AjudaItem nome="Amarelo">Monitoramento</AjudaItem>
+      <AjudaItem nome="Azul">
+        Oportunidade (acima do esperado com tarifa abaixo do mercado)
+      </AjudaItem>
+      <AjudaItem nome="Verde claro">dentro do esperado</AjudaItem>
+      <AjudaItem nome="Cinza tracejado">sem benchmark histórico suficiente</AjudaItem>
+      <p>
+        Dias sem cor estão fora do período, dos filtros ou sem dados carregados. O calendário segue
+        os mesmos filtros do ranking e os níveis são explicados na ajuda de “Criticidade”.
+      </p>
+    </Ajuda>
+  );
+}
+
+function AjudaPeriodo() {
+  return (
+    <Ajuda titulo="Período de retirada">
+      <p>
+        Datas em que o cliente retira o veículo. A análise avalia cada data de retirada futura do
+        período.
+      </p>
+      <p>
+        Está ligado à antecedência: mudar o período ajusta a antecedência e escolher uma
+        antecedência ajusta o período.
+      </p>
+    </Ajuda>
+  );
+}
+
+function AjudaAntecedencia({ crit }: { crit: CritConfig }) {
+  return (
+    <Ajuda titulo="Antecedência atual">
+      <p>
+        Quantos dias faltam, hoje, para a retirada (D-60 = faltam 60 dias). Quanto mais longe, mais
+        tempo para influenciar a demanda; perto da retirada entra pouca reserva nova.
+      </p>
+      {JANELA_ORDEM.slice()
+        .reverse()
+        .map((j) => (
+          <AjudaItem key={j} nome={janelaRange(j, crit)}>
+            {JANELA_LABEL[j].toLowerCase()}
+          </AjudaItem>
+        ))}
+      <p>
+        D-{crit.leadInterv} ou mais é a principal janela de atuação. As faixas são editáveis em
+        “Níveis”.
+      </p>
+    </Ajuda>
+  );
+}
+
+function AjudaCategoria() {
+  return (
+    <Ajuda titulo="Categoria">
+      <p>Categoria de veículo do nosso catálogo (ex.: Midsize SUV).</p>
+      <p>
+        Ocupação esperada, captura de reservas e preços de concorrentes são sempre comparados dentro
+        da mesma categoria.
+      </p>
+    </Ajuda>
+  );
+}
+
+function AjudaCriticidade({ crit }: { crit: CritConfig }) {
+  return (
+    <Ajuda titulo="Criticidade">
+      <p>
+        Quão urgente é a data, considerando o histórico de datas comparáveis na mesma antecedência.
+      </p>
+      <AjudaItem nome="Crítica">
+        ocupação entre as {Math.round(crit.pRel * 100)}% mais baixas do histórico comparável, com
+        pelo menos {crit.evidMin} evidências (captura atrás do histórico, ritmo desacelerando,
+        diárias faltando, preço acima do mercado), ainda com tempo de agir (D-{crit.leadRecup} ou
+        mais) e referência confiável.
+      </AjudaItem>
+      <AjudaItem nome="Atenção">
+        desvio relevante, mas sem evidências suficientes para ser crítica.
+      </AjudaItem>
+      <AjudaItem nome="Monitoramento">
+        sinais iniciais: abaixo da mediana histórica ou um sinal isolado de captura ou ritmo.
+      </AjudaItem>
+      <AjudaItem nome="Oportunidade">
+        ocupação acima do esperado com tarifa abaixo do mercado: possível espaço para aumento.
+      </AjudaItem>
+      <AjudaItem nome="Dentro do esperado">compatível com o histórico.</AjudaItem>
+      <AjudaItem nome="Sem benchmark">
+        sem histórico comparável suficiente; nada é afirmado.
+      </AjudaItem>
+      <p>Os critérios são editáveis em “Níveis”. Nenhuma tarifa é alterada automaticamente.</p>
+    </Ajuda>
+  );
+}
+
+function AjudaMercado() {
+  const { close, significant } = DEFAULT_PRICE_BANDS;
+  return (
+    <Ajuda titulo="Situação de mercado">
+      <p>
+        Nossa tarifa comparada com a mediana dos concorrentes para a mesma data e categoria (coletas
+        dos últimos 7 dias, na mesma moeda).
+      </p>
+      <AjudaItem nome="Acima do mercado">
+        nossa tarifa está mais de {close}% acima da mediana.
+      </AjudaItem>
+      <AjudaItem nome="Alinhada ao mercado">dentro de ±{close}% da mediana.</AjudaItem>
+      <AjudaItem nome="Abaixo do mercado">
+        nossa tarifa está mais de {close}% abaixo da mediana.
+      </AjudaItem>
+      <AjudaItem nome="Sem dados de mercado">
+        nenhum concorrente comparável (ou sem nossa tarifa): nenhuma posição é assumida.
+      </AjudaItem>
+      <p>
+        Mais de {significant}% de diferença é tratado como desvio forte. Com 1 ou 2 concorrentes, ou
+        ofertas só parcialmente equivalentes, a comparação é de baixa confiança e aparece como
+        “(parcial)”.
+      </p>
+    </Ajuda>
+  );
+}
+
 function FilterSelect({
   label,
   value,
   onChange,
   options,
+  ajuda,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: [string, string][];
+  ajuda?: React.ReactNode;
 }) {
   return (
     <label className="space-y-1 text-sm">
-      <span className="block text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1 text-muted-foreground">
+        {label}
+        {ajuda}
+      </span>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="w-48">
           <SelectValue />
@@ -908,7 +1096,10 @@ function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
   const txt = cur ? MATRIX_TEXT[cur.occ][cur.market] : null;
   return (
     <Card className="space-y-3 p-4">
-      <h2 className="text-lg font-semibold">Ocupação × preço</h2>
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-semibold">Ocupação × preço</h2>
+        <AjudaMatriz />
+      </div>
       <div className="overflow-x-auto">
         <div className="grid min-w-[420px] grid-cols-[110px_repeat(4,1fr)] gap-1.5 text-xs">
           <div />
@@ -993,7 +1184,10 @@ function CriticalityCalendar({
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">Calendário de criticidade</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Calendário de criticidade</h2>
+          <AjudaCalendario />
+        </div>
         <div className="flex items-center gap-1">
           <Button
             size="icon"
@@ -1072,27 +1266,142 @@ function CritConfigPopover({
   crit: CritConfig;
   onChange: (c: CritConfig) => void;
 }) {
-  const campos: { k: keyof CritConfig; label: string; step?: number; neg?: boolean }[] = [
-    { k: "gapMild", label: "Gap que entra no radar (p.p.)" },
-    { k: "gapStrong", label: "Gap de intensidade máxima (p.p.)" },
-    { k: "leadPlan", label: "Planejamento: a partir de D-" },
-    { k: "leadStrat", label: "Estratégica: a partir de D-" },
-    { k: "leadAtenc", label: "Atenção prioritária: a partir de D-" },
-    { k: "leadInterv", label: "Intervenção: a partir de D-" },
-    { k: "leadRecup", label: "Recuperação: a partir de D-" },
-    { k: "pRel", label: "Desvio relevante: percentil histórico ≤", step: 0.05 },
-    { k: "capDef", label: "Evidência: déficit de captura (p.p.)", neg: true },
-    { k: "faltamMin", label: "Evidência: diárias faltantes ≥" },
-    { k: "evidMin", label: "Evidências para Crítica" },
-    { k: "ritmoZ", label: "Tendência: z mínimo", step: 0.1 },
-    { k: "ritmoDisp", label: "Tendência: dispersão (var/média)", step: 0.5 },
-    { k: "ritmoVizinhos", label: "Tendência: datas vizinhas (±)" },
-    { k: "wGrav", label: "Peso: gravidade", step: 0.05 },
-    { k: "wFalt", label: "Peso: diárias faltantes", step: 0.05 },
-    { k: "wRitmo", label: "Peso: ritmo", step: 0.05 },
-    { k: "wJanela", label: "Peso: janela", step: 0.05 },
-    { k: "wFrota", label: "Peso: frota livre", step: 0.05 },
-    { k: "wPreco", label: "Peso: preço", step: 0.05 },
+  const campos: {
+    k: keyof CritConfig;
+    label: string;
+    ajuda: string;
+    step?: number;
+    neg?: boolean;
+  }[] = [
+    {
+      k: "gapMild",
+      label: "Gap que entra no radar (p.p.)",
+      ajuda:
+        "Pontos percentuais abaixo da ocupação esperada (melhor registro histórico) a partir dos quais a data conta como abaixo do esperado. Também é o limite para considerar acima do esperado. Menor = mais sensível.",
+    },
+    {
+      k: "gapStrong",
+      label: "Gap de intensidade máxima (p.p.)",
+      ajuda:
+        "Gap em que a gravidade do desvio chega ao máximo na pontuação do ranking (e que separa abaixo de muito abaixo). Maior = o ranking diferencia melhor os desvios grandes.",
+    },
+    {
+      k: "leadPlan",
+      label: "Planejamento: a partir de D-",
+      ajuda:
+        "Dias de antecedência a partir dos quais a data é planejamento antecipado (ex.: 120 = D-120 ou mais). Mantenha as faixas em ordem: Planejamento > Estratégica > Atenção prioritária > Intervenção > Recuperação.",
+    },
+    {
+      k: "leadStrat",
+      label: "Estratégica: a partir de D-",
+      ajuda:
+        "Início da janela estratégica (ex.: 90 = D-90 a D-119). Deve ser menor que o início de Planejamento.",
+    },
+    {
+      k: "leadAtenc",
+      label: "Atenção prioritária: a partir de D-",
+      ajuda:
+        "Início da janela de atenção prioritária (ex.: 75 = D-75 a D-89). Deve ser menor que a Estratégica.",
+    },
+    {
+      k: "leadInterv",
+      label: "Intervenção: a partir de D-",
+      ajuda:
+        "Início da janela de intervenção (ex.: 60 = D-60 a D-74). Também define o “D-60 ou mais” dos indicadores e do filtro de antecedência.",
+    },
+    {
+      k: "leadRecup",
+      label: "Recuperação: a partir de D-",
+      ajuda:
+        "Início da janela de recuperação (ex.: 30 = D-30 a D-59). Abaixo disso é acompanhamento final: a data não pode ser Crítica, pois resta pouco tempo de conversão.",
+    },
+    {
+      k: "pRel",
+      label: "Desvio relevante: percentil histórico ≤",
+      step: 0.05,
+      ajuda:
+        "Posição da ocupação entre os dias comparáveis do histórico (mesma categoria, época e antecedência). 0,25 = só é desvio relevante se estiver entre os 25% mais baixos. Menor = menos datas em Atenção e Crítica.",
+    },
+    {
+      k: "capDef",
+      label: "Evidência: déficit de captura (p.p.)",
+      neg: true,
+      ajuda:
+        "Quantos pontos percentuais a captura atual pode estar abaixo da captura histórica na mesma antecedência para contar como evidência. Use valor negativo (ex.: −15).",
+    },
+    {
+      k: "faltamMin",
+      label: "Evidência: diárias faltantes ≥",
+      ajuda:
+        "Quantas diárias abaixo do padrão histórico contam como evidência. Em frotas pequenas, valores altos quase nunca são atingidos.",
+    },
+    {
+      k: "evidMin",
+      label: "Evidências para Crítica",
+      ajuda:
+        "Quantas evidências a data precisa ter (captura, ritmo, diárias faltantes, preço acima do mercado) para ser Crítica; captura ou ritmo é sempre exigido. Menor = mais críticas.",
+    },
+    {
+      k: "ritmoZ",
+      label: "Tendência: z mínimo",
+      step: 0.1,
+      ajuda:
+        "Quão forte deve ser a diferença entre reservas novas e esperadas para declarar acelerando ou desacelerando. Maior = exige mais evidência (1,28 ≈ 90% de confiança).",
+    },
+    {
+      k: "ritmoDisp",
+      label: "Tendência: dispersão (var/média)",
+      step: 0.5,
+      ajuda:
+        "Irregularidade das reservas novas: reservas longas cobrem várias datas e fazem as vizinhas variarem juntas. Maior = mais cautela para declarar tendência. O padrão (8) vem do histórico.",
+    },
+    {
+      k: "ritmoVizinhos",
+      label: "Tendência: datas vizinhas (±)",
+      ajuda:
+        "Quantas datas de cada lado (mesma categoria) são somadas para medir o ritmo. Mais vizinhas = mais dados e mais tendências disponíveis, mas mistura datas diferentes.",
+    },
+    {
+      k: "wGrav",
+      label: "Peso: gravidade",
+      step: 0.05,
+      ajuda:
+        "Peso, na pontuação do ranking, da gravidade do desvio (gap e posição no histórico). Os pesos mudam a ordem dentro do nível, não o nível, e só a proporção entre eles importa.",
+    },
+    {
+      k: "wFalt",
+      label: "Peso: diárias faltantes",
+      step: 0.05,
+      ajuda:
+        "Peso das diárias que faltam em relação ao padrão histórico de captura (impacto estimado).",
+    },
+    {
+      k: "wRitmo",
+      label: "Peso: ritmo",
+      step: 0.05,
+      ajuda:
+        "Peso do ritmo recente de reservas. Sem tendência calculável, o fator sai e os pesos se reequilibram.",
+    },
+    {
+      k: "wJanela",
+      label: "Peso: janela",
+      step: 0.05,
+      ajuda:
+        "Peso da antecedência: datas em D-60 ou mais ainda têm tempo de reação e pontuam mais.",
+    },
+    {
+      k: "wFrota",
+      label: "Peso: frota livre",
+      step: 0.05,
+      ajuda: "Peso dos veículos ainda sem reserva: com poucos livres há pouco em jogo.",
+    },
+    {
+      k: "wPreco",
+      label: "Peso: preço",
+      step: 0.05,
+      ajuda:
+        "Peso do posicionamento de preço: tarifa acima do mercado sobe a data; abaixo do mercado desce. Comparação de baixa confiança vale metade.",
+    },
   ];
   return (
     <Popover>
@@ -1106,9 +1415,14 @@ function CritConfigPopover({
           Janelas, critérios dos níveis e pesos da pontuação (não alteram a ocupação nem as
           tarifas). Padrões calibrados no histórico: docs/central-prioridades-captura.md.
         </p>
-        {campos.map(({ k, label, step, neg }) => (
+        {campos.map(({ k, label, ajuda, step, neg }) => (
           <label key={k} className="flex items-center justify-between gap-2 text-sm">
-            <span>{label}</span>
+            <span className="flex items-center gap-1">
+              {label}
+              <Ajuda titulo={label}>
+                <p>{ajuda}</p>
+              </Ajuda>
+            </span>
             <Input
               type="number"
               step={step ?? 1}

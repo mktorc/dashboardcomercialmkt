@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { Card } from "@/components/ui/card";
 import { cancelByCategory, captureProfile, captureSpeed, hasCancelData } from "@/lib/capture";
 import type { PaceRow } from "@/lib/occupancy-pace";
@@ -41,7 +42,37 @@ export function CapturaReservas({
   return (
     <Card className="space-y-3 p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold">Curva histórica de captura de reservas</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Curva histórica de captura de reservas</h2>
+          <Ajuda titulo="Curva histórica de captura">
+            <p>
+              Responde: <b>quando as reservas costumam entrar?</b> Para as datas que já passaram,
+              mostra que parte das diárias finais já estava reservada em cada antecedência.
+            </p>
+            <p>
+              Exemplo: “D-60 = 47%” significa que, 60 dias antes da retirada, em média já existiam
+              47% das diárias que a data teria no final; os outros 53% ainda entrariam depois.
+            </p>
+            <AjudaItem nome="Líquida">só reservas que não cancelaram (a base da curva).</AjudaItem>
+            <AjudaItem nome="Bruta">inclui as que foram feitas e depois canceladas.</AjudaItem>
+            <AjudaItem nome="Cancelou">
+              parcela das diárias feitas até aquela antecedência que acabou cancelada.
+            </AjudaItem>
+            <AjudaItem nome="Falta capturar">
+              o que historicamente ainda entra depois daquela antecedência (100% − líquida). É
+              potencial histórico, não previsão de ocupação.
+            </AjudaItem>
+            <AjudaItem nome="Velocidade">
+              pontos percentuais da ocupação final que entram por dia até o próximo ponto da curva.
+            </AjudaItem>
+            <p>
+              Serve para saber até quando ainda dá para influenciar a demanda e para comparar cada
+              data com o padrão (nos cards: “Captura X% · histórico Y%”). Captura é % da ocupação{" "}
+              <b>final da data</b>; ocupação é % da
+              <b> frota</b>: são medidas diferentes.
+            </p>
+          </Ajuda>
+        </div>
         <span className="text-xs text-muted-foreground">
           {category ?? "todas as categorias"} · datas encerradas até {dataBR(base)}
         </span>
