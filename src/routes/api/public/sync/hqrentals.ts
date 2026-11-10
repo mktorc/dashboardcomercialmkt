@@ -128,15 +128,6 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           ).values(),
         ];
         const rows = mapped.map(({ row }) => row);
-        // Trechos de veículo de cada reserva (base da ocupação, no critério do relatório de Utilização do HQ)
-        const segments = [
-          ...new Map(
-            mapped
-              .flatMap(({ raw, row }) => extractSegments(raw, row.reservation_id, row.status))
-              .map((seg) => [`${seg.reservation_id}|${seg.seq}`, seg] as const),
-          ).values(),
-        ];
-
         // Log diagnóstico dos primeiros registos para verificar se taxas e cobranças estão a ser extraídas
         if (rows.length > 0) {
           const sample = rows.slice(0, 3);
@@ -156,6 +147,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
         // Tamanho da frota (para a taxa de ocupação)
         const vehicleIds = new Set<string>();
         const fleetRows = new Map<number, FleetVehicleRow>();
+        const classOf = new Map<number, number>();
         for (let vp = 1; vp <= 50; vp++) {
           const vr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicles?page=${vp}`, {
             headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
@@ -167,6 +159,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
             .filter((v) => !v["deleted_at"])
             .forEach((v) => {
               vehicleIds.add(String(v["id"]));
+              classOf.set(Number(v["id"]), Number(v["vehicle_class_id"]));
               const fleetRow = extractFleetVehicle(v);
               if (fleetRow) fleetRows.set(fleetRow.id, fleetRow);
             });
@@ -197,6 +190,7 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
               const dj = (await dr.json()) as { data?: HqReservation };
               const detail = dj.data;
               if (!detail || detail["deleted_at"]) continue;
+              classOf.set(id, Number(detail["vehicle_class_id"]));
               // O relatório de Utilização do HQ não conta veículo com status "vendido" na capacidade,
               // nem nos meses em que ele ainda estava na frota (por isso passa de 100% em períodos antigos).
               if (String(detail["status"] ?? "").toLowerCase() === "sold") {
@@ -224,6 +218,21 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           const gone = (stored ?? []).filter((v) => !fleetRows.has(v.id) && !v.exit_date).map((v) => v.id);
           if (gone.length > 0) await supabaseAdmin.from("fleet_vehicles").delete().in("id", gone);
         }
+        // Classes ativas do HQ: veículo de classe removida (ex.: "Extra") não entra na Utilização.
+        const excludedVehicles = new Set<number>();
+        {
+          const cr = await fetch(`${baseUrl.replace(/\/$/, "")}/fleets/vehicle-classes`, {
+            headers: { Authorization: `Basic ${basic}`, Accept: "application/json" },
+          });
+          if (cr.ok) {
+            const cj = (await cr.json()) as { fleets_vehicle_classes?: HqReservation[] };
+            const valid = new Set((cj.fleets_vehicle_classes ?? []).map((c) => Number(c["id"])));
+            if (valid.size > 0)
+              for (const [vid, cid] of classOf) if (Number.isFinite(cid) && !valid.has(cid)) excludedVehicles.add(vid);
+          }
+        }
+        for (const vid of excludedVehicles) fleetRows.delete(vid);
+        if (excludedVehicles.size > 0) await supabaseAdmin.from("fleet_vehicles").delete().in("id", [...excludedVehicles]);
         if (soldIds.length > 0) await supabaseAdmin.from("fleet_vehicles").delete().in("id", soldIds);
         // Upsert em lotes para não estourar o limite de payload
         const BATCH = 500;
@@ -235,6 +244,15 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
             return Response.json({ error: error.message }, { status: 500 });
           }
         }
+
+        // Trechos de veículo de cada reserva (base da ocupação, no critério do relatório de Utilização do HQ)
+        const segments = [
+          ...new Map(
+            mapped
+              .flatMap(({ raw, row }) => extractSegments(raw, row.reservation_id, row.status, excludedVehicles))
+              .map((seg) => [`${seg.reservation_id}|${seg.seq}`, seg] as const),
+          ).values(),
+        ];
 
         // Trechos: recria os das reservas sincronizadas (uma troca de veículo pode mudar a quantidade de trechos)
         for (let i = 0; i < rows.length; i += 200) {

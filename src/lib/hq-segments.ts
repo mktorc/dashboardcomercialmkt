@@ -17,8 +17,16 @@ const isDate = (v: unknown): v is string => typeof v === "string" && !Number.isN
  * aluguel gera dois trechos, e o relatório de Utilização do HQ conta cada trecho. Sem trechos válidos,
  * a própria reserva vira o trecho único.
  */
-export function extractSegments(r: HqRecord, reservationId: string, status: string): SegmentRow[] {
-  const info = Array.isArray(r["reservation_vehicle_information"]) ? (r["reservation_vehicle_information"] as HqRecord[]) : [];
+export function extractSegments(
+  r: HqRecord,
+  reservationId: string,
+  status: string,
+  skipVehicles?: Set<number>,
+): SegmentRow[] {
+  const allInfo = Array.isArray(r["reservation_vehicle_information"]) ? (r["reservation_vehicle_information"] as HqRecord[]) : [];
+  // Veículos de classe que o HQ não lista mais (ex.: "Extra") ficam fora da Utilização.
+  const info = skipVehicles ? allInfo.filter((v) => !skipVehicles.has(Number(v["vehicle_id"]))) : allInfo;
+  if (allInfo.length > 0 && info.length === 0) return [];
   const valid = info
     .filter((v) => isDate(v["pick_up_date"]) && isDate(v["return_date"]))
     .map((v) => ({ pick_up_at: v["pick_up_date"] as string, return_at: v["return_date"] as string }))
