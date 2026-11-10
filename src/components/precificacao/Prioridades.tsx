@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -221,7 +222,9 @@ function Painel({
   const [nivelF, setNivelF] = useState<string>(ALL);
   const [mktF, setMktF] = useState<string>(ALL);
   const [crit, setCrit] = useState<CritConfig>(DEFAULT_CRIT);
-  const [shown, setShown] = useState(PAGE);
+  // Muda a cada filtro: os grupos do ranking voltam ao tamanho inicial.
+  const [filtroVersao, setFiltroVersao] = useState(0);
+  const setShown = (_: number) => setFiltroVersao((v) => v + 1);
   const [selKey, setSelKey] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
 
@@ -539,39 +542,25 @@ function Painel({
               </p>
             ) : (
               NIVEIS_RANKING.map((n) => {
-                const group = ranking.slice(0, shown).filter((r) => r.nivel === n);
-                if (!group.length) return null;
+                const grupo = ranking.filter((r) => r.nivel === n);
+                if (!grupo.length) return null;
                 return (
-                  <section key={n} className="space-y-2">
-                    <h3 className="flex items-center gap-2 text-sm font-medium">
-                      <span className={`size-2.5 rounded-full ${NIVEL_STYLE[n].bar}`} />
-                      {NIVEL_LABEL[n]}
-                      <span className="text-muted-foreground">
-                        ({ranking.filter((r) => r.nivel === n).length})
-                      </span>
-                    </h3>
-                    <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                      {group.map((r) => (
-                        <PriorityCard
-                          key={rowKey(r)}
-                          r={r}
-                          crit={crit}
-                          model={model}
-                          modelRitmo={modelRitmo}
-                          base={base}
-                          onOpen={() => setSelKey(rowKey(r))}
-                        />
-                      ))}
-                    </div>
-                  </section>
+                  <GrupoNivel key={n} nivel={n} itens={grupo} versao={filtroVersao}>
+                    {(r) => (
+                      <PriorityCard
+                        key={rowKey(r)}
+                        r={r}
+                        crit={crit}
+                        model={model}
+                        modelRitmo={modelRitmo}
+                        base={base}
+                        onOpen={() => setSelKey(rowKey(r))}
+                      />
+                    )}
+                  </GrupoNivel>
                 );
               })
             )}
-            {ranking.length > shown ? (
-              <Button size="sm" variant="outline" onClick={() => setShown((n) => n + PAGE)}>
-                Mostrar mais ({ranking.length - shown} restantes)
-              </Button>
-            ) : null}
             <p className="text-xs text-muted-foreground">
               Ordem: nível de criticidade e, dentro dele, prioridade de ação (gap, antecedência,
               veículos livres, sazonalidade e evidência de mercado). Referência de baixa confiança
@@ -740,6 +729,46 @@ function RecorteVazio({
         </Button>
       </div>
     </Card>
+  );
+}
+
+/** Grupos recolhíveis do ranking: todos começam recolhidos. */
+function GrupoNivel({
+  nivel,
+  itens,
+  versao,
+  children,
+}: {
+  nivel: Nivel;
+  itens: EnrichedRow[];
+  versao: number;
+  children: (r: EnrichedRow) => React.ReactNode;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [limite, setLimite] = useState(PAGE);
+  useEffect(() => setLimite(PAGE), [versao]);
+  return (
+    <Collapsible open={aberto} onOpenChange={setAberto} className="space-y-2">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 rounded text-left text-sm font-medium hover:bg-muted/40">
+        <ChevronRight className={`size-4 transition-transform ${aberto ? "rotate-90" : ""}`} />
+        <span className={`size-2.5 rounded-full ${NIVEL_STYLE[nivel].bar}`} />
+        {NIVEL_LABEL[nivel]}
+        <span className="text-muted-foreground">({itens.length})</span>
+        <span className="ml-auto text-xs font-normal text-muted-foreground">
+          {aberto ? "recolher" : "expandir"}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2">
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          {itens.slice(0, limite).map((r) => children(r))}
+        </div>
+        {itens.length > limite ? (
+          <Button size="sm" variant="outline" onClick={() => setLimite((n) => n + PAGE)}>
+            Mostrar mais ({itens.length - limite} restantes)
+          </Button>
+        ) : null}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
