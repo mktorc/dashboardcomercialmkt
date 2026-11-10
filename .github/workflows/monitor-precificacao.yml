@@ -1,0 +1,42 @@
+# Monitor da cadeia de dados de precificação: confere, a cada 3 horas, se as rotinas rodaram PELO AGENDAMENTO, se terminaram bem e se o dado
+# novo está no banco (ocupação, cancelamentos, cada fonte de concorrente e nossa tarifa). Falha o workflow e abre uma issue de alerta
+# quando algo está atrasado ou parado, inclusive rotina que simplesmente deixou de executar. Detalhes: scripts/precificacao/monitor.py.
+name: Monitor dos dados de precificação
+
+on:
+  schedule:
+    - cron: '23 */3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/precificacao/monitor.py'
+      - '.github/workflows/monitor-precificacao.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: monitor-precificacao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  monitorar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Testar o monitor
+        run: python3 -m unittest scripts/precificacao/test_monitor.py
+      - name: Verificar dados e execuções
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python3 scripts/precificacao/monitor.py

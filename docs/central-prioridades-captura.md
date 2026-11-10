@@ -56,3 +56,18 @@ Fonte integrada e atualizada (coletas do dia), mas: 100% das coletas estão como
 concorrentes, 1 localidade (MCO), 7 diárias, 31 datas de retirada e 62% das coletas sem categoria equivalente (Tesla, Mustang, Golf GTI…).
 Quilometragem e política de cancelamento nunca vêm preenchidas. Consequência: a comparação de preço é sempre “parcial”, de confiança
 baixa (1 concorrente) ou média (2 sem parcial exige equivalente); preço de baixa confiança não conta como evidência.
+
+## Monitoramento da cadeia de dados
+`scripts/precificacao/monitor.py`, rodado a cada 3 horas por `.github/workflows/monitor-precificacao.yml`, verifica quatro etapas separadas:
+
+1. **Agendamento:** cada rotina (`previsao-ocupacao.yml`, `coleta-concorrentes.yml`) teve uma execução pelo evento `schedule` nas últimas 30 h?
+   Execução por push ou manual não conta, e a rotina que simplesmente deixou de rodar vira falha.
+2. **Execução:** a última execução (qualquer evento) terminou com sucesso?
+3. **Publicação:** o dado está no banco e recente (≤ 26 h): ocupação, cancelamentos (relatório v3+ com cancelamentos), cada concorrente (UP e
+   Allycar separados) e nossa tarifa.
+4. **Aplicação:** o painel "Saúde dos dados" em Prioridades lê as mesmas tabelas e mostra a idade de cada dado (verde ≤ 26 h, âmbar ≤ 50 h,
+   vermelho acima). O monitor não enxerga o navegador nem se o deploy está atualizado.
+
+Falha do monitor = workflow vermelho + issue "Alerta: dados de precificação" (atualizada a cada rodada com falha e fechada sozinha quando tudo volta
+ao normal). Avisos (ex.: nenhuma cotação equivalente) não falham. Limites: agendador do GitHub pode atrasar; o próprio monitor para se o repositório
+ficar 60 dias sem atividade.

@@ -125,3 +125,19 @@ export function useOurRates() {
     },
   });
 }
+
+/** Data da última coleta da nossa tarifa (para o painel de saúde dos dados). */
+export function useOurRateFreshness() {
+  return useQuery({
+    queryKey: ["our-rate-freshness"],
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase
+        .from("our_rate_snapshots")
+        .select("collected_at")
+        .order("collected_at", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return ((data ?? []) as { collected_at: string }[])[0]?.collected_at ?? null;
+    },
+  });
+}

@@ -1,0 +1,115 @@
+"""Testes do monitor: python3 -m unittest scripts/precificacao/test_monitor.py"""
+import os, sys, unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+os.environ.setdefault("SUPABASE_URL", "http://x")
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "k")
+sys.path.insert(0, str(Path(__file__).parent))
+import monitor as M
+
+
+def iso(horas_atras):
+    return (M.AGORA - timedelta(hours=horas_atras)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+
+def banco(ritmo_h=2, versao=3, canc=5, up_h=3, ally_h=3, nossa_h=3):
+    """Fake das consultas do monitor."""
+    linhas = [{"x": [[10, 5]]} if i < canc else {} for i in range(10)]
+
+    def f(caminho):
+        if caminho.startswith("pricing_occupancy_pace?select=generated_at"):
+            return [{"generated_at": iso(ritmo_h), "as_of": "2026-11-10"}]
+        if caminho.startswith("pricing_occupancy_pace?select=payload"):
+            return [{"payload": {"versao": versao, "hoje": "2026-11-10", "linhas": linhas}}]
+        if "competitor_price_snapshots?select=collected_at,competitors" in caminho:
+            out = []
+            if up_h is not None:
+                out.append({"collected_at": iso(up_h), "competitors": {"name": "UP Rent a Car"}})
+            if ally_h is not None:
+                out.append({"collected_at": iso(ally_h), "competitors": {"name": "Allycar"}})
+            return out
+        if caminho.startswith("our_rate_snapshots"):
+            return [{"collected_at": iso(nossa_h), "source": "site_cotacao"}]
+        return [{"equivalence": "parcial", "pickup_at": "2026-12-01T10:00"}]
+
+    return f
+
+
+class Monitor(unittest.TestCase):
+    def rodar(self, **kw):
+        M.resultados.clear()
+        M.supabase = banco(**kw)
+        M.checar_dados()
+        return {(i): n for _, i, n, _ in M.resultados}
+
+    def test_tudo_em_dia(self):
+        r = self.rodar()
+        self.assertNotIn("falha", r.values())
+
+    def test_ocupacao_parada_vira_falha(self):
+        self.assertEqual(self.rodar(ritmo_h=40)["Ocupação (ritmo)"], "falha")
+
+    def test_cada_fonte_e_checada_separadamente(self):
+        r = self.rodar(up_h=3, ally_h=60)
+        self.assertEqual(r["Concorrente: UP Rent a Car"], "ok")
+        self.assertEqual(r["Concorrente: Allycar"], "falha")
+
+    def test_fonte_sem_nenhuma_coleta_recente_falha(self):
+        self.assertEqual(self.rodar(ally_h=None)["Concorrente: Allycar"], "falha")
+
+    def test_relatorio_antigo_ou_sem_cancelamentos_falha(self):
+        self.assertEqual(self.rodar(versao=2)["Cancelamentos"], "falha")
+        self.assertEqual(self.rodar(canc=0)["Cancelamentos"], "falha")
+
+    def test_nossa_tarifa_parada_falha(self):
+        self.assertEqual(self.rodar(nossa_h=50)["Nossa tarifa (site)"], "falha")
+
+    def test_banco_inacessivel_nao_passa_em_silencio(self):
+        M.resultados.clear()
+
+        def quebra(_):
+            raise OSError("sem rede")
+
+        M.supabase = quebra
+        with self.assertRaises(OSError):
+            M.checar_dados()  # o main captura e registra como falha
+
+    def test_agendamento_ausente_e_falha_mesmo_com_push_recente(self):
+        M.resultados.clear()
+        os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"] = "t", "o/r"
+        sys.argv = ["monitor.py"]
+
+        def gh(caminho, *a, **k):
+            if "event=schedule" in caminho:
+                return {"workflow_runs": []}  # nunca rodou pelo cron
+            return {"workflow_runs": [{"status": "completed", "conclusion": "success", "event": "push", "created_at": iso(1)}]}
+
+        M.github = gh
+        M.checar_workflows()
+        r = {(i): n for _, i, n, _ in M.resultados}
+        self.assertEqual(r["previsao-ocupacao.yml (agendada)"], "falha")
+        self.assertEqual(r["previsao-ocupacao.yml (última execução)"], "ok")  # etapas separadas: executou, mas não pelo agendamento
+
+    def test_agendamento_antigo_falha(self):
+        M.resultados.clear()
+        os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"] = "t", "o/r"
+        sys.argv = ["monitor.py"]
+        M.github = lambda caminho, *a, **k: {"workflow_runs": [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(50)}]}
+        M.checar_workflows()
+        r = {(i): n for _, i, n, _ in M.resultados}
+        self.assertEqual(r["coleta-concorrentes.yml (agendada)"], "falha")
+
+    def test_ultima_execucao_com_erro_falha(self):
+        M.resultados.clear()
+        os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"] = "t", "o/r"
+        sys.argv = ["monitor.py"]
+        M.github = lambda caminho, *a, **k: {"workflow_runs": [{"status": "completed", "conclusion": "failure", "event": "schedule", "created_at": iso(2)}]}
+        M.checar_workflows()
+        r = {(i): n for _, i, n, _ in M.resultados}
+        self.assertEqual(r["previsao-ocupacao.yml (agendada)"], "ok")
+        self.assertEqual(r["previsao-ocupacao.yml (última execução)"], "falha")
+
+
+if __name__ == "__main__":
+    unittest.main()

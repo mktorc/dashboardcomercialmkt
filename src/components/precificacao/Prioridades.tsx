@@ -36,7 +36,12 @@ import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnte
 import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
 import { Kpi, PickupChart } from "@/components/precificacao/GestaoOcupacao";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
-import { useCompetitorSnapshots, useOurRates, type SnapshotRow } from "@/lib/competitive-data";
+import {
+  useCompetitorSnapshots,
+  useOurRateFreshness,
+  useOurRates,
+  type SnapshotRow,
+} from "@/lib/competitive-data";
 import {
   DEFAULT_PRICE_BANDS,
   dailyOf,
@@ -215,6 +220,7 @@ function Painel({
 }) {
   const snaps = useCompetitorSnapshots();
   const rates = useOurRates();
+  const nossaColeta = useOurRateFreshness();
   const [cat, setCat] = useState(ALL);
   const [leadKey, setLeadKey] = useState("p60");
   // Faixa livre: quando o período escolhido não coincide com nenhuma faixa pronta, a antecedência vira "D-x a D-y".
@@ -297,14 +303,17 @@ function Painel({
     return g;
   }, [snaps.data]);
   const now = useMemo(() => new Date().toISOString(), []);
-  const ultimaColeta = useMemo(
-    () =>
-      (snaps.data ?? []).reduce<string | null>(
-        (m, r) => (!m || r.collectedAt > m ? r.collectedAt : m),
-        null,
-      ),
-    [snaps.data],
-  );
+  // Última coleta de cada concorrente esperado (uma fonte parada não pode ficar escondida pela outra).
+  const fontes = useMemo(() => {
+    const ult = new Map<string, string>();
+    for (const r of snaps.data ?? [])
+      if (!ult.get(r.competitor) || r.collectedAt > ult.get(r.competitor)!)
+        ult.set(r.competitor, r.collectedAt);
+    return [
+      ...FONTES_ESPERADAS.map((n) => ({ nome: n, iso: ult.get(n) ?? null })),
+      { nome: "Nosso site", iso: nossaColeta.data ?? null },
+    ];
+  }, [snaps.data, nossaColeta.data]);
   const priceOf = useMemo(() => {
     const cache = new Map<string, PriceCtx>();
     return (date: string, category: string): PriceCtx => {
@@ -462,15 +471,6 @@ function Painel({
           />
         </PeriodFilter>
       </Card>
-      <StatusDados
-        base={base}
-        geradoEm={geradoEm}
-        ultimaColeta={ultimaColeta}
-        coletasCarregando={snaps.isLoading}
-        total={base_rows.length}
-        aposFiltros={rows.length}
-        comBenchmark={base_rows.filter((r) => r.gap != null).length}
-      />
 
       {base_rows.length === 0 ? (
         <RecorteVazio
@@ -591,6 +591,17 @@ function Painel({
         to={range.to}
       />
 
+      <StatusDados
+        base={base}
+        geradoEm={geradoEm}
+        fontes={fontes}
+        temCancelamentos={payload.versao >= 3 && payload.linhas.some((l) => l.x && l.x.length > 0)}
+        coletasCarregando={snaps.isLoading || nossaColeta.isLoading}
+        total={base_rows.length}
+        aposFiltros={rows.length}
+        comBenchmark={base_rows.filter((r) => r.gap != null).length}
+      />
+
       <Detalhe
         row={sel}
         siblings={sel ? rows.filter((r) => r.date === sel.date) : []}
@@ -607,6 +618,24 @@ function Painel({
   );
 }
 
+const FONTES_ESPERADAS = ["UP Rent a Car", "Allycar"];
+
+/** Idade de um dado: até 26 h em dia; até 50 h atrasado; acima, parado. */
+function nivelIdade(iso: string | null): "ok" | "atrasado" | "parado" {
+  if (!iso) return "parado";
+  const h = (Date.now() - Date.parse(iso)) / 3600000;
+  return h <= 26 ? "ok" : h <= 50 ? "atrasado" : "parado";
+}
+const txtIdade = (iso: string) => {
+  const h = Math.max(0, (Date.now() - Date.parse(iso)) / 3600000);
+  return h < 48 ? `há ${Math.round(h)} h` : `há ${Math.round(h / 24)} dias`;
+};
+const COR_IDADE = {
+  ok: "text-emerald-700 dark:text-emerald-300",
+  atrasado: "text-amber-700 dark:text-amber-300",
+  parado: "text-red-700 dark:text-red-300",
+} as const;
+
 const diasAtras = (iso: string) =>
   Math.max(
     0,
@@ -620,7 +649,8 @@ const diasAtras = (iso: string) =>
 function StatusDados({
   base,
   geradoEm,
-  ultimaColeta,
+  fontes,
+  temCancelamentos,
   coletasCarregando,
   total,
   aposFiltros,
@@ -628,14 +658,14 @@ function StatusDados({
 }: {
   base: string;
   geradoEm: string;
-  ultimaColeta: string | null;
+  fontes: { nome: string; iso: string | null }[];
+  temCancelamentos: boolean;
   coletasCarregando: boolean;
   total: number;
   aposFiltros: number;
   comBenchmark: number;
 }) {
   const defasagem = diasAtras(base);
-  const coletaAge = ultimaColeta ? (Date.now() - Date.parse(ultimaColeta)) / 86400000 : null;
   return (
     <div className="space-y-1 text-xs text-muted-foreground">
       <div className="flex flex-wrap gap-x-5 gap-y-1">
@@ -646,16 +676,6 @@ function StatusDados({
         <span>
           Ocupação atualizada em: <b className="text-foreground">{formatLastUpdate(geradoEm)}</b>
         </span>
-        <span>
-          Última coleta de concorrentes:{" "}
-          <b className="text-foreground">
-            {coletasCarregando
-              ? "carregando…"
-              : ultimaColeta
-                ? formatLastUpdate(ultimaColeta)
-                : "sem coletas nos últimos 30 dias"}
-          </b>
-        </span>
       </div>
       {defasagem > 0 ? (
         <p className="text-amber-700 dark:text-amber-300">
@@ -664,10 +684,26 @@ function StatusDados({
           ritmo.py --publicar).
         </p>
       ) : null}
-      {coletaAge != null && coletaAge > 7 ? (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-medium text-foreground">Saúde dos dados:</span>
+        <span className={COR_IDADE[nivelIdade(geradoEm)]}>Ocupação {txtIdade(geradoEm)}</span>
+        <span className={temCancelamentos ? COR_IDADE.ok : COR_IDADE.atrasado}>
+          Cancelamentos {temCancelamentos ? "publicados" : "ausentes no relatório"}
+        </span>
+        {coletasCarregando ? (
+          <span>coletas: carregando…</span>
+        ) : (
+          fontes.map((f) => (
+            <span key={f.nome} className={COR_IDADE[nivelIdade(f.iso)]}>
+              {f.nome} {f.iso ? txtIdade(f.iso) : "sem coleta recente"}
+            </span>
+          ))
+        )}
+      </div>
+      {!coletasCarregando && fontes.some((f) => nivelIdade(f.iso) !== "ok") ? (
         <p className="text-amber-700 dark:text-amber-300">
-          A última coleta de concorrentes tem mais de 7 dias: ela não entra no posicionamento de
-          mercado.
+          Há coleta de preço com mais de 26 h (ou sem registro): a comparação de mercado pode estar
+          desatualizada. Coletas com mais de 7 dias não entram no posicionamento.
         </p>
       ) : null}
       <p>
