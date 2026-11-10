@@ -775,6 +775,13 @@ function Detalhe({
                   {d.level ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} datas passadas` : "—"}
                 </dd>
               </div>
+              {d.semBenchmark && d.semBenchmark.length ? (
+                <div className="col-span-2 text-xs text-muted-foreground">
+                  {d.esperada != null
+                    ? `Esperado e gap não incluem ${d.semBenchmark.join(", ")} (sem histórico comparável); cobertura de ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`
+                    : `Sem esperado: ${d.semBenchmark.join(", ")} não tem histórico comparável e as demais categorias cobrem só ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`}
+                </div>
+              ) : null}
             </dl>
             <PickupChart
               title="Curva de pickup da data"

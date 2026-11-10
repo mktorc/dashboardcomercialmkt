@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -42,6 +42,7 @@ import {
   EVENT_LABEL,
   addDays,
   buildModel,
+  daysBetween,
   gapLevel,
   pickupCurve,
   usePace,
@@ -53,7 +54,6 @@ import { formatLastUpdate } from "@/lib/pricing-forecast";
 import { todayIso, type Range } from "@/lib/pricing-range";
 import {
   DEFAULT_CRIT,
-  JANELA_LABEL,
   MARKET_BUCKETS,
   MARKET_LABEL,
   MATRIX_TEXT,
@@ -80,6 +80,7 @@ import {
   type Confianca,
   type CritConfig,
   type EnrichedRow,
+  type Janela,
   type MarketBucket,
   type Nivel,
   type OccBucket,
@@ -88,34 +89,20 @@ import {
 
 const ALL = "__all__";
 const PAGE = 24;
-const leadBands = (c: CritConfig) => [
-  { key: "all", label: "Todas as antecedências", min: 0, max: 400 },
-  {
-    key: "p60",
-    label: `Janela de atuação (D-${c.leadInterv} ou mais)`,
-    min: c.leadInterv,
-    max: 400,
-  },
-  ...(["plan", "estrat", "atenc", "interv", "recup", "curto"] as const).map((j) => {
-    const min = {
-      plan: c.leadPlan,
-      estrat: c.leadStrat,
-      atenc: c.leadAtenc,
-      interv: c.leadInterv,
-      recup: c.leadRecup,
-      curto: 0,
-    }[j];
-    const max = {
-      plan: 400,
-      estrat: c.leadPlan - 1,
-      atenc: c.leadStrat - 1,
-      interv: c.leadAtenc - 1,
-      recup: c.leadInterv - 1,
-      curto: c.leadRecup - 1,
-    }[j];
-    return { key: j, label: `${JANELA_LABEL[j]} (${janelaRange(j, c)})`, min, max };
-  }),
-];
+/** Faixas de antecedência em ordem crescente, só com os Ds (sem os nomes das janelas). */
+const leadBands = (c: CritConfig) => {
+  const rangeLabel = (j: Janela) => (j === "plan" ? `D-${c.leadPlan} ou mais` : janelaRange(j, c));
+  const faixas = [
+    { key: "curto", min: 0, max: c.leadRecup - 1, label: rangeLabel("curto") },
+    { key: "recup", min: c.leadRecup, max: c.leadInterv - 1, label: rangeLabel("recup") },
+    { key: "p60", min: c.leadInterv, max: 400, label: `D-${c.leadInterv} ou mais` },
+    { key: "interv", min: c.leadInterv, max: c.leadAtenc - 1, label: rangeLabel("interv") },
+    { key: "atenc", min: c.leadAtenc, max: c.leadStrat - 1, label: rangeLabel("atenc") },
+    { key: "estrat", min: c.leadStrat, max: c.leadPlan - 1, label: rangeLabel("estrat") },
+    { key: "plan", min: c.leadPlan, max: 400, label: rangeLabel("plan") },
+  ].sort((a, b) => a.min - b.min || b.max - a.max);
+  return [{ key: "all", label: "Todas as antecedências", min: 0, max: 400 }, ...faixas];
+};
 const NIVEL_STYLE: Record<Nivel, { badge: string; bar: string; cell: string }> = {
   critica: {
     badge: "border-red-500/60 bg-red-500/15 text-red-700 dark:text-red-300",
@@ -219,6 +206,8 @@ function Painel({
   const rates = useOurRates();
   const [cat, setCat] = useState(ALL);
   const [leadKey, setLeadKey] = useState("p60");
+  // Faixa livre: quando o período escolhido não coincide com nenhuma faixa pronta, a antecedência vira "D-x a D-y".
+  const [custom, setCustom] = useState<{ min: number; max: number } | null>(null);
   const [nivelF, setNivelF] = useState<string>(ALL);
   const [mktF, setMktF] = useState<string>(ALL);
   const [crit, setCrit] = useState<CritConfig>(DEFAULT_CRIT);
@@ -231,8 +220,54 @@ function Painel({
   const model = useMemo(() => buildModel(payload, ESPERADA_ESTATISTICA), [payload]);
   // O ritmo recente (reservas novas na semana) é comparado com o histórico típico (média), não com o melhor registro.
   const modelRitmo = useMemo(() => buildModel(payload, "media"), [payload]);
-  const bands = leadBands(crit);
+  const bands = [
+    ...leadBands(crit),
+    ...(leadKey === "custom" && custom
+      ? [
+          {
+            key: "custom",
+            label: `D-${custom.min} a D-${custom.max}`,
+            min: custom.min,
+            max: custom.max,
+          },
+        ]
+      : []),
+  ];
   const lead = bands.find((b) => b.key === leadKey) ?? bands[0]!;
+  // O período de retirada acompanha a antecedência escolhida: D-60+ = retiradas de base+60 até o fim da base de ocupação.
+  // "Todas" não mexe no período.
+  const periodoDaFaixa = (b: { min: number; max: number }): Range => ({
+    from: addDays(base, b.min),
+    to: b.max >= 400 ? payload.ate : addDays(base, Math.min(b.max, daysBetween(base, payload.ate))),
+  });
+  const aplicarAntecedencia = (key: string) => {
+    setLeadKey(key);
+    const b = bands.find((x) => x.key === key);
+    if (b && key !== "all") onRangeChange(periodoDaFaixa(b));
+  };
+  // Mudar o período muda a antecedência: o mesmo intervalo, lido a partir da data de referência. Se coincide com uma faixa pronta,
+  // seleciona a faixa; senão, cria a faixa livre "D-x a D-y".
+  const aplicarPeriodo = (r: Range) => {
+    onRangeChange(r);
+    const min = Math.max(0, daysBetween(base, r.from));
+    const max = Math.max(min, daysBetween(base, r.to));
+    const aberto = r.to >= payload.ate;
+    const hit = leadBands(crit).find(
+      (b) => b.key !== "all" && b.min === min && (b.max >= 400 ? aberto : b.max === max),
+    );
+    if (hit) setLeadKey(hit.key);
+    else {
+      setCustom({ min, max: aberto ? Math.max(max, 400) : max });
+      setLeadKey("custom");
+    }
+    setShown(PAGE);
+  };
+  // Ao abrir com a faixa padrão e um período que não alcança essa antecedência (ex.: o mês atual com D-60+), alinha o período.
+  useEffect(() => {
+    const b = bands.find((x) => x.key === leadKey);
+    if (b && leadKey !== "all" && range.to < addDays(base, b.min)) onRangeChange(periodoDaFaixa(b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
   const ours = useMemo(
     () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate])),
@@ -371,9 +406,15 @@ function Painel({
         <PeriodFilter
           from={range.from}
           to={range.to}
-          onChange={(from, to) => from && to && from <= to && onRangeChange({ from, to })}
+          onChange={(from, to) => from && to && from <= to && aplicarPeriodo({ from, to })}
           actions={<CritConfigPopover crit={crit} onChange={setCrit} />}
         >
+          <FilterSelect
+            label="Antecedência atual"
+            value={leadKey}
+            onChange={(v) => (aplicarAntecedencia(v), setShown(PAGE))}
+            options={bands.map((l) => [l.key, l.label] as [string, string])}
+          />
           <FilterSelect
             label="Categoria"
             value={cat}
@@ -382,12 +423,6 @@ function Painel({
               [ALL, "Todas as categorias"],
               ...payload.categorias.map((c) => [c, c] as [string, string]),
             ]}
-          />
-          <FilterSelect
-            label="Antecedência atual"
-            value={leadKey}
-            onChange={(v) => (setLeadKey(v), setShown(PAGE))}
-            options={bands.map((l) => [l.key, l.label] as [string, string])}
           />
           <FilterSelect
             label="Criticidade"
@@ -428,7 +463,7 @@ function Painel({
           crit={crit}
           onTodas={() => setLeadKey("all")}
           onProximos={() =>
-            onRangeChange({ from: addDays(base, crit.leadInterv), to: addDays(base, 180) })
+            aplicarPeriodo({ from: addDays(base, crit.leadInterv), to: addDays(base, 180) })
           }
         />
       ) : (
@@ -803,9 +838,7 @@ function PriorityCard({
         </div>
       </div>
       <div className="flex flex-wrap gap-1.5 text-xs">
-        <span className="rounded bg-muted px-1.5 py-0.5">
-          D-{r.lead} · {JANELA_LABEL[r.janela]}
-        </span>
+        <span className="rounded bg-muted px-1.5 py-0.5">D-{r.lead}</span>
         <span
           className={`rounded bg-muted px-1.5 py-0.5 ${r.tendencia === "desacelerando" ? "text-amber-700 dark:text-amber-300" : ""}`}
           title={r.ritmo?.confianca ? `Confiança ${r.ritmo.confianca}` : undefined}

@@ -261,7 +261,13 @@ export type DayPace = {
   event: string | null;
   eventRel: number | null;
   season: string | null;
+  /** Parcela da frota que tem benchmark (0–1) e as categorias sem benchmark, que ficam de fora da comparação. */
+  cobertura?: number;
+  semBenchmark?: string[];
 };
+
+/** Abaixo dessa parcela da frota com benchmark, a data fica sem esperada (não se afirma um esperado que cobre pouco da frota). */
+export const COBERTURA_MIN = 0.9;
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
@@ -283,10 +289,15 @@ export function dayPace(
   const capacity = sum(rows.map((r) => r.f));
   const booked = rows.length > 0 && at >= lead ? sum(rows.map((r) => soldAt(r, at))) : null;
   const bench = rows.map((r) => benchmarkFor(model, r, at, base));
-  const complete = rows.length > 0 && bench.every((b) => b != null);
+  // Categoria sem histórico (ex.: criada há menos de 1 ano) não anula a data: sai da comparação, nos dois lados, e a cobertura da
+  // frota fica registrada. Com menos de COBERTURA_MIN da frota coberta, não há esperada.
+  const cov = rows.map((r, i) => ({ r, b: bench[i] })).filter((x) => x.b != null);
+  const capCov = sum(cov.map((x) => x.r.f));
+  const cobertura = capacity ? capCov / capacity : 0;
+  const complete = rows.length > 0 && capCov > 0 && cobertura >= COBERTURA_MIN;
   const atual = booked != null && capacity ? booked / capacity : null;
-  const esperada =
-    complete && capacity ? sum(rows.map((r, i) => bench[i]!.value * r.f)) / capacity : null;
+  const atualCob = complete && at >= lead ? sum(cov.map((x) => soldAt(x.r, at))) / capCov : null;
+  const esperada = complete ? sum(cov.map((x) => x.b!.value * x.r.f)) / capCov : null;
   return {
     date,
     lead,
@@ -295,12 +306,14 @@ export function dayPace(
     booked,
     atual,
     esperada,
-    gap: atual != null && esperada != null ? (atual - esperada) * 100 : null,
-    n: complete ? Math.min(...bench.map((b) => b!.n)) : 0,
-    level: complete ? bench[0]!.level : null,
+    gap: atualCob != null && esperada != null ? (atualCob - esperada) * 100 : null,
+    n: complete ? Math.min(...cov.map((x) => x.b!.n)) : 0,
+    level: complete ? cov[0]!.b!.level : null,
     event: info?.[1] ?? null,
     eventRel: info?.[2] ?? null,
     season: info?.[0] ?? null,
+    cobertura,
+    semBenchmark: rows.filter((_, i) => bench[i] == null).map((r) => r.c),
   };
 }
 

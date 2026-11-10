@@ -273,3 +273,30 @@ describe("gap, KPIs e calendário", () => {
     expect(s.gap).toBeCloseTo((s.atual! - s.esperada!) * 100);
   });
 });
+
+describe("categoria sem histórico não anula a data inteira", () => {
+  // A tem histórico (6 sextas) e frota 30; B é nova (sem nenhuma data anterior) com frota `fB`.
+  const montar = (fB: number) => {
+    const { linhas, cal } = sextasAltas(6);
+    const hist = linhas.map((l) => ({ ...l, f: 30 }));
+    const alvoA: PaceRow = { d: "2026-12-04", c: CAT, f: 30, a: mix(6, 60, 0, 0) };
+    const alvoB: PaceRow = { d: "2026-12-04", c: "Nova", f: fB, a: mix(1, 60, 0, 0) };
+    cal["2026-12-04"] = ["Alta", null, null];
+    const model = buildModel(payload([...hist, alvoA, alvoB], cal));
+    return dayPace(model, [alvoA, alvoB], "2026-12-04", BASE);
+  };
+  it("com a categoria nova em até 10% da frota, o esperado existe e compara só o que tem histórico", () => {
+    const d = montar(3); // 30 de 33 = 91% de cobertura
+    expect(d.esperada).not.toBeNull();
+    expect(d.cobertura).toBeCloseTo(30 / 33);
+    expect(d.semBenchmark).toEqual(["Nova"]);
+    // gap = ocupação de A (6/30) contra o esperado de A: a categoria sem benchmark não entra em nenhum dos lados
+    expect(d.gap).toBeCloseTo((6 / 30 - d.esperada!) * 100);
+  });
+  it("com menos de 90% da frota coberta, não há esperado (nada é afirmado)", () => {
+    const d = montar(10); // 30 de 40 = 75%
+    expect(d.esperada).toBeNull();
+    expect(d.gap).toBeNull();
+    expect(d.cobertura).toBeCloseTo(0.75);
+  });
+});
