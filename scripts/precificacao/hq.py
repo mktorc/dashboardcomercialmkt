@@ -12,11 +12,16 @@ def carregar_env(caminho=".env.local"):
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
+HQ_BASE_URL_PADRAO = "https://api-america-3.caagcrm.com/api-america-3"
+
+
 class HQ:
     def __init__(self):
         carregar_env()
         try:
-            self.base = os.environ["HQ_BASE_URL"].rstrip("/")
+            # Segredo vazio ou ausente (ex.: GitHub Actions sem HQ_BASE_URL) cai no endpoint do tenant, que não é segredo:
+            # o mesmo que importar-hq.mjs usa. Os tokens continuam obrigatórios.
+            self.base = (os.environ.get("HQ_BASE_URL", "").strip() or HQ_BASE_URL_PADRAO).rstrip("/")
             tok = f'{os.environ["HQ_TENANT_TOKEN"].strip()}:{os.environ["HQ_USER_TOKEN"].strip()}'
         except KeyError as e:
             raise SystemExit(f"Variável de ambiente ausente: {e}")
