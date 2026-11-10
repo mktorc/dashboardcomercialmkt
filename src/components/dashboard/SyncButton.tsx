@@ -25,7 +25,14 @@ function format(iso: string) {
 }
 
 /** `fn` troca o conjunto de syncs disparado (padrão: todos); a precificação usa só HQ e Rate Calendar. */
-export function SyncButton({ fn = syncAll }: { fn?: typeof syncAll } = {}) {
+export function SyncButton({
+  fn = syncAll,
+  ultimaAtualizacao,
+}: {
+  fn?: typeof syncAll;
+  /** Quando informado, o horário exibido vem dos próprios dados (ex.: precificação) em vez do último sync registrado. */
+  ultimaAtualizacao?: { value: string | null; loading: boolean; detalhe?: string };
+} = {}) {
   const run = useServerFn(fn);
   const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
@@ -36,7 +43,9 @@ export function SyncButton({ fn = syncAll }: { fn?: typeof syncAll } = {}) {
     queryKey: ["last-sync-server"],
     queryFn: async () => {
       const { data } = await supabase.from("sync_runs").select("last_success_at");
-      const times = (data ?? []).map((r) => Date.parse(r.last_success_at)).filter((t) => !Number.isNaN(t));
+      const times = (data ?? [])
+        .map((r) => Date.parse(r.last_success_at))
+        .filter((t) => !Number.isNaN(t));
       return times.length ? new Date(Math.max(...times)).toISOString() : null;
     },
     staleTime: 60_000,
@@ -64,7 +73,9 @@ export function SyncButton({ fn = syncAll }: { fn?: typeof syncAll } = {}) {
       const { failed } = await run();
       if (failed.length) {
         console.error("Falhas no sync:", failed);
-        toast.error(`Falha ao sincronizar: ${failed.map((x) => `${x.service}: ${x.error}`).join(" | ")}`);
+        toast.error(
+          `Falha ao sincronizar: ${failed.map((x) => `${x.service}: ${x.error}`).join(" | ")}`,
+        );
       } else {
         const now = new Date().toISOString();
         try {
@@ -85,10 +96,25 @@ export function SyncButton({ fn = syncAll }: { fn?: typeof syncAll } = {}) {
 
   return (
     <div className="flex items-center gap-2">
-      {last ? (
+      {ultimaAtualizacao ? (
+        <span className="text-xs text-foreground/60" title={ultimaAtualizacao.detalhe}>
+          Última atualização:{" "}
+          {ultimaAtualizacao.loading
+            ? "…"
+            : ultimaAtualizacao.value
+              ? format(ultimaAtualizacao.value)
+              : "sem dados"}
+        </span>
+      ) : last ? (
         <span className="text-xs text-foreground/60">Última atualização: {format(last)}</span>
       ) : null}
-      <Button size="sm" variant="outline" onClick={onClick} disabled={isSyncing} className="bg-card">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onClick}
+        disabled={isSyncing}
+        className="bg-card"
+      >
         <RefreshCw className={`mr-1 size-4 ${isSyncing ? "animate-spin" : ""}`} />
         {isSyncing ? "Sincronizando..." : "Sincronizar"}
       </Button>

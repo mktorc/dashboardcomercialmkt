@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { syncPricing } from "@/lib/sync-all.functions";
+import { useUltimaAtualizacaoPrecificacao } from "@/lib/pricing-freshness";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
@@ -157,6 +158,7 @@ export function PricingHubView({
 
   // Período de retirada compartilhado entre Gestão de Ocupação e Competitividade.
   const [range, setRange] = useState<Range>(() => defaultRange(todayIso()));
+  const ultimaAtualizacao = useUltimaAtualizacaoPrecificacao();
   const [secao, setSecao] = useState<Section>("prioridades");
 
   return (
@@ -183,7 +185,7 @@ export function PricingHubView({
                       : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
-          <SyncButton fn={syncPricing} />
+          <SyncButton fn={syncPricing} ultimaAtualizacao={ultimaAtualizacao} />
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
           {secao === "prioridades" ? (
