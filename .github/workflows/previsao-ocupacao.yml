@@ -2,9 +2,10 @@ name: Previsão de ocupação (Gestor de Precificação)
 
 on:
   schedule:
-    # Uma vez por dia, 09:00 UTC (05:00 em Orlando): renova o cache do HQ e republica a previsão e o ritmo de reservas
+    # Uma vez por dia, 07:17 UTC (04:17 em Brasília, 03:17 em Orlando): madrugada, para não pesar no horário de uso. Minuto fora do
+    # cheio de propósito: o GitHub atrasa (ou descarta) agendamentos em horário cheio. Renova o cache do HQ e republica a previsão e o ritmo de reservas
     # (ritmo alimenta Gestão de Ocupação e Central de Prioridades).
-    - cron: '0 9 * * *'
+    - cron: '17 7 * * *'
   # Também roda sozinha quando os scripts de precificação ou este fluxo mudam na main (confere o ciclo sem ação manual).
   push:
     branches: [main]
