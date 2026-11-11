@@ -113,7 +113,7 @@ export const grossAt = (row: PaceRow, L: number) =>
 export const occupancyAt = (row: PaceRow, L: number) => (row.f ? soldAt(row, L) / row.f : 0);
 
 /** Faturamento (US$) e diárias com preço de uma linha na antecedência L (diárias criadas até T−L; sem L ou L ≤ 0, a data fechada). */
-function revenueRow(r: PaceRow, L?: number): { v: number; p: number } | null {
+export function revenueRow(r: PaceRow, L?: number): { v: number; p: number } | null {
   if (r.m) {
     let v = 0;
     let p = 0;
@@ -391,6 +391,8 @@ export type RefItem = {
   chosen: boolean;
   cov: PaceRow[];
   capCov: number;
+  /** Linhas históricas da referência (as categorias que entram em `fleet`): base das leituras por antecedência. */
+  hist: PaceRow[];
 };
 
 /**
@@ -405,7 +407,7 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
   const items: RefItem[] = [];
   for (const d of referenceDates(model, date, base).datas) {
     if (d >= base || d === date) continue;
-    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
+    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
     if (truncated(d)) {
       items.push({ ...base0, motivo: "sem registro de vendas nessa antecedência" });
       continue;
@@ -455,6 +457,7 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
       chosen: false,
       cov: ok.map((x) => x.r),
       capCov,
+      hist: pairs.map((x) => x.h),
     });
   }
   let best: RefItem | null = null;

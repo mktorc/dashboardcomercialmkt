@@ -63,6 +63,8 @@ import {
   daysBetween,
   gapLevel,
   pickupCurve,
+  revenueOf,
+  soldAt,
   usePace,
   type PaceModel,
   type PaceRow,
@@ -1761,6 +1763,10 @@ function Detalhe({
                   date={row.date}
                   base={base}
                   lead={row.lead}
+                  closed={row.lead <= 0}
+                  booked={paceRow ? soldAt(paceRow, row.lead) : null}
+                  capacity={paceRow?.f ?? 0}
+                  diariaAtual={paceRow ? revenueOf([paceRow], row.lead).diaria : null}
                   leadLabel={`D-${row.lead}`}
                   rowsFor={(dt) => {
                     const h = model.byKey.get(`${dt}|${row.category}`);

@@ -8,6 +8,7 @@ import {
   Tooltip as ChartTooltip,
   XAxis,
   YAxis,
+  ReferenceDot,
 } from "recharts";
 import {
   ChevronLeft,
@@ -54,6 +55,7 @@ import {
   revenueOf,
   gapLevel,
   pickupCurve,
+  referenceItems,
   rowsByDate,
   summarize,
   usePace,
@@ -64,6 +66,15 @@ import {
   type PacePayload,
   type PaceRow,
 } from "@/lib/occupancy-pace";
+import {
+  FAIXA_TXT,
+  avisoFrotaPequena,
+  carros,
+  curvaDetalhe,
+  faixaReferencias,
+  gapCarros,
+} from "@/lib/occupancy-detail";
+import { FaixaReferencias } from "@/components/precificacao/FaixaReferencias";
 
 const ALL = "__all__";
 const MONTHS = [
@@ -644,21 +655,36 @@ function Pickup({
   );
 }
 
+export type PickupPoint = {
+  label: string;
+  atual: number | null;
+  esperada: number | null;
+  n?: number;
+  [k: string]: number | string | null | undefined;
+};
+
 export function PickupChart({
   title,
   data,
   note,
+  esperadaNome = "Esperada (melhor faturamento por veículo)",
+  extras,
+  marcas,
 }: {
   title: string;
-  data: { label: string; atual: number | null; esperada: number | null; n?: number }[];
+  data: PickupPoint[];
   note?: string;
+  /** Nome da linha esperada (na tela da data: a referência usada, com a data). */
+  esperadaNome?: string;
+  /** Outras referências, desenhadas tracejadas e finas; passar (mesmo vazio) destaca a esperada como a referência usada. */
+  extras?: { key: string; name: string }[];
+  /** Pontos em que cada série chegou a 100% (chave da série e rótulo do eixo). */
+  marcas?: { key: string; label: string }[];
 }) {
   const has = data.some((d) => d.atual != null || d.esperada != null);
+  const destaque = extras !== undefined;
   // Última antecedência com ocupação observada: depois dela não há leitura e nada é previsto.
-  const ultimoObservado = [...data]
-    .reverse()
-    .find((d) => d.atual != null)
-    ?.label.replace(" (base)", "");
+  const ultimoObservado = [...data].reverse().find((d) => d.atual != null)?.label.replace(" (base)", "");
   return (
     <Card className="space-y-2 p-4">
       <h2 className="font-semibold">{title}</h2>
@@ -672,18 +698,36 @@ export function PickupChart({
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
               <ChartTooltip
-                formatter={(v: number | string) =>
-                  typeof v === "number" ? `${v.toFixed(0)}%` : "—"
-                }
+                formatter={(v: number | string, _n: string, item: { dataKey?: string | number; payload?: Record<string, unknown> }) => {
+                  if (typeof v !== "number") return "—";
+                  const c = item?.payload?.[`${item.dataKey}Carros`];
+                  const cap = item?.payload?.["capacidade"];
+                  return typeof c === "number" && typeof cap === "number"
+                    ? `${v.toFixed(0)}% · ${c} de ${cap}`
+                    : `${v.toFixed(0)}%`;
+                }}
                 contentStyle={{ fontSize: 12 }}
               />
+              {(extras ?? []).map((e) => (
+                <Line
+                  key={e.key}
+                  type="monotone"
+                  dataKey={e.key}
+                  name={e.name}
+                  stroke="var(--muted-foreground)"
+                  strokeDasharray="2 3"
+                  strokeWidth={1}
+                  dot={{ r: 2 }}
+                  connectNulls={false}
+                />
+              ))}
               <Line
                 type="monotone"
                 dataKey="esperada"
-                name="Esperada"
+                name={esperadaNome}
                 stroke="var(--muted-foreground)"
-                strokeDasharray="5 4"
-                strokeWidth={2}
+                {...(destaque ? {} : { strokeDasharray: "5 4" })}
+                strokeWidth={destaque ? 3 : 2}
                 dot={{ r: 3 }}
                 connectNulls={false}
               />
@@ -696,19 +740,36 @@ export function PickupChart({
                 dot={{ r: 3 }}
                 connectNulls={false}
               />
+              {(marcas ?? []).map((m) => (
+                <ReferenceDot key={m.key} x={m.label} y={100} r={6} fill="var(--background)" stroke="var(--foreground)" strokeWidth={2} />
+              ))}
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
-      <div className="flex gap-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span>
           <span className="mr-1 inline-block h-0.5 w-4 bg-primary align-middle" />
           Atual{ultimoObservado ? ` (observado até ${ultimoObservado})` : ""}
         </span>
         <span>
-          <span className="mr-1 inline-block h-0 w-4 border-t-2 border-dashed border-muted-foreground align-middle" />
-          Esperada (melhor faturamento por veículo)
+          <span
+            className={`mr-1 inline-block w-4 align-middle ${destaque ? "h-1 bg-muted-foreground" : "h-0 border-t-2 border-dashed border-muted-foreground"}`}
+          />
+          {esperadaNome}
         </span>
+        {(extras ?? []).map((e) => (
+          <span key={e.key}>
+            <span className="mr-1 inline-block h-0 w-4 border-t border-dashed border-muted-foreground align-middle" />
+            {e.name}
+          </span>
+        ))}
+        {marcas?.length ? (
+          <span>
+            <span className="mr-1 inline-block size-2.5 rounded-full border-2 border-foreground align-middle" />
+            chegou a 100%
+          </span>
+        ) : null}
       </div>
       {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
     </Card>
@@ -735,17 +796,30 @@ function Detalhe({
   const rows = useMemo(() => (date ? (byDate.get(date) ?? []) : []), [byDate, date]);
   const d = date ? dayPace(model, rows, date, base) : null;
   const rev = revenueOf(rows, d?.lead);
-  const curve = useMemo(
-    () =>
-      date
-        ? pickupCurve(model, rows, date, base).map((p) => ({
-            label: p.effective ? `D-${p.L} (base)` : `D-${p.L}`,
-            atual: p.atual != null ? Math.round(p.atual * 1000) / 10 : null,
-            esperada: p.esperada != null ? Math.round(p.esperada * 1000) / 10 : null,
-          }))
-        : [],
-    [model, rows, date, base],
+  const items = useMemo(
+    () => (date && d && d.capacity ? referenceItems(model, rows, date, base, d.lead) : []),
+    [model, rows, date, base, d],
   );
+  const curva = useMemo(
+    () =>
+      date && d
+        ? curvaDetalhe(
+            pickupCurve(model, rows, date, base).map((p) => ({
+              label: p.effective ? `D-${p.L} (base)` : `D-${p.L}`,
+              L: p.L,
+              atual: p.atual,
+              esperada: p.esperada,
+            })),
+            items,
+            d.capacity,
+          )
+        : { data: [], extras: [], marcas: [] },
+    [model, rows, date, base, d, items],
+  );
+  const usada = items.find((i) => i.chosen);
+  const faixa = d ? faixaReferencias(items, d.atual) : null;
+  const capCov = d ? (d.cobertura ?? 0) * d.capacity : 0;
+  const pequena = d ? avisoFrotaPequena(d.capacity) : null;
   const lv = d?.gap != null ? LEVEL[gapLevel(d.gap, bands)] : null;
   const leadTxt = d ? (d.closed ? "encerrada (D-0)" : `D-${d.lead}`) : "";
   return (
@@ -761,17 +835,46 @@ function Detalhe({
           <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-2">
-                <Kpi icon={Gauge} label="Atual" value={pct(d.atual)} />
-                <Kpi icon={Target} label="Esperada" value={pct(d.esperada)} />
-                <Kpi icon={TrendingUp} label="Gap" value={gapTxt(d.gap)} tone={lv?.text} />
+                <Kpi
+                icon={Gauge}
+                label="Atual"
+                value={pct(d.atual)}
+                {...(d.atual != null ? { hint: `${carros(d.atual, d.capacity)} de ${d.capacity} carros` } : {})}
+              />
+                <Kpi
+                icon={Target}
+                label="Esperada"
+                value={pct(d.esperada)}
+                {...(d.esperada != null ? { hint: `${carros(d.esperada, d.capacity)} de ${d.capacity} carros` } : {})}
+              />
+                <Kpi
+                icon={TrendingUp}
+                label="Gap"
+                value={gapTxt(d.gap)}
+                tone={lv?.text}
+                {...(d.gap != null
+                  ? { hint: `${gapCarros(d.gap, capCov) > 0 ? "+" : ""}${gapCarros(d.gap, capCov)} carros` }
+                  : {})}
+              />
               </div>
               {lv ? (
-                <p className={`text-sm font-medium ${lv.text}`}>{lv.label}</p>
+                <p className={`text-sm font-medium ${lv.text}`}>
+                {lv.label}
+                {faixa?.status ? (
+                  <span className="font-normal text-muted-foreground"> · {FAIXA_TXT[faixa.status]} das referências</span>
+                ) : null}
+              </p>
               ) : (
                 <p className="text-sm text-muted-foreground">
                   Histórico comparável insuficiente: sem benchmark para esta data.
                 </p>
               )}
+              {faixa ? <FaixaReferencias faixa={faixa} atual={d.atual} /> : null}
+              {pequena ? (
+                <div className="rounded-md border border-amber-600/40 p-2 text-xs text-amber-700 dark:text-amber-300">
+                  Frota pequena ({d.capacity} carros): {pequena.texto}.
+                </div>
+              ) : null}
               <dl className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Veículos reservados</dt>
@@ -823,8 +926,11 @@ function Detalhe({
               </dl>
               <PickupChart
                 title="Curva de pickup da data"
-                data={curve}
-                note="A esperada é a ocupação do período anterior comparável de maior faturamento por veículo, lida em cada antecedência. A atual não é prevista além da data-base."
+                data={curva.data}
+                esperadaNome={usada ? `Referência usada (${dataBR(usada.date)})` : "Esperada"}
+                extras={curva.extras.map((e) => ({ key: e.key, name: `Referência ${e.date.slice(0, 4)} (${dataBR(e.date)})` }))}
+                marcas={curva.marcas}
+                note="Cada referência é lida na mesma antecedência; a esperada é a usada, a de maior faturamento por veículo final. A atual não é prevista além da data-base."
               />
             </div>
             <ReferenciasAnteriores
@@ -833,6 +939,10 @@ function Detalhe({
               date={date!}
               base={base}
               lead={d.lead}
+              closed={d.closed}
+              booked={d.booked}
+              capacity={d.capacity}
+              diariaAtual={rev.diaria}
               leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
               rowsFor={(dt) => byDate.get(dt) ?? []}
             />
