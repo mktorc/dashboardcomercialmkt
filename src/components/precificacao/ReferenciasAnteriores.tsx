@@ -70,7 +70,9 @@ export function ReferenciasAnteriores({
             </div>
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Diária média {usd(r.diaria)}</span>
-              <span>Faturamento/veículo {usd(it?.rev ?? null)}</span>
+              <span>
+                Faturamento/veículo final {usd(it?.revFinal ?? null)} · em {leadLabel} {usd(it?.rev ?? null)}
+              </span>
             </div>
             {it && !it.eligible && it.motivo ? (
               <div className="text-xs text-amber-700 dark:text-amber-300">Fora da esperada: {it.motivo}</div>

@@ -9,6 +9,7 @@ import {
   leadOf,
   occupancyAt,
   pickupCurve,
+  referenceItems,
   revenueOf,
   rowsByDate,
   summarize,
@@ -351,6 +352,34 @@ describe("esperada escolhida pelo dia todo", () => {
     const m = buildModel({ ...payload, linhas: l2 } as never, "maximo");
     const d = dayPace(m, l2.slice(0, 2) as never, "2026-11-12", "2026-11-10");
     expect(d.esperada).toBeCloseTo(9 / 12, 5);
+  });
+});
+
+describe("referência escolhida pelo faturamento final", () => {
+  // Alvo 2026-12-25, base 2026-11-10 (D-45). 2025: vende cedo (D-60) e barato, final US$ 30/veículo. 2024: vende tarde (D-5) e caro, final US$ 80.
+  // Em D-45 o parcial favorece 2025; o final favorece 2024.
+  const mk = (d: string, a: number[], m: number[]) => ({ d, c: "A", f: 10, a, m });
+  const linhas = [
+    mk("2026-12-25", [], []),
+    mk("2025-12-26", Array(6).fill(60), Array(6).fill(50)),
+    mk("2024-12-27", [...Array(2).fill(60), ...Array(6).fill(5)], [...Array(2).fill(10), ...Array(6).fill(130)]),
+  ];
+  const cal = { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null], "2024-12-27": ["Alta", null, null] };
+  const pl = {
+    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal, linhas,
+  } as unknown as Parameters<typeof buildModel>[0];
+  it("escolhe pelo faturamento final e usa a ocupação dela na antecedência analisada", () => {
+    const m = buildModel(pl, "maximo");
+    const rows = [linhas[0]] as never;
+    const it = referenceItems(m, rows, "2026-12-25", "2026-11-10", 45);
+    const r25 = it.find((i) => i.date === "2025-12-26")!;
+    const r24 = it.find((i) => i.date === "2024-12-27")!;
+    expect(r25.rev!).toBeGreaterThan(r24.rev!); // parcial favoreceria 2025
+    expect(r24.revFinal!).toBeGreaterThan(r25.revFinal!);
+    expect(r24.chosen).toBe(true);
+    expect(r25.chosen).toBe(false);
+    expect(dayPace(m, rows, "2026-12-25", "2026-11-10").esperada).toBeCloseTo(0.2, 5); // 2 de 10 em D-45
   });
 });
 

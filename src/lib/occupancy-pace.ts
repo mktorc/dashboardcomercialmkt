@@ -359,8 +359,12 @@ export type RefItem = {
   date: string;
   /** Ocupação da referência na antecedência L: diárias ativas ÷ frota que existia na época. */
   occ: number | null;
-  /** Faturamento por veículo da referência (diárias da antecedência L ÷ frota da época). */
+  /** Faturamento por veículo da referência na antecedência L (parcial: diárias vendidas até então ÷ frota da época). */
   rev: number | null;
+  /** Faturamento por veículo FINAL da referência (D-0: todas as diárias vendidas ÷ frota da época). Critério de escolha. */
+  revFinal: number | null;
+  /** Ocupação final (D-0) da referência: critério de escolha quando não há faturamento final. */
+  occFinal: number | null;
   fleet: number;
   /** Parcela da frota atual que a referência cobre. */
   cobertura: number;
@@ -373,8 +377,8 @@ export type RefItem = {
 
 /**
  * Datas de referência do dia no modo "melhor registro", escolhidas pelo DIA TODO: cada data soma as categorias das linhas, com a frota
- * que existia na época (com os veículos depois vendidos) e as diárias vendidas na mesma antecedência L. Vale a de maior faturamento por
- * veículo (sem faturamento, a de maior ocupação) entre as elegíveis: cobrem ao menos REF_COBERTURA_MIN da frota atual e a frota da
+ * que existia na época (com os veículos depois vendidos) e as diárias vendidas na mesma antecedência L (a esperada é a ocupação em L da escolhida). Vale a de maior faturamento por
+ * veículo FINAL, D-0 (sem faturamento, a de maior ocupação final) entre as elegíveis: cobrem ao menos REF_COBERTURA_MIN da frota atual e a frota da
  * época de cada categoria é ao menos REF_FROTA_MIN da atual. Categorias sem linha na referência ficam de fora dos dois lados (`cov`).
  */
 export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number): RefItem[] {
@@ -383,7 +387,7 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
   const items: RefItem[] = [];
   for (const d of referenceDates(model, date, base).datas) {
     if (d >= base || d === date) continue;
-    const base0 = { date: d, occ: null, rev: null, fleet: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
+    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
     if (truncated(d)) {
       items.push({ ...base0, motivo: "sem registro de vendas nessa antecedência" });
       continue;
@@ -402,11 +406,15 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
     const fh = sum(pairs.map((x) => histFleet(x.h)));
     const revs = pairs.map((x) => revenueRow(x.h, L));
     const rev = revs.every((x) => x) ? sum(revs.map((x) => x!.v)) / fh : null;
+    const revsF = pairs.map((x) => revenueRow(x.h));
+    const revFinal = revsF.every((x) => x) ? sum(revsF.map((x) => x!.v)) / fh : null;
     const eligible = ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
     items.push({
       date: d,
       occ: sum(pairs.map((x) => activeAt(x.h, L))) / fh,
       rev,
+      revFinal,
+      occFinal: sum(pairs.map((x) => activeAt(x.h, 0))) / fh,
       fleet: fh,
       cobertura,
       eligible,
@@ -423,7 +431,8 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
   let best: RefItem | null = null;
   for (const it of items) {
     if (!it.eligible) continue;
-    if (!best || (it.rev != null && best.rev != null ? it.rev > best.rev : it.rev != null ? true : best.rev != null ? false : it.occ! > best.occ!)) best = it;
+    // Escolha pelo faturamento por veículo FINAL; sem ele, pela ocupação final. A esperada é a ocupação dela em L.
+    if (!best || (it.revFinal != null && best.revFinal != null ? it.revFinal > best.revFinal : it.revFinal != null ? true : best.revFinal != null ? false : it.occFinal! > best.occFinal!)) best = it;
   }
   if (best) best.chosen = true;
   return items;
