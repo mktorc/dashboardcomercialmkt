@@ -404,10 +404,20 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
     const capCov = sum(ok.map((x) => x.r.f));
     const cobertura = capacity ? capCov / capacity : 0;
     const fh = sum(pairs.map((x) => histFleet(x.h)));
-    const revs = pairs.map((x) => revenueRow(x.h, L));
-    const rev = revs.every((x) => x) ? sum(revs.map((x) => x!.v)) / fh : null;
-    const revsF = pairs.map((x) => revenueRow(x.h));
-    const revFinal = revsF.every((x) => x) ? sum(revsF.map((x) => x!.v)) / fh : null;
+    // Faturamento por veículo só com as categorias que têm preço (as sem tarifa saem do valor e da frota dele, como em revenueOf).
+    const porVeiculo = (lead?: number) => {
+      let v = 0;
+      let f = 0;
+      for (const x of pairs) {
+        const r = revenueRow(x.h, lead);
+        if (!r || !r.p) continue;
+        v += r.v;
+        f += histFleet(x.h);
+      }
+      return f ? v / f : null;
+    };
+    const rev = porVeiculo(L);
+    const revFinal = porVeiculo();
     const eligible = ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
     items.push({
       date: d,

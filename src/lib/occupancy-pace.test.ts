@@ -383,6 +383,23 @@ describe("referência escolhida pelo faturamento final", () => {
   });
 });
 
+describe("referência com categoria sem tarifa", () => {
+  // A e B no alvo; na referência, B não tem preço (sem `m`): o faturamento vale só A (US$ 100 ÷ frota 10 de A).
+  const alvo = [{ d: "2026-12-25", c: "A", f: 10, a: [] }, { d: "2026-12-25", c: "B", f: 10, a: [] }];
+  const ref = [{ d: "2025-12-26", c: "A", f: 10, a: [60, 60], m: [50, 50] }, { d: "2025-12-26", c: "B", f: 10, a: [60] }];
+  const pl = {
+    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A", "B"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+    cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] }, linhas: [...alvo, ...ref],
+  } as unknown as Parameters<typeof buildModel>[0];
+  it("calcula o faturamento só com as categorias que têm preço", () => {
+    const it = referenceItems(buildModel(pl, "maximo"), alvo as never, "2026-12-25", "2026-11-10", 45)[0]!;
+    expect(it.revFinal).toBe(10);
+    expect(it.rev).toBe(10);
+    expect(it.occFinal).toBeCloseTo(3 / 20, 5);
+  });
+});
+
 describe("revenueOf com categoria sem tarifa", () => {
   const a = { d: "2027-02-03", c: "A", f: 4, a: [30, 30], m: [100, 200] };
   const lux = { d: "2027-02-03", c: "Luxury", f: 2, a: [30] };
