@@ -136,7 +136,7 @@ export function ReferenciasAnteriores({
                       <Campo rotulo={`Diária média ${leadLabel}`} valor={usd(diariaRef)} />
                       <Campo rotulo="Fat./veículo final" valor={usd(it.revFinal)} />
                       <Campo rotulo={`Fat./veículo ${leadLabel}`} valor={usd(it.rev)} />
-                      <Campo rotulo={`Diária de hoje vs ${leadLabel}`} valor={dif(difDiariaPct(diariaAtual, diariaRef))} />
+                      <Campo rotulo={`Diária vendida vs ref. ${leadLabel}`} valor={dif(difDiariaPct(diariaAtual, diariaRef))} />
                     </dl>
                     <div className="text-xs text-muted-foreground">
                       Frota: {it.fleet} na época · {it.fleetAtual} hoje (mesmas categorias)
@@ -187,17 +187,28 @@ export function ReferenciasAnteriores({
               })
             )}
           </div>
-          <div className="text-xs text-muted-foreground">
+          <div className="space-y-0.5 text-xs text-muted-foreground">
             {precoVenda ? (
               <>
-                Preço de venda atual (tarifa do site): <span className="text-foreground">{usd(precoVenda.valor)}</span>
-                {precoVenda.total > 1
-                  ? ` (média pela frota, ${precoVenda.cobertas} de ${precoVenda.total} categorias com tarifa)`
-                  : ""}
-                {diariaAtual != null ? ` · ${dif(difDiariaPct(precoVenda.valor, diariaAtual))} contra a diária já vendida` : ""}
-                {usada && diariaUsada != null
-                  ? ` · ${dif(difDiariaPct(precoVenda.valor, diariaUsada))} contra ${usada.date.slice(0, 4)} em ${leadLabel}`
-                  : ""}
+                <div>
+                  Preço de venda atual (tarifa de tabela do site):{" "}
+                  <span className="font-medium text-foreground">{usd(precoVenda.valor)}</span>
+                  {precoVenda.total > 1
+                    ? ` (média pela frota, ${precoVenda.cobertas} de ${precoVenda.total} categorias com tarifa)`
+                    : ""}
+                </div>
+                {diariaAtual != null ? (
+                  <div className="tabular-nums">
+                    Já vendido em média: {usd(diariaAtual)} · tarifa {dif(difDiariaPct(precoVenda.valor, diariaAtual))}
+                  </div>
+                ) : null}
+                {usada && diariaUsada != null ? (
+                  <div className="tabular-nums">
+                    {usada.date.slice(0, 4)} em {leadLabel} (referência usada): {usd(diariaUsada)} · tarifa{" "}
+                    {dif(difDiariaPct(precoVenda.valor, diariaUsada))}
+                  </div>
+                ) : null}
+                <div>A tarifa é preço de tabela e a diária vendida é o valor pago: a comparação mostra a direção, não a diferença exata.</div>
               </>
             ) : (
               "Preço de venda atual: sem tarifa lida para esta data."
