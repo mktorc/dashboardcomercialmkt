@@ -21,5 +21,5 @@ jobs:
           SYNC_CRON_TOKEN: ${{ secrets.SYNC_CRON_TOKEN }}
         run: |
           curl --fail-with-body -sS -m 540 -X POST \
-            "https://dashboardcomercialmkt.lovable.app/api/public/sync/clickmassa-opportunities" \
+            "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa-opportunities" \
             -H "Authorization: Bearer $SYNC_CRON_TOKEN"

@@ -27,7 +27,7 @@ export type SyncFailure = {
   stack?: string | undefined;
 };
 
-const PRODUCTION_ORIGIN = "https://dashboardcomercialmkt.lovable.app";
+const PRODUCTION_ORIGIN = "https://dashboardcomercialmkt.vercel.app";
 
 export function resolveOrigin(request: Request): string {
   const h0 = request.headers;
