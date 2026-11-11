@@ -1767,6 +1767,9 @@ function Detalhe({
                   booked={paceRow ? soldAt(paceRow, row.lead) : null}
                   capacity={paceRow?.f ?? 0}
                   diariaAtual={paceRow ? revenueOf([paceRow], row.lead).diaria : null}
+                  precoVenda={
+                    row.price.ourRate != null ? { valor: row.price.ourRate, cobertas: 1, total: 1, faltam: [] } : null
+                  }
                   leadLabel={`D-${row.lead}`}
                   rowsFor={(dt) => {
                     const h = model.byKey.get(`${dt}|${row.category}`);

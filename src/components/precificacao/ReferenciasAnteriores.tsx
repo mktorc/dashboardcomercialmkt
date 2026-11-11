@@ -9,7 +9,7 @@ import {
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import { carros, difDiariaPct, diariaEmL, lotouEm, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
+import { type PrecoVenda, carros, difDiariaPct, diariaEmL, lotouEm, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
 import { dataBR, pct, usd } from "@/lib/pricing-format";
 
 const ganho = (pp: number | null) => (pp == null ? "—" : `${pp >= 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")} p.p.`);
@@ -44,6 +44,7 @@ export function ReferenciasAnteriores({
   booked,
   capacity,
   diariaAtual,
+  precoVenda,
   leadLabel,
   rowsFor,
 }: {
@@ -60,6 +61,8 @@ export function ReferenciasAnteriores({
   capacity: number;
   /** Diária média de hoje (do que já foi vendido). */
   diariaAtual: number | null;
+  /** Nossa tarifa de venda atual para a data (e categorias); null/ausente = ainda sem tarifa lida. */
+  precoVenda?: PrecoVenda | null;
   leadLabel: string;
   /** Linhas (data × categoria) de uma data histórica: as categorias da análise atual. */
   rowsFor: (date: string) => PaceRow[];
@@ -76,6 +79,8 @@ export function ReferenciasAnteriores({
   const titulo = ref.evento
     ? `${EVENT_LABEL[ref.evento]} (${ref.posicao! > 0 ? "+" : ""}${ref.posicao} dias) em edições anteriores`
     : "Mesmo dia da semana em períodos anteriores";
+  const usada = todos.find((i) => i.chosen);
+  const diariaUsada = usada ? diariaEmL(usada.hist, lead) : null;
   const ritmo = (dias: number) => ({
     hoje: closed ? null : ritmoRecente(rows, lead, dias),
     refs: itens.map(({ dt, it }) => ({
@@ -183,7 +188,20 @@ export function ReferenciasAnteriores({
             )}
           </div>
           <div className="text-xs text-muted-foreground">
-            Preço de venda atual para a data e categoria: dados indisponíveis (esta tela não carrega a tarifa do site).
+            {precoVenda ? (
+              <>
+                Preço de venda atual (tarifa do site): <span className="text-foreground">{usd(precoVenda.valor)}</span>
+                {precoVenda.total > 1
+                  ? ` (média pela frota, ${precoVenda.cobertas} de ${precoVenda.total} categorias com tarifa)`
+                  : ""}
+                {diariaAtual != null ? ` · ${dif(difDiariaPct(precoVenda.valor, diariaAtual))} contra a diária já vendida` : ""}
+                {usada && diariaUsada != null
+                  ? ` · ${dif(difDiariaPct(precoVenda.valor, diariaUsada))} contra ${usada.date.slice(0, 4)} em ${leadLabel}`
+                  : ""}
+              </>
+            ) : (
+              "Preço de venda atual: sem tarifa lida para esta data."
+            )}
           </div>
         </div>
       )}

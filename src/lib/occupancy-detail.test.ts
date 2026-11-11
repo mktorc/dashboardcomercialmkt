@@ -9,6 +9,7 @@ import {
   faixaReferencias,
   gapCarros,
   lotouEm,
+  precoVendaAtual,
   primeiroCheio,
   projecaoFechamento,
   ritmoRecente,
@@ -150,5 +151,22 @@ describe("curva com as referências", () => {
     expect(c.extras).toEqual([{ key: "ref0", date: "2026-01-06" }]);
     expect(c.data[0]).toMatchObject({ esperada: 50, esperadaCarros: 5, atualCarros: 2, ref0: 50, ref0Carros: 5, capacidade: 10 });
     expect(c.marcas).toEqual([{ key: "esperada", label: "D-20" }]);
+  });
+});
+
+describe("preço de venda atual", () => {
+  const r = (c: string, f: number): PaceRow => ({ d: "2027-01-28", c, f, a: [] }) as PaceRow;
+  const t = new Map([["2027-01-28|A", 60], ["2027-01-28|B", 100]]);
+  it("uma categoria: a tarifa dela", () => {
+    expect(precoVendaAtual([r("A", 10)], t, "2027-01-28")).toMatchObject({ valor: 60, cobertas: 1, total: 1 });
+  });
+  it("várias: média ponderada pela frota, só das que têm tarifa", () => {
+    const p = precoVendaAtual([r("A", 30), r("B", 10), r("C", 50)], t, "2027-01-28")!;
+    expect(p.valor).toBeCloseTo((60 * 30 + 100 * 10) / 40, 5);
+    expect(p).toMatchObject({ cobertas: 2, total: 3, faltam: ["C"] });
+  });
+  it("sem tarifa para a data, null", () => {
+    expect(precoVendaAtual([r("C", 5)], t, "2027-01-28")).toBeNull();
+    expect(precoVendaAtual([r("A", 10)], t, "2027-02-01")).toBeNull();
   });
 });

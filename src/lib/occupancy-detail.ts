@@ -171,3 +171,25 @@ export function curvaDetalhe(
     ),
   };
 }
+
+export type PrecoVenda = { valor: number; cobertas: number; total: number; faltam: string[] };
+
+/**
+ * Preço de venda atual (nossa tarifa para a data) das linhas analisadas: com uma categoria, o dela; com várias, a média ponderada
+ * pela frota das que têm tarifa. `tarifas` vem de "data|categoria" → diária. Sem nenhuma tarifa, null.
+ */
+export function precoVendaAtual(rows: PaceRow[], tarifas: Map<string, number>, date: string): PrecoVenda | null {
+  let v = 0;
+  let f = 0;
+  const faltam: string[] = [];
+  for (const r of rows) {
+    const t = tarifas.get(`${date}|${r.c}`);
+    if (t == null || !r.f) {
+      faltam.push(r.c);
+      continue;
+    }
+    v += t * r.f;
+    f += r.f;
+  }
+  return f ? { valor: v / f, cobertas: rows.length - faltam.length, total: rows.length, faltam } : null;
+}

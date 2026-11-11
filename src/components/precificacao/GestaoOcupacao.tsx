@@ -73,7 +73,9 @@ import {
   curvaDetalhe,
   faixaReferencias,
   gapCarros,
+  precoVendaAtual,
 } from "@/lib/occupancy-detail";
+import { useOurRates } from "@/lib/competitive-data";
 import { FaixaReferencias } from "@/components/precificacao/FaixaReferencias";
 
 const ALL = "__all__";
@@ -817,6 +819,12 @@ function Detalhe({
     [model, rows, date, base, d, items],
   );
   const usada = items.find((i) => i.chosen);
+  const rates = useOurRates();
+  const tarifas = useMemo(
+    () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate] as [string, number])),
+    [rates.data],
+  );
+  const precoVenda = date ? precoVendaAtual(rows, tarifas, date) : null;
   const faixa = d ? faixaReferencias(items, d.atual) : null;
   const capCov = d ? (d.cobertura ?? 0) * d.capacity : 0;
   const pequena = d ? avisoFrotaPequena(d.capacity) : null;
@@ -943,6 +951,7 @@ function Detalhe({
               booked={d.booked}
               capacity={d.capacity}
               diariaAtual={rev.diaria}
+              precoVenda={precoVenda}
               leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
               rowsFor={(dt) => byDate.get(dt) ?? []}
             />
