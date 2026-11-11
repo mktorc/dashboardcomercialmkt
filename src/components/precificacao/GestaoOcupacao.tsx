@@ -141,7 +141,8 @@ function Painel({
   const sum = useMemo(() => summarize(days, bands), [days, bands]);
   // Ocupação atual do intervalo = a do relatório de Utilização do HQ para a janela inteira (só com a data-base de hoje: os trechos são os de hoje).
   const hqWindow = useMemo(
-    () => (base === payload.hoje ? windowOccupancy(payload, cat === ALL ? null : cat, from, to) : null),
+    () =>
+      base === payload.hoje ? windowOccupancy(payload, cat === ALL ? null : cat, from, to) : null,
     [payload, cat, from, to, base],
   );
   const outOfRange = from < payload.de || to > payload.ate;
@@ -507,6 +508,11 @@ function Comparativo({ days, base, bands }: { days: DayPace[]; base: string; ban
     closed: d.closed,
   }));
   const has = data.some((d) => d.atual != null || d.esperada != null);
+  // Última antecedência com ocupação observada: depois dela não há leitura e nada é previsto.
+  const ultimoObservado = [...data]
+    .reverse()
+    .find((d) => d.atual != null)
+    ?.label.replace(" (base)", "");
   return (
     <Card className="space-y-2 p-4">
       <h2 className="font-semibold">Ocupação atual vs. esperada · base {dataBR(base)}</h2>
@@ -648,6 +654,11 @@ export function PickupChart({
   note?: string;
 }) {
   const has = data.some((d) => d.atual != null || d.esperada != null);
+  // Última antecedência com ocupação observada: depois dela não há leitura e nada é previsto.
+  const ultimoObservado = [...data]
+    .reverse()
+    .find((d) => d.atual != null)
+    ?.label.replace(" (base)", "");
   return (
     <Card className="space-y-2 p-4">
       <h2 className="font-semibold">{title}</h2>
@@ -669,7 +680,7 @@ export function PickupChart({
               <Line
                 type="monotone"
                 dataKey="esperada"
-                name="Histórica média"
+                name="Esperada"
                 stroke="var(--muted-foreground)"
                 strokeDasharray="5 4"
                 strokeWidth={2}
@@ -692,11 +703,11 @@ export function PickupChart({
       <div className="flex gap-4 text-xs text-muted-foreground">
         <span>
           <span className="mr-1 inline-block h-0.5 w-4 bg-primary align-middle" />
-          Atual (só até onde há dado observado)
+          Atual{ultimoObservado ? ` (observado até ${ultimoObservado})` : ""}
         </span>
         <span>
           <span className="mr-1 inline-block h-0 w-4 border-t-2 border-dashed border-muted-foreground align-middle" />
-          Histórica média
+          Esperada (melhor faturamento por veículo)
         </span>
       </div>
       {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
@@ -739,7 +750,7 @@ function Detalhe({
   const leadTxt = d ? (d.closed ? "encerrada (D-0)" : `D-${d.lead}`) : "";
   return (
     <Sheet open={!!date} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full space-y-4 overflow-y-auto sm:max-w-lg">
+      <SheetContent className="w-full space-y-4 overflow-y-auto sm:max-w-[min(1280px,94vw)]">
         <SheetHeader>
           <SheetTitle>Retirada em {date ? dataBR(date) : ""}</SheetTitle>
           <SheetDescription>
@@ -747,72 +758,75 @@ function Detalhe({
           </SheetDescription>
         </SheetHeader>
         {d ? (
-          <>
-            <div className="grid grid-cols-3 gap-2">
-              <Kpi icon={Gauge} label="Atual" value={pct(d.atual)} />
-              <Kpi icon={Target} label="Esperada" value={pct(d.esperada)} />
-              <Kpi icon={TrendingUp} label="Gap" value={gapTxt(d.gap)} tone={lv?.text} />
-            </div>
-            {lv ? (
-              <p className={`text-sm font-medium ${lv.text}`}>{lv.label}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Histórico comparável insuficiente: sem benchmark para esta data.
-              </p>
-            )}
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Veículos reservados</dt>
-                <dd className="font-medium tabular-nums">{d.booked ?? "—"}</dd>
+          <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <Kpi icon={Gauge} label="Atual" value={pct(d.atual)} />
+                <Kpi icon={Target} label="Esperada" value={pct(d.esperada)} />
+                <Kpi icon={TrendingUp} label="Gap" value={gapTxt(d.gap)} tone={lv?.text} />
               </div>
-              <div>
-                <dt className="text-muted-foreground">Capacidade disponível</dt>
-                <dd className="font-medium tabular-nums">{d.capacity}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Diária média (hoje)</dt>
-                <dd className="font-medium tabular-nums">{usd(rev.diaria)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Faturamento por veículo</dt>
-                <dd className="font-medium tabular-nums">{usd(rev.porVeiculo)}</dd>
-              </div>
-              {rev.semPreco.length > 0 && rev.semPreco.length < rows.length ? (
-                <p className="col-span-2 text-xs text-muted-foreground">
-                  Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")} (sem tarifa lançada).
+              {lv ? (
+                <p className={`text-sm font-medium ${lv.text}`}>{lv.label}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Histórico comparável insuficiente: sem benchmark para esta data.
                 </p>
-              ) : null}
-              <div>
-                <dt className="text-muted-foreground">Sazonalidade</dt>
-                <dd className="font-medium">{d.season ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Evento móvel</dt>
-                <dd className="font-medium">
-                  {d.event
-                    ? `${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel} dias)`
-                    : "—"}
-                </dd>
-              </div>
-              <div className="col-span-2">
-                <dt className="text-muted-foreground">Base do benchmark</dt>
-                <dd className="font-medium">
-                  {d.level ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} datas passadas` : "—"}
-                </dd>
-              </div>
-              {d.semBenchmark && d.semBenchmark.length ? (
-                <div className="col-span-2 text-xs text-muted-foreground">
-                  {d.esperada != null
-                    ? `Esperado e gap não incluem ${d.semBenchmark.join(", ")} (sem histórico comparável); cobertura de ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`
-                    : `Sem esperado: ${d.semBenchmark.join(", ")} não tem histórico comparável e as demais categorias cobrem só ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`}
+              )}
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Veículos reservados</dt>
+                  <dd className="font-medium tabular-nums">{d.booked ?? "—"}</dd>
                 </div>
-              ) : null}
-            </dl>
-            <PickupChart
-              title="Curva de pickup da data"
-              data={curve}
-              note="Esperada = ocupação do período anterior comparável que teve o melhor faturamento por veículo, lida em cada antecedência. A curva atual só tem pontos até a antecedência da data-base; depois dela não há observação e nada é previsto."
-            />
+                <div>
+                  <dt className="text-muted-foreground">Capacidade disponível</dt>
+                  <dd className="font-medium tabular-nums">{d.capacity}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Diária média (hoje)</dt>
+                  <dd className="font-medium tabular-nums">{usd(rev.diaria)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Faturamento por veículo</dt>
+                  <dd className="font-medium tabular-nums">{usd(rev.porVeiculo)}</dd>
+                </div>
+                {rev.semPreco.length > 0 && rev.semPreco.length < rows.length ? (
+                  <p className="col-span-2 text-xs text-muted-foreground">
+                    Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")}{" "}
+                    (sem tarifa lançada).
+                  </p>
+                ) : null}
+                <div>
+                  <dt className="text-muted-foreground">Sazonalidade</dt>
+                  <dd className="font-medium">{d.season ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Evento móvel</dt>
+                  <dd className="font-medium">
+                    {d.event
+                      ? `${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel} dias)`
+                      : "—"}
+                  </dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">Base do benchmark</dt>
+                  <dd className="font-medium">
+                    {d.level ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} datas passadas` : "—"}
+                  </dd>
+                </div>
+                {d.semBenchmark && d.semBenchmark.length ? (
+                  <div className="col-span-2 text-xs text-muted-foreground">
+                    {d.esperada != null
+                      ? `Esperado e gap não incluem ${d.semBenchmark.join(", ")} (sem histórico comparável); cobertura de ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`
+                      : `Sem esperado: ${d.semBenchmark.join(", ")} não tem histórico comparável e as demais categorias cobrem só ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`}
+                  </div>
+                ) : null}
+              </dl>
+              <PickupChart
+                title="Curva de pickup da data"
+                data={curve}
+                note="A esperada é a ocupação do período anterior comparável de maior faturamento por veículo, lida em cada antecedência. A atual não é prevista além da data-base."
+              />
+            </div>
             <ReferenciasAnteriores
               model={model}
               rows={rows}
@@ -822,7 +836,7 @@ function Detalhe({
               leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
               rowsFor={(dt) => byDate.get(dt) ?? []}
             />
-          </>
+          </div>
         ) : null}
       </SheetContent>
     </Sheet>

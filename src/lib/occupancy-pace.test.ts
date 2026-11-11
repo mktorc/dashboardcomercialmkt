@@ -10,6 +10,8 @@ import {
   occupancyAt,
   pickupCurve,
   referenceItems,
+  ganhoAteData,
+  avisoFrota,
   revenueOf,
   rowsByDate,
   summarize,
@@ -397,6 +399,32 @@ describe("referência com categoria sem tarifa", () => {
     expect(it.revFinal).toBe(10);
     expect(it.rev).toBe(10);
     expect(it.occFinal).toBeCloseTo(3 / 20, 5);
+  });
+});
+
+describe("painel de referências: ganho e frota", () => {
+  it("ganho até a data = ocupação final − ocupação em D-N, em p.p.", () => {
+    expect(ganhoAteData({ occ: 0.6, occFinal: 0.89 })).toBeCloseTo(29, 5);
+    expect(ganhoAteData({ occ: null, occFinal: 0.89 })).toBeNull();
+  });
+  it("avisa só quando a frota difere da atual em mais que o limite", () => {
+    expect(avisoFrota(70, 100)).toBe("frota 30% menor que a atual");
+    expect(avisoFrota(130, 100)).toBe("frota 30% maior que a atual");
+    expect(avisoFrota(85, 100)).toBeNull(); // exatamente 15%: dentro do limite
+    expect(avisoFrota(80, 100, 0.25)).toBeNull(); // limite configurável
+    expect(avisoFrota(0, 100)).toBeNull();
+  });
+  it("referenceItems traz a frota da época e a atual das mesmas categorias", () => {
+    const alvo = [{ d: "2026-12-25", c: "A", f: 10, a: [] }];
+    const ref = { d: "2025-12-26", c: "A", f: 7, g: 7, a: [60] };
+    const pl = {
+      versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A"],
+      params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+      cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] }, linhas: [...alvo, ref],
+    } as unknown as Parameters<typeof buildModel>[0];
+    const it = referenceItems(buildModel(pl, "maximo"), alvo as never, "2026-12-25", "2026-11-10", 45)[0]!;
+    expect([it.fleet, it.fleetAtual]).toEqual([7, 10]);
+    expect(avisoFrota(it.fleet, it.fleetAtual)).toBe("frota 30% menor que a atual");
   });
 });
 

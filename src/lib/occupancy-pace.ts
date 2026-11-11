@@ -351,6 +351,22 @@ export const REF_COBERTURA_MIN = 0;
 /** Frota mínima da época, em parcela da atual da categoria (1 carro alugado = 100% e vira meta para 10). 0 = desligado por enquanto. */
 export const REF_FROTA_MIN = 0;
 
+/** Diferença de frota (da época contra a atual) acima da qual o painel avisa. 0,15 = 15%. */
+export const FROTA_AVISO_LIMITE = 0.15;
+
+/** Ganho de ocupação da antecedência analisada até o fim (D-0), em p.p.; null sem as duas ocupações. */
+export function ganhoAteData(it: Pick<RefItem, "occ" | "occFinal">): number | null {
+  return it.occ != null && it.occFinal != null ? (it.occFinal - it.occ) * 100 : null;
+}
+
+/** Aviso quando a frota da referência difere da atual em mais que `limite` (ex.: "frota 30% menor que a atual"); null se não difere. */
+export function avisoFrota(fleet: number, fleetAtual: number, limite = FROTA_AVISO_LIMITE): string | null {
+  if (!fleet || !fleetAtual) return null;
+  const d = (fleet - fleetAtual) / fleetAtual;
+  if (Math.abs(d) <= limite) return null;
+  return `frota ${Math.round(Math.abs(d) * 100)}% ${d < 0 ? "menor" : "maior"} que a atual`;
+}
+
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
 
 
@@ -366,6 +382,8 @@ export type RefItem = {
   /** Ocupação final (D-0) da referência: critério de escolha quando não há faturamento final. */
   occFinal: number | null;
   fleet: number;
+  /** Frota atual das mesmas categorias que entram em `fleet` (para comparar com a da época). */
+  fleetAtual: number;
   /** Parcela da frota atual que a referência cobre. */
   cobertura: number;
   eligible: boolean;
@@ -387,7 +405,7 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
   const items: RefItem[] = [];
   for (const d of referenceDates(model, date, base).datas) {
     if (d >= base || d === date) continue;
-    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
+    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0 };
     if (truncated(d)) {
       items.push({ ...base0, motivo: "sem registro de vendas nessa antecedência" });
       continue;
@@ -426,6 +444,7 @@ export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, 
       revFinal,
       occFinal: sum(pairs.map((x) => activeAt(x.h, 0))) / fh,
       fleet: fh,
+      fleetAtual: sum(pairs.map((x) => x.r.f)),
       cobertura,
       eligible,
       motivo: !ok.length

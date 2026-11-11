@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import {
   EVENT_LABEL,
+  avisoFrota,
+  ganhoAteData,
   referenceItems,
   referenceDates,
   revenueOf,
@@ -8,6 +10,17 @@ import {
   type PaceRow,
 } from "@/lib/occupancy-pace";
 import { dataBR, pct, usd } from "@/lib/pricing-format";
+
+const ganho = (pp: number | null) => (pp == null ? "—" : `${pp >= 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")} p.p.`);
+
+function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
+  return (
+    <div>
+      <dt className="text-muted-foreground">{rotulo}</dt>
+      <dd className="text-sm font-medium tabular-nums">{valor}</dd>
+    </div>
+  );
+}
 
 /**
  * Ocupação das datas históricas de referência na mesma antecedência: o mesmo dia da semana 1 e 2 anos antes, ou, em datas de
@@ -44,41 +57,54 @@ export function ReferenciasAnteriores({
     ? `${EVENT_LABEL[ref.evento]} (${ref.posicao! > 0 ? "+" : ""}${ref.posicao} dias) em edições anteriores`
     : "Mesmo dia da semana em períodos anteriores";
   return (
-    <Card className="space-y-1 p-4 text-sm">
+    <Card className="space-y-3 p-4 text-sm">
       <h3 className="font-semibold">
         {titulo} · {leadLabel}
       </h3>
       {itens.length === 0 ? (
         <p className="text-muted-foreground">Sem edição anterior comparável.</p>
       ) : (
-        itens.map(({ dt, it, r }, i) => (
-          <div key={dt} className="space-y-0.5">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                {ref.evento
-                  ? `Edição de ${dt.slice(0, 4)}`
-                  : i === 0
-                    ? "1 ano antes"
-                    : "2 anos antes"}{" "}
-                ({dataBR(dt)})
-              </span>
-              <span className="tabular-nums">
-                {pct(it?.occ ?? null)}
-                {it?.occ == null ? " · sem dado" : ""}
-                {it?.chosen ? " · usada na esperada" : ""}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Diária média {usd(r.diaria)}</span>
-              <span>
-                Faturamento/veículo final {usd(it?.revFinal ?? null)} · em {leadLabel} {usd(it?.rev ?? null)}
-              </span>
-            </div>
-            {it && !it.eligible && it.motivo ? (
-              <div className="text-xs text-amber-700 dark:text-amber-300">Fora da esperada: {it.motivo}</div>
-            ) : null}
-          </div>
-        ))
+        <div className="space-y-3">
+          {itens.map(({ dt, it, r }, i) => {
+            const aviso = it ? avisoFrota(it.fleet, it.fleetAtual) : null;
+            return (
+              <div
+                key={dt}
+                className={`space-y-2 rounded-md border p-3 ${it?.chosen ? "border-primary/60 bg-primary/5" : "border-border"}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {ref.evento ? `Edição de ${dt.slice(0, 4)}` : i === 0 ? "1 ano antes" : "2 anos antes"}
+                    <span className="ml-1 font-normal text-muted-foreground">({dataBR(dt)})</span>
+                  </span>
+                  {it?.chosen ? (
+                    <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
+                      usada na esperada
+                    </span>
+                  ) : null}
+                </div>
+                {it?.occ == null ? (
+                  <p className="text-xs text-muted-foreground">Sem dado</p>
+                ) : (
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
+                    <Campo rotulo={`Ocupação ${leadLabel}`} valor={pct(it.occ)} />
+                    <Campo rotulo="Ocupação final" valor={pct(it.occFinal)} />
+                    <Campo rotulo="Ganho até a data" valor={ganho(ganhoAteData(it))} />
+                    <Campo rotulo="Diária média" valor={usd(r.diaria)} />
+                    <Campo rotulo="Fat./veículo final" valor={usd(it.revFinal)} />
+                    <Campo rotulo={`Fat./veículo ${leadLabel}`} valor={usd(it.rev)} />
+                    <Campo rotulo="Frota (época)" valor={String(it.fleet)} />
+                    <Campo rotulo="Frota atual" valor={String(it.fleetAtual)} />
+                  </dl>
+                )}
+                {aviso ? <div className="text-xs text-amber-700 dark:text-amber-300">Atenção: {aviso}</div> : null}
+                {it && !it.eligible && it.motivo ? (
+                  <div className="text-xs text-amber-700 dark:text-amber-300">Fora da esperada: {it.motivo}</div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
       )}
     </Card>
   );
