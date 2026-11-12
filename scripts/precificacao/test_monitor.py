@@ -146,6 +146,15 @@ class Monitor(unittest.TestCase):
         M.checar_workflows()
         self.assertEqual(chamadas, [])
 
+    def test_autocorrecao_ignora_push_concluido(self):
+        self._prep()
+        chamadas = []
+        agend_antiga = [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(60)}]
+        push = [{"status": "completed", "conclusion": "success", "event": "push", "created_at": iso(21)}]
+        M.github = self._gh_com(agend_antiga, push, chamadas)
+        M.checar_workflows()
+        self.assertEqual(len(chamadas), 2)  # push concluído não prova atualização diária
+
     def test_autocorrecao_nao_dispara_com_agendamento_em_dia(self):
         self._prep()
         chamadas = []

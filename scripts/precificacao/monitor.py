@@ -10,7 +10,7 @@ Quatro etapas, verificadas separadamente (o que vale é o dado publicado; a exec
   3. PUBLICAÇÃO   — o dado novo está no banco (ocupação, cancelamentos, cada fonte de concorrente, nossa tarifa)?
   4. APLICAÇÃO    — a tela lê as mesmas tabelas e mostra a idade de cada dado (painel de saúde em Prioridades); este script não vê o navegador.
 
-Autocorreção: se o agendamento falhou e a rotina ficou 24 h sem nenhuma execução, o monitor a dispara (workflow_dispatch) e registra isso;
+Autocorreção: se o agendamento falhou e a rotina ficou 24 h sem execução agendada ou manual (push não conta), o monitor a dispara (workflow_dispatch) e registra isso;
 a falha continua valendo (issue aberta), porque o agendador do GitHub é o que está com problema.
 
 Resultado: relatório no log e em $GITHUB_STEP_SUMMARY. Se houver falha, abre (ou atualiza) uma issue "Alerta: dados de precificação"
@@ -34,7 +34,7 @@ WORKFLOWS = {  # arquivo do workflow -> o que ele alimenta
     "coleta-concorrentes.yml": "preços de concorrentes e nossa tarifa",
 }
 ISSUE_TITULO = "Alerta: dados de precificação"
-# Autocorreção: se o agendamento falhou e a rotina não teve NENHUMA execução (de qualquer evento) nesse prazo, o monitor a dispara pela API.
+# Autocorreção: se o agendamento falhou e a rotina não teve execução agendada/manual (push não conta) nesse prazo, o monitor a dispara pela API.
 # O prazo evita disparos repetidos (no máximo um por dia por rotina) e não atropela uma execução em andamento ou recente.
 LIMITE_REDISPARO = timedelta(hours=24)
 
@@ -135,8 +135,9 @@ def checar_dados():
 
 
 def autocorrigir(repo, arquivo, execucoes):
-    """Dispara a rotina que deixou de rodar pelo agendamento, se também não houve nenhuma execução recente (de qualquer evento)."""
-    recentes = [r for r in execucoes if idade(r["created_at"]) <= LIMITE_REDISPARO]
+    """Dispara a rotina que deixou de rodar pelo agendamento, se também não houve execução recente agendada ou manual/do monitor.
+    Run de push já concluído não conta (run em andamento conta): ele só roda quando o código muda e não garante a atualização diária."""
+    recentes = [r for r in execucoes if (r["event"] != "push" or r["status"] != "completed") and idade(r["created_at"]) <= LIMITE_REDISPARO]
     if recentes:
         reg(1, f"{arquivo} (autocorreção)", "aviso", f"não disparada: houve execução há {txt(idade(recentes[0]['created_at']))} ({recentes[0]['event']})")
         return
