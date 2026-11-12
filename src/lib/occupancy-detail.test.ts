@@ -140,17 +140,31 @@ describe("aviso de frota pequena", () => {
 });
 
 describe("curva com as referências", () => {
-  it("uma série por outra referência, tooltip em carros e marca em 100%", () => {
-    const pontos = [
-      { label: "D-30", L: 30, atual: 0.2, esperada: 0.5 },
-      { label: "D-20", L: 20, atual: null, esperada: 1 },
-    ];
-    const usada = { date: "2025-01-07", chosen: true, occ: 1, hist: [row([30, 20], undefined, 2)] };
-    const outra = { date: "2026-01-06", chosen: false, occ: 0.5, hist: [row([30, 30], undefined, 4)] };
+  const pontos = [
+    { label: "D-30", L: 30, atual: 0.2, esperada: 0.5 },
+    { label: "D-20", L: 20, atual: null, esperada: 1 },
+  ];
+  const usada = { date: "2025-01-07", chosen: true, occ: 1, hist: [row([30], undefined, 2)] }; // frota 2, 1 carro: nunca chega a 100%
+  const outra = { date: "2026-01-06", chosen: false, occ: 0.5, hist: [row([30, 30], undefined, 4)] };
+  it("uma série por outra referência, tooltip em carros e marcas de cada série", () => {
     const c = curvaDetalhe(pontos, [usada, outra] as never, 10);
     expect(c.extras).toEqual([{ key: "ref0", date: "2026-01-06" }]);
-    expect(c.data[0]).toMatchObject({ esperada: 50, esperadaCarros: 5, atualCarros: 2, ref0: 50, ref0Carros: 5, capacidade: 10 });
+    expect(c.dia).toEqual({ key: "refDia", date: "2025-01-07" });
+    expect(c.data[0]).toMatchObject({ esperada: 50, esperadaCarros: 5, atualCarros: 2, ref0: 50, ref0Carros: 5, refDia: 50, capacidade: 10 });
+  });
+  it("a marca da esperada vem da própria linha da esperada (média da janela), não da referência do dia", () => {
+    const c = curvaDetalhe(pontos, [usada, outra] as never, 10);
+    // esperada chega a 100% em D-20; a referência do dia (1 de 2 carros) nunca chega: sem marca própria
     expect(c.marcas).toEqual([{ key: "esperada", label: "D-20" }]);
+    // a referência do dia cheia em D-20 ganha a própria marca, separada da esperada
+    const cheia = { ...usada, hist: [row([30, 20], undefined, 2)] };
+    expect(curvaDetalhe(pontos, [cheia, outra] as never, 10).marcas).toEqual([
+      { key: "esperada", label: "D-20" },
+      { key: "refDia", label: "D-20" },
+    ]);
+    // esperada que nunca chega a 100%: sem marca, mesmo com a referência do dia cheia
+    const sem = pontos.map((p) => ({ ...p, esperada: 0.9 }));
+    expect(curvaDetalhe(sem, [cheia, outra] as never, 10).marcas).toEqual([{ key: "refDia", label: "D-20" }]);
   });
 });
 

@@ -652,7 +652,7 @@ function Pickup({
     <PickupChart
       title="Curva de pickup do período"
       data={data}
-      note="Cada ponto usa só as datas do período que já alcançaram aquela antecedência na data-base; antecedências que ainda não chegaram ficam sem ocupação atual, sem previsão."
+      note="Cada ponto usa só as datas do período que já alcançaram aquela antecedência na data-base; antecedências que ainda não chegaram ficam sem ocupação atual, sem previsão. A esperada de cada data é a média da janela de 7 dias do ano escolhido."
     />
   );
 }
@@ -669,7 +669,7 @@ export function PickupChart({
   title,
   data,
   note,
-  esperadaNome = "Esperada (melhor faturamento por veículo)",
+  esperadaNome = "Esperada (média da janela de 7 dias)",
   extras,
   marcas,
 }: {
@@ -769,7 +769,10 @@ export function PickupChart({
         {marcas?.length ? (
           <span>
             <span className="mr-1 inline-block size-2.5 rounded-full border-2 border-foreground align-middle" />
-            chegou a 100%
+            chegou a 100%:{" "}
+            {marcas
+              .map((m) => `${m.key === "esperada" ? esperadaNome : (extras ?? []).find((e) => e.key === m.key)?.name ?? m.key} em ${m.label.replace(" (base)", "")}`)
+              .join("; ")}
           </span>
         ) : null}
       </div>
@@ -815,7 +818,7 @@ function Detalhe({
             items,
             d.capacity,
           )
-        : { data: [], extras: [], marcas: [] },
+        : { data: [], extras: [], dia: null as { key: string; date: string } | null, marcas: [] },
     [model, rows, date, base, d, items],
   );
   const usada = items.find((i) => i.chosen);
@@ -935,10 +938,13 @@ function Detalhe({
               <PickupChart
                 title="Curva de pickup da data"
                 data={curva.data}
-                esperadaNome={usada ? `Referência usada (${dataBR(usada.date)})` : "Esperada"}
-                extras={curva.extras.map((e) => ({ key: e.key, name: `Referência ${e.date.slice(0, 4)} (${dataBR(e.date)})` }))}
+                esperadaNome={usada ? `Esperada (média da janela, ${usada.date.slice(0, 4)})` : "Esperada"}
+                extras={[
+                  ...(curva.dia ? [{ key: curva.dia.key, name: `Ano escolhido, só o dia (${dataBR(curva.dia.date)})` }] : []),
+                  ...curva.extras.map((e) => ({ key: e.key, name: `Referência ${e.date.slice(0, 4)} (${dataBR(e.date)})` })),
+                ]}
                 marcas={curva.marcas}
-                note="Cada referência é lida na mesma antecedência; a esperada é a usada, a de maior faturamento por veículo final. A atual não é prevista além da data-base."
+                note="A esperada é a média, na janela de 7 dias (a data ±3), das ocupações do ano com maior faturamento/veículo final médio (sem faturamento, maior ocupação final), cada dia lido na sua antecedência. As linhas finas são as referências do próprio dia, lidas na mesma antecedência. A atual não é prevista além da data-base."
               />
             </div>
             <ReferenciasAnteriores

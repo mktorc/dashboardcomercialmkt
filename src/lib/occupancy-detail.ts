@@ -19,6 +19,14 @@ export const FROTA_PEQUENA_LIMITE = 30;
 /** Ocupação (0–1) em carros inteiros, na frota dada. */
 export const carros = (occ: number, fleet: number) => Math.round(occ * fleet);
 
+/**
+ * Meta em carros (só informação, não muda a esperada nem o gap): repetir `carros` (os da referência na antecedência analisada) na frota
+ * atual das mesmas categorias. Ex.: 76 carros contra frota atual 105 = 72%. Null sem carros ou sem frota.
+ */
+export function metaCarros(carros: number | null, fleetAtual: number | null) {
+  return carros == null || !fleetAtual ? null : { carros: Math.round(carros), pct: carros / fleetAtual, frota: Math.round(fleetAtual) };
+}
+
 /** Gap em p.p. convertido para carros, na frota sobre a qual o gap foi medido. */
 export const gapCarros = (gapPp: number, fleet: number) => Math.round((gapPp / 100) * fleet);
 
@@ -128,9 +136,10 @@ export type CurvaDetalhePonto = {
 } & Record<string, number | string | null>;
 
 /**
- * Curva de pickup da data com as referências desenhadas: a linha `esperada` (a usada) e uma linha por outra referência
- * (`ref0`, `ref1`, …, só ocupação ≤ 100%). Cada série leva também os carros na frota atual (`<chave>Carros`) para o tooltip.
- * `marcas` = primeiro ponto em que cada série chegou a 100%.
+ * Curva de pickup da data com as referências desenhadas. A linha `esperada` é a esperada da janela (média de 7 dias do ano escolhido)
+ * e a marca dela (`esperada`) é o primeiro ponto em que ELA chegou a 100%. A referência do ano escolhido no próprio dia vai como
+ * `refDia` e as demais como `ref0`, `ref1`, … (só ocupação ≤ 100%), cada uma com a própria marca. Cada série leva também os carros
+ * na frota atual (`<chave>Carros`) para o tooltip.
  */
 export function curvaDetalhe(
   pontos: { label: string; L: number; atual: number | null; esperada: number | null }[],
@@ -138,7 +147,7 @@ export function curvaDetalhe(
   capacity: number,
 ) {
   const outras = items.filter((i) => !i.chosen && i.occ != null && i.hist.length);
-  const usada = items.find((i) => i.chosen);
+  const usada = items.find((i) => i.chosen && i.hist.length);
   const leads = pontos.map((p) => p.L);
   const curvas = outras.map((i) => curvaReferencia(i.hist, leads));
   const curvaUsada = usada ? curvaReferencia(usada.hist, leads) : null;
@@ -152,21 +161,26 @@ export function curvaDetalhe(
       esperada: p.esperada != null ? p.esperada * 100 : null,
       esperadaCarros: p.esperada != null ? carros(p.esperada, capacity) : null,
     };
-    curvas.forEach((c, k) => {
+    const poe = (key: string, c: { occ: number }[]) => {
       const o = Math.min(1, c[idx]!.occ);
-      pt[`ref${k}`] = o * 100;
-      pt[`ref${k}Carros`] = carros(o, capacity);
-    });
+      pt[key] = o * 100;
+      pt[`${key}Carros`] = carros(o, capacity);
+    };
+    if (curvaUsada) poe("refDia", curvaUsada);
+    curvas.forEach((c, k) => poe(`ref${k}`, c));
     return pt;
   });
   const marca = (c: { L: number; occ: number }[] | null, key: string) => {
     const f = c ? primeiroCheio(c) : null;
     return f ? { key, label: pontos.find((p) => p.L === f.L)!.label } : null;
   };
+  const cheia = pontos.find((p) => p.esperada != null && p.esperada >= 1);
   return {
     data,
     extras: outras.map((i, k) => ({ key: `ref${k}`, date: i.date })),
-    marcas: [marca(curvaUsada, "esperada"), ...curvas.map((c, k) => marca(c, `ref${k}`))].filter(
+    /** Referência do ano escolhido só no próprio dia (linha fina); a esperada é a média da janela, não esta. */
+    dia: usada ? { key: "refDia", date: usada.date } : null,
+    marcas: [cheia ? { key: "esperada", label: cheia.label } : null, marca(curvaUsada, "refDia"), ...curvas.map((c, k) => marca(c, `ref${k}`))].filter(
       (m): m is { key: string; label: string } => !!m,
     ),
   };

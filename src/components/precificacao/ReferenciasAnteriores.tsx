@@ -3,13 +3,13 @@ import {
   EVENT_LABEL,
   avisoFrota,
   ganhoAteData,
-  referenceItems,
+  windowAnalysis,
   referenceDates,
   revenueOf,
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import { type PrecoVenda, carros, difDiariaPct, diariaEmL, lotouEm, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
+import { type PrecoVenda, carros, difDiariaPct, metaCarros, diariaEmL, lotouEm, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
 import { dataBR, pct, usd } from "@/lib/pricing-format";
 
 const ganho = (pp: number | null) => (pp == null ? "—" : `${pp >= 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")} p.p.`);
@@ -32,7 +32,7 @@ const Aviso = ({ children }: { children: React.ReactNode }) => (
 /**
  * Ocupação das datas históricas de referência na mesma antecedência: o mesmo dia da semana 1 e 2 anos antes, ou, em datas de
  * evento móvel, a mesma posição do evento nas edições anteriores. Mostra ocupação (% e carros), ganho, preço, projeção simples de
- * fechamento, ritmo recente e avisos. Só leitura: não altera a esperada.
+ * fechamento, ritmo recente e avisos, e o resumo da janela de 7 dias que escolhe o ano da esperada. Só leitura.
  */
 export function ReferenciasAnteriores({
   model,
@@ -69,7 +69,7 @@ export function ReferenciasAnteriores({
 }) {
   const ref = referenceDates(model, date, base);
   // Os mesmos números e as mesmas referências que a esperada usa (ocupação ÷ frota da época, faturamento por veículo).
-  const todos = referenceItems(model, rows, date, base, lead);
+  const { items: todos, janela } = windowAnalysis(model, rows, date, base, lead);
   const de = model.payload.de;
   const itens = ref.datas.map((dt) => ({
     dt,
@@ -93,6 +93,30 @@ export function ReferenciasAnteriores({
       <h3 className="font-semibold">
         {titulo} · {leadLabel}
       </h3>
+      {janela.escolhido ? (
+        <div className="space-y-0.5 rounded-md bg-muted/50 p-2 text-xs tabular-nums">
+          <div>
+            Ano escolhido pela janela {dataBR(janela.dias[0]!).slice(0, 5)}–{dataBR(janela.dias[janela.dias.length - 1]!).slice(0, 5)}:{" "}
+            <span className="font-medium">{janela.escolhido.label}</span>{" "}
+            {janela.criterio === "faturamento"
+              ? `(fat./veículo médio ${usd(janela.escolhido.revMedio)}${janela.outro ? ` contra ${usd(janela.outro.revMedio)}` : ""})`
+              : `(sem faturamento em todos os anos: ocupação final média ${pct(janela.escolhido.occFinalMedia)}${janela.outro ? ` contra ${pct(janela.outro.occFinalMedia)}` : ""})`}
+          </div>
+          <div>
+            Esperada = média de {janela.usados.length} {janela.usados.length === 1 ? "dia" : "dias"} da janela
+            {janela.esperada != null ? ` (${pct(janela.esperada)})` : ""}
+          </div>
+          {(() => {
+            const m = metaCarros(janela.carros, janela.fleetAtual);
+            return m ? (
+              <div className="text-muted-foreground">
+                Meta em carros (só informação): {janela.escolhido.label} teve em média {m.carros} carros nos dias da janela; repetir isso
+                daria {pct(m.pct)} da frota atual ({m.frota})
+              </div>
+            ) : null;
+          })()}
+        </div>
+      ) : null}
       {itens.length === 0 ? (
         <p className="text-muted-foreground">Sem edição anterior comparável.</p>
       ) : (
@@ -116,7 +140,7 @@ export function ReferenciasAnteriores({
                   </span>
                   {it?.chosen ? (
                     <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-xs font-medium text-primary">
-                      usada na esperada
+                      ano escolhido pela janela
                     </span>
                   ) : null}
                 </div>
@@ -138,6 +162,15 @@ export function ReferenciasAnteriores({
                       <Campo rotulo={`Fat./veículo ${leadLabel}`} valor={usd(it.rev)} />
                       <Campo rotulo={`Diária vendida vs ref. ${leadLabel}`} valor={dif(difDiariaPct(diariaAtual, diariaRef))} />
                     </dl>
+                    {(() => {
+                      const m = metaCarros(it.carros, it.fleetAtual);
+                      return m ? (
+                        <div className="text-xs text-muted-foreground">
+                          Meta em carros (só informação): {ano} tinha {m.carros} carros em {leadLabel}; repetir isso daria {pct(m.pct)} da
+                          frota atual ({m.frota})
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="text-xs text-muted-foreground">
                       Frota: {it.fleet} na época · {it.fleetAtual} hoje (mesmas categorias)
                       {fora.length ? ` · sem: ${fora.join(", ")}` : ""}

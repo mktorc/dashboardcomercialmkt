@@ -10,6 +10,7 @@ import {
   occupancyAt,
   pickupCurve,
   referenceItems,
+  windowAnalysis,
   ganhoAteData,
   avisoFrota,
   revenueOf,
@@ -20,6 +21,7 @@ import {
   type PacePayload,
   windowOccupancy,
 } from "./occupancy-pace";
+import { metaCarros } from "./occupancy-detail";
 
 const BASE = "2026-11-06";
 const ALVO = "2026-12-25"; // sexta-feira, D-49 em BASE
@@ -441,5 +443,111 @@ describe("revenueOf com categoria sem tarifa", () => {
     const r = revenueOf([lux] as never, 10);
     expect(r.diaria).toBeNull();
     expect(r.porVeiculo).toBeNull();
+  });
+});
+
+describe("esperada pela janela de 7 dias (data ±3)", () => {
+  // Alvo quarta 16/12/2026, base 10/11/2026 (D-36). Referências: mesmo dia da semana 364 (2025) e 728 (2024) dias antes.
+  const B = "2026-11-10";
+  const D = "2026-12-16";
+  const ev = (d: string, n: number, preco: number, ant = 60, g?: number): PaceRow =>
+    ({ d, c: "A", f: 10, ...(g ? { g } : {}), a: Array(n).fill(ant), m: Array(n).fill(preco) }) as PaceRow;
+  const alvo = { d: D, c: "A", f: 10, a: [] } as PaceRow;
+  const monta = (linhas: PaceRow[], cal: PacePayload["cal"] = {}) =>
+    buildModel(
+      { versao: 7, gerado_em: "", hoje: B, de: "2023-01-01", ate: "2027-05-01", categorias: ["A"], params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal, linhas } as PacePayload,
+      "maximo",
+    );
+  /** Uma linha por dia da janela de `ano` (offset em dias −3..+3 do alvo, deslocado por `lag`). */
+  const ano = (lag: number, f: (k: number) => PaceRow | null) =>
+    [-3, -2, -1, 0, 1, 2, 3].map((k) => f(k) && { ...f(k)!, d: addDays(D, k - lag) }).filter((x): x is PaceRow => !!x);
+
+  it("janela comum: o ano vem da média da janela, não só do dia analisado", () => {
+    // No dia do alvo 2024 fatura mais (US$ 90 contra 20), mas na janela 2025 ganha (20 contra ~16).
+    const l25 = ano(364, (k) => ev("x", [3, 4, 5, 4, 4, 4, 4][k + 3]!, 50));
+    const l24 = ano(728, (k) => (k === 0 ? ev("x", 9, 100) : ev("x", 2, 40)));
+    const m = monta([alvo, ...l25, ...l24]);
+    const { items, janela } = windowAnalysis(m, [alvo], D, B, 36);
+    expect(janela.dias).toHaveLength(7);
+    expect(janela.criterio).toBe("faturamento");
+    expect(janela.escolhido!.label).toBe("2025");
+    expect(items.find((i) => i.chosen)!.date).toBe("2025-12-17");
+    expect(janela.usados).toHaveLength(7);
+    expect(janela.esperada).toBeCloseTo(0.4, 5); // média de 3,4,5,4,4,4,4 ÷ 10
+    expect(dayPace(m, [alvo], D, B).esperada).toBeCloseTo(0.4, 5);
+    expect(dayPace(m, [alvo], D, B).n).toBe(2); // anos comparados
+  });
+
+  it("cada dia da janela é lido na antecedência do próprio dia", () => {
+    // Dia D+1 (antecedência 37): as 6 diárias foram vendidas com 36 dias; lidas em D-37 não existem ainda.
+    const l25 = ano(364, (k) => (k === 1 ? ev("x", 6, 50, 36) : ev("x", 4, 50)));
+    const { janela } = windowAnalysis(monta([alvo, ...l25]), [alvo], D, B, 36);
+    expect(janela.esperada).toBeCloseTo((6 * 4) / 7 / 10 + 0, 5); // 6 dias com 4 + um com 0
+  });
+
+  it("janela que encosta em evento: dia comum não leva dia de evento; dia de evento só leva o mesmo evento", () => {
+    const e = (d: string, rel: number): [string, string, number] => ["Alta", "carnaval", rel];
+    const cal: PacePayload["cal"] = {
+      [addDays(D, 2)]: e("", 0), [addDays(D, 1)]: e("", -1), [addDays(D, 3)]: e("", 1),
+      [addDays(D, 2 - 364)]: e("", 0), [addDays(D, 1 - 364)]: e("", -1), [addDays(D, 3 - 364)]: e("", 1),
+    };
+    const l25 = ano(364, (k) => ev("x", 4, 50));
+    const m = monta([alvo, ...l25], cal);
+    // comum: sai D+1, D+2 e D+3 (evento)
+    expect(windowAnalysis(m, [alvo], D, B, 36).janela.dias).toEqual([-3, -2, -1, 0].map((k) => addDays(D, k)));
+    // evento (D+2, posição 0): só D+1..D+3 (mesmo evento); a quarta e os demais dias comuns ficam de fora
+    const dEv = addDays(D, 2);
+    const evRow = { d: dEv, c: "A", f: 10, a: [] } as PaceRow;
+    const r = windowAnalysis(m, [evRow], dEv, B, 38);
+    expect(r.janela.dias).toEqual([addDays(D, 1), dEv, addDays(D, 3)]);
+    expect(r.items.map((i) => i.date)).toEqual([addDays(dEv, -364)]); // mesma posição na edição passada
+    expect(r.janela.escolhido!.label).toBe("2025");
+    expect(r.janela.esperada).toBeCloseTo(0.4, 5);
+  });
+
+  it("dias sem dados: a escolha usa só os dias em que todos os anos têm dados; a média usa os dias do ano escolhido", () => {
+    // 2025 não tem os dias −3 e −2. Nos 5 dias comuns 2025 fatura 20 e 2024 fatura 8; nos 2 dias só de 2024 ele faturaria 100.
+    const l25 = ano(364, (k) => (k <= -2 ? null : ev("x", 4, 50)));
+    const l24 = ano(728, (k) => (k <= -2 ? ev("x", 10, 100) : ev("x", 2, 40)));
+    const { janela } = windowAnalysis(monta([alvo, ...l25, ...l24]), [alvo], D, B, 36);
+    expect(janela.diasComuns).toBe(5);
+    expect(janela.escolhido!.label).toBe("2025"); // com os 7 dias de 2024 (média 34) ele ganharia
+    expect(janela.escolhido!.revMedio).toBeCloseTo(20, 5);
+    expect(janela.outro!.revMedio).toBeCloseTo(8, 5);
+    expect(janela.usados).toHaveLength(5);
+    expect(janela.esperada).toBeCloseTo(0.4, 5);
+  });
+
+  it("sem faturamento em algum ano, escolhe pela maior ocupação final média", () => {
+    const sem = (n: number) => ({ ...ev("x", n, 0), m: undefined }) as unknown as PaceRow;
+    const l25 = ano(364, () => sem(3));
+    const l24 = ano(728, () => ev("x", 7, 30));
+    const { janela } = windowAnalysis(monta([alvo, ...l25, ...l24]), [alvo], D, B, 36);
+    expect(janela.criterio).toBe("ocupacao");
+    expect(janela.escolhido!.label).toBe("2024");
+    expect(janela.esperada).toBeCloseTo(0.7, 5);
+  });
+
+  it("empate na escolha do ano: vale o mais recente", () => {
+    const l25 = ano(364, () => ev("x", 4, 50)); // 20 por veículo
+    const l24 = ano(728, () => ev("x", 8, 25)); // 20 por veículo
+    const { janela } = windowAnalysis(monta([alvo, ...l25, ...l24]), [alvo], D, B, 36);
+    expect(janela.escolhido!.label).toBe("2025");
+    expect(janela.esperada).toBeCloseTo(0.4, 5);
+  });
+
+  it("meta em carros: carros da referência na antecedência e % da frota atual; não muda a esperada", () => {
+    // Referência com frota da época 8 (g) e 6 carros; frota atual 10: repetir 6 carros = 60% da frota atual.
+    const l25 = ano(364, () => ev("x", 6, 50, 60, 8));
+    const m = monta([alvo, ...l25]);
+    const { items, janela } = windowAnalysis(m, [alvo], D, B, 36);
+    const it = items[0]!;
+    expect([it.carros, it.fleet, it.fleetAtual]).toEqual([6, 8, 10]);
+    expect(metaCarros(it.carros, it.fleetAtual)).toEqual({ carros: 6, pct: 0.6, frota: 10 });
+    expect(janela.carros).toBe(6);
+    expect(janela.fleetAtual).toBe(10);
+    expect(janela.esperada).toBeCloseTo(6 / 8, 5); // ocupação sobre a frota da época, inalterada pela meta
+    expect(metaCarros(76, 105)!.pct).toBeCloseTo(0.724, 3);
+    expect(metaCarros(null, 105)).toBeNull();
   });
 });

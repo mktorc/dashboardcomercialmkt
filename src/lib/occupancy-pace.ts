@@ -381,6 +381,8 @@ export type RefItem = {
   revFinal: number | null;
   /** Ocupação final (D-0) da referência: critério de escolha quando não há faturamento final. */
   occFinal: number | null;
+  /** Carros (diárias ativas) da referência na antecedência analisada: a meta em carros, só informação. */
+  carros: number | null;
   fleet: number;
   /** Frota atual das mesmas categorias que entram em `fleet` (para comparar com a da época). */
   fleetAtual: number;
@@ -395,93 +397,221 @@ export type RefItem = {
   hist: PaceRow[];
 };
 
-/**
- * Datas de referência do dia no modo "melhor registro", escolhidas pelo DIA TODO: cada data soma as categorias das linhas, com a frota
- * que existia na época (com os veículos depois vendidos) e as diárias vendidas na mesma antecedência L (a esperada é a ocupação em L da escolhida). Vale a de maior faturamento por
- * veículo FINAL, D-0 (sem faturamento, a de maior ocupação final) entre as elegíveis: cobrem ao menos REF_COBERTURA_MIN da frota atual e a frota da
- * época de cada categoria é ao menos REF_FROTA_MIN da atual. Categorias sem linha na referência ficam de fora dos dois lados (`cov`).
- */
-export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number): RefItem[] {
-  const capacity = sum(rows.map((r) => r.f));
-  const truncated = (d: string) => L > 0 && addDays(d, -L) < model.payload.de;
-  const items: RefItem[] = [];
-  for (const d of referenceDates(model, date, base).datas) {
-    if (d >= base || d === date) continue;
-    const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
-    if (truncated(d)) {
-      items.push({ ...base0, motivo: "sem registro de vendas nessa antecedência" });
-      continue;
+/** Raio da janela da esperada: a data ±3 dias (7 dias). */
+export const JANELA_RAIO = 3;
+
+/** Um ano de referência comparado na janela e os números que decidem a escolha (só nos dias comuns a todos os anos). */
+export type JanelaAno = {
+  key: string;
+  /** Ano mostrado (ex.: "2025"). */
+  label: string;
+  /** Faturamento/veículo final médio nos dias comuns; null se algum desses dias não tem faturamento. */
+  revMedio: number | null;
+  /** Ocupação final média nos dias comuns (critério quando não há faturamento em todos os anos). */
+  occFinalMedia: number | null;
+};
+
+/** Escolha do ano pela janela e a esperada resultante (média das ocupações do ano escolhido, cada uma na antecedência do seu dia). */
+export type JanelaRef = {
+  /** Dias da janela (datas atuais): comum só com dias comuns; evento só com dias do mesmo evento. */
+  dias: string[];
+  anos: JanelaAno[];
+  /** Dias em que todos os anos comparados têm dados (base da escolha). */
+  diasComuns: number;
+  criterio: "faturamento" | "ocupacao" | null;
+  escolhido: JanelaAno | null;
+  /** Melhor dos outros anos, para a comparação mostrada ("contra US$ Y"). */
+  outro: JanelaAno | null;
+  /** Dias do ano escolhido com leitura na antecedência (os da média). */
+  usados: string[];
+  /** Média das ocupações (0–1, limitada a 100%); null sem ano escolhido ou sem dias lidos. */
+  esperada: number | null;
+  /** Média de carros do ano escolhido nos dias usados e a frota atual média desses dias (meta em carros: só informação). */
+  carros: number | null;
+  fleetAtual: number | null;
+  /** Categorias da data analisada cobertas pelo ano escolhido (base do gap) e a frota atual delas. */
+  cov: PaceRow[];
+  capCov: number;
+};
+
+const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : null);
+
+/** Uma data histórica `d` de referência para as linhas atuais `cur` (mesmas categorias), lida na antecedência L. */
+function buildRefItem(model: PaceModel, cur: PaceRow[], d: string, L: number): RefItem {
+  const capacity = sum(cur.map((r) => r.f));
+  const truncated = L > 0 && addDays(d, -L) < model.payload.de;
+  const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, carros: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
+  const all = cur
+    .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
+    .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
+  if (!all.length) return { ...base0, motivo: "sem dados" };
+  const ok = all.filter((x) => histFleet(x.h) >= REF_FROTA_MIN * x.r.f);
+  const pairs = ok.length ? ok : all;
+  const capCov = sum(ok.map((x) => x.r.f));
+  const cobertura = capacity ? capCov / capacity : 0;
+  const fh = sum(pairs.map((x) => histFleet(x.h)));
+  // Faturamento por veículo só com as categorias que têm preço (as sem tarifa saem do valor e da frota dele, como em revenueOf).
+  const porVeiculo = (lead?: number) => {
+    let v = 0;
+    let f = 0;
+    for (const x of pairs) {
+      const r = revenueRow(x.h, lead);
+      if (!r || !r.p) continue;
+      v += r.v;
+      f += histFleet(x.h);
     }
-    const all = rows
-      .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
-      .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
-    if (!all.length) {
-      items.push({ ...base0, motivo: "sem dados" });
-      continue;
-    }
-    const ok = all.filter((x) => histFleet(x.h) >= REF_FROTA_MIN * x.r.f);
-    const pairs = ok.length ? ok : all;
-    const capCov = sum(ok.map((x) => x.r.f));
-    const cobertura = capacity ? capCov / capacity : 0;
-    const fh = sum(pairs.map((x) => histFleet(x.h)));
-    // Faturamento por veículo só com as categorias que têm preço (as sem tarifa saem do valor e da frota dele, como em revenueOf).
-    const porVeiculo = (lead?: number) => {
-      let v = 0;
-      let f = 0;
-      for (const x of pairs) {
-        const r = revenueRow(x.h, lead);
-        if (!r || !r.p) continue;
-        v += r.v;
-        f += histFleet(x.h);
-      }
-      return f ? v / f : null;
-    };
-    const rev = porVeiculo(L);
-    const revFinal = porVeiculo();
-    const eligible = ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
-    items.push({
-      date: d,
-      occ: sum(pairs.map((x) => activeAt(x.h, L))) / fh,
-      rev,
-      revFinal,
-      occFinal: sum(pairs.map((x) => activeAt(x.h, 0))) / fh,
-      fleet: fh,
-      fleetAtual: sum(pairs.map((x) => x.r.f)),
-      cobertura,
-      eligible,
-      motivo: !ok.length
+    return f ? v / f : null;
+  };
+  const carros = truncated ? null : sum(pairs.map((x) => activeAt(x.h, L)));
+  const eligible = !truncated && ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
+  return {
+    date: d,
+    occ: carros == null ? null : carros / fh,
+    rev: truncated ? null : porVeiculo(L),
+    revFinal: porVeiculo(),
+    occFinal: sum(pairs.map((x) => activeAt(x.h, 0))) / fh,
+    carros,
+    fleet: fh,
+    fleetAtual: sum(pairs.map((x) => x.r.f)),
+    cobertura,
+    eligible,
+    motivo: truncated
+      ? "sem registro de vendas nessa antecedência"
+      : !ok.length
         ? "frota da época menor que a metade da atual"
         : cobertura < REF_COBERTURA_MIN
           ? `cobre só ${Math.round(cobertura * 100)}% da frota atual`
           : null,
-      chosen: false,
-      cov: ok.map((x) => x.r),
-      capCov,
-      hist: pairs.map((x) => x.h),
-    });
-  }
-  let best: RefItem | null = null;
-  for (const it of items) {
-    if (!it.eligible) continue;
-    // Escolha pelo faturamento por veículo FINAL; sem ele, pela ocupação final. A esperada é a ocupação dela em L.
-    if (!best || (it.revFinal != null && best.revFinal != null ? it.revFinal > best.revFinal : it.revFinal != null ? true : best.revFinal != null ? false : it.occFinal! > best.occFinal!)) best = it;
-  }
-  if (best) best.chosen = true;
-  return items;
+    chosen: false,
+    cov: ok.map((x) => x.r),
+    capCov,
+    hist: pairs.map((x) => x.h),
+  };
 }
 
-function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number) {
+/** Item com dado final (existem linhas históricas): conta na escolha do ano, mesmo sem leitura na antecedência L. */
+const temDados = (it: RefItem | undefined): it is RefItem => !!it && it.hist.length > 0 && it.occFinal != null;
+
+/**
+ * Esperada pela JANELA de 7 dias (a data ±3). Cada dia da janela usa as referências de hoje (mesmo dia da semana 364 e 728 dias antes;
+ * em evento, a mesma posição nas edições passadas). Dia comum só tem dias comuns na janela; dia de evento só dias do mesmo evento.
+ *  - Anos comparados: os que têm dado em ao menos um dia. Escolha: maior média de faturamento/veículo final (D-0) nos dias em que TODOS
+ *    os anos têm dados; sem faturamento em todos, maior média de ocupação final. Empate: o ano mais recente.
+ *  - Esperada: média das ocupações do ano escolhido nos dias com leitura, cada uma na antecedência do seu dia (a da data-base, ou
+ *    L deslocada pela distância ao dia analisado na curva de pickup), limitada a 100%.
+ * `items` são as referências do PRÓPRIO dia (como o painel mostra); a do ano escolhido vem com `chosen`.
+ */
+export function windowAnalysis(
+  model: PaceModel,
+  rows: PaceRow[],
+  date: string,
+  base: string,
+  L?: number,
+): { items: RefItem[]; janela: JanelaRef } {
+  const vazio: JanelaRef = { dias: [date], anos: [], diasComuns: 0, criterio: null, escolhido: null, outro: null, usados: [], esperada: null, carros: null, fleetAtual: null, cov: [], capCov: 0 };
+  if (!rows.length) return { items: [], janela: vazio };
+  const { cal } = model.payload;
+  const info = cal[date];
+  const ev = info?.[1] ?? null;
+  const isEvent = !!(ev && info?.[2] != null);
+  const ehEvento = (w: string) => !!(cal[w]?.[1] && cal[w]?.[2] != null);
+  const dias: string[] = [];
+  for (let k = -JANELA_RAIO; k <= JANELA_RAIO; k++) {
+    const w = addDays(date, k);
+    if (w === date || (isEvent ? ehEvento(w) && cal[w]![1] === ev : !ehEvento(w))) dias.push(w);
+  }
+  const natural = L == null || L === leadOf(date, base).lead;
+  const leadDe = (w: string) => (natural ? leadOf(w, base).lead : Math.max(0, L! + daysBetween(date, w)));
+  const anosOrd = PERIODOS_ANTERIORES.map((n) => ({ key: String(n), label: addDays(date, -n).slice(0, 4) }));
+
+  const porDia = new Map<string, Map<string, RefItem>>();
+  const rotulos = new Map<string, string>();
+  for (const w of dias) {
+    const cur = w === date ? rows : rows.map((r) => model.byKey.get(`${w}|${r.c}`) ?? r);
+    const lw = leadDe(w);
+    const m = new Map<string, RefItem>();
+    const refs = isEvent
+      ? referenceDates(model, w, base).datas.map((d) => ({ key: d.slice(0, 4), label: d.slice(0, 4), d }))
+      : PERIODOS_ANTERIORES.map((n, i) => ({ ...anosOrd[i]!, d: addDays(w, -n) }));
+    for (const x of refs) {
+      if (x.d >= base) continue;
+      rotulos.set(x.key, x.label);
+      m.set(x.key, buildRefItem(model, cur, x.d, lw));
+    }
+    porDia.set(w, m);
+  }
+
+  // Anos comparados: os com dado em algum dia (mais recente primeiro; em evento, pelo ano da edição).
+  const chaves = [...rotulos.keys()].filter((k) => dias.some((w) => temDados(porDia.get(w)?.get(k))));
+  if (isEvent) chaves.sort((a, b) => Number(b) - Number(a));
+  else chaves.sort((a, b) => Number(a) - Number(b));
+  const comuns = dias.filter((w) => chaves.length > 0 && chaves.every((k) => temDados(porDia.get(w)?.get(k))));
+  const anos: JanelaAno[] = chaves.map((key) => {
+    const its = comuns.map((w) => porDia.get(w)!.get(key)!);
+    const revs = its.map((i) => i.revFinal);
+    return {
+      key,
+      label: rotulos.get(key)!,
+      revMedio: revs.length && revs.every((r) => r != null) ? mean(revs as number[]) : null,
+      occFinalMedia: mean(its.map((i) => i.occFinal!)),
+    };
+  });
+  const criterio = !comuns.length ? null : anos.every((a) => a.revMedio != null) ? "faturamento" : "ocupacao";
+  const valor = (a: JanelaAno) => (criterio === "faturamento" ? a.revMedio! : a.occFinalMedia!);
+  let escolhido: JanelaAno | null = null;
+  if (criterio) for (const a of anos) if (!escolhido || valor(a) > valor(escolhido)) escolhido = a; // empate: fica o mais recente
+  const outro = criterio && escolhido ? anos.filter((a) => a !== escolhido).reduce<JanelaAno | null>((b, a) => (!b || valor(a) > valor(b) ? a : b), null) : null;
+
+  const centro = new Map(porDia.get(date) ?? []);
+  const items = (isEvent ? referenceDates(model, date, base).datas : PERIODOS_ANTERIORES.map((n) => addDays(date, -n)))
+    .map((d) => [...centro.values()].find((i) => i.date === d))
+    .filter((i): i is RefItem => !!i);
+  if (escolhido) {
+    const c = centro.get(escolhido.key);
+    if (c) c.chosen = true;
+  }
+
+  const lidos = escolhido ? dias.filter((w) => { const i = porDia.get(w)?.get(escolhido!.key); return !!i && i.eligible && i.occ != null; }) : [];
+  const usados = lidos.map((w) => porDia.get(w)!.get(escolhido!.key)!);
+  const media = mean(usados.map((i) => i.occ!));
+  const ref0 = (escolhido && centro.get(escolhido.key)?.eligible ? centro.get(escolhido.key) : usados[0]) ?? null;
+  const cats = new Set((ref0?.cov ?? []).map((r) => r.c));
+  const cov = ref0 ? rows.filter((r) => cats.has(r.c)) : [];
+  return {
+    items,
+    janela: {
+      dias,
+      anos,
+      diasComuns: comuns.length,
+      criterio,
+      escolhido,
+      outro,
+      usados: lidos,
+      esperada: media == null ? null : Math.min(1, media),
+      carros: mean(usados.map((i) => i.carros!)),
+      fleetAtual: mean(usados.map((i) => i.fleetAtual)),
+      cov,
+      capCov: sum(cov.map((r) => r.f)),
+    },
+  };
+}
+
+/** Referências do próprio dia (ver `windowAnalysis`): a do ano escolhido pela janela vem com `chosen`. */
+export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number): RefItem[] {
+  return windowAnalysis(model, rows, date, base, L).items;
+}
+
+function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base: string, L?: number) {
   if (!rows.length) return null;
   const info = model.payload.cal[date];
   const isEvent = !!(info?.[1] && info[2] != null);
-  const items = referenceItems(model, rows, date, base, L);
-  const best = items.find((i) => i.chosen);
-  if (!best) return null;
+  const { janela } = windowAnalysis(model, rows, date, base, L);
+  if (janela.esperada == null || !janela.capCov) return null;
   return {
-    value: Math.min(1, best.occ!),
-    cov: best.cov,
-    capCov: best.capCov,
-    n: items.filter((i) => i.eligible).length,
+    value: janela.esperada,
+    cov: janela.cov,
+    capCov: janela.capCov,
+    n: janela.anos.length, // anos comparados (base da confiança); os dias da média estão em janela.usados
     level: (isEvent ? "evento" : "aniversario") as BenchLevel,
   };
 }
@@ -504,7 +634,7 @@ export function dayPace(
   const capacity = sum(rows.map((r) => r.f));
   const booked = rows.length > 0 && at >= lead ? sum(rows.map((r) => soldAt(r, at))) : null;
   if (model.payload.params.estatistica === "maximo") {
-    const w = wholeDayBenchmark(model, rows, date, base, at);
+    const w = wholeDayBenchmark(model, rows, date, base, L);
     const atualB = booked != null && capacity ? booked / capacity : null;
     const atualCobB = w && at >= lead ? sum(w.cov.map((r) => soldAt(r, at))) / w.capCov : null;
     return {
