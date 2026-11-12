@@ -8,6 +8,7 @@ import {
   diariaEmL,
   faixaReferencias,
   gapCarros,
+  lotacaoAvisavel,
   lotouEm,
   precoVendaAtual,
   primeiroCheio,
@@ -124,6 +125,23 @@ describe("aviso de lotação da referência", () => {
     expect(c.map((p) => p.occ)).toEqual([0.5, 1, 1]);
     expect(primeiroCheio(c)?.L).toBe(20);
     expect(primeiroCheio(curvaReferencia([row([30], undefined, 4)], [30, 0]))).toBeNull();
+  });
+});
+
+describe("aviso de lotação", () => {
+  // Frota 2: `tarde` fica cheia só a partir de D-10; `cedo`, a partir de D-20.
+  const tarde = row([20, 10], undefined, 2); // cheia a partir de D-10
+  const cedo = row([30, 20], undefined, 2); // cheia a partir de D-20
+  it("só avisa quando a lotação foi antes do limite (padrão 14 dias)", () => {
+    expect(lotacaoAvisavel([cedo])).toBe(20);
+    expect(lotacaoAvisavel([tarde])).toBeNull(); // lotou em D-10: perto da data
+  });
+  it("limite é exclusivo e configurável", () => {
+    expect(lotacaoAvisavel([row([14, 14], undefined, 2)])).toBeNull(); // D-14 não passa de 14
+    expect(lotacaoAvisavel([row([15, 15], undefined, 2)])).toBe(15);
+    expect(lotacaoAvisavel([tarde], 5)).toBe(10);
+    expect(lotacaoAvisavel([cedo], 30)).toBeNull();
+    expect(lotacaoAvisavel([row([5], undefined, 4)])).toBeNull(); // nunca lotou
   });
 });
 

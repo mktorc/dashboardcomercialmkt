@@ -383,6 +383,8 @@ export type RefItem = {
   occFinal: number | null;
   /** Carros (diárias ativas) da referência na antecedência analisada: a meta em carros, só informação. */
   carros: number | null;
+  /** Antecedência (dias) em que a referência foi lida (a do dia da janela a que pertence). */
+  lead: number;
   fleet: number;
   /** Frota atual das mesmas categorias que entram em `fleet` (para comparar com a da época). */
   fleetAtual: number;
@@ -424,6 +426,8 @@ export type JanelaRef = {
   outro: JanelaAno | null;
   /** Dias do ano escolhido com leitura na antecedência (os da média). */
   usados: string[];
+  /** As referências desses dias (uma por dia usado), com as linhas históricas e a antecedência lida. */
+  itens: RefItem[];
   /** Média das ocupações (0–1, limitada a 100%); null sem ano escolhido ou sem dias lidos. */
   esperada: number | null;
   /** Média de carros do ano escolhido nos dias usados e a frota atual média desses dias (meta em carros: só informação). */
@@ -440,7 +444,7 @@ const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : null);
 function buildRefItem(model: PaceModel, cur: PaceRow[], d: string, L: number): RefItem {
   const capacity = sum(cur.map((r) => r.f));
   const truncated = L > 0 && addDays(d, -L) < model.payload.de;
-  const base0 = { date: d, occ: null, rev: null, revFinal: null, occFinal: null, carros: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
+  const base0 = { date: d, lead: L, occ: null, rev: null, revFinal: null, occFinal: null, carros: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
   const all = cur
     .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
     .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
@@ -466,6 +470,7 @@ function buildRefItem(model: PaceModel, cur: PaceRow[], d: string, L: number): R
   const eligible = !truncated && ok.length > 0 && cobertura >= REF_COBERTURA_MIN;
   return {
     date: d,
+    lead: L,
     occ: carros == null ? null : carros / fh,
     rev: truncated ? null : porVeiculo(L),
     revFinal: porVeiculo(),
@@ -508,7 +513,7 @@ export function windowAnalysis(
   base: string,
   L?: number,
 ): { items: RefItem[]; janela: JanelaRef } {
-  const vazio: JanelaRef = { dias: [date], anos: [], diasComuns: 0, criterio: null, escolhido: null, outro: null, usados: [], esperada: null, carros: null, fleetAtual: null, cov: [], capCov: 0 };
+  const vazio: JanelaRef = { dias: [date], anos: [], diasComuns: 0, criterio: null, escolhido: null, outro: null, usados: [], itens: [], esperada: null, carros: null, fleetAtual: null, cov: [], capCov: 0 };
   if (!rows.length) return { items: [], janela: vazio };
   const { cal } = model.payload;
   const info = cal[date];
@@ -587,6 +592,7 @@ export function windowAnalysis(
       escolhido,
       outro,
       usados: lidos,
+      itens: usados,
       esperada: media == null ? null : Math.min(1, media),
       carros: mean(usados.map((i) => i.carros!)),
       fleetAtual: mean(usados.map((i) => i.fleetAtual)),

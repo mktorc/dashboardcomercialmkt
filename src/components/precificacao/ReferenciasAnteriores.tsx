@@ -9,8 +9,10 @@ import {
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import { type PrecoVenda, carros, difDiariaPct, metaCarros, diariaEmL, lotouEm, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
+import { type PrecoVenda, carros, difDiariaPct, metaCarros, diariaEmL, lotacaoAvisavel, projecaoFechamento, ritmoRecente } from "@/lib/occupancy-detail";
 import { dataBR, pct, usd } from "@/lib/pricing-format";
+import { quebraAntecedencia, vendasRecentes } from "@/lib/preco-analise";
+import { TabelaFaixasAntecedencia } from "@/components/precificacao/DiagnosticoPreco";
 
 const ganho = (pp: number | null) => (pp == null ? "—" : `${pp >= 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")} p.p.`);
 const sinal = (n: number | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n}`);
@@ -47,6 +49,7 @@ export function ReferenciasAnteriores({
   precoVenda,
   leadLabel,
   rowsFor,
+  lotacaoLimite = 14,
 }: {
   model: PaceModel;
   /** Linhas (data × categoria) da data analisada: as mesmas que a esperada usa. */
@@ -66,6 +69,8 @@ export function ReferenciasAnteriores({
   leadLabel: string;
   /** Linhas (data × categoria) de uma data histórica: as categorias da análise atual. */
   rowsFor: (date: string) => PaceRow[];
+  /** Só avisa que a referência lotou em D-X quando X é maior que isto (dias). */
+  lotacaoLimite?: number;
 }) {
   const ref = referenceDates(model, date, base);
   // Os mesmos números e as mesmas referências que a esperada usa (ocupação ÷ frota da época, faturamento por veículo).
@@ -88,6 +93,15 @@ export function ReferenciasAnteriores({
       v: closed || !it ? null : ritmoRecente(it.hist, lead, dias, { date: dt, de }),
     })),
   });
+  // Diária das vendas recentes: reservas criadas nos últimos N dias, a de hoje e a das referências no mesmo estágio.
+  const vendas = (dias: number) => ({
+    hoje: closed ? null : vendasRecentes(rows, lead, dias),
+    refs: itens.map(({ dt, it }) => ({ ano: dt.slice(0, 4), v: closed || !it ? null : vendasRecentes(it.hist, lead, dias, { date: dt, de }) })),
+  });
+  const colunasFaixas = [
+    ...itens.map(({ dt, it }) => ({ titulo: dt.slice(0, 4), q: it && it.hist.length ? quebraAntecedencia(it.hist) : null })),
+    { titulo: "Atual", q: rows.length ? quebraAntecedencia(rows, closed ? 0 : lead) : null },
+  ];
   return (
     <Card className="space-y-3 p-4 text-sm">
       <h3 className="font-semibold">
@@ -125,7 +139,7 @@ export function ReferenciasAnteriores({
             const aviso = it ? avisoFrota(it.fleet, it.fleetAtual) : null;
             const proj = it && !closed && booked != null ? projecaoFechamento(it, booked, capacity, diariaAtual) : null;
             const diariaRef = it ? diariaEmL(it.hist, lead) : null;
-            const lotou = it?.chosen ? lotouEm(it.hist) : null;
+            const lotou = it?.chosen ? lotacaoAvisavel(it.hist, lotacaoLimite) : null;
             const fora = it ? rows.filter((r) => !it.hist.some((h) => h.c === r.c)).map((r) => r.c) : [];
             const ano = dt.slice(0, 4);
             return (
@@ -220,6 +234,30 @@ export function ReferenciasAnteriores({
               })
             )}
           </div>
+          <div className="space-y-0.5 text-xs">
+            <div className="font-medium">Diária das vendas recentes (reservas criadas nos últimos dias, confirmadas hoje)</div>
+            {closed ? (
+              <div className="text-muted-foreground">Dados indisponíveis: data já encerrada.</div>
+            ) : (
+              [7, 14].map((dias) => {
+                const v = vendas(dias);
+                const txt = (x: { carros: number; diaria: number | null } | null) =>
+                  x == null ? "indisponível" : `${usd(x.diaria)} (${x.carros} ${x.carros === 1 ? "carro" : "carros"})`;
+                return (
+                  <div key={dias} className="tabular-nums text-muted-foreground">
+                    Últimos {dias} dias: <span className="text-foreground">{txt(v.hoje)}</span>
+                    {v.refs.map((x) => (
+                      <span key={x.ano}>
+                        {" "}
+                        · {x.ano}: {txt(x.v)}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <TabelaFaixasAntecedencia colunas={colunasFaixas} />
           <div className="space-y-0.5 text-xs text-muted-foreground">
             {precoVenda ? (
               <>

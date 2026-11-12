@@ -109,6 +109,15 @@ export function lotouEm(hist: PaceRow[]): number | null {
   return null;
 }
 
+/**
+ * Lotação que merece aviso: a maior antecedência X em que a referência chegou a 100%, só se X > `limite` (padrão 14 dias).
+ * Lotar perto da data não indica preço baixo nem demanda reprimida.
+ */
+export function lotacaoAvisavel(hist: PaceRow[], limite = 14): number | null {
+  const x = lotouEm(hist);
+  return x != null && x > limite ? x : null;
+}
+
 /** Aviso de frota pequena: cada carro vale 100/frota p.p. Null quando a frota atinge o limite. */
 export function avisoFrotaPequena(capacity: number, limite = FROTA_PEQUENA_LIMITE): { ppPorCarro: number; texto: string } | null {
   if (!capacity || capacity >= limite) return null;

@@ -59,6 +59,7 @@ import {
   rowsByDate,
   summarize,
   usePace,
+  windowAnalysis,
   type DayPace,
   type GapBands,
   type GapLevel,
@@ -77,6 +78,16 @@ import {
 } from "@/lib/occupancy-detail";
 import { useOurRates } from "@/lib/competitive-data";
 import { FaixaReferencias } from "@/components/precificacao/FaixaReferencias";
+import { BlocoDiagnostico, SeloDiagnostico, ToleranciasConfig } from "@/components/precificacao/DiagnosticoPreco";
+import {
+  DIAGNOSTICO_LABEL,
+  DIAGNOSTICO_ORDEM,
+  TOL_PADRAO,
+  quadranteDia,
+  type Diagnostico,
+  type Quadrante,
+  type Tolerancias,
+} from "@/lib/preco-analise";
 
 const ALL = "__all__";
 const MONTHS = [
@@ -140,6 +151,13 @@ function Painel({
   const [cat, setCat] = useState(ALL);
   const [base, setBaseRaw] = useState(payload.hoje);
   const [bands, setBands] = useState<GapBands>(DEFAULT_BANDS);
+  const [tol, setTol] = useState<Tolerancias>(TOL_PADRAO);
+  const rates = useOurRates();
+  const tarifas = useMemo(
+    () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate] as [string, number])),
+    [rates.data],
+  );
+  const [filtroDiag, setFiltroDiag] = useState<Diagnostico | "todos">("todos");
   const [sel, setSel] = useState<string | null>(null);
 
   // Data-base: padrão hoje; nunca depois de hoje (o histórico do benchmark só vai até hoje) nem antes do início dos dados.
@@ -152,6 +170,17 @@ function Painel({
     [model, byDate, from, to, base],
   );
   const sum = useMemo(() => summarize(days, bands), [days, bands]);
+  // Diagnóstico de preço de cada data (ocupação × preço × ritmo); só leitura, não altera esperada nem gap.
+  const quad = useMemo(() => {
+    const m = new Map<string, Quadrante>();
+    for (const d of days) {
+      const rows = byDate.get(d.date);
+      if (!rows?.length || d.gap == null) continue;
+      const q = quadranteDia(d, rows, windowAnalysis(model, rows, d.date, base).janela, payload.de, tol, precoVendaAtual(rows, tarifas, d.date)?.valor ?? null);
+      if (q) m.set(d.date, q);
+    }
+    return m;
+  }, [days, byDate, model, base, payload.de, tol, tarifas]);
   // Ocupação atual do intervalo = a do relatório de Utilização do HQ para a janela inteira (só com a data-base de hoje: os trechos são os de hoje).
   const hqWindow = useMemo(
     () =>
@@ -179,7 +208,12 @@ function Painel({
           from={from}
           to={to}
           onChange={setRange}
-          actions={<BandsConfig bands={bands} onChange={setBands} />}
+          actions={
+            <>
+              <BandsConfig bands={bands} onChange={setBands} />
+              <ToleranciasConfig tol={tol} onChange={setTol} />
+            </>
+          }
         >
           <Field label="Categoria">
             <Select value={cat} onValueChange={setCat}>
@@ -221,10 +255,10 @@ function Painel({
 
       <p className="text-xs text-muted-foreground">
         A antecedência de cada data é a retirada menos a data-base ({dataBR(base)}): por exemplo,{" "}
-        {dataBR(addDays(base, 49))} está em D-49. Esperada = a melhor ocupação já registrada em
-        datas passadas comparáveis (mesma categoria; mesmo evento e posição relativa no Carnaval,
-        Semana Santa e Corpus Christi; nas demais, mesma sazonalidade e dia da semana) na mesma
-        antecedência, usando só datas encerradas antes da data-base. Não é previsão da ocupação
+        {dataBR(addDays(base, 49))} está em D-49. Esperada = média, na janela de 7 dias (a data ±3), das ocupações do ano de
+        referência (mesmo dia da semana 1 e 2 anos antes; em Carnaval, Semana Santa e Corpus Christi, a mesma
+        posição nas edições passadas) com maior faturamento/veículo final médio, cada dia lido na sua
+        antecedência e só com datas encerradas antes da data-base. Não é previsão da ocupação
         final. Datas já encerradas aparecem em D-0, com a ocupação final.
       </p>
       {outOfRange ? (
@@ -249,7 +283,7 @@ function Painel({
           icon={Target}
           label="Ocupação esperada média"
           value={pct(sum.esperada)}
-          hint="melhor já registrada"
+          hint="média da janela de 7 dias"
         />
         <Kpi
           icon={sum.gap != null && sum.gap < 0 ? TrendingDown : TrendingUp}
@@ -282,6 +316,9 @@ function Painel({
         base={base}
         onSelect={setSel}
         onShift={shift}
+        quad={quad}
+        filtroDiag={filtroDiag}
+        onFiltroDiag={setFiltroDiag}
       />
       <Comparativo days={days} base={base} bands={bands} />
       <Pickup model={model} byDate={byDate} from={from} to={to} base={base} />
@@ -293,6 +330,8 @@ function Painel({
         byDate={byDate}
         base={base}
         bands={bands}
+        tol={tol}
+        tarifas={tarifas}
         onClose={() => setSel(null)}
       />
     </div>
@@ -385,6 +424,9 @@ function Calendario({
   base,
   onSelect,
   onShift,
+  quad,
+  filtroDiag,
+  onFiltroDiag,
 }: {
   days: DayPace[];
   from: string;
@@ -393,6 +435,9 @@ function Calendario({
   base: string;
   onSelect: (d: string) => void;
   onShift: (dir: 1 | -1) => void;
+  quad: Map<string, Quadrante>;
+  filtroDiag: Diagnostico | "todos";
+  onFiltroDiag: (f: Diagnostico | "todos") => void;
 }) {
   const byDay = new Map(days.map((d) => [d.date, d]));
   const months: string[] = [];
@@ -407,7 +452,20 @@ function Calendario({
         <h2 className="font-semibold">
           {title} · base {dataBR(base)}
         </h2>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
+          <Select value={filtroDiag} onValueChange={(v) => onFiltroDiag(v as Diagnostico | "todos")}>
+            <SelectTrigger className="h-9 w-44 text-xs" aria-label="Filtrar por diagnóstico">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os diagnósticos</SelectItem>
+              {DIAGNOSTICO_ORDEM.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {DIAGNOSTICO_LABEL[k]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             size="icon"
             variant="outline"
@@ -456,12 +514,14 @@ function Calendario({
                     </div>
                   );
                 const lv = d.gap != null ? LEVEL[gapLevel(d.gap, bands)] : null;
+                const qd = quad.get(date);
+                const apagada = filtroDiag !== "todos" && qd?.diagnostico !== filtroDiag;
                 return (
                   <button
                     key={date}
                     onClick={() => onSelect(date)}
-                    title={`${dataBR(date)} · ${d.closed ? "encerrada (D-0)" : `D-${d.lead}`}${d.event ? ` · ${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel})` : ""} · ${lv ? lv.label : "sem benchmark (histórico insuficiente)"}`}
-                    className={`min-h-20 rounded-lg border p-1.5 text-left transition hover:scale-[1.03] hover:shadow-md focus-visible:outline focus-visible:outline-2 ${lv?.card ?? "border-border bg-muted/30"}`}
+                    title={`${dataBR(date)} · ${d.closed ? "encerrada (D-0)" : `D-${d.lead}`}${d.event ? ` · ${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel})` : ""} · ${lv ? lv.label : "sem benchmark (histórico insuficiente)"}${qd ? ` · ${qd.diagnostico ? DIAGNOSTICO_LABEL[qd.diagnostico] : "diagnóstico indisponível"}: ${qd.frase}` : ""}`}
+                    className={`min-h-20 rounded-lg border p-1.5 ${apagada ? "opacity-25" : ""} text-left transition hover:scale-[1.03] hover:shadow-md focus-visible:outline focus-visible:outline-2 ${lv?.card ?? "border-border bg-muted/30"}`}
                   >
                     <div className="flex items-center justify-between text-xs font-medium">
                       <span>{Number(date.slice(8))}</span>
@@ -489,6 +549,7 @@ function Calendario({
                         >
                           {gapTxt(d.gap)}
                         </div>
+                        {qd?.diagnostico ? <SeloDiagnostico d={qd.diagnostico} /> : null}
                       </>
                     )}
                   </button>
@@ -498,6 +559,10 @@ function Calendario({
           </div>
         );
       })}
+      <p className="text-[11px] text-muted-foreground">
+        O selo em cada data é o diagnóstico de preço (ocupação contra a esperada × diária contra a do ano escolhido × ritmo recente). Datas sem selo não
+        têm diária para comparar. Use o filtro para destacar um diagnóstico.
+      </p>
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
         {(Object.keys(LEVEL) as GapLevel[]).map((l) => (
           <span key={l} className="flex items-center gap-1">
@@ -788,6 +853,8 @@ function Detalhe({
   byDate,
   base,
   bands,
+  tol,
+  tarifas,
   onClose,
 }: {
   model: PaceModel;
@@ -796,6 +863,8 @@ function Detalhe({
   byDate: Map<string, PaceRow[]>;
   base: string;
   bands: GapBands;
+  tol: Tolerancias;
+  tarifas: Map<string, number>;
   onClose: () => void;
 }) {
   const rows = useMemo(() => (date ? (byDate.get(date) ?? []) : []), [byDate, date]);
@@ -822,10 +891,12 @@ function Detalhe({
     [model, rows, date, base, d, items],
   );
   const usada = items.find((i) => i.chosen);
-  const rates = useOurRates();
-  const tarifas = useMemo(
-    () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate] as [string, number])),
-    [rates.data],
+  const quadrante = useMemo(
+    () =>
+      date && d && d.capacity
+        ? quadranteDia(d, rows, windowAnalysis(model, rows, date, base).janela, model.payload.de, tol, precoVendaAtual(rows, tarifas, date)?.valor ?? null)
+        : null,
+    [model, rows, date, base, d, tol, tarifas],
   );
   const precoVenda = date ? precoVendaAtual(rows, tarifas, date) : null;
   const faixa = d ? faixaReferencias(items, d.atual) : null;
@@ -880,6 +951,7 @@ function Detalhe({
                   Histórico comparável insuficiente: sem benchmark para esta data.
                 </p>
               )}
+              <BlocoDiagnostico q={quadrante} todas={cat === ALL} closed={d.closed} />
               {faixa ? <FaixaReferencias faixa={faixa} atual={d.atual} /> : null}
               {pequena ? (
                 <div className="rounded-md border border-amber-600/40 p-2 text-xs text-amber-700 dark:text-amber-300">
@@ -960,6 +1032,7 @@ function Detalhe({
               precoVenda={precoVenda}
               leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
               rowsFor={(dt) => byDate.get(dt) ?? []}
+              lotacaoLimite={tol.lotacaoDias}
             />
           </div>
         ) : null}
