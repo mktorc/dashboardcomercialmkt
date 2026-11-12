@@ -128,10 +128,12 @@ def checar_dados():
             reg(3, f"Extras: {nome}", "ok" if com == tot else "aviso", f"{com} de {tot} cotações das últimas 26 h com os extras (motorista adicional e bebê conforto) lidos")
     recentes = supabase(f"competitor_price_snapshots?select=equivalence,pickup_at&collected_at=gte.{(AGORA - timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%S')}&limit=1000")
     if recentes:
-        eq = sum(1 for s in recentes if s["equivalence"] == "equivalente")
+        # A coleta automática grava sempre "parcial" (nunca "equivalente" sem evidência), então só conta como problema
+        # cotação que a tela de Competitividade não usa: tudo "nao_avaliada"/"nao_equivalente".
+        usaveis = sum(1 for s in recentes if s["equivalence"] in ("equivalente", "parcial"))
         datas = len({s["pickup_at"][:10] for s in recentes})
-        reg(3, "Qualidade do mercado (7 dias)", "aviso" if eq == 0 else "ok",
-            f"{datas} datas de retirada cotadas; {eq} de {len(recentes)} cotações equivalentes (as demais são parciais; amostra de até 1000)")
+        reg(3, "Qualidade do mercado (7 dias)", "aviso" if usaveis == 0 else "ok",
+            f"{datas} datas de retirada cotadas; {usaveis} de {len(recentes)} cotações utilizáveis na comparação (equivalentes ou parciais; amostra de até 1000)")
 
 
 def autocorrigir(repo, arquivo, execucoes):
