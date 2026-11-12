@@ -171,6 +171,7 @@ describe("quebra por faixa de antecedência", () => {
     expect(q.faixas[0]!.diaria).toBe(105); // (100 + 110) ÷ 2
     expect(q.faixas[5]!.diaria).toBe(205);
     expect(q.total.carros).toBe(12);
+    expect(q.total.faturamento).toBe(a.reduce((s, _, i) => s + 100 + i * 10, 0));
     expect(q.total.diaria).toBeCloseTo(a.reduce((s, _, i) => s + 100 + i * 10, 0) / 12, 5);
   });
   it("só diárias criadas até a data-base e diárias sem preço fora da diária", () => {
@@ -186,7 +187,7 @@ describe("quebra por faixa de antecedência", () => {
   });
   it("sem diárias: zeros, sem divisão por zero", () => {
     const q = quebraAntecedencia([{ d: "x", c: "A", f: 5, a: [] }]);
-    expect(q.total).toEqual({ carros: 0, diaria: null });
+    expect(q.total).toEqual({ carros: 0, diaria: null, faturamento: 0 });
     expect(q.faixas.every((f) => f.pct === 0 && f.diaria === null)).toBe(true);
   });
 });

@@ -401,6 +401,7 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
             <h2 className="font-semibold">Quando cada ano vendeu</h2>
             <InfoTip>
               <p>Todas as barras na mesma escala: cada segmento é a faixa de antecedência em que os carros foram criados, com largura = carros ÷ frota (frota da época nas referências, frota atual na atual). O cinza é o que não foi vendido.</p>
+              <p>Diária = faturamento ÷ diárias com preço. Fat./veículo = faturamento das diárias vendidas ÷ frota (da época nas referências, atual na atual): não são a mesma coisa.</p>
               <p>Referências: reservas não canceladas (composição final). Atual: reservas ativas hoje, criadas até a data-base. A unidade é a diária (carro × dia).</p>
             </InfoTip>
           </div>
@@ -425,8 +426,10 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
                         )
                       : null}
                   </div>
-                  <span className="w-40 shrink-0 text-right">
-                    {c.q?.total.carros ? `${c.q.total.carros} de ${c.fleet} carros · ${usd(c.q.total.diaria)}` : "—"}
+                  <span className="w-60 shrink-0 text-right leading-tight">
+                    {c.q?.total.carros && c.fleet > 0
+                      ? `${c.q.total.carros} de ${c.fleet} carros · diária ${usd(c.q.total.diaria)} · fat./veículo ${usd(c.q.total.faturamento / c.fleet)}`
+                      : "—"}
                   </span>
                 </div>
               ))}
@@ -440,7 +443,7 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
               </span>
             ))}
           </div>
-          <div className="text-[10px] text-muted-foreground">Mais escuro = vendido mais cedo; cinza claro = não vendido. Ao lado de cada ano: carros vendidos de frota e diária total.</div>
+          <div className="text-[10px] text-muted-foreground">Mais escuro = vendido mais cedo; cinza claro = não vendido. Ao lado de cada ano: carros vendidos de frota, diária média (faturamento ÷ diárias) e fat./veículo (faturamento ÷ frota).</div>
 
           <div className="space-y-1.5 border-t pt-3">
             <div className="flex items-center gap-1.5">

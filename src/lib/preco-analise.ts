@@ -217,7 +217,11 @@ export const FAIXAS_ANTECEDENCIA = [
 ] as const;
 
 export type FaixaAntecedencia = { label: string; carros: number; pct: number; diaria: number | null };
-export type QuebraAntecedencia = { faixas: FaixaAntecedencia[]; total: { carros: number; diaria: number | null } };
+export type QuebraAntecedencia = {
+  faixas: FaixaAntecedencia[];
+  /** `faturamento` = soma do preço pago das diárias consideradas (a diária média é faturamento ÷ diárias com preço). */
+  total: { carros: number; diaria: number | null; faturamento: number };
+};
 
 /**
  * Quebra das diárias da data pela antecedência de criação. Usa as diárias confirmadas (`a`/`m`): nas referências é a composição final
@@ -247,7 +251,7 @@ export function quebraAntecedencia(rows: PaceRow[], desdeLead = 0): QuebraAntece
       pct: n ? acc[k]!.n / n : 0,
       diaria: acc[k]!.p ? acc[k]!.v / acc[k]!.p : null,
     })),
-    total: { carros: n, diaria: p ? sum(acc.map((x) => x.v)) / p : null },
+    total: { carros: n, diaria: p ? sum(acc.map((x) => x.v)) / p : null, faturamento: sum(acc.map((x) => x.v)) },
   };
 }
 
