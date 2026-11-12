@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { BadgeDollarSign, CheckCircle2, Clock, Flame, Info, Search, Tag, TrendingDown, type LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -17,7 +17,7 @@ import {
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import { carros, curvaDetalhe, faixaJanela, gapCarros, projecaoFechamento, ritmoRecente, FAIXA_TXT, type PrecoVenda } from "@/lib/occupancy-detail";
+import { carros, curvaDetalhe, faixaJanela, gapCarros, projecaoFechamento, projecaoNoRitmo, ritmoRecente, FAIXA_TXT, type PrecoVenda } from "@/lib/occupancy-detail";
 import { DIAGNOSTICO_LABEL, FAIXAS_ANTECEDENCIA, quadranteDia, quebraAntecedencia, type Diagnostico, type Tolerancias } from "@/lib/preco-analise";
 import { LEVEL, gapTxt, pct, usd } from "@/lib/pricing-format";
 
@@ -151,6 +151,17 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           const proj = projecaoFechamento(i, d.booked!, d.capacity, rev.diaria);
           return proj ? [{ ano: i.date.slice(0, 4), escolhido: i.chosen, proj }] : [];
         });
+
+  // Projeção no ritmo atual: mantém os carros que entraram nos últimos 14 dias até a data (sem usar ano de referência).
+  const [janelaRitmo, setJanelaRitmo] = useState<number | "inicio">(30);
+  // Antecedência mais distante com dado: "desde o início" usa todo o período de vendas da data.
+  const inicioL = useMemo(() => rows.reduce((m, r) => Math.max(m, ...r.a, ...(r.x ?? []).map(([c]) => c)), 0), [rows]);
+  const diasRitmo = janelaRitmo === "inicio" ? Math.max(0, inicioL - d.lead) : janelaRitmo;
+  const projRitmo =
+    d.closed || d.booked == null || diasRitmo <= 0
+      ? null
+      : projecaoNoRitmo(d.booked, ritmoRecente(rows, d.lead, diasRitmo), diasRitmo, d.lead, d.capacity, rev.diaria);
+  const ritmoCarros = projRitmo && d.booked != null ? ritmoRecente(rows, d.lead, diasRitmo) : null;
 
   // Ritmo: hoje, ano escolhido (média da janela) e os outros anos (do próprio dia), em carros da frota atual.
   const outros = d.closed
@@ -450,9 +461,32 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
               <h3 className="text-sm font-semibold">Projeção de fechamento</h3>
               <InfoTip>
                 <p>Projeção simples: ocupação atual + o ganho que cada referência teve até a data, em carros, limitada à frota atual. Não é previsão.</p>
+                <p>"No ritmo atual" mantém o ritmo de vendas (janela à escolha: 14, 30, 60 dias ou desde o início) até a data (linear, sem olhar nenhum ano).</p>
                 <p>Fat./veículo = ocupação projetada × diária média já vendida.</p>
               </InfoTip>
             </div>
+            {!d.closed ? (
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                Ritmo medido em:
+                {([14, 30, 60, "inicio"] as const).map((j) => (
+                  <button
+                    key={j}
+                    type="button"
+                    onClick={() => setJanelaRitmo(j)}
+                    className={`rounded px-1.5 py-0.5 ${janelaRitmo === j ? "bg-primary/15 font-medium text-primary" : "hover:text-foreground"}`}
+                  >
+                    {j === "inicio" ? "desde o início" : `${j} dias`}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {projRitmo ? (
+              <p className="text-xs font-medium tabular-nums text-foreground">
+                No ritmo atual ({date.slice(0, 4)}): fecha com ~{projRitmo.fechaCarros} de {d.capacity} carros ({pct(projRitmo.fechaOcc)})
+                {projRitmo.revPorVeiculo != null ? ` · fat./veículo ~${usd(projRitmo.revPorVeiculo)}` : ""}
+                <span className="font-normal text-muted-foreground"> · {ritmoCarros} carros em {diasRitmo} dias, mantidos pelos {d.lead} que faltam</span>
+              </p>
+            ) : null}
             {d.closed ? (
               <p className="text-xs text-muted-foreground">Data encerrada: sem projeção.</p>
             ) : projecoes.length === 0 ? (

@@ -15,6 +15,7 @@ import {
   precoVendaAtual,
   primeiroCheio,
   projecaoFechamento,
+  projecaoNoRitmo,
   ritmoRecente,
 } from "./occupancy-detail";
 import type { PaceRow } from "./occupancy-pace";
@@ -227,5 +228,20 @@ describe("preço de venda atual", () => {
   it("casa a categoria com nome em caixa/espaço diferente (Fullsize Suv × Fullsize SUV)", () => {
     const tf = new Map([[rateKey("2027-01-12", "Fullsize SUV"), 90]]);
     expect(precoVendaAtual([{ d: "2027-01-12", c: "Fullsize Suv", f: 9, a: [] } as PaceRow], tf, "2027-01-12")?.valor).toBe(90);
+  });
+});
+
+describe("projeção no ritmo atual", () => {
+  it("mantém o ritmo dos últimos dias até a data, limitado à frota", () => {
+    // 14 carros em 14 dias = 1/dia; faltam 5 dias: 10 + 5 = 15 de 20
+    const p = projecaoNoRitmo(10, 14, 14, 5, 20, 100)!;
+    expect(p.fechaCarros).toBe(15);
+    expect(p.ganhoCarros).toBe(5);
+    expect(p.fechaOcc).toBeCloseTo(0.75, 10);
+    expect(projecaoNoRitmo(10, 14, 14, 60, 20, null)!.fechaCarros).toBe(20);
+  });
+  it("sem ritmo ou com data encerrada, sem projeção", () => {
+    expect(projecaoNoRitmo(10, null, 14, 5, 20, 100)).toBeNull();
+    expect(projecaoNoRitmo(10, 7, 14, 0, 20, 100)).toBeNull();
   });
 });

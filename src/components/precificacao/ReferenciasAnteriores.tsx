@@ -27,6 +27,8 @@ import { TabelaFaixasAntecedencia } from "@/components/precificacao/DiagnosticoP
 
 const ganho = (pp: number | null) => (pp == null ? "—" : `${pp >= 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")} p.p.`);
 const sinal = (n: number | null) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n}`);
+/** Dólar com centavos: a escolha do ano pode se decidir em centavos, que o valor inteiro esconde. */
+const usd2 = (v: number | null) => (v == null ? "—" : `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const dif = (p: number | null) => (p == null ? "—" : `${p >= 0 ? "+" : ""}${p.toFixed(0)}%`);
 
 const Aviso = ({ children }: { children: ReactNode }) => <li className="text-amber-700 dark:text-amber-300">{children}</li>;
@@ -157,6 +159,20 @@ export function ReferenciasAnteriores({
     { rotulo: `Diária média ${leadLabel}`, celulas: itens.map(({ it }) => (sem(it) ? "—" : usd(diariaEmL(it!.hist, lead)))) },
     { rotulo: "Fat./veículo final", celulas: itens.map(({ it }) => (sem(it) ? "—" : usd(it!.revFinal))) },
     { rotulo: `Fat./veículo ${leadLabel}`, celulas: itens.map(({ it }) => (sem(it) ? "—" : usd(it!.rev))) },
+    // Média da semana (janela): é o que decide o ano escolhido e a esperada, não o dia sozinho.
+    {
+      rotulo: `Fat./veículo final · média da janela (${janela.diasComuns} dias comuns)`,
+      forte: true,
+      celulas: itens.map(({ ano }) => usd2(janela.anos.find((a) => a.label === ano)?.revMedio ?? null)),
+    },
+    {
+      rotulo: `Ocupação em ${leadLabel} · média da janela`,
+      forte: true,
+      celulas: itens.map(({ ano }) => {
+        const o = janela.anos.find((a) => a.label === ano)?.occMedia ?? null;
+        return o == null ? "—" : pct(o);
+      }),
+    },
     {
       rotulo: `Diária vendida vs ref. ${leadLabel}`,
       celulas: itens.map(({ it }) => (sem(it) ? "—" : dif(difDiariaPct(diariaAtual, diariaEmL(it!.hist, lead))))),
@@ -240,7 +256,7 @@ export function ReferenciasAnteriores({
                 Ano escolhido pela janela {dataBR(janela.dias[0]!).slice(0, 5)}–{dataBR(janela.dias[janela.dias.length - 1]!).slice(0, 5)}:{" "}
                 <span className="font-medium">{janela.escolhido.label}</span>{" "}
                 {janela.criterio === "faturamento"
-                  ? `(fat./veículo médio ${usd(janela.escolhido.revMedio)}${janela.outro ? ` contra ${usd(janela.outro.revMedio)}` : ""})`
+                  ? `(fat./veículo médio ${usd2(janela.escolhido.revMedio)}${janela.outro ? ` contra ${usd2(janela.outro.revMedio)}` : ""}, em ${janela.diasComuns} dias comuns)`
                   : `(sem faturamento em todos os anos: ocupação final média ${pct(janela.escolhido.occFinalMedia)}${janela.outro ? ` contra ${pct(janela.outro.occFinalMedia)}` : ""})`}
               </div>
               <div>
@@ -264,6 +280,10 @@ export function ReferenciasAnteriores({
             <>
               <Secao titulo="Referências do próprio dia, lado a lado">
                 <Tabela colunas={colRefs} linhas={linhasRefs} />
+                <p className="text-[11px] text-muted-foreground">
+                  As linhas em negrito "média da janela" são o que decide: o ano escolhido é o de maior fat./veículo final médio nos dias comuns da
+                  janela, e a esperada é a ocupação média dele. As demais linhas são só o dia {dataBR(date)}.
+                </p>
               </Secao>
               {avisos.length ? (
                 <Secao titulo="Avisos">

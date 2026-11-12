@@ -94,6 +94,26 @@ export function projecaoFechamento(
   };
 }
 
+/**
+ * Projeção no ritmo atual: mantém o ritmo dos últimos `dias` dias (carros que entraram) até a data, sem olhar nenhum ano de referência.
+ * Fecha com reservados + ritmo/dias × antecedência (L), em carros inteiros limitados à frota. Linear: não prevê aceleração nem freio. Null
+ * sem ritmo, sem frota ou com data encerrada (L ≤ 0).
+ */
+export function projecaoNoRitmo(
+  booked: number,
+  ritmo: number | null,
+  dias: number,
+  lead: number,
+  capacity: number,
+  diariaAtual: number | null,
+): Projecao | null {
+  if (ritmo == null || !capacity || lead <= 0 || dias <= 0) return null;
+  const ganho = (ritmo / dias) * lead;
+  const fechaCarros = Math.max(0, Math.min(capacity, Math.round(booked + ganho)));
+  const fechaOcc = fechaCarros / capacity;
+  return { ganhoCarros: fechaCarros - booked, fechaCarros, fechaOcc, revPorVeiculo: diariaAtual != null ? fechaOcc * diariaAtual : null };
+}
+
 /** Diferença % da diária média de hoje contra a da referência na mesma antecedência; null sem os dois valores. */
 export function difDiariaPct(hoje: number | null, ref: number | null): number | null {
   return hoje != null && ref != null && ref > 0 ? (hoje / ref - 1) * 100 : null;
