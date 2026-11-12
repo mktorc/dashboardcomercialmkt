@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { rateKey } from "@/lib/categoria";
 import { useCompetitorSnapshots, useOurRates, type SnapshotRow } from "@/lib/competitive-data";
 import {
   dailyOf,
@@ -37,7 +38,7 @@ type SortKey = "menor" | "maior" | "diferenca" | "concorrente" | "categoria";
 
 /** Nossa diária para a data de retirada e categoria da coleta; sem tarifa publicada = null (nunca zero). */
 function ourRateFor(ours: Map<string, number>, s: SnapshotRow) {
-  return ours.get(`${s.pickupAt.slice(0, 10)}|${s.category}`) ?? null;
+  return ours.get(rateKey(s.pickupAt.slice(0, 10), s.category)) ?? null;
 }
 
 export function Competitividade({
@@ -61,7 +62,7 @@ export function Competitividade({
   const ours = useMemo(
     () =>
       new Map(
-        (rates.data ?? []).map((r: OurRate) => [`${r.pickupDate}|${r.category}`, r.dailyRate]),
+        (rates.data ?? []).map((r: OurRate) => [rateKey(r.pickupDate, r.category), r.dailyRate]),
       ),
     [rates.data],
   );
@@ -107,7 +108,7 @@ export function Competitividade({
   // Posicionamento: cada data de retirada e categoria é um mercado; contamos onde estamos acima/alinhado/abaixo.
   const groups = new Map<string, SnapshotRow[]>();
   for (const r of filtered) {
-    const k = `${r.pickupAt.slice(0, 10)}|${r.category}`;
+    const k = rateKey(r.pickupAt.slice(0, 10), r.category);
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   let acima = 0;

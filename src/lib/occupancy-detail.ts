@@ -1,3 +1,4 @@
+import { rateKey } from "./categoria";
 import {
   activeAt,
   addDays,
@@ -45,6 +46,25 @@ export function faixaReferencias(items: Pick<RefItem, "date" | "occ">[], atual: 
   const max = xs.reduce((a, b) => (b.occ > a.occ ? b : a));
   const status = atual == null ? null : atual < min.occ ? "abaixo" : atual > max.occ ? "acima" : "dentro";
   return { min: { date: min.date, occ: min.occ }, max: { date: max.date, occ: max.occ }, status };
+}
+
+export type FaixaJanela = {
+  min: { label: string; occ: number };
+  max: { label: string; occ: number };
+  status: "abaixo" | "dentro" | "acima" | null;
+};
+
+/**
+ * Faixa das referências pela MÉDIA DA SEMANA de cada ano (mesma regra da esperada: janela de 7 dias, cada dia na sua antecedência).
+ * A esperada é a média do ano escolhido, então sempre cai dentro da faixa. Com menos de dois anos com leitura, null.
+ */
+export function faixaJanela(anos: { label: string; occMedia: number | null }[], atual: number | null): FaixaJanela | null {
+  const xs = anos.filter((a): a is { label: string; occMedia: number } => a.occMedia != null);
+  if (xs.length < 2) return null;
+  const min = xs.reduce((a, b) => (b.occMedia < a.occMedia ? b : a));
+  const max = xs.reduce((a, b) => (b.occMedia > a.occMedia ? b : a));
+  const status = atual == null ? null : atual < min.occMedia ? "abaixo" : atual > max.occMedia ? "acima" : "dentro";
+  return { min: { label: min.label, occ: min.occMedia }, max: { label: max.label, occ: max.occMedia }, status };
 }
 
 export const FAIXA_TXT = { abaixo: "abaixo da faixa", dentro: "dentro da faixa", acima: "acima da faixa" } as const;
@@ -206,7 +226,7 @@ export function precoVendaAtual(rows: PaceRow[], tarifas: Map<string, number>, d
   let f = 0;
   const faltam: string[] = [];
   for (const r of rows) {
-    const t = tarifas.get(`${date}|${r.c}`);
+    const t = tarifas.get(rateKey(date, r.c));
     if (t == null || !r.f) {
       faltam.push(r.c);
       continue;

@@ -33,7 +33,9 @@ import {
 } from "@/components/ui/sheet";
 import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
-import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
+import { rateKey } from "@/lib/categoria";
+import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
+import { TOL_PADRAO } from "@/lib/preco-analise";
 import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
 import { Kpi, PickupChart } from "@/components/precificacao/GestaoOcupacao";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
@@ -62,9 +64,8 @@ import {
   buildModel,
   daysBetween,
   gapLevel,
-  pickupCurve,
-  revenueOf,
-  soldAt,
+  dayPace,
+  DEFAULT_BANDS,
   usePace,
   type PaceModel,
   type PaceRow,
@@ -303,7 +304,7 @@ function Painel({
           // Nossa cotação: com extras soma o que foi lido no nosso site (grátis hoje); sem leitura, nosso site não cobra esses extras.
           const dias = r.extras?.dias ?? 7;
           const extra = comExtras && r.extras ? extrasCost(r.extras, dias) / dias : 0;
-          return [`${r.pickupDate}|${r.category}`, r.dailyRate + extra] as [string, number];
+          return [rateKey(r.pickupDate, r.category), r.dailyRate + extra] as [string, number];
         }),
       ),
     [rates.data, comExtras],
@@ -316,7 +317,7 @@ function Painel({
     const g = new Map<string, SnapshotRow[]>();
     for (const r of efetivas) {
       if (!r.category) continue;
-      const k = `${r.pickupAt.slice(0, 10)}|${r.category}`;
+      const k = rateKey(r.pickupAt.slice(0, 10), r.category);
       g.set(k, [...(g.get(k) ?? []), r]);
     }
     return g;
@@ -336,7 +337,7 @@ function Painel({
   const priceOf = useMemo(() => {
     const cache = new Map<string, PriceCtx>();
     return (date: string, category: string): PriceCtx => {
-      const k = `${date}|${category}`;
+      const k = rateKey(date, category);
       const hit = cache.get(k);
       if (hit) return hit;
       const mine = ours.get(k) ?? null;
@@ -1598,21 +1599,14 @@ function Detalhe({
   const p = row?.price ?? NO_PRICE;
   const r = row?.ritmo ?? null;
   const recs = row ? recommend(row, p, r, crit) : [];
-  const curve = useMemo(
-    () =>
-      row && paceRow
-        ? pickupCurve(model, [paceRow], row.date, base).map((c) => ({
-            label: c.effective ? `D-${c.L} (hoje)` : `D-${c.L}`,
-            atual: c.atual != null ? Math.round(c.atual * 1000) / 10 : null,
-            esperada: c.esperada != null ? Math.round(c.esperada * 1000) / 10 : null,
-          }))
-        : [],
+  const dPace = useMemo(
+    () => (row && paceRow ? dayPace(model, [paceRow], row.date, base) : null),
     [row, paceRow, model, base],
   );
   // Preços individuais: a coleta mais recente de cada oferta de concorrente para a data e a categoria.
   const concorrentes = useMemo(() => {
     if (!row) return [];
-    const list = groups.get(rowKey(row)) ?? [];
+    const list = groups.get(rateKey(row.date, row.category)) ?? [];
     const last = new Map<string, string>();
     for (const s of list)
       if (!last.get(s.competitor) || s.collectedAt > last.get(s.competitor)!)
@@ -1656,6 +1650,9 @@ function Detalhe({
           <>
             <div className="flex flex-wrap items-center gap-2">
               <NivelBadge n={row.nivel} />
+              <span className="ml-auto">
+                <EtiquetaFrota capacity={row.capacity} />
+              </span>
               {siblings.length > 1
                 ? siblings.map((s) => (
                     <Button
@@ -1678,14 +1675,26 @@ function Detalhe({
               </TabsList>
 
               <TabsContent value="demanda" className="space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <Kpi icon={Gauge} label="Atual" value={pct(row.atual)} />
-                  <Kpi icon={TrendingUp} label="Benchmark" value={pct(row.esperada)} />
-                  <Kpi icon={TrendingDown} label="Gap" value={gapTxt(row.gap)} />
-                </div>
-                <p className="text-sm">
-                  Frota {row.capacity} · reservados {row.booked ?? "—"} · sem reserva {row.vacant}.
-                </p>
+                {paceRow && dPace ? (
+                  <DetalheData
+                    model={model}
+                    rows={[paceRow]}
+                    date={row.date}
+                    base={base}
+                    d={dPace}
+                    bands={DEFAULT_BANDS}
+                    tol={TOL_PADRAO}
+                    tarifa={row.price.ourRate}
+                    precoVenda={
+                      row.price.ourRate != null ? { valor: row.price.ourRate, cobertas: 1, total: 1, faltam: [] } : null
+                    }
+                    todas={false}
+                    rowsFor={(dt) => {
+                      const h = model.byKey.get(`${dt}|${row.category}`);
+                      return h ? [h] : [];
+                    }}
+                  />
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   Referência: {CONF_LABEL[row.confianca]}
                   {row.level ? ` · ${BENCH_LEVEL_LABEL[row.level]} (${row.n} datas)` : ""}.
@@ -1748,33 +1757,6 @@ function Detalhe({
                   title="Curva de captura (% da ocupação final)"
                   data={capCurve}
                   note={`A linha tracejada é a captura histórica em cada antecedência; a linha cheia é esta data, só até D-${row.lead} (hoje). Sem previsão além disso.`}
-                />
-                <PickupChart
-                  title="Curva de pickup da data"
-                  data={curve}
-                  note="A curva atual só tem pontos até a antecedência de hoje; depois dela nada é previsto."
-                />
-                <ReferenciasAnteriores
-                  model={model}
-                  rows={(() => {
-                    const r0 = model.byKey.get(`${row.date}|${row.category}`);
-                    return r0 ? [r0] : [];
-                  })()}
-                  date={row.date}
-                  base={base}
-                  lead={row.lead}
-                  closed={row.lead <= 0}
-                  booked={paceRow ? soldAt(paceRow, row.lead) : null}
-                  capacity={paceRow?.f ?? 0}
-                  diariaAtual={paceRow ? revenueOf([paceRow], row.lead).diaria : null}
-                  precoVenda={
-                    row.price.ourRate != null ? { valor: row.price.ourRate, cobertas: 1, total: 1, faltam: [] } : null
-                  }
-                  leadLabel={`D-${row.lead}`}
-                  rowsFor={(dt) => {
-                    const h = model.byKey.get(`${dt}|${row.category}`);
-                    return h ? [h] : [];
-                  }}
                 />
               </TabsContent>
 

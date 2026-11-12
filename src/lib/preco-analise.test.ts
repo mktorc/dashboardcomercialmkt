@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { rateKey } from "./categoria";
+import { precoVendaAtual } from "./occupancy-detail";
 import { addDays, buildModel, dayPace, windowAnalysis, type PacePayload, type PaceRow } from "./occupancy-pace";
 import {
   TOL_PADRAO,
@@ -62,10 +64,13 @@ describe("diagnóstico", () => {
     expect(diagnostico("acima", "alinhado", "igual")).toBe("forte");
     expect(diagnostico("acima", "mais-caro", "abaixo")).toBe("forte");
   });
-  it("sem ritmo (data encerrada) abaixo + alinhado vira Avaliar preço; sem preço só 'no ritmo' diagnostica", () => {
+  it("sem ritmo (data encerrada) abaixo + alinhado vira Avaliar preço; sem preço o preço não pesa", () => {
     expect(diagnostico("abaixo", "alinhado", null)).toBe("avaliar-preco");
-    expect(diagnostico("abaixo", null, "abaixo")).toBeNull();
-    expect(diagnostico("acima", null, null)).toBeNull();
+    // sem sinal de preço (sem tarifa): só ocupação e ritmo, o preço não pesa
+    expect(diagnostico("abaixo", null, "abaixo")).toBe("avaliar-preco");
+    expect(diagnostico("abaixo", null, "igual")).toBe("aguardar");
+    expect(diagnostico("abaixo", null, null)).toBe("avaliar-preco");
+    expect(diagnostico("acima", null, "igual")).toBe("forte");
   });
 });
 
@@ -95,50 +100,60 @@ describe("quadrante de uma data", () => {
     const { janela } = monta(antigas, BA);
     expect(diariaRestanteJanela(janela)).toBeCloseTo(60, 5); // (50 + 70) ÷ 2, nos 7 dias da janela
   });
-  it("(a) tarifa atual: vendas antigas baratas não rebaixam o preço de hoje (caso de 21/01: US$ 58 vendido, tarifa US$ 70)", () => {
+  it("com tarifa atual: vendas antigas baratas não rebaixam o preço de hoje (caso de 21/01: US$ 58 vendido, tarifa US$ 70)", () => {
     const q = quad(antigas, BA, 70);
     expect(q.fontePreco).toBe("tarifa");
     expect(q.diariaAtual).toBe(70);
-    expect(q.preco).toBe("mais-caro"); // +17% contra US$ 60 (com a diária acumulada de US$ 58 daria alinhado/mais barato)
+    expect(q.preco).toBe("mais-caro"); // +17% contra US$ 60
     expect(q.ocupacao).toBe("abaixo");
     expect(q.diagnostico).toBe("preco-alto");
     expect(q.frase).toBe("2 carros abaixo da esperada em D-36; tarifa atual US$ 70 contra US$ 60 que 2025 praticou de D-35 em diante (+17%); ritmo recente igual ao de 2025");
   });
-  it("(b) sem tarifa: diária das vendas dos últimos 14 dias", () => {
-    const q = quad(recentes, BA, null);
-    expect(q.fontePreco).toBe("recentes");
-    expect(q.diariaAtual).toBe(100);
-    expect(q.preco).toBe("mais-caro");
-    expect(q.frase).toContain("diária das vendas recentes (14 dias) US$ 100 contra US$ 60 que 2025 praticou");
-  });
-  it("(c) sem tarifa e sem vendas recentes: diária já vendida (acumulada), identificada como tal", () => {
+  it("sem tarifa: não há sinal de preço, nem fallback para vendas recentes ou já vendido; diagnóstico só por ocupação e ritmo", () => {
+    for (const alvo of [antigas, recentes]) {
+      const q = quad(alvo, BA, null);
+      expect(q.fontePreco).toBeNull();
+      expect(q.diariaAtual).toBeNull();
+      expect(q.preco).toBeNull();
+      expect(q.precoPct).toBeNull();
+      expect(q.frase).toContain("sem tarifa atual para comparar preço");
+      expect(q.diagnostico).not.toBe("preco-alto");
+      expect(q.diagnostico).not.toBe("demanda-fraca");
+    }
     const q = quad(antigas, BA, null);
-    expect(q.fontePreco).toBe("acumulada");
-    expect(q.diariaAtual).toBe(58);
-    expect(q.preco).toBe("alinhado"); // −3%
-    expect(q.ritmo).toBe("igual"); // 0 carros novos nos 14 dias contra 0 da referência
+    expect(q.ritmo).toBe("igual"); // 0 contra 0
     expect(q.diagnostico).toBe("aguardar");
-    expect(q.frase).toContain("diária já vendida (vendas antigas) US$ 58 contra US$ 60");
+    expect(q.frase).toBe("2 carros abaixo da esperada em D-36; sem tarifa atual para comparar preço; ritmo recente igual ao de 2025");
+    expect(quad(recentes, BA, null).diagnostico).toBe("aguardar"); // 2 carros novos nos 14 dias (ritmo acima)
   });
-  it("tarifa sem valor (0) não conta: cai para as vendas recentes", () => {
-    expect(quad(recentes, BA, 0).fontePreco).toBe("recentes");
+  it("tarifa zero ou negativa não conta como tarifa", () => {
+    expect(quad(recentes, BA, 0).fontePreco).toBeNull();
+    expect(quad(recentes, BA, -5).fontePreco).toBeNull();
   });
-  it("data encerrada: ignora tarifa e vendas recentes, usa a diária final contra o total da referência, sem ritmo", () => {
+  it("categoria com nome em caixa diferente: a tarifa de 'Fullsize SUV' casa com a ocupação de 'Fullsize Suv'", () => {
+    const tarifas = new Map([[rateKey(D, "Fullsize SUV"), 70]]);
+    const linha = { ...antigas, c: "Fullsize Suv" } as PaceRow;
+    const tarifa = precoVendaAtual([linha], tarifas, D)?.valor ?? null;
+    expect(tarifa).toBe(70);
+    const { d, rows, janela } = monta({ ...linha, c: "A" } as PaceRow, BA);
+    const q = quadranteDia(d, rows, janela, "2023-01-01", TOL_PADRAO, tarifa)!;
+    expect(q.fontePreco).toBe("tarifa");
+    expect(q.diagnostico).toBe("preco-alto");
+  });
+  it("data encerrada: ignora tarifa, compara nada de preço, sem ritmo", () => {
     const q = quad(antigas, B, 70);
-    expect(q.fontePreco).toBe("acumulada");
-    expect(q.diariaAtual).toBe(58);
+    expect(q.fontePreco).toBeNull();
     expect(q.diariaRef).toBeCloseTo((4 * 50 + 50 + 70) / 6, 5);
     expect(q.ritmo).toBeNull();
-    expect(q.frase).toContain("praticou no total");
+    expect(q.frase).toContain("data encerrada, sem tarifa atual para comparar preço");
     expect(q.frase).not.toContain("ritmo recente");
   });
   it("sem esperada, sem quadrante", () => {
     const { d, rows, janela } = monta(antigas, BA);
     expect(quadranteDia({ ...d, gap: null, esperada: null }, rows, janela, "2023-01-01")).toBeNull();
   });
-  it("preço alinhado e abaixo: o ritmo decide entre Aguardar e Avaliar preço", () => {
-    const alinhado: PaceRow = { d: D, c: "A", f: 10, a: [40, 40], m: [61, 61] }; // vendas recentes a US$ 61 contra 60
-    const q = quad(alinhado, BA, null);
+  it("tarifa alinhada e abaixo: o ritmo decide entre Aguardar e Avaliar preço", () => {
+    const q = quad(recentes, BA, 61); // tarifa US$ 61 contra 60: alinhado
     expect(q.preco).toBe("alinhado");
     expect(q.ritmo).toBe("acima"); // 2 carros nos últimos 14 dias contra 0 da referência
     expect(q.diagnostico).toBe("aguardar");

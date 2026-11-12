@@ -478,6 +478,16 @@ describe("esperada pela janela de 7 dias (data ±3)", () => {
     expect(dayPace(m, [alvo], D, B).n).toBe(2); // anos comparados
   });
 
+  it("média da semana de cada ano: a do ano escolhido é a esperada, a dos outros anos usa a mesma regra", () => {
+    const l25 = ano(364, (k) => ev("x", [3, 4, 5, 4, 4, 4, 4][k + 3]!, 50));
+    const l24 = ano(728, (k) => (k === 0 ? ev("x", 9, 100) : ev("x", 2, 40)));
+    const { janela } = windowAnalysis(monta([alvo, ...l25, ...l24]), [alvo], D, B, 36);
+    const por = Object.fromEntries(janela.anos.map((a) => [a.label, a.occMedia]));
+    expect(por["2025"]).toBeCloseTo(janela.esperada!, 5);
+    expect(por["2025"]).toBeCloseTo(0.4, 5);
+    expect(por["2024"]).toBeCloseTo((9 + 2 * 6) / 7 / 10, 5); // 0,3: no dia do alvo 2024 tem 90%, mas a semana dele é 30%
+  });
+
   it("cada dia da janela é lido na antecedência do próprio dia", () => {
     // Dia D+1 (antecedência 37): as 6 diárias foram vendidas com 36 dias; lidas em D-37 não existem ainda.
     const l25 = ano(364, (k) => (k === 1 ? ev("x", 6, 50, 36) : ev("x", 4, 50)));

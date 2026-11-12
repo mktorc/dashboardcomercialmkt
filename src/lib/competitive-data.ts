@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { rateKey } from "@/lib/categoria";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { fetchAll } from "./fetch-all";
@@ -111,7 +112,7 @@ export function useOurRates() {
         source: string;
         season: string | null;
       }[]) {
-        const k = `${r.pickup_date}|${r.category}`;
+        const k = rateKey(r.pickup_date, r.category);
         const cur = best.get(k);
         if (cur && prefer(cur.source) >= prefer(r.source)) continue;
         best.set(k, {

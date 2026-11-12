@@ -3,7 +3,6 @@ import { usd } from "./pricing-format";
 import {
   addDays,
   histFleet,
-  revenueOf,
   revenueRow,
   type DayPace,
   type JanelaRef,
@@ -76,11 +75,12 @@ export function sinalRitmo(hoje: number | null, ref: number | null, tol: Toleran
 
 /**
  * Tabela de diagnósticos. Sem o sinal de ritmo (data encerrada ou sem histórico do estágio), "abaixo + alinhado" vira "Avaliar preço":
- * sem confirmar que a demanda segue entrando, não se recomenda esperar. Sem sinal de preço só "no ritmo" tem diagnóstico.
+ * sem confirmar que a demanda segue entrando, não se recomenda esperar. Sem tarifa (sinal de preço nulo) o diagnóstico usa só ocupação
+ * e ritmo: o preço entra como "alinhado", isto é, não pesa (nada de "Preço alto", "Demanda fraca" ou "Vendendo barato").
  */
 export function diagnostico(o: SinalOcupacao, p: SinalPreco | null, r: SinalRitmo | null): Diagnostico | null {
   if (o === "no-ritmo") return "no-ritmo";
-  if (p == null) return null;
+  if (p == null) p = "alinhado";
   if (o === "abaixo") {
     if (p === "mais-caro") return "preco-alto";
     if (p === "mais-barato") return "demanda-fraca";
@@ -120,7 +120,8 @@ export function ritmoJanela(janela: Pick<JanelaRef, "itens">, de: string, capaci
   return m == null ? null : m * capacity;
 }
 
-export type FontePreco = "tarifa" | "recentes" | "acumulada";
+/** O preço do diagnóstico é sempre a tarifa atual do site; sem ela, não há sinal de preço. */
+export type FontePreco = "tarifa";
 
 export type Quadrante = {
   ocupacao: SinalOcupacao;
@@ -141,15 +142,11 @@ export type Quadrante = {
 };
 
 const plural = (n: number, s: string, p: string) => (n === 1 ? s : p);
-const FONTE_TXT: Record<FontePreco, string> = {
-  tarifa: "tarifa atual",
-  recentes: "diária das vendas recentes (14 dias)",
-  acumulada: "diária já vendida (vendas antigas)",
-};
 
 export function fraseQuadrante(
   q: Pick<Quadrante, "ocupacao" | "gapCarros" | "precoPct" | "preco" | "ritmo" | "ano" | "fontePreco" | "diariaAtual" | "diariaRef">,
   lead: number,
+  closed = false,
 ): string {
   const n = Math.abs(q.gapCarros);
   const o =
@@ -159,17 +156,21 @@ export function fraseQuadrante(
   const a = q.ano ?? "o ano escolhido";
   const trecho = lead > 0 ? `de D-${lead - 1} em diante` : "no total";
   const p =
-    q.preco == null || q.fontePreco == null
-      ? "sem preço para comparar"
-      : `${FONTE_TXT[q.fontePreco]} ${usd(q.diariaAtual)} contra ${usd(q.diariaRef)} que ${a} praticou ${trecho} (${q.precoPct! > 0 ? "+" : ""}${Math.round(q.precoPct!)}%)`;
+    q.fontePreco == null
+      ? closed
+        ? "data encerrada, sem tarifa atual para comparar preço"
+        : "sem tarifa atual para comparar preço"
+      : q.preco == null
+        ? `tarifa atual ${usd(q.diariaAtual)}; sem preço de referência de ${a} para comparar`
+        : `tarifa atual ${usd(q.diariaAtual)} contra ${usd(q.diariaRef)} que ${a} praticou ${trecho} (${q.precoPct! > 0 ? "+" : ""}${Math.round(q.precoPct!)}%)`;
   const r = q.ritmo ? `; ritmo recente ${q.ritmo} ao de ${a}` : "";
   return `${o} em D-${lead}; ${p}${r}`;
 }
 
 /**
  * Quadrante da data: ocupação (gap contra a esperada), preço e ritmo recente (14 dias; não se aplica a data encerrada). Null sem esperada/gap.
- * Nosso preço, na ordem: (a) tarifa atual do site para a data (`tarifa`, só data aberta); (b) diária das vendas dos últimos 14 dias;
- * (c) diária média já vendida (acumulada: reflete vendas antigas, vem com aviso). A referência é o preço do que faltava vender: diária
+ * Nosso preço = SÓ a tarifa atual do site para a data e categoria (`tarifa`, só data aberta); sem ela não há sinal de preço e o
+ * diagnóstico usa ocupação e ritmo (a diária já vendida e a das vendas recentes não entram aqui: refletem vendas antigas). A referência é o preço do que faltava vender: diária
  * do ano escolhido da antecedência atual até D-0 nos dias da janela (ponderada pelas diárias). A tarifa é preço de tabela e a referência
  * é valor pago. Em "todas as categorias" a diária é soma do faturamento ÷ soma das diárias: o mix pode distorcer.
  */
@@ -184,13 +185,9 @@ export function quadranteDia(
   if (d.gap == null || d.esperada == null) return null;
   const capCov = (d.cobertura ?? 0) * d.capacity;
   const ocupacao = sinalOcupacao(d.gap, capCov, tol);
-  let diariaAtual: number | null = null;
-  let fontePreco: FontePreco | null = null;
-  const recentes = d.closed ? null : vendasRecentes(rows, d.lead, 14);
-  const acumulada = revenueOf(rows, d.closed ? undefined : d.lead).diaria;
-  if (!d.closed && tarifa != null && tarifa > 0) [diariaAtual, fontePreco] = [tarifa, "tarifa"];
-  else if (recentes?.diaria != null) [diariaAtual, fontePreco] = [recentes.diaria, "recentes"];
-  else if (acumulada != null) [diariaAtual, fontePreco] = [acumulada, "acumulada"];
+  const temTarifa = !d.closed && tarifa != null && tarifa > 0;
+  const diariaAtual = temTarifa ? tarifa : null;
+  const fontePreco: FontePreco | null = temTarifa ? "tarifa" : null;
   const diariaRef = diariaRestanteJanela(janela);
   const preco = sinalPreco(diariaAtual, diariaRef, tol);
   const precoPct = diariaAtual != null && diariaRef ? (diariaAtual / diariaRef - 1) * 100 : null;
@@ -204,7 +201,7 @@ export function quadranteDia(
     diagnostico: diagnostico(ocupacao, preco, ritmo),
     ritmoAtual,
     ritmoRef,
-    frase: fraseQuadrante(base, d.closed ? 0 : d.lead),
+    frase: fraseQuadrante(base, d.closed ? 0 : d.lead, d.closed),
   };
 }
 

@@ -8,7 +8,6 @@ import {
   TOL_PADRAO,
   type Diagnostico,
   type QuebraAntecedencia,
-  type Quadrante,
   type Tolerancias,
 } from "@/lib/preco-analise";
 import { pct, usd } from "@/lib/pricing-format";
@@ -29,53 +28,6 @@ export function SeloDiagnostico({ d, grande }: { d: Diagnostico; grande?: boolea
     <span className={`inline-block truncate rounded px-1 font-medium ${grande ? "px-2 py-0.5 text-xs" : "text-[9px] leading-4"} ${DIAG_STYLE[d]}`}>
       {DIAGNOSTICO_LABEL[d]}
     </span>
-  );
-}
-
-const FONTE_ROTULO = {
-  tarifa: "tarifa atual do site",
-  recentes: "diária das vendas dos últimos 14 dias",
-  acumulada: "diária já vendida, vendas antigas",
-} as const;
-const sinalTxt = (n: number | null, casas = 0) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(casas).replace(".", ",")}`);
-
-/** Diagnóstico da data no detalhe: selo, frase curta e os números por trás dos sinais. */
-export function BlocoDiagnostico({ q, todas, closed }: { q: Quadrante | null; todas: boolean; closed: boolean }) {
-  if (!q)
-    return <p className="text-xs text-muted-foreground">Diagnóstico de preço indisponível: a data não tem esperada para comparar.</p>;
-  return (
-    <div className="space-y-1 rounded-md border p-3 text-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">Diagnóstico</span>
-        {q.diagnostico ? <SeloDiagnostico d={q.diagnostico} grande /> : <span className="text-xs text-muted-foreground">dados indisponíveis (sem diária para comparar)</span>}
-      </div>
-      <p>{q.frase}.</p>
-      <p className="text-xs tabular-nums text-muted-foreground">
-        Nosso preço: {usd(q.diariaAtual)} ({q.fontePreco ? FONTE_ROTULO[q.fontePreco] : "sem preço"}) · referência: {usd(q.diariaRef)} que{" "}
-        {q.ano ?? "o ano escolhido"} praticou do estágio atual até D-0 (média da janela, ponderada pelas diárias)
-        {q.precoPct != null ? ` · ${sinalTxt(q.precoPct)}%` : ""}
-      </p>
-      {q.fontePreco === "acumulada" ? (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          Sem tarifa nem vendas nos últimos 14 dias: o preço usado é a média de vendas antigas e pode não refletir o preço de hoje.
-        </p>
-      ) : null}
-      <p className="text-xs text-muted-foreground">
-        A tarifa é preço de tabela e a referência é valor pago: a comparação mostra a direção, não a diferença exata.
-      </p>
-      <p className="text-xs tabular-nums text-muted-foreground">
-        {closed
-          ? "Ritmo recente: não se aplica a data encerrada."
-          : q.ritmoAtual == null || q.ritmoRef == null
-            ? "Ritmo recente: dados indisponíveis (sem histórico do estágio)."
-            : `Reservas dos últimos 14 dias: ${q.ritmoAtual} contra ${q.ritmoRef.toFixed(1).replace(".", ",")} de ${q.ano} (ajustado à frota atual).`}
-      </p>
-      {todas ? (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          Todas as categorias: a diária é faturamento ÷ diárias somando as categorias; a comparação pode ser afetada pelo mix de categorias.
-        </p>
-      ) : null}
-    </div>
   );
 }
 

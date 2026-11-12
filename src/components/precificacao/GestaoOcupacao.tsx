@@ -8,7 +8,6 @@ import {
   Tooltip as ChartTooltip,
   XAxis,
   YAxis,
-  ReferenceDot,
 } from "recharts";
 import {
   ChevronLeft,
@@ -23,8 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
-import { ReferenciasAnteriores } from "@/components/precificacao/ReferenciasAnteriores";
-import { LEVEL, dataBR, gapTxt, pct, usd } from "@/lib/pricing-format";
+import { rateKey } from "@/lib/categoria";
+import { PickupChart } from "@/components/precificacao/PickupChart";
+import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
+import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -44,7 +45,6 @@ import {
 import {
   DEFAULT_BANDS,
   ESPERADA_ESTATISTICA,
-  BENCH_LEVEL_LABEL,
   CURVE_LEADS,
   EVENT_LABEL,
   addDays,
@@ -52,10 +52,7 @@ import {
   dailySeries,
   dayPace,
   windowOccupancy,
-  revenueOf,
   gapLevel,
-  pickupCurve,
-  referenceItems,
   rowsByDate,
   summarize,
   usePace,
@@ -68,17 +65,10 @@ import {
   type PaceRow,
 } from "@/lib/occupancy-pace";
 import {
-  FAIXA_TXT,
-  avisoFrotaPequena,
-  carros,
-  curvaDetalhe,
-  faixaReferencias,
-  gapCarros,
   precoVendaAtual,
 } from "@/lib/occupancy-detail";
 import { useOurRates } from "@/lib/competitive-data";
-import { FaixaReferencias } from "@/components/precificacao/FaixaReferencias";
-import { BlocoDiagnostico, SeloDiagnostico, ToleranciasConfig } from "@/components/precificacao/DiagnosticoPreco";
+import { SeloDiagnostico, ToleranciasConfig } from "@/components/precificacao/DiagnosticoPreco";
 import {
   DIAGNOSTICO_LABEL,
   DIAGNOSTICO_ORDEM,
@@ -154,7 +144,7 @@ function Painel({
   const [tol, setTol] = useState<Tolerancias>(TOL_PADRAO);
   const rates = useOurRates();
   const tarifas = useMemo(
-    () => new Map((rates.data ?? []).map((r) => [`${r.pickupDate}|${r.category}`, r.dailyRate] as [string, number])),
+    () => new Map((rates.data ?? []).map((r) => [rateKey(r.pickupDate, r.category), r.dailyRate] as [string, number])),
     [rates.data],
   );
   const [filtroDiag, setFiltroDiag] = useState<Diagnostico | "todos">("todos");
@@ -722,129 +712,7 @@ function Pickup({
   );
 }
 
-export type PickupPoint = {
-  label: string;
-  atual: number | null;
-  esperada: number | null;
-  n?: number;
-  [k: string]: number | string | null | undefined;
-};
-
-export function PickupChart({
-  title,
-  data,
-  note,
-  esperadaNome = "Esperada (média da janela de 7 dias)",
-  extras,
-  marcas,
-}: {
-  title: string;
-  data: PickupPoint[];
-  note?: string;
-  /** Nome da linha esperada (na tela da data: a referência usada, com a data). */
-  esperadaNome?: string;
-  /** Outras referências, desenhadas tracejadas e finas; passar (mesmo vazio) destaca a esperada como a referência usada. */
-  extras?: { key: string; name: string }[];
-  /** Pontos em que cada série chegou a 100% (chave da série e rótulo do eixo). */
-  marcas?: { key: string; label: string }[];
-}) {
-  const has = data.some((d) => d.atual != null || d.esperada != null);
-  const destaque = extras !== undefined;
-  // Última antecedência com ocupação observada: depois dela não há leitura e nada é previsto.
-  const ultimoObservado = [...data].reverse().find((d) => d.atual != null)?.label.replace(" (base)", "");
-  return (
-    <Card className="space-y-2 p-4">
-      <h2 className="font-semibold">{title}</h2>
-      {!has ? (
-        <p className="text-sm text-muted-foreground">Sem dados para este recorte.</p>
-      ) : (
-        <div className="h-64 w-full">
-          <ResponsiveContainer>
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
-              <ChartTooltip
-                formatter={(v: number | string, _n: string, item: { dataKey?: string | number; payload?: Record<string, unknown> }) => {
-                  if (typeof v !== "number") return "—";
-                  const c = item?.payload?.[`${item.dataKey}Carros`];
-                  const cap = item?.payload?.["capacidade"];
-                  return typeof c === "number" && typeof cap === "number"
-                    ? `${v.toFixed(0)}% · ${c} de ${cap}`
-                    : `${v.toFixed(0)}%`;
-                }}
-                contentStyle={{ fontSize: 12 }}
-              />
-              {(extras ?? []).map((e) => (
-                <Line
-                  key={e.key}
-                  type="monotone"
-                  dataKey={e.key}
-                  name={e.name}
-                  stroke="var(--muted-foreground)"
-                  strokeDasharray="2 3"
-                  strokeWidth={1}
-                  dot={{ r: 2 }}
-                  connectNulls={false}
-                />
-              ))}
-              <Line
-                type="monotone"
-                dataKey="esperada"
-                name={esperadaNome}
-                stroke="var(--muted-foreground)"
-                {...(destaque ? {} : { strokeDasharray: "5 4" })}
-                strokeWidth={destaque ? 3 : 2}
-                dot={{ r: 3 }}
-                connectNulls={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="atual"
-                name="Atual"
-                stroke="var(--primary)"
-                strokeWidth={2.5}
-                dot={{ r: 3 }}
-                connectNulls={false}
-              />
-              {(marcas ?? []).map((m) => (
-                <ReferenceDot key={m.key} x={m.label} y={100} r={6} fill="var(--background)" stroke="var(--foreground)" strokeWidth={2} />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span>
-          <span className="mr-1 inline-block h-0.5 w-4 bg-primary align-middle" />
-          Atual{ultimoObservado ? ` (observado até ${ultimoObservado})` : ""}
-        </span>
-        <span>
-          <span
-            className={`mr-1 inline-block w-4 align-middle ${destaque ? "h-1 bg-muted-foreground" : "h-0 border-t-2 border-dashed border-muted-foreground"}`}
-          />
-          {esperadaNome}
-        </span>
-        {(extras ?? []).map((e) => (
-          <span key={e.key}>
-            <span className="mr-1 inline-block h-0 w-4 border-t border-dashed border-muted-foreground align-middle" />
-            {e.name}
-          </span>
-        ))}
-        {marcas?.length ? (
-          <span>
-            <span className="mr-1 inline-block size-2.5 rounded-full border-2 border-foreground align-middle" />
-            chegou a 100%:{" "}
-            {marcas
-              .map((m) => `${m.key === "esperada" ? esperadaNome : (extras ?? []).find((e) => e.key === m.key)?.name ?? m.key} em ${m.label.replace(" (base)", "")}`)
-              .join("; ")}
-          </span>
-        ) : null}
-      </div>
-      {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
-    </Card>
-  );
-}
+export { PickupChart, type PickupPoint } from "@/components/precificacao/PickupChart";
 
 function Detalhe({
   model,
@@ -869,172 +737,34 @@ function Detalhe({
 }) {
   const rows = useMemo(() => (date ? (byDate.get(date) ?? []) : []), [byDate, date]);
   const d = date ? dayPace(model, rows, date, base) : null;
-  const rev = revenueOf(rows, d?.lead);
-  const items = useMemo(
-    () => (date && d && d.capacity ? referenceItems(model, rows, date, base, d.lead) : []),
-    [model, rows, date, base, d],
-  );
-  const curva = useMemo(
-    () =>
-      date && d
-        ? curvaDetalhe(
-            pickupCurve(model, rows, date, base).map((p) => ({
-              label: p.effective ? `D-${p.L} (base)` : `D-${p.L}`,
-              L: p.L,
-              atual: p.atual,
-              esperada: p.esperada,
-            })),
-            items,
-            d.capacity,
-          )
-        : { data: [], extras: [], dia: null as { key: string; date: string } | null, marcas: [] },
-    [model, rows, date, base, d, items],
-  );
-  const usada = items.find((i) => i.chosen);
-  const quadrante = useMemo(
-    () =>
-      date && d && d.capacity
-        ? quadranteDia(d, rows, windowAnalysis(model, rows, date, base).janela, model.payload.de, tol, precoVendaAtual(rows, tarifas, date)?.valor ?? null)
-        : null,
-    [model, rows, date, base, d, tol, tarifas],
-  );
   const precoVenda = date ? precoVendaAtual(rows, tarifas, date) : null;
-  const faixa = d ? faixaReferencias(items, d.atual) : null;
-  const capCov = d ? (d.cobertura ?? 0) * d.capacity : 0;
-  const pequena = d ? avisoFrotaPequena(d.capacity) : null;
-  const lv = d?.gap != null ? LEVEL[gapLevel(d.gap, bands)] : null;
   const leadTxt = d ? (d.closed ? "encerrada (D-0)" : `D-${d.lead}`) : "";
   return (
     <Sheet open={!!date} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full space-y-4 overflow-y-auto sm:max-w-[min(1280px,94vw)]">
         <SheetHeader>
-          <SheetTitle>Retirada em {date ? dataBR(date) : ""}</SheetTitle>
-          <SheetDescription>
-            {cat === ALL ? "Todas as categorias" : cat} · {leadTxt} na data-base {dataBR(base)}
-          </SheetDescription>
-        </SheetHeader>
-        {d ? (
-          <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2">
-                <Kpi
-                icon={Gauge}
-                label="Atual"
-                value={pct(d.atual)}
-                {...(d.atual != null ? { hint: `${carros(d.atual, d.capacity)} de ${d.capacity} carros` } : {})}
-              />
-                <Kpi
-                icon={Target}
-                label="Esperada"
-                value={pct(d.esperada)}
-                {...(d.esperada != null ? { hint: `${carros(d.esperada, d.capacity)} de ${d.capacity} carros` } : {})}
-              />
-                <Kpi
-                icon={TrendingUp}
-                label="Gap"
-                value={gapTxt(d.gap)}
-                tone={lv?.text}
-                {...(d.gap != null
-                  ? { hint: `${gapCarros(d.gap, capCov) > 0 ? "+" : ""}${gapCarros(d.gap, capCov)} carros` }
-                  : {})}
-              />
-              </div>
-              {lv ? (
-                <p className={`text-sm font-medium ${lv.text}`}>
-                {lv.label}
-                {faixa?.status ? (
-                  <span className="font-normal text-muted-foreground"> · {FAIXA_TXT[faixa.status]} das referências</span>
-                ) : null}
-              </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Histórico comparável insuficiente: sem benchmark para esta data.
-                </p>
-              )}
-              <BlocoDiagnostico q={quadrante} todas={cat === ALL} closed={d.closed} />
-              {faixa ? <FaixaReferencias faixa={faixa} atual={d.atual} /> : null}
-              {pequena ? (
-                <div className="rounded-md border border-amber-600/40 p-2 text-xs text-amber-700 dark:text-amber-300">
-                  Frota pequena ({d.capacity} carros): {pequena.texto}.
-                </div>
-              ) : null}
-              <dl className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <dt className="text-muted-foreground">Veículos reservados</dt>
-                  <dd className="font-medium tabular-nums">{d.booked ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Capacidade disponível</dt>
-                  <dd className="font-medium tabular-nums">{d.capacity}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Diária média (hoje)</dt>
-                  <dd className="font-medium tabular-nums">{usd(rev.diaria)}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Faturamento por veículo</dt>
-                  <dd className="font-medium tabular-nums">{usd(rev.porVeiculo)}</dd>
-                </div>
-                {rev.semPreco.length > 0 && rev.semPreco.length < rows.length ? (
-                  <p className="col-span-2 text-xs text-muted-foreground">
-                    Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")}{" "}
-                    (sem tarifa lançada).
-                  </p>
-                ) : null}
-                <div>
-                  <dt className="text-muted-foreground">Sazonalidade</dt>
-                  <dd className="font-medium">{d.season ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Evento móvel</dt>
-                  <dd className="font-medium">
-                    {d.event
-                      ? `${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel} dias)`
-                      : "—"}
-                  </dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-muted-foreground">Base do benchmark</dt>
-                  <dd className="font-medium">
-                    {d.level ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} datas passadas` : "—"}
-                  </dd>
-                </div>
-                {d.semBenchmark && d.semBenchmark.length ? (
-                  <div className="col-span-2 text-xs text-muted-foreground">
-                    {d.esperada != null
-                      ? `Esperado e gap não incluem ${d.semBenchmark.join(", ")} (sem histórico comparável); cobertura de ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`
-                      : `Sem esperado: ${d.semBenchmark.join(", ")} não tem histórico comparável e as demais categorias cobrem só ${((d.cobertura ?? 0) * 100).toFixed(0)}% da frota.`}
-                  </div>
-                ) : null}
-              </dl>
-              <PickupChart
-                title="Curva de pickup da data"
-                data={curva.data}
-                esperadaNome={usada ? `Esperada (média da janela, ${usada.date.slice(0, 4)})` : "Esperada"}
-                extras={[
-                  ...(curva.dia ? [{ key: curva.dia.key, name: `Ano escolhido, só o dia (${dataBR(curva.dia.date)})` }] : []),
-                  ...curva.extras.map((e) => ({ key: e.key, name: `Referência ${e.date.slice(0, 4)} (${dataBR(e.date)})` })),
-                ]}
-                marcas={curva.marcas}
-                note="A esperada é a média, na janela de 7 dias (a data ±3), das ocupações do ano com maior faturamento/veículo final médio (sem faturamento, maior ocupação final), cada dia lido na sua antecedência. As linhas finas são as referências do próprio dia, lidas na mesma antecedência. A atual não é prevista além da data-base."
-              />
-            </div>
-            <ReferenciasAnteriores
-              model={model}
-              rows={rows}
-              date={date!}
-              base={base}
-              lead={d.lead}
-              closed={d.closed}
-              booked={d.booked}
-              capacity={d.capacity}
-              diariaAtual={rev.diaria}
-              precoVenda={precoVenda}
-              leadLabel={d.closed ? "D-0" : `D-${d.lead}`}
-              rowsFor={(dt) => byDate.get(dt) ?? []}
-              lotacaoLimite={tol.lotacaoDias}
-            />
+          <div className="flex flex-wrap items-center justify-between gap-2 pr-8">
+            <SheetTitle>
+              {date ? dataBR(date) : ""} · {cat === ALL ? "Todas as categorias" : cat} · {leadTxt}
+            </SheetTitle>
+            {d ? <EtiquetaFrota capacity={d.capacity} /> : null}
           </div>
+          <SheetDescription>Data-base {dataBR(base)}</SheetDescription>
+        </SheetHeader>
+        {d && date ? (
+          <DetalheData
+            model={model}
+            rows={rows}
+            date={date}
+            base={base}
+            d={d}
+            bands={bands}
+            tol={tol}
+            tarifa={precoVenda?.valor ?? null}
+            precoVenda={precoVenda}
+            todas={cat === ALL}
+            rowsFor={(dt) => byDate.get(dt) ?? []}
+          />
         ) : null}
       </SheetContent>
     </Sheet>

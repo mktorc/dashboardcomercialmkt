@@ -411,6 +411,8 @@ export type JanelaAno = {
   revMedio: number | null;
   /** Ocupação final média nos dias comuns (critério quando não há faturamento em todos os anos). */
   occFinalMedia: number | null;
+  /** Média da semana: ocupação do ano em cada dia da janela com leitura, na antecedência do dia (limitada a 100%). Para o ano escolhido é a esperada. */
+  occMedia: number | null;
 };
 
 /** Escolha do ano pela janela e a esperada resultante (média das ocupações do ano escolhido, cada uma na antecedência do seu dia). */
@@ -559,6 +561,15 @@ export function windowAnalysis(
       label: rotulos.get(key)!,
       revMedio: revs.length && revs.every((r) => r != null) ? mean(revs as number[]) : null,
       occFinalMedia: mean(its.map((i) => i.occFinal!)),
+      occMedia: (() => {
+        const m = mean(
+          dias.flatMap((w) => {
+            const i = porDia.get(w)?.get(key);
+            return i && i.eligible && i.occ != null ? [i.occ] : [];
+          }),
+        );
+        return m == null ? null : Math.min(1, m);
+      })(),
     };
   });
   const criterio = !comuns.length ? null : anos.every((a) => a.revMedio != null) ? "faturamento" : "ocupacao";

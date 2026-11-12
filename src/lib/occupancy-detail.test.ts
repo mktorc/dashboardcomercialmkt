@@ -1,3 +1,4 @@
+import { rateKey } from "./categoria";
 import { describe, expect, it } from "vitest";
 import {
   avisoFrotaPequena,
@@ -6,6 +7,7 @@ import {
   curvaReferencia,
   difDiariaPct,
   diariaEmL,
+  faixaJanela,
   faixaReferencias,
   gapCarros,
   lotacaoAvisavel,
@@ -128,6 +130,27 @@ describe("aviso de lotação da referência", () => {
   });
 });
 
+describe("faixa pela média da semana", () => {
+  const anos = [
+    { label: "2026", occMedia: 0.45 },
+    { label: "2025", occMedia: 0.4 },
+    { label: "2024", occMedia: null },
+  ];
+  it("min e max entre as médias dos anos com leitura; status da atual", () => {
+    expect(faixaJanela(anos, 0.5)).toEqual({ min: { label: "2025", occ: 0.4 }, max: { label: "2026", occ: 0.45 }, status: "acima" });
+    expect(faixaJanela(anos, 0.42)!.status).toBe("dentro");
+    expect(faixaJanela(anos, 0.2)!.status).toBe("abaixo");
+    expect(faixaJanela(anos, null)!.status).toBeNull();
+  });
+  it("a esperada (média do ano escolhido) sempre fica dentro da faixa", () => {
+    const f = faixaJanela(anos, 0.4)!;
+    expect(f.status).toBe("dentro");
+  });
+  it("menos de dois anos com leitura: sem faixa", () => {
+    expect(faixaJanela([{ label: "2025", occMedia: 0.4 }, { label: "2024", occMedia: null }], 0.4)).toBeNull();
+  });
+});
+
 describe("aviso de lotação", () => {
   // Frota 2: `tarde` fica cheia só a partir de D-10; `cedo`, a partir de D-20.
   const tarde = row([20, 10], undefined, 2); // cheia a partir de D-10
@@ -188,7 +211,7 @@ describe("curva com as referências", () => {
 
 describe("preço de venda atual", () => {
   const r = (c: string, f: number): PaceRow => ({ d: "2027-01-28", c, f, a: [] }) as PaceRow;
-  const t = new Map([["2027-01-28|A", 60], ["2027-01-28|B", 100]]);
+  const t = new Map([[rateKey("2027-01-28", "A"), 60], [rateKey("2027-01-28", "B"), 100]]);
   it("uma categoria: a tarifa dela", () => {
     expect(precoVendaAtual([r("A", 10)], t, "2027-01-28")).toMatchObject({ valor: 60, cobertas: 1, total: 1 });
   });
@@ -200,5 +223,9 @@ describe("preço de venda atual", () => {
   it("sem tarifa para a data, null", () => {
     expect(precoVendaAtual([r("C", 5)], t, "2027-01-28")).toBeNull();
     expect(precoVendaAtual([r("A", 10)], t, "2027-02-01")).toBeNull();
+  });
+  it("casa a categoria com nome em caixa/espaço diferente (Fullsize Suv × Fullsize SUV)", () => {
+    const tf = new Map([[rateKey("2027-01-12", "Fullsize SUV"), 90]]);
+    expect(precoVendaAtual([{ d: "2027-01-12", c: "Fullsize Suv", f: 9, a: [] } as PaceRow], tf, "2027-01-12")?.valor).toBe(90);
   });
 });
