@@ -9,6 +9,8 @@ Uso:
   python3 scripts/precificacao/coletor.py up|ally|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
+  --sem-tarifa: coleta TODAS as datas, de hoje + 3 dias até o dia anterior ao primeiro dia programado do HQ, que ainda não têm tarifa
+  gravada (preenche o que o HQ não cobre com a cotação do site; lê o banco, então precisa das credenciais como --gravar).
 Requer playwright (pip install playwright && playwright install chromium) e, com --gravar, SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.
 Cada coleta é uma linha nova; o mapa de categorias fica em scripts/precificacao/mapa_categorias.json (null = ainda não mapeada,
 a coleta fica registrada mas não entra em nenhuma comparação). Equivalência é sempre "parcial" aqui: taxas e proteções são excluídas
@@ -320,6 +322,25 @@ def coleta_nosso(pickups, dias):
     return res
 
 
+def datas_faltantes(ini, fim, cobertas):
+    """Retiradas diárias de `ini` a `fim` (inclusive) que ainda não têm tarifa em our_rate_snapshots (`cobertas` = conjunto de datas)."""
+    return [d for d in (ini + timedelta(days=i) for i in range((fim - ini).days + 1)) if d not in cobertas]
+
+
+def datas_sem_tarifa(chamar, ini, semanas):
+    """Datas de `ini` até o dia anterior ao primeiro dia programado do HQ (ou `semanas` à frente, sem HQ) sem nenhuma tarifa gravada."""
+    hq = chamar("GET", "our_rate_snapshots?select=pickup_date&source=eq.hq_rate_calendar&order=pickup_date.asc&limit=1")
+    fim = date.fromisoformat(hq[0]["pickup_date"]) - timedelta(days=1) if hq else ini + timedelta(days=7 * semanas)
+    cobertas, pos = set(), 0
+    while True:
+        pag = chamar("GET", f"our_rate_snapshots?select=pickup_date&pickup_date=gte.{ini}&pickup_date=lte.{fim}&order=pickup_date.asc&limit=1000&offset={pos}") or []
+        cobertas |= {date.fromisoformat(r["pickup_date"]) for r in pag}
+        if len(pag) < 1000:
+            break
+        pos += 1000
+    return datas_faltantes(ini, fim, cobertas)
+
+
 def linhas_nossas(itens, mapa):
     """Linhas de our_rate_snapshots: diária média da cotação de N diárias a partir da retirada (categoria sem mapa fica de fora)."""
     rows, sem_mapa = [], set()
@@ -366,6 +387,8 @@ if __name__ == "__main__":
     dias = int(a[a.index("--dias") + 1]) if "--dias" in a else 7
     if "--datas" in a:
         pickups = [date.fromisoformat(x) for x in a[a.index("--datas") + 1].split(",")]
+    elif "--sem-tarifa" in a:
+        pickups = None  # calculado abaixo, depois de carregar as credenciais
     else:
         # Padrão: a partir de hoje + 3 dias (os sites exigem ~48 h de antecedência), semanal, 18 semanas (~4 meses à frente).
         ini = date.fromisoformat(a[a.index("--inicio") + 1]) if "--inicio" in a else date.today() + timedelta(days=3)
@@ -373,10 +396,17 @@ if __name__ == "__main__":
         pickups = [ini + timedelta(days=7 * i) for i in range(semanas)]
     todos_mapas = json.loads(MAPA.read_text()) if MAPA.exists() else {}
     gravar = "--gravar" in a
-    if gravar:
+    if gravar or "--sem-tarifa" in a:
         from hq import carregar_env
         from concorrencia import chamar
         carregar_env()
+    if pickups is None:
+        # Datas que o HQ não cobre (o calendário diário dele começa mais tarde) e que o nosso site ainda não cotou.
+        ini = date.fromisoformat(a[a.index("--inicio") + 1]) if "--inicio" in a else date.today() + timedelta(days=3)
+        pickups = datas_sem_tarifa(chamar, ini, int(a[a.index("--semanas") + 1]) if "--semanas" in a else 26)
+        print(f"Datas sem tarifa gravada: {len(pickups)} ({pickups[0]} a {pickups[-1]})" if pickups else "Nenhuma data sem tarifa.")
+        if not pickups:
+            raise SystemExit(0)
     erros = []
     if a[0] in ("nosso", "todos"):
         try:  # a nossa tarifa não derruba a coleta dos concorrentes (e vice-versa)

@@ -179,6 +179,26 @@ EXTRAS_NOSSO = """Equipment & Services
 Descontos"""
 
 
+class Faltantes(unittest.TestCase):
+    def test_datas_sem_tarifa_dia_a_dia(self):
+        from datetime import date
+        import coletor
+        cob = {date(2027, 1, 13), date(2027, 1, 15)}
+        self.assertEqual(coletor.datas_faltantes(date(2027, 1, 12), date(2027, 1, 16), cob),
+                         [date(2027, 1, 12), date(2027, 1, 14), date(2027, 1, 16)])
+        self.assertEqual(coletor.datas_faltantes(date(2027, 1, 12), date(2027, 1, 11), cob), [])
+
+    def test_fim_e_o_dia_anterior_ao_primeiro_dia_do_hq(self):
+        from datetime import date
+        import coletor
+        def chamar(m, caminho, *a, **k):
+            if "source=eq.hq_rate_calendar" in caminho:
+                return [{"pickup_date": "2027-01-16"}]
+            return [{"pickup_date": "2027-01-13"}]
+        self.assertEqual(coletor.datas_sem_tarifa(chamar, date(2027, 1, 12), 26),
+                         [date(2027, 1, 12), date(2027, 1, 14), date(2027, 1, 15)])
+
+
 class Extras(unittest.TestCase):
     def test_up_cobra_motorista_e_bebe_conforto(self):
         e = C.parse_extras(EXTRAS_UP)
