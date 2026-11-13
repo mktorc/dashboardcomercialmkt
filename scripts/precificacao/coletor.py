@@ -1,12 +1,12 @@
 """Coleta cotações públicas de concorrentes (sem login e sem preencher dados pessoais) para competitor_price_snapshots. Só inserção.
 
-Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, passo "Veículos").
-Fora, de propósito: rentcars.com (Cloudflare bloqueia acesso automatizado: não se contorna) e Florida Rental Car (a cotação por data
-exige nome e WhatsApp: não se preenche com dados falsos).
+Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, passo "Veículos") e Florida Rental Car (a cotação por data
+exige nome e WhatsApp: vêm das variáveis FLORIDA_NOME e FLORIDA_WHATSAPP, contato real da equipe; nunca dados falsos; só lê telas).
+Fora, de propósito: rentcars.com (Cloudflare bloqueia acesso automatizado: não se contorna).
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
   --sem-tarifa: coleta TODAS as datas, de hoje + 3 dias até o dia anterior ao primeiro dia programado do HQ, que ainda não têm tarifa
@@ -237,6 +237,88 @@ def coleta_ally(pickups, dias):
     return res
 
 
+FLORIDA_URL = ("https://reservas.floridarentalcar.com.br/reserva?pickupLocation=mco&returnLocation=mco&pickupDate={ini}&pickupTime=10%3A00"
+               "&returnDate={fim}&returnTime=10%3A00")
+FLORIDA_LOCAL = "Orlando (Aeroporto MCO)"
+
+
+def _usd_br(s):
+    """'1.234,56' -> 1234.56 (valores em dólar no formato brasileiro, como a Florida exibe)."""
+    return float(s.replace(".", "").replace(",", "."))
+
+
+def parse_florida(texto, dias=7):
+    """Lê o passo 'Escolha sua categoria' da Florida Rental Car: [{categoria, diaria, diaria_cheia, total, dias, promo}].
+    A diária gravada é a COM cupom (a tela mostra cheia e com cupom; fora da validade do cupom só há um preço). Sem preço = fora."""
+    out = []
+    for bloco in texto.replace("\xa0", " ").split("Escolher →")[:-1]:
+        linhas = [ln.strip() for ln in bloco.splitlines() if ln.strip()]
+        if "Valor da diária" not in linhas:
+            continue
+        j = linhas.index("Valor da diária")
+        lugares = [i for i, ln in enumerate(linhas[:j]) if "lugares" in ln]
+        precos = [_usd_br(m) for ln in linhas[j + 1:j + 3] for m in re.findall(r"US\$\s*([\d.,]+)/dia", ln)]
+        if not lugares or lugares[-1] < 2 or not precos:
+            continue
+        cheia, diaria = precos[0], precos[-1]
+        if diaria > 0:
+            out.append(dict(categoria=linhas[lugares[-1] - 2], diaria=diaria, diaria_cheia=cheia, total=round(diaria * dias, 2),
+                            dias=dias, promo=diaria < cheia))
+    return out
+
+
+def parse_extras_florida(texto):
+    """Extras do passo 'Personalize sua viagem' da Florida: cadeirinha infantil (bebê conforto) por locação. Motorista adicional não é
+    listado entre os adicionais (grátis/não cobrado à parte = 0). Sem a cadeirinha na tela = None ('extras não coletados')."""
+    t = texto.replace("\xa0", " ")
+    m = re.search(r"Cadeirinha infantil.*?\+\s*US\$\s*([\d.,]+)\s*(por locação|/dia)", t, re.S)
+    if not m:
+        return None
+    unidade = "uma_vez" if m.group(2) == "por locação" else "dia"
+    return {"motorista": (0.0, "uma_vez"), "bebe": (_usd_br(m.group(1)), unidade), "bebe_nome": "Cadeirinha infantil"}
+
+
+def coleta_florida(pickups, dias):
+    """Cotação pública da Florida Rental Car. O site exige nome e WhatsApp reais antes de mostrar preço por data: vêm de
+    FLORIDA_NOME e FLORIDA_WHATSAPP (contato da própria equipe; nunca dados falsos). Só lê telas: nada é reservado nem pago."""
+    import os
+    from playwright.sync_api import sync_playwright
+    nome, fone = os.environ.get("FLORIDA_NOME"), os.environ.get("FLORIDA_WHATSAPP")
+    if not (nome and fone):
+        raise RuntimeError("defina FLORIDA_NOME e FLORIDA_WHATSAPP (contato real da equipe) para coletar a Florida Rental Car")
+    res, extras = [], None
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(user_agent=UA, viewport={"width": 1280, "height": 900})
+        for i, d in enumerate(pickups):
+            fim = d + timedelta(days=dias)
+            agora = datetime.now(timezone.utc)
+            pg.goto(FLORIDA_URL.format(ini=d.isoformat(), fim=fim.isoformat()), timeout=60000)
+            pg.wait_for_timeout(3000)
+            if pg.query_selector("dialog[open] input[autocomplete=given-name]"):
+                pg.fill("dialog input[autocomplete=given-name]", nome)
+                pg.fill("input[type=tel]", fone)
+                pg.press("input[type=tel]", "Enter")
+                pg.wait_for_timeout(4000)
+            pg.click("text=Consultar carros")
+            pg.wait_for_timeout(8000)
+            itens = parse_florida(pg.inner_text("body"), dias)
+            if itens and extras is None and i == 0:  # os adicionais são os mesmos em todas as datas: lidos uma vez só
+                try:
+                    pg.get_by_role("button", name="Escolher").first.click()
+                    pg.wait_for_timeout(5000)
+                    extras = parse_extras_florida(pg.inner_text("body"))
+                except Exception as e:
+                    print(f"  extras não coletados ({str(e)[:80]})")
+            print(f"Florida Rental Car {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
+            for it in itens:
+                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url="https://reservas.floridarentalcar.com.br/reserva",
+                                extras=extras))
+            time.sleep(PAUSA)
+        b.close()
+    return res
+
+
 NOSSO_NOME = "Orlando Rent Car"
 NOSSO_FORMULARIO = "https://orlandorentcar.com/reservations/"
 _ROTULOS_NOSSO = re.compile(r"^(\d+|Datas|Veículos|Características|Cliente|Confirme|Pagamentos|Classe de Veículo Disponível|Ultimas Unidades|Excl\..*)$", re.I)
@@ -377,6 +459,9 @@ def linhas_banco(itens, mapa, concorrente, local, notas, protecoes):
 FONTES = {
     "up": ("UP Rent a Car", coleta_up, UP_LOCAL, "Preço sem taxas e seguros; franquia de km não informada", "não incluídas (preço exclui taxas e seguros)"),
     "ally": ("Allycar", coleta_ally, ALLY_LOCAL, "Preço sem taxas; proteções e franquia de km não informadas", "não informadas (preço exclui taxas)"),
+    "florida": ("Florida Rental Car", coleta_florida, FLORIDA_LOCAL,
+                "Preço sem taxas e seguros; km livre; preço com cupom GER20 quando válido; motorista adicional não listado (0)",
+                "não incluídas (preço exclui taxas e seguros)"),
 }
 
 

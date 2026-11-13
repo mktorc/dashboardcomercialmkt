@@ -1,5 +1,6 @@
 # Coleta diária de cotações públicas de concorrentes (scripts/precificacao/coletor.py), sem depender de computador ligado.
 # Requer os segredos do repositório SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (Settings > Secrets and variables > Actions).
+# A fonte florida também requer FLORIDA_NOME e FLORIDA_WHATSAPP (contato real da equipe: o site pede nome e WhatsApp para cotar por data).
 name: Coleta de concorrentes
 on:
   schedule:
@@ -23,7 +24,7 @@ jobs:
       # Uma fonte por job: se uma falha ou demora, as outras seguem e cada uma tem o seu próprio limite de tempo.
       fail-fast: false
       matrix:
-        fonte: [nosso, up, ally]
+        fonte: [nosso, up, ally, florida]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,3 +37,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FLORIDA_NOME: ${{ secrets.FLORIDA_NOME }}
+          FLORIDA_WHATSAPP: ${{ secrets.FLORIDA_WHATSAPP }}

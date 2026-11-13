@@ -40,6 +40,26 @@
     "GMC Yukon XL": "SUV Executive 8 Seats",
     "Cadillac Escalade": "Luxury"
   },
+  "Florida Rental Car": {
+    "Econômico 5L": "Midsize Sedan",
+    "Minivan 8L": "Mini Van 8 Seats",
+    "SUV Premium 7L": "SUV Executive 7 Seats",
+    "SUV Premium 8L": "SUV Executive 8 Seats",
+    "Van 12L": "Van 12 Seats",
+    "Cadillac Escalade": "Luxury",
+    "Compacto Plus 7L": null,
+    "SUV 5L": null,
+    "Minivan 7L": null,
+    "SUV Luxo": null,
+    "SUV Elite 7L": null,
+    "SUV Elite 8L": null,
+    "Caminhonete": null,
+    "Conversível": null,
+    "Tesla Cybertruck": null,
+    "Sedan Elétrico": null,
+    "Tesla Model Y": null,
+    "SUV Elétrico": null
+  },
   "Orlando Rent Car": {
     "Mini Van 8 Lugares": "Mini Van 8 Seats",
     "SUV Executive 8 Seats": "SUV Executive 8 Seats",

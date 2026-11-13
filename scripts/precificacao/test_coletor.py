@@ -243,6 +243,63 @@ class Extras(unittest.TestCase):
         self.assertEqual(n[0]["daily_rate"], 42.0)
         self.assertIn("motorista=0.00/uma_vez; bebe=0.00/uma_vez", n[0]["season"])
 
+FLORIDA = """Alterar viagem
+ÚLTIMAS UNIDADES
+MAIS PROCURADO
+Econômico 5L
+
+Toyota Corolla, Hyundai Sonata ou similar
+
+5 lugares
+2 malas
+Automático
+Gasolina
+Km livre
+Valor da diária
+US$\xa083,00/dia
+US$\xa066,40/dia
+20% OFF nas diárias · cupom GER20 já aplicado
+Escolher →
+CATEGORIA
+Van 12L
+
+Ford Transit ou similar
+
+12 lugares
+6 malas
+Valor da diária
+US$\xa01.157,00/dia
+Escolher →
+CATEGORIA
+Sem Preço
+
+X
+
+4 lugares
+Escolher →
+"""
+
+FLORIDA_EXTRAS = """Cadeirinha infantil
+Obrigatória até os 5 anos.
++ US$\xa019,99 por locação*
+Assento de elevação
++ US$\xa019,99 por locação*"""
+
+
+class Florida(unittest.TestCase):
+    def test_diaria_com_cupom_e_sem_cupom(self):
+        r = C.parse_florida(FLORIDA)
+        self.assertEqual([x["categoria"] for x in r], ["Econômico 5L", "Van 12L"])
+        self.assertEqual((r[0]["diaria"], r[0]["diaria_cheia"], r[0]["total"], r[0]["promo"]), (66.4, 83.0, 464.8, True))
+        self.assertEqual((r[1]["diaria"], r[1]["promo"]), (1157.0, False))  # fora da validade do cupom: só um preço
+
+    def test_extras_cadeirinha(self):
+        e = C.parse_extras_florida(FLORIDA_EXTRAS)
+        self.assertEqual((e["bebe"], e["motorista"]), ((19.99, "uma_vez"), (0.0, "uma_vez")))
+        self.assertIsNone(C.parse_extras_florida("sem adicionais"))
+        it = dict(C.parse_florida(FLORIDA)[0], extras=e)
+        self.assertIn("motorista=0.00/uma_vez; bebe=19.99/uma_vez", C.nota_extras(it))
+
 
 if __name__ == "__main__":
     unittest.main()
