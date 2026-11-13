@@ -8,10 +8,10 @@
     "SUV SMALL": null,
     "SUV MEDIUM": "Midsize Suv",
     "SUV LARGE": null,
-    "SUV X LARGE": "SUV Executive 7 Seats",
+    "SUV X LARGE": null,
     "SUV XX LARGE": "SUV Executive 8 Seats",
     "SUV LUXO": null,
-    "SUV PREMIUM": "Fullsize Suv",
+    "SUV PREMIUM": null,
     "SUV - JEEP WRANGLER": null,
     "SEDAN PREMIUM": null,
     "SUV MASERATI": null,
@@ -32,12 +32,12 @@
   },
   "Allycar": {
     "Tesla Y": null,
-    "Mitsubishi Outlander": "Fullsize Suv",
+    "Mitsubishi Outlander": null,
     "Hyundai Palisade": "Fullsize Suv",
     "Toyota Grand Highlander": "Fullsize Suv",
     "Toyota Sienna": "Mini Van 8 Seats",
     "Chevrolet Suburban": "SUV Executive 8 Seats",
-    "GMC Yukon XL": "SUV Executive 8 Seats",
+    "GMC Yukon XL": null,
     "Cadillac Escalade": "Luxury"
   },
   "Florida Rental Car": {
@@ -69,5 +69,20 @@
     "Midsize Sedan": "Midsize Sedan",
     "Fullsize Suv": "Fullsize Suv",
     "Midsize Suv": "Midsize Suv"
+  },
+  "Avis": {
+    "ECONÔMICO": null,
+    "COMPACTO": null,
+    "INTERMEDIÁRIO": "Midsize Sedan",
+    "FULL-SIZE": null,
+    "ESTANDAR": null,
+    "SUV MÉDIA": "Midsize Suv",
+    "STANDARD SUV": "Fullsize Suv",
+    "STANDARD ELITE SUV": null,
+    "FULLSIZE SUV": null,
+    "PREMIUM SUV": "SUV Executive 7 Seats",
+    "MINIVAN": "Mini Van 8 Seats",
+    "VAN FULL-SIZE": "Van 12 Seats",
+    "LUXO": null
   }
 }

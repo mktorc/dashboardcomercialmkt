@@ -301,5 +301,46 @@ class Florida(unittest.TestCase):
         self.assertIn("motorista=0.00/uma_vez; bebe=19.99/uma_vez", C.nota_extras(it))
 
 
+def _avis_veiculo(classe, nome, lugares, essencial, completo, esgotado=False, moeda="USD"):
+    def fare(tpl, daily):
+        return {"feature": {"fareTemplate": tpl}, "transactionCurrency": moeda, "detailUrl": f"https://x/{classe}",
+                "inclusionCodes": {"adf": True, "ldw": True}, "price": {"daily": daily, "total": round(daily * 7, 2), "discountPercentage": 20}}
+    return {"vehicleInfo": {"name": nome, "isSoldOut": esgotado, "vehicleType": {"class": {"name": classe}},
+                            "characteristics": {"passenger": lugares}},
+            "fareGroup": [fare("LDW", essencial), fare("LIS", completo)]}
+
+
+AVIS = {"objectResponse": {"search": {"availabilityResponse": {"itineraryDate": {"rentalDuration": 7}, "vehicles": [
+    _avis_veiculo("MINIVAN", "TOYOTA Sienna", 7, 57.6, 65.44),
+    _avis_veiculo("VAN FULL-SIZE", "FORD Transit", 12, 98.36, 111.73),
+    _avis_veiculo("LUXO", "CHRYSLER 300", 5, 77.91, 88.58, esgotado=True),
+    _avis_veiculo("SUV MÉDIA", "TOYOTA Rav4", 5, 48.6, 55.28, moeda="BRL"),
+]}}}}
+
+
+class Avis(unittest.TestCase):
+    def test_usa_seguro_essencial_em_usd(self):
+        r = C.parse_avis(AVIS)
+        self.assertEqual([x["categoria"] for x in r], ["MINIVAN", "VAN FULL-SIZE"])  # esgotado e moeda diferente de USD ficam fora
+        self.assertEqual((r[0]["diaria"], r[0]["total"], r[0]["dias"], r[0]["promo"]), (57.6, 403.2, 7, True))
+        self.assertEqual(r[1]["tipo"], "FORD Transit ou similar, 12 lugares")
+        self.assertTrue(r[0]["motorista_incluso"])
+
+    def test_resposta_vazia(self):
+        self.assertEqual(C.parse_avis({}), [])
+        self.assertEqual(C.parse_avis(None), [])
+
+    def test_cadeirinha(self):
+        self.assertEqual(C.parse_cadeirinha_avis("EQUIPAMENTOS\nASSENTOS PARA CRIANÇAS\nAdicionar apenas por\nUSD 12.43 | dia\nESCOLHA"), 12.43)
+        self.assertIsNone(C.parse_cadeirinha_avis("RÁDIO VIA SATÉLITE\nUSD 5.13 | dia"))
+
+    def test_mapa(self):
+        import json
+        m = json.loads(C.MAPA.read_text())["Avis"]
+        self.assertEqual({k: v for k, v in m.items() if v}, {
+            "INTERMEDIÁRIO": "Midsize Sedan", "SUV MÉDIA": "Midsize Suv", "STANDARD SUV": "Fullsize Suv",
+            "PREMIUM SUV": "SUV Executive 7 Seats", "MINIVAN": "Mini Van 8 Seats", "VAN FULL-SIZE": "Van 12 Seats"})
+
+
 if __name__ == "__main__":
     unittest.main()
