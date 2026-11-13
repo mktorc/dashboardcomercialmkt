@@ -21,6 +21,7 @@ import { Route as AuthenticatedComercialRouteImport } from './routes/_authentica
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedPrecificacaoRouteImport } from './routes/_authenticated/precificacao'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
@@ -98,6 +99,11 @@ const AuthenticatedPrecificacaoRoute =
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/app/',
   path: '/app/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthConsentRoute = OauthConsentRouteImport.update({
+  id: '/oauth/consent',
+  path: '/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/app': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/precificacao': typeof AuthenticatedPrecificacaoRoute
+  '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
@@ -289,6 +298,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/configuracoes'
     | '/precificacao'
+    | '/oauth/consent'
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
@@ -318,6 +328,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/configuracoes'
     | '/precificacao'
+    | '/oauth/consent'
     | '/app'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
@@ -348,6 +359,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comercial'
     | '/_authenticated/configuracoes'
     | '/_authenticated/precificacao'
+    | '/oauth/consent'
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/_authenticated/app/dashboard'
@@ -376,6 +388,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  OauthConsentRoute: typeof OauthConsentRoute
   AppIndexRoute: typeof AppIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
@@ -478,6 +491,13 @@ declare module '@tanstack/react-router' {
       path: '/app'
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/consent': {
+      id: '/oauth/consent'
+      path: '/oauth/consent'
+      fullPath: '/oauth/consent'
+      preLoaderRoute: typeof OauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.lovable/oauth/consent': {
@@ -622,6 +642,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  OauthConsentRoute: OauthConsentRoute,
   AppIndexRoute: AppIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
