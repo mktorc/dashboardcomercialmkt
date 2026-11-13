@@ -14,7 +14,68 @@ function env(names: string[]): string | undefined {
   return undefined;
 }
 
-export function supabaseForUser(ctx: AuthContext) {
+/** Papel que o token do usuário técnico deve carregar (claim `role`, definida pelo custom_access_token_hook). */
+export const MCP_ROLE = "mcp_reader";
+
+/**
+ * Únicas relações que o MCP pode consultar. As 23 views mcp_* liberadas no banco;
+ * qualquer nome fora da lista é recusado antes de chegar ao banco.
+ */
+export const MCP_VIEWS = [
+  "mcp_commission_partners",
+  "mcp_competitor_category_map",
+  "mcp_competitor_price_snapshots",
+  "mcp_competitors",
+  "mcp_crm_leads",
+  "mcp_crm_opportunities",
+  "mcp_crm_tasks",
+  "mcp_fleet_stats",
+  "mcp_fleet_vehicles",
+  "mcp_google_ads_metrics",
+  "mcp_marketing_team_costs",
+  "mcp_meta_ads_metrics",
+  "mcp_our_rate_snapshots",
+  "mcp_pricing_occupancy_forecast",
+  "mcp_pricing_occupancy_pace",
+  "mcp_pricing_study_report",
+  "mcp_reservas",
+  "mcp_reservation_onboarding",
+  "mcp_reservation_segments",
+  "mcp_reservation_status_history",
+  "mcp_reservations",
+  "mcp_sales_goals",
+  "mcp_sync_runs",
+] as const;
+export type McpView = (typeof MCP_VIEWS)[number];
+
+export function assertMcpView(view: string): asserts view is McpView {
+  if (!(MCP_VIEWS as readonly string[]).includes(view)) throw new Error("Consulta não permitida");
+}
+
+/** Confere usuário técnico (UUID em MCP_ALLOWED_USER_ID, fail-closed) e role no JWT já verificado. */
+export function assertMcpAccess(ctx: AuthContext) {
+  if (!ctx.isAuthenticated()) throw new Error("Usuário não autenticado");
+  const allowed = env(["MCP_ALLOWED_USER_ID"]);
+  if (!allowed) throw new Error("Acesso MCP não configurado");
+  if (ctx.getUserId() !== allowed) throw new Error("Usuário sem permissão para o MCP");
+  if (ctx.getClaims()?.["role"] !== MCP_ROLE) throw new Error("Token sem o papel exigido");
+}
+
+/** Cliente somente leitura: só expõe `from` sobre as views permitidas, com o Bearer do usuário. */
+export function mcpDb(ctx: AuthContext) {
+  assertMcpAccess(ctx);
+  const sb = supabaseForUser(ctx);
+  return {
+    from: (view: McpView) => {
+      assertMcpView(view);
+      return sb.from(view);
+    },
+  };
+}
+
+export type McpDb = ReturnType<typeof mcpDb>;
+
+function supabaseForUser(ctx: AuthContext) {
   const token = ctx.getToken();
   if (!token) throw new Error("Usuário não autenticado");
   const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]) ?? import.meta.env["VITE_SUPABASE_URL"];

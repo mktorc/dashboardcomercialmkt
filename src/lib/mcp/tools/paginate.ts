@@ -1,11 +1,11 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { McpDb, McpView } from "../supabase";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Q = any;
 
 export async function fetchAllFrom<T>(
-  sb: SupabaseClient,
-  table: string,
+  sb: McpDb,
+  table: McpView,
   cols: string,
   filter: (q: Q) => Q,
 ): Promise<T[]> {
