@@ -64,7 +64,7 @@ export function PickupChart({
       {!has ? (
         <p className="text-sm text-muted-foreground">Sem dados para este recorte.</p>
       ) : (
-        <div className="min-h-64 w-full flex-1">
+        <div className="h-64 w-full shrink-0">
           <ResponsiveContainer>
             <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
