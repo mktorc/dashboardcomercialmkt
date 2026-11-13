@@ -2,12 +2,12 @@
 
 Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, passo "Veículos") e Florida Rental Car (a cotação por data
 exige nome e WhatsApp: vêm das variáveis FLORIDA_NOME e FLORIDA_WHATSAPP, contato real da equipe; nunca dados falsos; só lê telas) e Avis
-(avislac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial).
+e Budget (avislac.com e budgetlac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial).
 Fora, de propósito: rentcars.com (Cloudflare bloqueia acesso automatizado: não se contorna).
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
   --sem-tarifa: coleta TODAS as datas, de hoje + 3 dias até o dia anterior ao primeiro dia programado do HQ, que ainda não têm tarifa
@@ -321,15 +321,20 @@ def coleta_florida(pickups, dias):
 
 
 AVIS_HOME = "https://www.avislac.com/pt/aluguel-carros-avis-estados-unidos/"
+AVIS_SITE = "5832056d-5860-4be9-b6eb-3b240ebe61c8"
 AVIS_LOCAL = "Orlando (Aeroporto MCO)"
-# A página de resultados do avislac.com pede uma chave de busca e depois a disponibilidade à API do próprio site; fazemos o mesmo, de
-# dentro da página (mesma origem), com moeda USD. Só leitura: nada é reservado nem pago.
-_AVIS_JS = """async ([ini, fim]) => {
+BUDGET_HOME = "https://www.budgetlac.com/pt/aluguel-carros-budget-estados-unidos/"
+BUDGET_SITE = "37e9c2b0-2aa5-1f02-5e62-8dda698509c7"
+BUDGET_LOCAL = "Orlando (Aeroporto MCO)"
+# avislac.com e budgetlac.com são a mesma plataforma (Avis Budget Group, América Latina): a página de resultados pede uma chave de
+# busca e depois a disponibilidade à API do próprio site; fazemos o mesmo, de dentro da página (mesma origem), com moeda USD.
+# Só leitura: nada é reservado nem pago. O budget.com (EUA) bloqueia acesso automatizado com captcha: não se contorna.
+_AVIS_JS = """async ([ini, fim, site]) => {
   const loc = {code: "MCO", name: "Aeroporto Internacional de Orlando, (MCO), Orlando, Flórida, Estados Unidos",
                latitude: 28.4311577, longitude: -81.307904, countryCode: "US"};
   const h = {language: "pt", currency: "USD", country: "BR", browser: "Chrome", os: "MacOS", device: "Desktop", timezone: "UTC-3",
              "content-type": "application/json", accept: "application/json, text/plain, */*"};
-  const q = {siteId: "5832056d-5860-4be9-b6eb-3b240ebe61c8", pickupUbication: loc, returnUbication: loc,
+  const q = {siteId: site, pickupUbication: loc, returnUbication: loc,
              pickupDate: ini + "T10:00:00.00", returnDate: fim + "T10:00:00.00", flags: [], discountClientCodes: {},
              filters: {agentIsLogged: false, IsLandingPage: false, pagination: {pageSize: 30, page: 1}, filter: {filterTypes: {}}, sortBy: ""}};
   const k = await (await fetch("/api/search/GenerateSearchKeyCarCommand", {method: "POST", headers: h, body: JSON.stringify({command: q})})).json();
@@ -370,22 +375,23 @@ def parse_cadeirinha_avis(texto):
     return num(m.group(1)) if m else None
 
 
-def coleta_avis(pickups, dias):
-    """Cotação pública do avislac.com (Avis, MCO, 10:00, USD), Seguro Essencial. Extras: motorista adicional vem incluso na tarifa (0);
-    a cadeirinha é lida na página de detalhe do primeiro carro da data (só leitura) e somada à parte, como nas outras fontes."""
+def _coleta_lac(nome, home, site, pickups, dias):
+    """Cotação pública do avislac.com / budgetlac.com (MCO, 10:00, USD), Seguro Essencial. Extras: motorista adicional vem incluso na
+    tarifa (0); a cadeirinha é lida na página de detalhe do primeiro carro da data (só leitura) e somada à parte, como nas outras fontes."""
     from playwright.sync_api import sync_playwright
+    from urllib.parse import urlparse
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
         ctx = b.new_context(user_agent=UA, locale="pt-BR")
-        ctx.add_cookies([{"name": "currency", "value": "USD", "domain": "www.avislac.com", "path": "/"}])
+        ctx.add_cookies([{"name": "currency", "value": "USD", "domain": urlparse(home).hostname, "path": "/"}])
         pg = ctx.new_page()
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
-            pg.goto(AVIS_HOME, wait_until="domcontentloaded", timeout=90000)
+            pg.goto(home, wait_until="domcontentloaded", timeout=90000)
             pg.wait_for_timeout(3000)
-            itens = parse_avis(pg.evaluate(_AVIS_JS, [d.isoformat(), fim.isoformat()]))
+            itens = parse_avis(pg.evaluate(_AVIS_JS, [d.isoformat(), fim.isoformat(), site]))
             extras = None
             if itens and itens[0]["detalhe"]:
                 try:
@@ -397,12 +403,20 @@ def coleta_avis(pickups, dias):
                         extras = {"motorista": (0.0, "uma_vez"), "bebe": (bebe, "dia"), "bebe_nome": "Assento para crianças"}
                 except Exception as e:
                     print(f"  extras não coletados ({str(e)[:80]})")
-            print(f"Avis {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
+            print(f"{nome} {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
-                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url=AVIS_HOME, extras=extras))
+                res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url=home, extras=extras))
             time.sleep(PAUSA)
         b.close()
     return res
+
+
+def coleta_avis(pickups, dias):
+    return _coleta_lac("Avis", AVIS_HOME, AVIS_SITE, pickups, dias)
+
+
+def coleta_budget(pickups, dias):
+    return _coleta_lac("Budget", BUDGET_HOME, BUDGET_SITE, pickups, dias)
 
 
 NOSSO_NOME = "Orlando Rent Car"
@@ -551,6 +565,9 @@ FONTES = {
     "avis": ("Avis", coleta_avis, AVIS_LOCAL,
              "Seguro Essencial (avislac.com, USD); taxas não separadas: a API informa totalTax 0; km livre; motorista adicional incluso (0)",
              "Seguro Essencial: proteção do carro (CDW/LDW) e contra roubo (TP) incluídas"),
+    "budget": ("Budget", coleta_budget, BUDGET_LOCAL,
+               "Seguro Essencial (budgetlac.com, USD); taxas não separadas: a API informa totalTax 0; km livre; motorista adicional incluso (0)",
+               "Seguro Essencial: proteção do carro (CDW/LDW) e contra roubo (TP) incluídas"),
 }
 
 

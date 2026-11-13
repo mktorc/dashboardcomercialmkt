@@ -341,6 +341,13 @@ class Avis(unittest.TestCase):
             "INTERMEDIÁRIO": "Midsize Sedan", "SUV MÉDIA": "Midsize Suv", "STANDARD SUV": "Fullsize Suv",
             "PREMIUM SUV": "SUV Executive 7 Seats", "MINIVAN": "Mini Van 8 Seats", "VAN FULL-SIZE": "Van 12 Seats"})
 
+    def test_mapa_budget(self):
+        import json
+        m = json.loads(C.MAPA.read_text())["Budget"]
+        self.assertEqual({k: v for k, v in m.items() if v}, {
+            "INTERMEDIÁRIO": "Midsize Sedan", "SUV MÉDIA": "Midsize Suv", "STANDARD ELITE SUV": "Fullsize Suv",
+            "PREMIUM SUV": "SUV Executive 7 Seats", "MINIVAN": "Mini Van 8 Seats", "VAN FULL-SIZE": "Van 12 Seats"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -84,5 +84,22 @@
     "MINIVAN": "Mini Van 8 Seats",
     "VAN FULL-SIZE": "Van 12 Seats",
     "LUXO": null
+  },
+  "Budget": {
+    "ECONÔMICO": null,
+    "COMPACTO": null,
+    "INTERMEDIÁRIO": "Midsize Sedan",
+    "FULL-SIZE": null,
+    "ESTANDAR": null,
+    "PREMIUM": null,
+    "SUV MÉDIA": "Midsize Suv",
+    "STANDARD SUV": null,
+    "STANDARD ELITE SUV": "Fullsize Suv",
+    "FULLSIZE SUV": null,
+    "PREMIUM SUV": "SUV Executive 7 Seats",
+    "MINIVAN": "Mini Van 8 Seats",
+    "VAN FULL-SIZE": "Van 12 Seats",
+    "LUXO": null,
+    "CONVERSÍVEL ESTANDAR": null
   }
 }
