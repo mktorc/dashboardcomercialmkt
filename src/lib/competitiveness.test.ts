@@ -3,6 +3,7 @@ import {
   extrasCost,
   ourStay,
   stayNights,
+  stayOffers,
   latestExtrasByCompetitor,
   withKnownExtras,
   parseExtras,
@@ -223,5 +224,52 @@ describe("período exato", () => {
   it("noite sem tarifa = sem reserva (nunca zero)", () => {
     expect(ourStay((d) => (d === "2027-01-15" ? null : 50), "2027-01-13", "2027-01-17")).toBeNull();
     expect(ourStay(() => 50, "2027-01-13", "2027-01-13")).toBeNull();
+  });
+});
+
+describe("stayOffers", () => {
+  const snap = (
+    pickup: string,
+    ret: string,
+    daily: number,
+    collectedAt = "2026-11-10T00:00:00Z",
+  ) => ({
+    competitor: "X",
+    category: "SUV",
+    sourceCategory: "Modelo",
+    location: "MCO",
+    collectedAt,
+    pickupAt: `${pickup}T10:00:00`,
+    returnAt: `${ret}T10:00:00`,
+    totalPrice: daily * 7,
+    dailyPrice: daily,
+    currency: "USD",
+    available: true,
+    equivalence: "parcial" as const,
+  });
+  it("usa a cotação exata quando existe", () => {
+    const r = stayOffers([snap("2027-01-16", "2027-01-23", 50)], "2027-01-16", "2027-01-23");
+    expect(r[0]!.composta).toBeUndefined();
+    expect(r[0]!.totalPrice).toBe(350);
+  });
+  it("compõe 16→22 a partir da cotação 16→23", () => {
+    const r = stayOffers([snap("2027-01-16", "2027-01-23", 50)], "2027-01-16", "2027-01-22");
+    expect(r[0]!.composta).toBe(true);
+    expect(r[0]!.totalPrice).toBe(300);
+    expect(r[0]!.dailyPrice).toBe(50);
+  });
+  it("cada noite usa a cotação que começa mais perto dela", () => {
+    const r = stayOffers(
+      [snap("2027-01-16", "2027-01-23", 50), snap("2027-01-18", "2027-01-25", 80)],
+      "2027-01-17",
+      "2027-01-20",
+    );
+    // 17: só a de 16 (50); 18 e 19: a de 18 (80).
+    expect(r[0]!.totalPrice).toBe(210);
+  });
+  it("noite sem cobertura = sem oferta", () => {
+    expect(stayOffers([snap("2027-01-16", "2027-01-23", 50)], "2027-01-20", "2027-01-25")).toEqual(
+      [],
+    );
   });
 });

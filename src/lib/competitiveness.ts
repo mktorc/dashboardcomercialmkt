@@ -307,3 +307,79 @@ export function totalOf(s: Snapshot): number | null {
   );
   return d == null ? null : d * days;
 }
+
+/** Cotação do período exato: real (retirada e devolução iguais) ou composta noite a noite a partir de outras cotações. */
+export type StayOffer<T extends Snapshot> = T & {
+  /** Composta a partir de cotações de outra duração (ex.: 7 dias): a diária de cada noite vem da cotação que a cobre. */
+  composta?: boolean;
+  /** Cotações (retirada → devolução) usadas na composição. */
+  base?: string[];
+};
+
+/**
+ * Uma oferta por concorrente + modelo dele + categoria para o período `from` (retirada) → `to` (devolução).
+ * Com cotação exata, usa ela. Sem ela, compõe noite a noite: para cada noite, a diária média de uma cotação que cobre a noite
+ * (retirada ≤ noite < devolução), preferindo a que começa mais perto da noite e, empatando, a mais recente. Noite sem cobertura =
+ * sem oferta (nunca completa com zero). Rows já devem ser só a coleta mais recente de cada oferta (latestOffers).
+ */
+export function stayOffers<T extends Snapshot>(
+  rows: T[],
+  from: string,
+  to: string,
+): StayOffer<T>[] {
+  const nights = stayNights(from, to);
+  if (!nights.length) return [];
+  const groups = new Map<string, T[]>();
+  for (const r of rows) {
+    const k = `${r.competitor}|${r.sourceCategory ?? ""}|${r.category ?? ""}`;
+    groups.set(k, [...(groups.get(k) ?? []), r]);
+  }
+  const dayMs = (d: string) => Date.parse(`${d}T00:00:00Z`);
+  const out: StayOffer<T>[] = [];
+  for (const g of groups.values()) {
+    const exact = g
+      .filter((r) => r.pickupAt.slice(0, 10) === from && r.returnAt.slice(0, 10) === to)
+      .sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0];
+    if (exact) {
+      out.push(exact);
+      continue;
+    }
+    const priced = g.filter((r) => dailyOf(r) != null);
+    const used: T[] = [];
+    let total = 0;
+    let ok = true;
+    for (const n of nights) {
+      const t = dayMs(n);
+      const best = priced
+        .filter((r) => r.pickupAt.slice(0, 10) <= n && n < r.returnAt.slice(0, 10))
+        .sort(
+          (a, b) =>
+            t - dayMs(a.pickupAt.slice(0, 10)) - (t - dayMs(b.pickupAt.slice(0, 10))) ||
+            b.collectedAt.localeCompare(a.collectedAt),
+        )[0];
+      if (!best) {
+        ok = false;
+        break;
+      }
+      total += dailyOf(best)!;
+      if (!used.includes(best)) used.push(best);
+    }
+    if (!ok) continue;
+    const newest = [...used].sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0]!;
+    const oldest = [...used].sort((a, b) => a.collectedAt.localeCompare(b.collectedAt))[0]!;
+    out.push({
+      ...newest,
+      pickupAt: `${from}T10:00:00`,
+      returnAt: `${to}T10:00:00`,
+      totalPrice: total,
+      dailyPrice: total / nights.length,
+      available: true,
+      // A composição vale o quanto vale sua cotação mais antiga.
+      collectedAt: oldest.collectedAt,
+      // Uma oferta composta por concorrente/modelo: não confundir com a cotação real de onde veio.
+      composta: true,
+      base: used.map((r) => `${r.pickupAt.slice(0, 10)} → ${r.returnAt.slice(0, 10)}`),
+    });
+  }
+  return out;
+}

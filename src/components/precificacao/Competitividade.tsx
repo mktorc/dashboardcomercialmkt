@@ -18,6 +18,7 @@ import {
   latestOffers,
   marketOf,
   ourStay,
+  stayOffers,
   totalOf,
   priceLevel,
   type Equivalence,
@@ -113,13 +114,9 @@ export function Competitividade({
   // Período exato do filtro: retirada no primeiro dia e devolução no último (ex.: 13 → 17 = 4 diárias). Cotações de outra
   // duração (como as de 7 dias da coleta diária) não entram: a diária muda com a duração da reserva.
   const dias = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86400000);
-  const filtered = mapped.filter((r) => {
-    return (
-      r.pickupAt.slice(0, 10) === range.from &&
-      r.returnAt.slice(0, 10) === range.to &&
-      (cat === ALL || r.category === cat) &&
-      (comp === ALL || r.competitor === comp)
-    );
+  // Sem cotação exata, a oferta é composta noite a noite a partir das cotações já coletadas (ex.: 16→22 sai da de 16→23).
+  const filtered = stayOffers(mapped, range.from, range.to).filter((r) => {
+    return (cat === ALL || r.category === cat) && (comp === ALL || r.competitor === comp);
   });
   const now = new Date().toISOString();
 
@@ -254,7 +251,7 @@ export function Competitividade({
               Reserva de <b>{br(range.from)}</b> (retirada) a <b>{br(range.to)}</b> (devolução):{" "}
               <b>{dias} diárias</b>.{" "}
               {filtered.length === 0
-                ? "Ainda não há cotação dos concorrentes para este período exato (ausência de coleta não é preço zero)."
+                ? "Nenhuma cotação já coletada cobre todas as noites deste período (ausência de coleta não é preço zero)."
                 : ""}
             </>
           ) : (
@@ -265,7 +262,7 @@ export function Competitividade({
           <span className="flex items-center gap-2">
             {pedido ? <span className="text-muted-foreground">{pedido}</span> : null}
             <Button size="sm" variant="outline" onClick={pedirColeta}>
-              Coletar este período
+              Coletar cotação exata
             </Button>
           </span>
         ) : null}
@@ -328,6 +325,7 @@ export function Competitividade({
                   "Retirada",
                   "Devolução",
                   "Coleta",
+                  "Base",
                   "Fonte",
                   "Equivalência",
                 ].map((h) => (
@@ -364,6 +362,12 @@ export function Competitividade({
                     {r.returnAt.slice(0, 10).split("-").reverse().join("/")}
                   </td>
                   <td className="px-2 py-1">{formatLastUpdate(r.collectedAt)}</td>
+                  <td
+                    className="px-2 py-1"
+                    title={r.base?.map((b) => b.split(" → ").map(br).join(" → ")).join("; ")}
+                  >
+                    {r.composta ? "Composta (diárias de outras cotações)" : "Cotação exata"}
+                  </td>
                   <td className="px-2 py-1">{r.source}</td>
                   <td className="px-2 py-1">{EQ_LABEL[r.equivalence]}</td>
                 </tr>
@@ -372,12 +376,14 @@ export function Competitividade({
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Só cotações com retirada e devolução iguais ao período do filtro. Nossa reserva final é a
-          soma da nossa diária de cada noite (sem tarifa em alguma noite, fica em branco); a diária
-          média é a reserva final dividida pelas diárias. Só coletas equivalentes ou parciais, na
-          mesma moeda da nossa tarifa (sem conversão cambial), com até 7 dias entram na referência
-          de mercado (a mediana usa quantos concorrentes houver; com menos de 3, a confiança é
-          menor). Mostrando até 200 linhas.
+          Cotação exata do período quando existe; sem ela, composta noite a noite com a diária média
+          das cotações já coletadas que cobrem cada noite (preferindo a que começa mais perto da
+          noite; passe o mouse em &quot;Base&quot; para ver quais). Nossa reserva final é a soma da
+          nossa diária de cada noite (sem tarifa em alguma noite, fica em branco); a diária média é
+          a reserva final dividida pelas diárias. Só coletas equivalentes ou parciais, na mesma
+          moeda da nossa tarifa (sem conversão cambial), com até 7 dias entram na referência de
+          mercado (a mediana usa quantos concorrentes houver; com menos de 3, a confiança é menor).
+          Mostrando até 200 linhas.
         </p>
       </Card>
     </div>
