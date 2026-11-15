@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   extrasCost,
+  ourStay,
+  stayNights,
   latestExtrasByCompetitor,
   withKnownExtras,
   parseExtras,
@@ -195,5 +197,31 @@ describe("competitividade", () => {
   it("sem concorrência ou sem benchmark não assume posicionamento", () => {
     expect(diagnose("abaixo", "sem-dados")).toBe("sem-posicionamento");
     expect(diagnose(null, "acima")).toBe("sem-posicionamento");
+  });
+});
+
+describe("período exato", () => {
+  it("soma as noites de retirada até a véspera da devolução", () => {
+    expect(stayNights("2027-01-13", "2027-01-17")).toEqual([
+      "2027-01-13",
+      "2027-01-14",
+      "2027-01-15",
+      "2027-01-16",
+    ]);
+    const rates: Record<string, number> = {
+      "2027-01-13": 40,
+      "2027-01-14": 50,
+      "2027-01-15": 60,
+      "2027-01-16": 50,
+    };
+    expect(ourStay((d) => rates[d], "2027-01-13", "2027-01-17")).toEqual({
+      total: 200,
+      daily: 50,
+      days: 4,
+    });
+  });
+  it("noite sem tarifa = sem reserva (nunca zero)", () => {
+    expect(ourStay((d) => (d === "2027-01-15" ? null : 50), "2027-01-13", "2027-01-17")).toBeNull();
+    expect(ourStay(() => 50, "2027-01-13", "2027-01-13")).toBeNull();
   });
 });

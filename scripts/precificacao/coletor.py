@@ -12,7 +12,8 @@ Uso:
   python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos            # só mostra o que seria coletado (nada é gravado)
   python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
-  Opções: --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
+  Opções: --retirada 2027-01-13 --devolucao 2027-01-17 (período exato: uma cotação com essas diárias)
+          --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
   --sem-tarifa: coleta TODAS as datas, de hoje + 3 dias até o dia anterior ao primeiro dia programado do HQ, que ainda não têm tarifa
   gravada (preenche o que o HQ não cobre com a cotação do site; lê o banco, então precisa das credenciais como --gravar).
 Requer playwright (pip install playwright && playwright install chromium) e, com --gravar, SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.
@@ -669,7 +670,13 @@ if __name__ == "__main__":
     if not a or a[0] not in (*FONTES, "nosso", "todos"):
         raise SystemExit(__doc__)
     dias = int(a[a.index("--dias") + 1]) if "--dias" in a else 7
-    if "--datas" in a:
+    if "--retirada" in a and "--devolucao" in a:
+        # Período exato pedido na tela (ex.: retirada 13/01, devolução 17/01): uma cotação só, com as diárias desse período.
+        ret, dev = (date.fromisoformat(a[a.index(f) + 1]) for f in ("--retirada", "--devolucao"))
+        if dev <= ret:
+            raise SystemExit("--devolucao deve ser depois de --retirada")
+        pickups, dias = [ret], (dev - ret).days
+    elif "--datas" in a:
         pickups = [date.fromisoformat(x) for x in a[a.index("--datas") + 1].split(",")]
     elif "--sem-tarifa" in a:
         pickups = None  # calculado abaixo, depois de carregar as credenciais

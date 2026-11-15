@@ -267,3 +267,43 @@ export const DIAGNOSIS_LABEL: Record<Diagnosis, string> = {
   neutro: "Dentro do esperado: sem sinal claro",
   "sem-posicionamento": "Sem dados suficientes para posicionamento",
 };
+
+/** Noites de uma estadia: datas de retirada de `from` até a véspera de `to` (devolução). */
+export function stayNights(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let t = Date.parse(`${from}T00:00:00Z`); t < Date.parse(`${to}T00:00:00Z`); t += 86400000)
+    out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+
+/**
+ * Nossa reserva para o período exato (retirada `from` → devolução `to`): soma da nossa diária de cada noite e a diária média.
+ * Falta tarifa em alguma noite = null (nunca completa com zero nem com outra data).
+ */
+export function ourStay(
+  rateOf: (date: string) => number | null | undefined,
+  from: string,
+  to: string,
+): { total: number; daily: number; days: number } | null {
+  const nights = stayNights(from, to);
+  if (!nights.length) return null;
+  let total = 0;
+  for (const d of nights) {
+    const r = rateOf(d);
+    if (r == null || !(r > 0)) return null;
+    total += r;
+  }
+  return { total, daily: total / nights.length, days: nights.length };
+}
+
+/** Total de uma coleta (reserva final): o total informado ou diária × dias. Sem preço ou indisponível = null. */
+export function totalOf(s: Snapshot): number | null {
+  if (s.available === false) return null;
+  if (s.totalPrice && s.totalPrice > 0) return s.totalPrice;
+  const d = dailyOf(s);
+  const days = Math.max(
+    1,
+    Math.round((Date.parse(s.returnAt) - Date.parse(s.pickupAt)) / 86400000),
+  );
+  return d == null ? null : d * days;
+}

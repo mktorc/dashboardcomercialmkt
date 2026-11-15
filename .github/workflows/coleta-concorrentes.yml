@@ -12,6 +12,13 @@ on:
       - 'scripts/precificacao/mapa_categorias.json'
       - '.github/workflows/coleta-concorrentes.yml'
   workflow_dispatch:
+    inputs:
+      retirada:
+        description: "Período exato (opcional): data de retirada AAAA-MM-DD"
+        required: false
+      devolucao:
+        description: "Período exato (opcional): data de devolução AAAA-MM-DD"
+        required: false
 concurrency:
   group: coleta-concorrentes
   cancel-in-progress: false
@@ -33,8 +40,20 @@ jobs:
       - run: pip install playwright && playwright install --with-deps chromium
       # 26 semanas (~D-185): cobre o horizonte de 180 dias da ocupação. O início desloca 1 dia da semana por dia, então em 7 dias
       # todas as datas entram na janela de 7 dias usada na comparação de preço.
-      - run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --semanas 26
+      # Sem período exato: coleta padrão (7 diárias por retirada). Com período exato (pedido na tela de Competitividade): só os
+      # concorrentes, uma cotação retirada→devolução. A nossa tarifa fica de fora: ela é gravada por data e somada noite a noite.
+      - if: ${{ !inputs.retirada || !inputs.devolucao }}
+        run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --semanas 26
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          FLORIDA_NOME: ${{ secrets.FLORIDA_NOME }}
+          FLORIDA_WHATSAPP: ${{ secrets.FLORIDA_WHATSAPP }}
+      - if: ${{ inputs.retirada && inputs.devolucao && matrix.fonte != 'nosso' }}
+        run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --retirada "$RETIRADA" --devolucao "$DEVOLUCAO"
+        env:
+          RETIRADA: ${{ inputs.retirada }}
+          DEVOLUCAO: ${{ inputs.devolucao }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FLORIDA_NOME: ${{ secrets.FLORIDA_NOME }}

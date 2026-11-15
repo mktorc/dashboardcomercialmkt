@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { coletarPeriodo } from "@/lib/coleta-periodo.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +17,8 @@ import {
   diffPct,
   latestOffers,
   marketOf,
+  ourStay,
+  totalOf,
   priceLevel,
   type Equivalence,
   type OurRate,
@@ -36,10 +40,7 @@ const EQ_LABEL: Record<Equivalence, string> = {
 };
 type SortKey = "menor" | "maior" | "diferenca" | "concorrente" | "categoria";
 
-/** Nossa diária para a data de retirada e categoria da coleta; sem tarifa publicada = null (nunca zero). */
-function ourRateFor(ours: Map<string, number>, s: SnapshotRow) {
-  return ours.get(rateKey(s.pickupAt.slice(0, 10), s.category)) ?? null;
-}
+const br = (iso: string) => iso.split("-").reverse().join("/");
 
 export function Competitividade({
   range,
@@ -54,6 +55,21 @@ export function Competitividade({
   const [cat, setCat] = useState(ALL);
   const [comp, setComp] = useState(ALL);
   const [sort, setSort] = useState<SortKey>("diferenca");
+  const coletar = useServerFn(coletarPeriodo);
+  const [pedido, setPedido] = useState<string | null>(null);
+  const pedirColeta = async () => {
+    setPedido("Pedindo a coleta…");
+    try {
+      const r = await coletar({ data: { retirada: range.from, devolucao: range.to } });
+      setPedido(
+        r.ok
+          ? `Coleta de ${br(range.from)} a ${br(range.to)} pedida: leva alguns minutos; recarregue a página depois.`
+          : `Não foi possível pedir a coleta: ${r.error}`,
+      );
+    } catch (e) {
+      setPedido(`Não foi possível pedir a coleta: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
 
   // Só a coleta mais recente de cada oferta: coletas repetidas ou antigas não aparecem como atuais.
   const rows = useMemo(() => latestOffers(snaps.data ?? []), [snaps.data]);
@@ -94,21 +110,35 @@ export function Competitividade({
   ].sort();
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
   const mapped = rows.filter((r) => r.category);
+  // Período exato do filtro: retirada no primeiro dia e devolução no último (ex.: 13 → 17 = 4 diárias). Cotações de outra
+  // duração (como as de 7 dias da coleta diária) não entram: a diária muda com a duração da reserva.
+  const dias = Math.round((Date.parse(range.to) - Date.parse(range.from)) / 86400000);
   const filtered = mapped.filter((r) => {
-    const d = r.pickupAt.slice(0, 10);
     return (
-      d >= range.from &&
-      d <= range.to &&
+      r.pickupAt.slice(0, 10) === range.from &&
+      r.returnAt.slice(0, 10) === range.to &&
       (cat === ALL || r.category === cat) &&
       (comp === ALL || r.competitor === comp)
     );
   });
   const now = new Date().toISOString();
 
-  // Posicionamento: cada data de retirada e categoria é um mercado; contamos onde estamos acima/alinhado/abaixo.
+  // Nossa reserva no mesmo período: soma da nossa diária de cada noite (retirada até a véspera da devolução).
+  const stayCache = new Map<string, ReturnType<typeof ourStay>>();
+  const stayOf = (category: string | null) => {
+    if (!category) return null;
+    if (!stayCache.has(category))
+      stayCache.set(
+        category,
+        ourStay((d) => ours.get(rateKey(d, category)), range.from, range.to),
+      );
+    return stayCache.get(category) ?? null;
+  };
+
+  // Posicionamento: cada categoria é um mercado no período exato; contamos onde estamos acima/alinhado/abaixo.
   const groups = new Map<string, SnapshotRow[]>();
   for (const r of filtered) {
-    const k = rateKey(r.pickupAt.slice(0, 10), r.category);
+    const k = r.category ?? "";
     groups.set(k, [...(groups.get(k) ?? []), r]);
   }
   let acima = 0;
@@ -128,7 +158,7 @@ export function Competitividade({
         nameSet.add(r.competitor);
       }
     });
-    const mine = ours.get(k);
+    const mine = stayOf(k)?.daily ?? null;
     if (m.median == null || mine == null) continue;
     ourDaily.push(mine);
     medians.push(m.median);
@@ -149,13 +179,17 @@ export function Competitividade({
 
   const table = filtered
     .map((r) => {
-      const mine = ourRateFor(ours, r);
+      const stay = stayOf(r.category);
+      const mine = stay?.daily ?? null;
       const theirs = dailyOf(r);
+      const theirTotal = totalOf(r);
       return {
         r,
         mine,
+        mineTotal: stay?.total ?? null,
         theirs,
-        abs: mine != null && theirs != null ? mine - theirs : null,
+        theirTotal,
+        abs: stay && theirTotal != null ? stay.total - theirTotal : null,
         pct: diffPct(mine ?? 0, theirs),
       };
     })
@@ -173,18 +207,18 @@ export function Competitividade({
     [
       "Nossa diária média (tabela HQ)",
       money(avg(ourDaily), moeda),
-      `${ourDaily.length} datas com tarifa e mercado`,
+      `${ourDaily.length} categorias com tarifa e mercado, ${dias} diárias`,
     ],
     ["Mediana dos concorrentes", money(medianAll, moeda), "referência principal"],
     ["Média dos concorrentes", money(avg(medians), moeda)],
     ["Menor preço", money(allPrices.length ? Math.min(...allPrices) : null, moeda)],
     ["Maior preço", money(allPrices.length ? Math.max(...allPrices) : null, moeda)],
     ["Concorrentes monitorados", String(nameSet.size)],
-    ["Nossa tarifa vs. mediana", pctTxt(avg(diffs)), "média das datas classificadas"],
+    ["Nossa tarifa vs. mediana", pctTxt(avg(diffs)), "média das categorias classificadas"],
     [
       "Acima / alinhado / abaixo",
       `${share(acima)} / ${share(alinhado)} / ${share(abaixo)}`,
-      `${classified} datas classificadas`,
+      `${classified} categorias classificadas`,
     ],
   ];
 
@@ -213,12 +247,29 @@ export function Competitividade({
         </PeriodFilter>
       </Card>
 
-      {filtered.length === 0 ? (
-        <Card className="p-3 text-sm text-muted-foreground">
-          Nenhuma coleta de concorrente para este período, categoria e concorrente. Ausência de
-          coleta não significa preço zero.
-        </Card>
-      ) : null}
+      <Card className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+        <span>
+          {dias > 0 ? (
+            <>
+              Reserva de <b>{br(range.from)}</b> (retirada) a <b>{br(range.to)}</b> (devolução):{" "}
+              <b>{dias} diárias</b>.{" "}
+              {filtered.length === 0
+                ? "Ainda não há cotação dos concorrentes para este período exato (ausência de coleta não é preço zero)."
+                : ""}
+            </>
+          ) : (
+            "Escolha a devolução depois da retirada: o período do filtro é a reserva (retirada → devolução)."
+          )}
+        </span>
+        {dias > 0 ? (
+          <span className="flex items-center gap-2">
+            {pedido ? <span className="text-muted-foreground">{pedido}</span> : null}
+            <Button size="sm" variant="outline" onClick={pedirColeta}>
+              Coletar este período
+            </Button>
+          </span>
+        ) : null}
+      </Card>
       {(rates.data ?? []).length === 0 ? (
         <Card className="p-3 text-sm text-muted-foreground">
           Nossa tarifa de tabela do HQ ainda não foi publicada: sem ela não há comparação, só os
@@ -261,16 +312,18 @@ export function Competitividade({
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-sm">
+          <table className="w-full min-w-[1100px] text-sm">
             <thead className="text-left text-xs text-muted-foreground">
               <tr>
                 {[
                   "Concorrente",
                   "Modelo",
                   "Categoria",
-                  "Tarifa deles",
-                  "Nossa tarifa",
-                  "Dif. R$",
+                  "Reserva final deles",
+                  "Diária média deles",
+                  "Nossa reserva final",
+                  "Nossa diária média",
+                  "Dif. reserva",
                   "Dif. %",
                   "Retirada",
                   "Devolução",
@@ -285,7 +338,7 @@ export function Competitividade({
               </tr>
             </thead>
             <tbody>
-              {table.map(({ r, mine, theirs, abs, pct }) => (
+              {table.map(({ r, mine, mineTotal, theirs, theirTotal, abs, pct }) => (
                 <tr key={r.id} className="border-t border-border">
                   <td className="px-2 py-1">{r.competitor}</td>
                   <td className="px-2 py-1">{r.sourceCategory ?? "—"}</td>
@@ -293,8 +346,12 @@ export function Competitividade({
                   <td className="px-2 py-1 tabular-nums">
                     {r.available === false
                       ? "Indisponível"
-                      : money(theirs, r.currency.toUpperCase())}
+                      : money(theirTotal, r.currency.toUpperCase())}
                   </td>
+                  <td className="px-2 py-1 tabular-nums">
+                    {r.available === false ? "—" : money(theirs, r.currency.toUpperCase())}
+                  </td>
+                  <td className="px-2 py-1 tabular-nums">{money(mineTotal, moeda)}</td>
                   <td className="px-2 py-1 tabular-nums">{money(mine, moeda)}</td>
                   <td className="px-2 py-1 tabular-nums">
                     {abs == null ? "—" : money(abs, moeda)}
@@ -315,9 +372,12 @@ export function Competitividade({
           </table>
         </div>
         <p className="text-xs text-muted-foreground">
-          Só coletas equivalentes ou parciais, na mesma moeda da nossa tarifa (sem conversão
-          cambial), com até 7 dias entram na referência de mercado (a mediana usa quantos
-          concorrentes houver; com menos de 3, a confiança é menor). Mostrando até 200 linhas.
+          Só cotações com retirada e devolução iguais ao período do filtro. Nossa reserva final é a
+          soma da nossa diária de cada noite (sem tarifa em alguma noite, fica em branco); a diária
+          média é a reserva final dividida pelas diárias. Só coletas equivalentes ou parciais, na
+          mesma moeda da nossa tarifa (sem conversão cambial), com até 7 dias entram na referência
+          de mercado (a mediana usa quantos concorrentes houver; com menos de 3, a confiança é
+          menor). Mostrando até 200 linhas.
         </p>
       </Card>
     </div>
