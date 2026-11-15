@@ -2,12 +2,15 @@
 
 Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, passo "Veículos") e Florida Rental Car (a cotação por data
 exige nome e WhatsApp: vêm das variáveis FLORIDA_NOME e FLORIDA_WHATSAPP, contato real da equipe; nunca dados falsos; só lê telas) e Avis
-e Budget (avislac.com e budgetlac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial).
-Fora, de propósito: rentcars.com (Cloudflare bloqueia acesso automatizado: não se contorna).
+e Budget (avislac.com e budgetlac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial) e National e
+Alamo (nationalcar.com/pt e alamo.com/pt, Enterprise Holdings: mesma API do formulário, como convidado, tarifa base sem taxas, em USD;
+"Minivan" = média da Minivan 7 e da 8 passageiros).
+Fora, de propósito: rentcars.com, sixt.com.br (Cloudflare), hertz.com.br (Imperva) e budget.com (captcha): bloqueiam acesso automatizado,
+não se contorna.
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
   --sem-tarifa: coleta TODAS as datas, de hoje + 3 dias até o dia anterior ao primeiro dia programado do HQ, que ainda não têm tarifa
@@ -419,6 +422,90 @@ def coleta_budget(pickups, dias):
     return _coleta_lac("Budget", BUDGET_HOME, BUDGET_SITE, pickups, dias)
 
 
+NATIONAL_HOME = "https://www.nationalcar.com/pt/pagina-inicial.html"
+NATIONAL_API = "https://prd-east.webapi.nationalcar.com/gma-national"
+NATIONAL_MCO = "1019103"  # Orlando International Airport (MCO), agência MCOT01
+NATIONAL_LOCAL = "Orlando (Aeroporto MCO)"
+_NATIONAL_JS = """async ([api, loc, ini, fim, brand, pagina]) => {
+  const h = {"content-type": "application/json", accept: "application/json, text/plain, */*", brand: brand, channel: "WEB",
+             locale: "pt_US", domain_country_of_residence: "US", page_type: "home", request_origin_page: pagina};
+  const r = await fetch(api + "/reservations/initiate", {method: "POST", credentials: "include", headers: h, body: JSON.stringify({
+    pickup_location_id: loc, return_location_id: loc, pickup_time: ini + "T10:00", return_time: fim + "T10:00", renter_age: 25,
+    one_way_rental: false, car_class_code: null, contract_details: null, iata_number: null, show_product_code: false,
+    ignore_contract_from_profile: false, requireUnauth: false, show_redemption_rate_to_client: true})});
+  if (!r.ok) throw new Error("initiate " + r.status + " " + (await r.text()).slice(0, 200));
+  return await (await fetch(api + "/session/current?clean=false", {credentials: "include", headers: h})).json();
+}"""
+
+
+def parse_national(j):
+    """Lê session/current do nationalcar.com após reservations/initiate: [{categoria, tipo, diaria, total, total_com_taxas, promo}].
+    total = soma das tarifas (unit_amount_payment x quantidade), SEM taxas; o "Est. Total" do site (com taxas) vai só na nota. Só USD."""
+    out = []
+    for c in (((j or {}).get("gbo") or {}).get("reservation") or {}).get("car_classes") or []:
+        if not str(c.get("status", "")).startswith("AVAILABLE"):
+            continue
+        ch = ((c.get("charges") or {}).get("PAYLATER")) or {}
+        rates = ch.get("rates") or []
+        if not rates or any((r.get("unit_amount_payment") or {}).get("code") != "USD" for r in rates):
+            continue
+        total = round(sum(float(r["unit_amount_payment"]["amount"]) * float(r.get("unit_rate_type_quantity") or 1) for r in rates), 2)
+        cat = (c.get("name") or "").strip()
+        if cat and total > 0:
+            out.append(dict(categoria=cat, total=total, promo=False,
+                            total_com_taxas=float((ch.get("total_price_payment") or {}).get("amount") or 0) or None,
+                            tipo=f"{(c.get('make_model_or_similar_text') or '').strip()} ou similar, {c.get('people_capacity')} lugares"))
+    return out
+
+
+def _coleta_ehi(nome, brand, home, api, loc, pickups, dias):
+    """Cotação pública da National / Alamo (Enterprise Holdings, mesma plataforma; versão em português, como convidado, sem login):
+    MCO, 10:00, 25+ anos, pagar na retirada. Chama a mesma API que o formulário da página usa, de dentro da página.
+    Extras não coletados (exigem escolher um carro)."""
+    from urllib.parse import urlparse
+    from playwright.sync_api import sync_playwright
+    res = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_context(user_agent=UA, locale="pt-BR").new_page()
+        pg.goto(home, wait_until="domcontentloaded", timeout=90000)
+        pg.wait_for_timeout(5000)
+        for d in pickups:
+            fim = d + timedelta(days=dias)
+            agora = datetime.now(timezone.utc)
+            itens = parse_national(pg.evaluate(_NATIONAL_JS, [api, loc, d.isoformat(), fim.isoformat(), brand, urlparse(home).path]))
+            mv = [it for it in itens if it["categoria"] in ("Minivan 7 passageiros", "Minivan 8 passageiros")]
+            if len(mv) == 2:  # "Minivan" = média da 7 e da 8 passageiros (pareada com a nossa minivan); só com as duas na data
+                tot = round((mv[0]["total"] + mv[1]["total"]) / 2, 2)
+                tx = [x["total_com_taxas"] for x in mv if x["total_com_taxas"]]
+                itens.append(dict(categoria="Minivan", total=tot, promo=False, total_com_taxas=round(sum(tx) / 2, 2) if len(tx) == 2 else None,
+                                  tipo=f"média de Minivan 7 passageiros (USD {mv[0]['total']:.2f}) e 8 passageiros (USD {mv[1]['total']:.2f})"
+                                  if mv[0]["categoria"].startswith("Minivan 7") else
+                                  f"média de Minivan 7 passageiros (USD {mv[1]['total']:.2f}) e 8 passageiros (USD {mv[0]['total']:.2f})"))
+            print(f"{nome} {d}: {len(itens)} categorias com preço; minivan média: {'sim' if len(mv) == 2 else 'NÃO (falta 7 ou 8)'}")
+            for it in itens:
+                if it["total_com_taxas"]:
+                    it["tipo"] += f"; total estimado com taxas USD {it['total_com_taxas']:.2f}"
+                res.append(dict(it, diaria=round(it["total"] / dias, 2), dias=dias, retirada=d, devolucao=fim, coletado_em=agora,
+                                url=home, extras=None))
+            time.sleep(PAUSA)
+        b.close()
+    return res
+
+
+ALAMO_HOME = "https://www.alamo.com/pt/pagina-inicial.html"
+ALAMO_API = "https://prd-east.webapi.alamo.com/gma-alamo"
+ALAMO_MCO = "1018612"  # Aeroporto Internacional de Orlando (MCO)
+
+
+def coleta_national(pickups, dias):
+    return _coleta_ehi("National", "NATIONAL", NATIONAL_HOME, NATIONAL_API, NATIONAL_MCO, pickups, dias)
+
+
+def coleta_alamo(pickups, dias):
+    return _coleta_ehi("Alamo", "ALAMO", ALAMO_HOME, ALAMO_API, ALAMO_MCO, pickups, dias)
+
+
 NOSSO_NOME = "Orlando Rent Car"
 NOSSO_FORMULARIO = "https://orlandorentcar.com/reservations/"
 _ROTULOS_NOSSO = re.compile(r"^(\d+|Datas|Veículos|Características|Cliente|Confirme|Pagamentos|Classe de Veículo Disponível|Ultimas Unidades|Excl\..*)$", re.I)
@@ -568,6 +655,12 @@ FONTES = {
     "budget": ("Budget", coleta_budget, BUDGET_LOCAL,
                "Seguro Essencial (budgetlac.com, USD); taxas não separadas: a API informa totalTax 0; km livre; motorista adicional incluso (0)",
                "Seguro Essencial: proteção do carro (CDW/LDW) e contra roubo (TP) incluídas"),
+    "national": ("National", coleta_national, NATIONAL_LOCAL,
+                 "Tarifa base sem taxas (nationalcar.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+                 "não incluídas (tarifa sem proteções)"),
+    "alamo": ("Alamo", coleta_alamo, NATIONAL_LOCAL,
+              "Tarifa base sem taxas (alamo.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+              "não incluídas (tarifa sem proteções)"),
 }
 
 

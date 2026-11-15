@@ -348,6 +348,22 @@ class Avis(unittest.TestCase):
             "INTERMEDIÁRIO": "Midsize Sedan", "SUV MÉDIA": "Midsize Suv", "STANDARD ELITE SUV": "Fullsize Suv",
             "PREMIUM SUV": "SUV Executive 7 Seats", "MINIVAN": "Mini Van 8 Seats", "VAN FULL-SIZE": "Van 12 Seats"})
 
+    def test_mapa_national_alamo(self):
+        import json
+        m = json.loads(C.MAPA.read_text())
+        for nome in ("National", "Alamo"):
+            self.assertEqual({k: v for k, v in m[nome].items() if v}, {"Médio": "Midsize Sedan", "Minivan": "Mini Van 8 Seats"})
+
+    def test_parse_national(self):
+        def cls(nome, base, status="AVAILABLE_AT_RETAIL_RATE", moeda="USD"):
+            return {"name": nome, "make_model_or_similar_text": "X", "people_capacity": 7, "status": status,
+                    "charges": {"PAYLATER": {"rates": [{"unit_amount_payment": {"code": moeda, "amount": base}, "unit_rate_type_quantity": 1.0}],
+                                             "total_price_payment": {"code": "USD", "amount": "700.00"}}}}
+        j = {"gbo": {"reservation": {"car_classes": [cls("Minivan 7 passageiros", "454.21"), cls("Esgotado", "1", "SOLD_OUT"),
+                                                     cls("Real", "1", moeda="BRL")]}}}
+        self.assertEqual([(i["categoria"], i["total"], i["total_com_taxas"]) for i in C.parse_national(j)],
+                         [("Minivan 7 passageiros", 454.21, 700.0)])
+
 
 if __name__ == "__main__":
     unittest.main()

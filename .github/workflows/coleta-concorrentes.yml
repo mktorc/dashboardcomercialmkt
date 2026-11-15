@@ -24,7 +24,7 @@ jobs:
       # Uma fonte por job: se uma falha ou demora, as outras seguem e cada uma tem o seu próprio limite de tempo.
       fail-fast: false
       matrix:
-        fonte: [nosso, up, ally, florida, avis, budget]
+        fonte: [nosso, up, ally, florida, avis, budget, national, alamo]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
