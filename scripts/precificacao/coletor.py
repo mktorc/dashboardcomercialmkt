@@ -291,7 +291,7 @@ def coleta_florida(pickups, dias):
     nome, fone = os.environ.get("FLORIDA_NOME"), os.environ.get("FLORIDA_WHATSAPP")
     if not (nome and fone):
         raise RuntimeError("defina FLORIDA_NOME e FLORIDA_WHATSAPP (contato real da equipe) para coletar a Florida Rental Car")
-    res, extras = [], None
+    res, extras, tentativas = [], None, 0
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(user_agent=UA, viewport={"width": 1280, "height": 900})
@@ -306,13 +306,21 @@ def coleta_florida(pickups, dias):
                 pg.press("input[type=tel]", "Enter")
                 pg.wait_for_timeout(4000)
             pg.click("text=Consultar carros")
-            pg.wait_for_timeout(8000)
+            try:  # a lista demora a carregar em algumas datas ("Carregando os carros disponíveis…"): espera os preços, não um tempo fixo
+                pg.wait_for_selector("text=Valor da diária", timeout=60000)
+                pg.wait_for_timeout(2000)
+            except Exception:
+                print(f"  {d}: lista de carros não carregou em 60 s")
             itens = parse_florida(pg.inner_text("body"), dias)
-            if itens and extras is None and i == 0:  # os adicionais são os mesmos em todas as datas: lidos uma vez só
+            # os adicionais são os mesmos em todas as datas: lidos uma vez só, tentando nas datas seguintes se a leitura falhar
+            if itens and extras is None and tentativas < 3:
+                tentativas += 1
                 try:
                     pg.get_by_role("button", name="Escolher").first.click()
-                    pg.wait_for_timeout(5000)
+                    pg.wait_for_selector("text=Cadeirinha infantil", timeout=30000)
                     extras = parse_extras_florida(pg.inner_text("body"))
+                    if extras is None:
+                        print(f"  extras não encontrados na tela ({pg.url}): {pg.inner_text('body')[:300]!r}")
                 except Exception as e:
                     print(f"  extras não coletados ({str(e)[:80]})")
             print(f"Florida Rental Car {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
