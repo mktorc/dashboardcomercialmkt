@@ -1,3 +1,5 @@
+-- ATENÇÃO: rode em seguida sql-para-gravar/mcp_correcao_permissoes.sql (esta versão quebra mcp_reservations
+-- quando a view é security_invoker, porque passa e-mail/telefone pela view).
 -- Chave anônima do cliente na view mcp_reservations (para o MCP contar clientes únicos sem expor e-mail/telefone).
 -- Cliente = e-mail normalizado (email_lc); sem e-mail, últimos 8 dígitos do telefone (phone8) — mesma regra do painel.
 -- A chave é um HMAC-SHA256 com segredo guardado em schema privado: não dá para reverter testando e-mails conhecidos.
