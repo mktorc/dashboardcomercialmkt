@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pricingTabDocument, splitPricingReport } from "./pricing-report";
 
 const HTML =
-  '<!doctype html><html><head><style>body{margin:0}</style></head><body><main>' +
+  "<!doctype html><html><head><style>body{margin:0}</style></head><body><main>" +
   '<section id="resumo"><h2>Resumo executivo</h2><p>a</p></section>' +
   '<section id="ocupacao"><h2>A. Ocupação e frota</h2><table></table></section>' +
   '<section id="nova"><h2>Seção nova</h2><p>b</p></section></main></body></html>';

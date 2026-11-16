@@ -1,5 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { BadgeDollarSign, CheckCircle2, Clock, Flame, Info, Search, Tag, TrendingDown, type LucideIcon } from "lucide-react";
+import {
+  BadgeDollarSign,
+  CheckCircle2,
+  Clock,
+  Flame,
+  Info,
+  Search,
+  Tag,
+  TrendingDown,
+  type LucideIcon,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PickupChart } from "@/components/precificacao/PickupChart";
@@ -17,8 +27,25 @@ import {
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import { carros, curvaDetalhe, faixaJanela, gapCarros, projecaoFechamento, projecaoNoRitmo, ritmoRecente, FAIXA_TXT, type PrecoVenda } from "@/lib/occupancy-detail";
-import { DIAGNOSTICO_LABEL, FAIXAS_ANTECEDENCIA, quadranteDia, quebraAntecedencia, type Diagnostico, type Tolerancias } from "@/lib/preco-analise";
+import {
+  carros,
+  curvaDetalhe,
+  faixaJanela,
+  gapCarros,
+  projecaoFechamento,
+  projecaoNoRitmo,
+  ritmoRecente,
+  FAIXA_TXT,
+  type PrecoVenda,
+} from "@/lib/occupancy-detail";
+import {
+  DIAGNOSTICO_LABEL,
+  FAIXAS_ANTECEDENCIA,
+  quadranteDia,
+  quebraAntecedencia,
+  type Diagnostico,
+  type Tolerancias,
+} from "@/lib/preco-analise";
 import { LEVEL, gapTxt, pct, usd } from "@/lib/pricing-format";
 
 /* Apresentação do detalhe de uma data (Gestão de Ocupação e Prioridades). Nenhum cálculo novo: tudo vem de occupancy-pace,
@@ -51,12 +78,22 @@ const pos = (v: number) => `${Math.max(0, Math.min(1, v)) * 100}%`;
 const sinal = (n: number, casas = 0) => `${n > 0 ? "+" : ""}${n.toFixed(casas).replace(".", ",")}`;
 
 /** Ícone de informação com a nota técnica no tooltip. */
-export function InfoTip({ children, rotulo = "Mais informações" }: { children: ReactNode; rotulo?: string }) {
+export function InfoTip({
+  children,
+  rotulo = "Mais informações",
+}: {
+  children: ReactNode;
+  rotulo?: string;
+}) {
   return (
     <TooltipProvider delayDuration={100}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" aria-label={rotulo} className="text-muted-foreground hover:text-foreground">
+          <button
+            type="button"
+            aria-label={rotulo}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <Info className="size-3.5" />
           </button>
         </TooltipTrigger>
@@ -80,7 +117,15 @@ export function EtiquetaFrota({ capacity }: { capacity: number }) {
   );
 }
 
-function Indicador({ titulo, info, children }: { titulo: string; info?: ReactNode; children: ReactNode }) {
+function Indicador({
+  titulo,
+  info,
+  children,
+}: {
+  titulo: string;
+  info?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <Card className="space-y-2 p-4">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -109,11 +154,29 @@ export type DetalheDataProps = {
   rowsFor: (date: string) => PaceRow[];
 };
 
-export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, precoVenda, todas, rowsFor }: DetalheDataProps) {
+export function DetalheData({
+  model,
+  rows,
+  date,
+  base,
+  d,
+  bands,
+  tol,
+  tarifa,
+  precoVenda,
+  todas,
+  rowsFor,
+}: DetalheDataProps) {
   const de = model.payload.de;
-  const wa = useMemo(() => windowAnalysis(model, rows, date, base, d.lead), [model, rows, date, base, d.lead]);
+  const wa = useMemo(
+    () => windowAnalysis(model, rows, date, base, d.lead),
+    [model, rows, date, base, d.lead],
+  );
   const { items, janela } = wa;
-  const q = useMemo(() => quadranteDia(d, rows, janela, de, tol, tarifa), [d, rows, janela, de, tol, tarifa]);
+  const q = useMemo(
+    () => quadranteDia(d, rows, janela, de, tol, tarifa),
+    [d, rows, janela, de, tol, tarifa],
+  );
   const faixa = faixaJanela(janela.anos, d.atual);
   const rev = revenueOf(rows, d.lead);
   const usada = items.find((i) => i.chosen);
@@ -137,10 +200,20 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
   const leadLabel = d.closed ? "D-0" : `D-${d.lead}`;
 
   const colunasVenda = [
-    { titulo: "Atual", escolhido: false, fleet: d.capacity, q: rows.length ? quebraAntecedencia(rows, d.closed ? 0 : d.lead) : null },
+    {
+      titulo: "Atual",
+      escolhido: false,
+      fleet: d.capacity,
+      q: rows.length ? quebraAntecedencia(rows, d.closed ? 0 : d.lead) : null,
+    },
     ...items
       .filter((i) => i.hist.length)
-      .map((i) => ({ titulo: i.date.slice(0, 4), escolhido: i.chosen, fleet: i.fleet, q: quebraAntecedencia(i.hist) })),
+      .map((i) => ({
+        titulo: i.date.slice(0, 4),
+        escolhido: i.chosen,
+        fleet: i.fleet,
+        q: quebraAntecedencia(i.hist),
+      })),
   ];
 
   // Projeção de fechamento por referência (mesmo cálculo de sempre: ocupação atual + ganho da referência, em carros, limitada à frota).
@@ -155,12 +228,22 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
   // Projeção no ritmo atual: mantém os carros que entraram nos últimos 14 dias até a data (sem usar ano de referência).
   const [janelaRitmo, setJanelaRitmo] = useState<number | "inicio">(30);
   // Antecedência mais distante com dado: "desde o início" usa todo o período de vendas da data.
-  const inicioL = useMemo(() => rows.reduce((m, r) => Math.max(m, ...r.a, ...(r.x ?? []).map(([c]) => c)), 0), [rows]);
+  const inicioL = useMemo(
+    () => rows.reduce((m, r) => Math.max(m, ...r.a, ...(r.x ?? []).map(([c]) => c)), 0),
+    [rows],
+  );
   const diasRitmo = janelaRitmo === "inicio" ? Math.max(0, inicioL - d.lead) : janelaRitmo;
   const projRitmo =
     d.closed || d.booked == null || diasRitmo <= 0
       ? null
-      : projecaoNoRitmo(d.booked, ritmoRecente(rows, d.lead, diasRitmo), diasRitmo, d.lead, d.capacity, rev.diaria);
+      : projecaoNoRitmo(
+          d.booked,
+          ritmoRecente(rows, d.lead, diasRitmo),
+          diasRitmo,
+          d.lead,
+          d.capacity,
+          rev.diaria,
+        );
   const ritmoCarros = projRitmo && d.booked != null ? ritmoRecente(rows, d.lead, diasRitmo) : null;
 
   // Ritmo: hoje, ano escolhido (média da janela) e os outros anos (do próprio dia), em carros da frota atual.
@@ -172,13 +255,14 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           const r = ritmoRecente(i.hist, d.lead, 14, { date: i.date, de });
           return { rotulo: i.date.slice(0, 4), v: r == null ? null : (r / i.fleet) * d.capacity };
         });
-  const barrasRitmo = q && !d.closed
-    ? [
-        { rotulo: "Hoje", v: q.ritmoAtual, destaque: true },
-        ...(q.ano ? [{ rotulo: q.ano, v: q.ritmoRef, destaque: false }] : []),
-        ...outros.map((o) => ({ ...o, destaque: false })),
-      ]
-    : [];
+  const barrasRitmo =
+    q && !d.closed
+      ? [
+          { rotulo: "Hoje", v: q.ritmoAtual, destaque: true },
+          ...(q.ano ? [{ rotulo: q.ano, v: q.ritmoRef, destaque: false }] : []),
+          ...outros.map((o) => ({ ...o, destaque: false })),
+        ]
+      : [];
   const maxRitmo = Math.max(1, ...barrasRitmo.map((b) => Math.round(b.v ?? 0)));
 
   // Régua de preço: tarifa atual (o preço do diagnóstico, destacado), já vendido e referência (o que faltava vender): os dois últimos só informação.
@@ -187,7 +271,13 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
     [
       { k: "vendido", nome: "já vendido", v: rev.diaria, cor: "bg-muted-foreground", usado: false },
       { k: "ref", nome: "referência", v: q?.diariaRef ?? null, cor: "bg-primary", usado: false },
-      { k: "tarifa", nome: "tarifa atual", v: q?.diariaAtual ?? null, cor: "bg-amber-500", usado: true },
+      {
+        k: "tarifa",
+        nome: "tarifa atual",
+        v: q?.diariaAtual ?? null,
+        cor: "bg-amber-500",
+        usado: true,
+      },
     ] as { k: string; nome: string; v: number | null; cor: string; usado: boolean }[]
   ).filter((p): p is typeof p & { v: number } => p.v != null);
   const lo = Math.min(...pontos.map((p) => p.v)) * 0.9;
@@ -204,7 +294,12 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
       return { ...p, x, embaixo };
     });
   })();
-  const corDif = q?.preco === "mais-caro" ? "text-amber-600 dark:text-amber-300" : q?.preco === "mais-barato" ? "text-sky-600 dark:text-sky-300" : "text-muted-foreground";
+  const corDif =
+    q?.preco === "mais-caro"
+      ? "text-amber-600 dark:text-amber-300"
+      : q?.preco === "mais-barato"
+        ? "text-sky-600 dark:text-sky-300"
+        : "text-muted-foreground";
 
   return (
     <div className="@container space-y-4">
@@ -213,10 +308,14 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
         (() => {
           const Icone = ICONE[q.diagnostico];
           return (
-            <div className={`flex items-center gap-3 rounded-lg border p-3 ${DIAG_STYLE[q.diagnostico]} ${BORDA[q.diagnostico]}`}>
+            <div
+              className={`flex items-center gap-3 rounded-lg border p-3 ${DIAG_STYLE[q.diagnostico]} ${BORDA[q.diagnostico]}`}
+            >
               <Icone className="size-6 shrink-0" />
               <div className="min-w-0">
-                <div className="text-lg font-semibold leading-tight">{DIAGNOSTICO_LABEL[q.diagnostico]}</div>
+                <div className="text-lg font-semibold leading-tight">
+                  {DIAGNOSTICO_LABEL[q.diagnostico]}
+                </div>
                 <div className="text-sm opacity-90">{q.frase}.</div>
               </div>
             </div>
@@ -260,15 +359,32 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           <TooltipProvider delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="relative h-3 rounded-full bg-muted" tabIndex={0} aria-label="Ocupação atual, esperada e faixa das referências">
-                  {d.atual != null ? <div className="absolute inset-y-0 left-0 rounded-full bg-primary" style={{ width: pos(d.atual) }} /> : null}
+                <div
+                  className="relative h-3 rounded-full bg-muted"
+                  tabIndex={0}
+                  aria-label="Ocupação atual, esperada e faixa das referências"
+                >
+                  {d.atual != null ? (
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-primary"
+                      style={{ width: pos(d.atual) }}
+                    />
+                  ) : null}
                   {faixa ? (
                     <div
                       className="absolute inset-y-0 rounded-full bg-foreground/20"
-                      style={{ left: pos(faixa.min.occ), width: `${(Math.min(1, faixa.max.occ) - Math.min(1, faixa.min.occ)) * 100}%` }}
+                      style={{
+                        left: pos(faixa.min.occ),
+                        width: `${(Math.min(1, faixa.max.occ) - Math.min(1, faixa.min.occ)) * 100}%`,
+                      }}
                     />
                   ) : null}
-                  {d.esperada != null ? <div className="absolute -inset-y-1 w-0.5 rounded bg-foreground" style={{ left: pos(d.esperada) }} /> : null}
+                  {d.esperada != null ? (
+                    <div
+                      className="absolute -inset-y-1 w-0.5 rounded bg-foreground"
+                      style={{ left: pos(d.esperada) }}
+                    />
+                  ) : null}
                 </div>
               </TooltipTrigger>
               <TooltipContent className="space-y-0.5">
@@ -280,7 +396,8 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
                 {faixa ? (
                   <>
                     <div>
-                      Faixa: {faixa.min.label} {pct(faixa.min.occ)} a {faixa.max.label} {pct(faixa.max.occ)} (médias da semana)
+                      Faixa: {faixa.min.label} {pct(faixa.min.occ)} a {faixa.max.label}{" "}
+                      {pct(faixa.max.occ)} (médias da semana)
                     </div>
                     {faixa.status ? <div>Atual {FAIXA_TXT[faixa.status]}</div> : null}
                   </>
@@ -305,7 +422,9 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
             ) : null}
           </div>
           <div className={`text-xs tabular-nums ${lv?.text ?? "text-muted-foreground"}`}>
-            {d.gap != null ? `gap ${gapTxt(d.gap)} (${sinal(gapCarros(d.gap, capCov))} carros)` : "sem esperada para esta data"}
+            {d.gap != null
+              ? `gap ${gapTxt(d.gap)} (${sinal(gapCarros(d.gap, capCov))} carros)`
+              : "sem esperada para esta data"}
           </div>
         </Indicador>
 
@@ -313,16 +432,38 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           titulo="Preço (tarifa atual)"
           info={
             <InfoTip>
-              <p>A tarifa é preço de tabela e a referência é valor pago: a comparação mostra a direção, não a diferença exata.</p>
-              <p>Referência = o que {q?.ano ?? "o ano escolhido"} praticou do estágio atual até D-0 (média da janela, ponderada pelas diárias).</p>
-              <p>O diagnóstico usa só a tarifa atual do site; sem tarifa para a data e categoria, usa só ocupação e ritmo. A diária já vendida e a referência aparecem como informação.</p>
-              {todas ? <p>Todas as categorias: a diária é faturamento ÷ diárias somando as categorias; o mix de categorias pode afetar a comparação.</p> : null}
+              <p>
+                A tarifa é preço de tabela e a referência é valor pago: a comparação mostra a
+                direção, não a diferença exata.
+              </p>
+              <p>
+                Referência = o que {q?.ano ?? "o ano escolhido"} praticou do estágio atual até D-0
+                (média da janela, ponderada pelas diárias).
+              </p>
+              <p>
+                O diagnóstico usa só a tarifa atual do site; sem tarifa para a data e categoria, usa
+                só ocupação e ritmo. A diária já vendida e a referência aparecem como informação.
+              </p>
+              {todas ? (
+                <p>
+                  Todas as categorias: a diária é faturamento ÷ diárias somando as categorias; o mix
+                  de categorias pode afetar a comparação.
+                </p>
+              ) : null}
             </InfoTip>
           }
         >
           <div className="flex items-baseline gap-2">
-            <span className={`font-semibold tabular-nums ${semTarifa ? "text-lg text-muted-foreground" : "text-2xl"}`}>{semTarifa ? "sem tarifa" : usd(q?.diariaAtual ?? null)}</span>
-            {q?.precoPct != null ? <span className={`text-sm font-medium tabular-nums ${corDif}`}>{sinal(q.precoPct)}%</span> : null}
+            <span
+              className={`font-semibold tabular-nums ${semTarifa ? "text-lg text-muted-foreground" : "text-2xl"}`}
+            >
+              {semTarifa ? "sem tarifa" : usd(q?.diariaAtual ?? null)}
+            </span>
+            {q?.precoPct != null ? (
+              <span className={`text-sm font-medium tabular-nums ${corDif}`}>
+                {sinal(q.precoPct)}%
+              </span>
+            ) : null}
           </div>
           {pontos.length ? (
             <>
@@ -337,7 +478,10 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
                     />
                     <span
                       className={`absolute -translate-x-1/2 whitespace-nowrap text-[10px] tabular-nums ${p.usado ? "font-semibold text-foreground" : "text-muted-foreground"}`}
-                      style={{ left: pos(Math.max(0.08, Math.min(0.92, p.x))), top: p.embaixo ? "42px" : "4px" }}
+                      style={{
+                        left: pos(Math.max(0.08, Math.min(0.92, p.x))),
+                        top: p.embaixo ? "42px" : "4px",
+                      }}
                     >
                       {usd(p.v)}
                     </span>
@@ -347,11 +491,15 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
                 {pontos.map((p) => (
                   <span key={p.k} className={p.usado ? "font-medium text-foreground" : ""}>
-                    <span className={`mr-1 inline-block size-2 rounded-full align-middle ${p.cor}`} />
+                    <span
+                      className={`mr-1 inline-block size-2 rounded-full align-middle ${p.cor}`}
+                    />
                     {p.nome}
                   </span>
                 ))}
-                {semTarifa ? <span>(sem tarifa: já vendido e referência são só informação)</span> : null}
+                {semTarifa ? (
+                  <span>(sem tarifa: já vendido e referência são só informação)</span>
+                ) : null}
               </div>
             </>
           ) : (
@@ -368,25 +516,42 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           ) : q && q.ritmoAtual != null && q.ritmoRef != null ? (
             <>
               <div className="text-2xl font-semibold tabular-nums">
-                {q.ritmoAtual} <span className="text-sm font-normal text-muted-foreground">contra</span> {Math.round(q.ritmoRef)}
+                {q.ritmoAtual}{" "}
+                <span className="text-sm font-normal text-muted-foreground">contra</span>{" "}
+                {Math.round(q.ritmoRef)}
               </div>
               <div className="space-y-1">
                 {barrasRitmo.map((b) => (
-                  <div key={b.rotulo} title={b.v == null ? undefined : `${b.rotulo}: ${num1(b.v)} (exato)`} className="flex items-center gap-2 text-[11px] tabular-nums">
+                  <div
+                    key={b.rotulo}
+                    title={b.v == null ? undefined : `${b.rotulo}: ${num1(b.v)} (exato)`}
+                    className="flex items-center gap-2 text-[11px] tabular-nums"
+                  >
                     <span className="w-9 shrink-0 text-muted-foreground">{b.rotulo}</span>
                     <div className="h-2 flex-1 rounded-full bg-muted">
-                      {b.v != null ? <div className={`h-2 rounded-full ${b.destaque ? "bg-primary" : "bg-muted-foreground/60"}`} style={{ width: `${Math.max(2, (Math.round(b.v) / maxRitmo) * 100)}%` }} /> : null}
+                      {b.v != null ? (
+                        <div
+                          className={`h-2 rounded-full ${b.destaque ? "bg-primary" : "bg-muted-foreground/60"}`}
+                          style={{ width: `${Math.max(2, (Math.round(b.v) / maxRitmo) * 100)}%` }}
+                        />
+                      ) : null}
                     </div>
-                    <span className="w-8 shrink-0 text-right text-muted-foreground">{b.v == null ? "—" : Math.round(b.v)}</span>
+                    <span className="w-8 shrink-0 text-right text-muted-foreground">
+                      {b.v == null ? "—" : Math.round(b.v)}
+                    </span>
                   </div>
                 ))}
               </div>
-              <div className="text-[10px] text-muted-foreground">reservas criadas nos últimos 14 dias (referências na frota atual)</div>
+              <div className="text-[10px] text-muted-foreground">
+                reservas criadas nos últimos 14 dias (referências na frota atual)
+              </div>
             </>
           ) : (
             <>
               <div className="text-2xl font-semibold">—</div>
-              <div className="text-xs text-muted-foreground">Dados indisponíveis (sem histórico do estágio).</div>
+              <div className="text-xs text-muted-foreground">
+                Dados indisponíveis (sem histórico do estágio).
+              </div>
             </>
           )}
         </Indicador>
@@ -401,8 +566,22 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           esperadaNome={usada ? `Esperada (${usada.date.slice(0, 4)})` : "Esperada"}
           extras={[
             // Ano escolhido, só o dia: âmbar tracejado; outros anos: violeta/azul/rosa pontilhado. Claros o bastante para o tema escuro.
-            ...(curva.dia ? [{ key: curva.dia.key, name: `${curva.dia.date.slice(0, 4)} (só o dia)`, color: "#f59e0b", dash: "7 4" }] : []),
-            ...curva.extras.map((e, i) => ({ key: e.key, name: e.date.slice(0, 4), color: OUTROS_ANOS[i % OUTROS_ANOS.length]!, dash: "1 4" })),
+            ...(curva.dia
+              ? [
+                  {
+                    key: curva.dia.key,
+                    name: `${curva.dia.date.slice(0, 4)} (só o dia)`,
+                    color: "#f59e0b",
+                    dash: "7 4",
+                  },
+                ]
+              : []),
+            ...curva.extras.map((e, i) => ({
+              key: e.key,
+              name: e.date.slice(0, 4),
+              color: OUTROS_ANOS[i % OUTROS_ANOS.length]!,
+              dash: "1 4",
+            })),
           ]}
           marcas={curva.marcas}
           note="A esperada é a média, na janela de 7 dias (a data ±3), das ocupações do ano com maior faturamento/veículo final médio (sem faturamento, maior ocupação final), cada dia lido na sua antecedência. As linhas finas são as referências do próprio dia, lidas na mesma antecedência. A atual não é prevista além da data-base."
@@ -411,26 +590,53 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           <div className="flex items-center gap-1.5">
             <h2 className="font-semibold">Quando cada ano vendeu</h2>
             <InfoTip>
-              <p>Todas as barras na mesma escala: cada segmento é a faixa de antecedência em que os carros foram criados, com largura = carros ÷ frota (frota da época nas referências, frota atual na atual). O cinza é o que não foi vendido.</p>
-              <p>Diária = faturamento ÷ diárias com preço. Fat./veículo = faturamento das diárias vendidas ÷ frota (da época nas referências, atual na atual): não são a mesma coisa.</p>
-              <p>Referências: reservas não canceladas (composição final). Atual: reservas ativas hoje, criadas até a data-base. A unidade é a diária (carro × dia).</p>
+              <p>
+                Todas as barras na mesma escala: cada segmento é a faixa de antecedência em que os
+                carros foram criados, com largura = carros ÷ frota (frota da época nas referências,
+                frota atual na atual). O cinza é o que não foi vendido.
+              </p>
+              <p>
+                Diária = faturamento ÷ diárias com preço. Fat./veículo = faturamento das diárias
+                vendidas ÷ frota (da época nas referências, atual na atual): não são a mesma coisa.
+              </p>
+              <p>
+                Referências: reservas não canceladas (composição final). Atual: reservas ativas
+                hoje, criadas até a data-base. A unidade é a diária (carro × dia).
+              </p>
             </InfoTip>
           </div>
           <TooltipProvider delayDuration={50}>
             <div className="space-y-2">
               {colunasVenda.map((c) => (
                 <div key={c.titulo} className="flex items-center gap-2 text-xs tabular-nums">
-                  <span className={`w-14 shrink-0 ${c.escolhido ? "font-semibold text-primary" : c.titulo === "Atual" ? "font-semibold" : "text-muted-foreground"}`}>{c.titulo}</span>
-                  <div className="flex h-5 flex-1 overflow-hidden rounded bg-muted-foreground/15" title="cinza claro = não vendido">
+                  <span
+                    className={`w-14 shrink-0 ${c.escolhido ? "font-semibold text-primary" : c.titulo === "Atual" ? "font-semibold" : "text-muted-foreground"}`}
+                  >
+                    {c.titulo}
+                  </span>
+                  <div
+                    className="flex h-5 flex-1 overflow-hidden rounded bg-muted-foreground/15"
+                    title="cinza claro = não vendido"
+                  >
                     {c.q && c.q.total.carros && c.fleet > 0
                       ? c.q.faixas.map((f, i) =>
                           f.carros ? (
                             <Tooltip key={f.label}>
                               <TooltipTrigger asChild>
-                                <div tabIndex={0} className="h-full" style={{ width: `${(f.carros / c.fleet) * 100}%`, backgroundColor: SEG_CORES[i] }} aria-label={`${c.titulo} ${f.label}`} />
+                                <div
+                                  tabIndex={0}
+                                  className="h-full"
+                                  style={{
+                                    width: `${(f.carros / c.fleet) * 100}%`,
+                                    backgroundColor: SEG_CORES[i],
+                                  }}
+                                  aria-label={`${c.titulo} ${f.label}`}
+                                />
                               </TooltipTrigger>
                               <TooltipContent>
-                                {c.titulo} · {f.label}: {f.carros} {f.carros === 1 ? "carro" : "carros"} · {pct(f.pct)} · {usd(f.diaria)}
+                                {c.titulo} · {f.label}: {f.carros}{" "}
+                                {f.carros === 1 ? "carro" : "carros"} · {pct(f.pct)} ·{" "}
+                                {usd(f.diaria)}
                               </TooltipContent>
                             </Tooltip>
                           ) : null,
@@ -449,19 +655,32 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
             {FAIXAS_ANTECEDENCIA.map((f, i) => (
               <span key={f.label}>
-                <span className="mr-1 inline-block size-2 rounded-sm align-middle" style={{ backgroundColor: SEG_CORES[i] }} />
+                <span
+                  className="mr-1 inline-block size-2 rounded-sm align-middle"
+                  style={{ backgroundColor: SEG_CORES[i] }}
+                />
                 {f.label}
               </span>
             ))}
           </div>
-          <div className="text-[10px] text-muted-foreground">Mais escuro = vendido mais cedo; cinza claro = não vendido. Ao lado de cada ano: carros vendidos de frota, diária média (faturamento ÷ diárias) e fat./veículo (faturamento ÷ frota).</div>
+          <div className="text-[10px] text-muted-foreground">
+            Mais escuro = vendido mais cedo; cinza claro = não vendido. Ao lado de cada ano: carros
+            vendidos de frota, diária média (faturamento ÷ diárias) e fat./veículo (faturamento ÷
+            frota).
+          </div>
 
           <div className="space-y-1.5 border-t pt-3">
             <div className="flex items-center gap-1.5">
               <h3 className="text-sm font-semibold">Projeção de fechamento</h3>
               <InfoTip>
-                <p>Projeção simples: ocupação atual + o ganho que cada referência teve até a data, em carros, limitada à frota atual. Não é previsão.</p>
-                <p>"No ritmo atual" mantém o ritmo de vendas (janela à escolha: 14, 30, 60 dias ou desde o início) até a data (linear, sem olhar nenhum ano).</p>
+                <p>
+                  Projeção simples: ocupação atual + o ganho que cada referência teve até a data, em
+                  carros, limitada à frota atual. Não é previsão.
+                </p>
+                <p>
+                  "No ritmo atual" mantém o ritmo de vendas (janela à escolha: 14, 30, 60 dias ou
+                  desde o início) até a data (linear, sem olhar nenhum ano).
+                </p>
                 <p>Fat./veículo = ocupação projetada × diária média já vendida.</p>
               </InfoTip>
             </div>
@@ -482,20 +701,34 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
             ) : null}
             {projRitmo ? (
               <p className="text-xs font-medium tabular-nums text-foreground">
-                No ritmo atual ({date.slice(0, 4)}): fecha com ~{projRitmo.fechaCarros} de {d.capacity} carros ({pct(projRitmo.fechaOcc)})
-                {projRitmo.revPorVeiculo != null ? ` · fat./veículo ~${usd(projRitmo.revPorVeiculo)}` : ""}
-                <span className="font-normal text-muted-foreground"> · {ritmoCarros} carros em {diasRitmo} dias, mantidos pelos {d.lead} que faltam</span>
+                No ritmo atual ({date.slice(0, 4)}): fecha com ~{projRitmo.fechaCarros} de{" "}
+                {d.capacity} carros ({pct(projRitmo.fechaOcc)})
+                {projRitmo.revPorVeiculo != null
+                  ? ` · fat./veículo ~${usd(projRitmo.revPorVeiculo)}`
+                  : ""}
+                <span className="font-normal text-muted-foreground">
+                  {" "}
+                  · {ritmoCarros} carros em {diasRitmo} dias, mantidos pelos {d.lead} que faltam
+                </span>
               </p>
             ) : null}
             {d.closed ? (
               <p className="text-xs text-muted-foreground">Data encerrada: sem projeção.</p>
             ) : projecoes.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sem referência com dados para projetar.</p>
+              <p className="text-xs text-muted-foreground">
+                Sem referência com dados para projetar.
+              </p>
             ) : (
               projecoes.map((p) => (
-                <p key={p.ano} className={`text-xs tabular-nums ${p.escolhido ? "font-medium text-foreground" : "text-muted-foreground"}`}>
-                  No ritmo de {p.ano}: fecha com ~{p.proj.fechaCarros} de {d.capacity} carros ({pct(p.proj.fechaOcc)})
-                  {p.proj.revPorVeiculo != null ? ` · fat./veículo ~${usd(p.proj.revPorVeiculo)}` : ""}
+                <p
+                  key={p.ano}
+                  className={`text-xs tabular-nums ${p.escolhido ? "font-medium text-foreground" : "text-muted-foreground"}`}
+                >
+                  No ritmo de {p.ano}: fecha com ~{p.proj.fechaCarros} de {d.capacity} carros (
+                  {pct(p.proj.fechaOcc)})
+                  {p.proj.revPorVeiculo != null
+                    ? ` · fat./veículo ~${usd(p.proj.revPorVeiculo)}`
+                    : ""}
                 </p>
               ))
             )}
@@ -505,7 +738,9 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
 
       {/* 5. Detalhes */}
       <details className="group rounded-lg border">
-        <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">Ver detalhes</summary>
+        <summary className="cursor-pointer select-none px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+          Ver detalhes
+        </summary>
         <div className="border-t p-3">
           <ReferenciasAnteriores
             model={model}
@@ -529,14 +764,28 @@ export function DetalheData({ model, rows, date, base, d, bands, tol, tarifa, pr
                   <Campo r="Sazonalidade" v={d.season ?? "—"} />
                   <Campo r="Diária média (hoje)" v={usd(rev.diaria)} />
                   <Campo r="Faturamento por veículo" v={usd(rev.porVeiculo)} />
-                  <Campo r="Evento móvel" v={d.event ? `${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel} dias)` : "—"} />
+                  <Campo
+                    r="Evento móvel"
+                    v={
+                      d.event
+                        ? `${EVENT_LABEL[d.event]} (${d.eventRel! > 0 ? "+" : ""}${d.eventRel} dias)`
+                        : "—"
+                    }
+                  />
                   <div className="col-span-2 sm:col-span-3">
                     <dt className="text-muted-foreground">Base do benchmark</dt>
-                    <dd className="font-medium">{d.level ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} ${d.n === 1 ? "ano comparado" : "anos comparados"}` : "—"}</dd>
+                    <dd className="font-medium">
+                      {d.level
+                        ? `${BENCH_LEVEL_LABEL[d.level]} · ${d.n} ${d.n === 1 ? "ano comparado" : "anos comparados"}`
+                        : "—"}
+                    </dd>
                   </div>
                 </dl>
                 {rev.semPreco.length > 0 && rev.semPreco.length < rows.length ? (
-                  <p className="text-xs text-muted-foreground">Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")} (sem tarifa lançada).</p>
+                  <p className="text-xs text-muted-foreground">
+                    Diária média e faturamento por veículo não incluem {rev.semPreco.join(", ")}{" "}
+                    (sem tarifa lançada).
+                  </p>
                 ) : null}
               </div>
             }

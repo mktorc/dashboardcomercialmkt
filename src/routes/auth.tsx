@@ -19,7 +19,10 @@ export const Route = createFileRoute("/auth")({
     ],
   }),
   validateSearch: (s: Record<string, unknown>) => ({
-    next: typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//") ? s["next"] : undefined,
+    next:
+      typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//")
+        ? s["next"]
+        : undefined,
   }),
   component: AuthPage,
 });
@@ -58,15 +61,19 @@ function AuthPage() {
           </span>
           <div>
             <p className="text-sm font-semibold text-foreground">Orlando Rent Car</p>
-            <p className="text-xs text-muted-foreground">
-              Entre para ver o painel
-            </p>
+            <p className="text-xs text-muted-foreground">Entre para ver o painel</p>
           </div>
         </div>
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">E-mail</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="password">Senha</Label>
@@ -83,7 +90,9 @@ function AuthPage() {
             Entrar
           </Button>
         </form>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Acesso apenas para usuários cadastrados pelo administrador.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Acesso apenas para usuários cadastrados pelo administrador.
+        </p>
       </Card>
     </div>
   );

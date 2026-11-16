@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { rateKey } from "./categoria";
 import { precoVendaAtual } from "./occupancy-detail";
-import { addDays, buildModel, dayPace, windowAnalysis, type PacePayload, type PaceRow } from "./occupancy-pace";
+import {
+  addDays,
+  buildModel,
+  dayPace,
+  windowAnalysis,
+  type PacePayload,
+  type PaceRow,
+} from "./occupancy-pace";
 import {
   TOL_PADRAO,
   diagnostico,
@@ -79,13 +86,33 @@ describe("quadrante de uma data", () => {
   const BA = "2026-11-10"; // data-base aberta: alvo em D-36
   const D = "2026-12-16";
   // Referência 2025: 4 carros vendidos cedo (D-60, US$ 50) e 2 tarde (D-10, US$ 50 e US$ 70): o que faltava vender de D-35 em diante vale US$ 60.
-  const ref = (k: number): PaceRow => ({ d: addDays(D, k - 364), c: "A", f: 10, a: [60, 60, 60, 60, 10, 10], m: [50, 50, 50, 50, 50, 70] });
+  const ref = (k: number): PaceRow => ({
+    d: addDays(D, k - 364),
+    c: "A",
+    f: 10,
+    a: [60, 60, 60, 60, 10, 10],
+    m: [50, 50, 50, 50, 50, 70],
+  });
   const monta = (alvo: PaceRow, base: string) => {
     const linhas = [alvo, ...[-3, -2, -1, 0, 1, 2, 3].map(ref)];
-    const p = { versao: 7, gerado_em: "", hoje: base, de: "2023-01-01", ate: "2027-05-01", categorias: ["A"], params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal: {}, linhas } as unknown as PacePayload;
+    const p = {
+      versao: 7,
+      gerado_em: "",
+      hoje: base,
+      de: "2023-01-01",
+      ate: "2027-05-01",
+      categorias: ["A"],
+      params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+      cal: {},
+      linhas,
+    } as unknown as PacePayload;
     const model = buildModel(p, "maximo");
     const rows = [alvo];
-    return { d: dayPace(model, rows, D, base), rows, janela: windowAnalysis(model, rows, D, base).janela };
+    return {
+      d: dayPace(model, rows, D, base),
+      rows,
+      janela: windowAnalysis(model, rows, D, base).janela,
+    };
   };
   const quad = (alvo: PaceRow, base: string, tarifa: number | null) => {
     const { d, rows, janela } = monta(alvo, base);
@@ -107,7 +134,9 @@ describe("quadrante de uma data", () => {
     expect(q.preco).toBe("mais-caro"); // +17% contra US$ 60
     expect(q.ocupacao).toBe("abaixo");
     expect(q.diagnostico).toBe("preco-alto");
-    expect(q.frase).toBe("2 carros abaixo da esperada em D-36; tarifa atual US$ 70 contra US$ 60 que 2025 praticou de D-35 em diante (+17%); ritmo recente igual ao de 2025");
+    expect(q.frase).toBe(
+      "2 carros abaixo da esperada em D-36; tarifa atual US$ 70 contra US$ 60 que 2025 praticou de D-35 em diante (+17%); ritmo recente igual ao de 2025",
+    );
   });
   it("sem tarifa: não há sinal de preço, nem fallback para vendas recentes ou já vendido; diagnóstico só por ocupação e ritmo", () => {
     for (const alvo of [antigas, recentes]) {
@@ -123,7 +152,9 @@ describe("quadrante de uma data", () => {
     const q = quad(antigas, BA, null);
     expect(q.ritmo).toBe("igual"); // 0 contra 0
     expect(q.diagnostico).toBe("aguardar");
-    expect(q.frase).toBe("2 carros abaixo da esperada em D-36; sem tarifa atual para comparar preço; ritmo recente igual ao de 2025");
+    expect(q.frase).toBe(
+      "2 carros abaixo da esperada em D-36; sem tarifa atual para comparar preço; ritmo recente igual ao de 2025",
+    );
     expect(quad(recentes, BA, null).diagnostico).toBe("aguardar"); // 2 carros novos nos 14 dias (ritmo acima)
   });
   it("tarifa zero ou negativa não conta como tarifa", () => {
@@ -150,7 +181,9 @@ describe("quadrante de uma data", () => {
   });
   it("sem esperada, sem quadrante", () => {
     const { d, rows, janela } = monta(antigas, BA);
-    expect(quadranteDia({ ...d, gap: null, esperada: null }, rows, janela, "2023-01-01")).toBeNull();
+    expect(
+      quadranteDia({ ...d, gap: null, esperada: null }, rows, janela, "2023-01-01"),
+    ).toBeNull();
   });
   it("tarifa alinhada e abaixo: o ritmo decide entre Aguardar e Avaliar preço", () => {
     const q = quad(recentes, BA, 61); // tarifa US$ 61 contra 60: alinhado
@@ -162,11 +195,24 @@ describe("quadrante de uma data", () => {
 
 describe("quebra por faixa de antecedência", () => {
   const a = [100, 91, 90, 61, 60, 31, 30, 16, 15, 8, 7, 0];
-  const row = (m?: number[]): PaceRow => ({ d: "2026-12-16", c: "A", f: 20, a, ...(m ? { m } : {}) });
+  const row = (m?: number[]): PaceRow => ({
+    d: "2026-12-16",
+    c: "A",
+    f: 20,
+    a,
+    ...(m ? { m } : {}),
+  });
   it("cada limite cai na faixa certa; carros, % e diária por faixa", () => {
     const q = quebraAntecedencia([row(a.map((_, i) => 100 + i * 10))]);
     expect(q.faixas.map((f) => f.carros)).toEqual([2, 2, 2, 2, 2, 2]);
-    expect(q.faixas.map((f) => f.label)).toEqual(["Mais de D-90", "D-90 a D-61", "D-60 a D-31", "D-30 a D-16", "D-15 a D-8", "D-7 a D-0"]);
+    expect(q.faixas.map((f) => f.label)).toEqual([
+      "Mais de D-90",
+      "D-90 a D-61",
+      "D-60 a D-31",
+      "D-30 a D-16",
+      "D-15 a D-8",
+      "D-7 a D-0",
+    ]);
     expect(q.faixas[0]!.pct).toBeCloseTo(2 / 12, 5);
     expect(q.faixas[0]!.diaria).toBe(105); // (100 + 110) ÷ 2
     expect(q.faixas[5]!.diaria).toBe(205);
@@ -193,13 +239,22 @@ describe("quebra por faixa de antecedência", () => {
 });
 
 describe("diária das vendas recentes", () => {
-  const r: PaceRow = { d: "2027-01-28", c: "A", f: 10, a: [30, 36, 40, 45, 49, 50, 60], m: [999, 100, 110, 120, 130, 999, 999] };
+  const r: PaceRow = {
+    d: "2027-01-28",
+    c: "A",
+    f: 10,
+    a: [30, 36, 40, 45, 49, 50, 60],
+    m: [999, 100, 110, 120, 130, 999, 999],
+  };
   it("reservas criadas nos últimos N dias antes da antecedência L: [L, L+N)", () => {
     expect(vendasRecentes([r], 36, 14)).toEqual({ carros: 4, diaria: 115 }); // 36, 40, 45, 49
     expect(vendasRecentes([r], 36, 7)).toEqual({ carros: 2, diaria: 105 }); // 36, 40
   });
   it("sem preço: carros sem diária; encerrada ou sem histórico do estágio: null", () => {
-    expect(vendasRecentes([{ d: r.d, c: r.c, f: r.f, a: r.a }], 36, 14)).toEqual({ carros: 4, diaria: null });
+    expect(vendasRecentes([{ d: r.d, c: r.c, f: r.f, a: r.a }], 36, 14)).toEqual({
+      carros: 4,
+      diaria: null,
+    });
     expect(vendasRecentes([r], 0, 14)).toBeNull();
     expect(vendasRecentes([r], 36, 14, { date: "2026-01-28", de: "2025-12-15" })).toBeNull(); // 2026-01-28 − 50 dias = 09/12 < de
     expect(vendasRecentes([r], 36, 14, { date: "2026-01-28", de: "2025-01-01" })).not.toBeNull();
@@ -209,7 +264,14 @@ describe("diária das vendas recentes", () => {
 describe("faixa de preço por época", () => {
   const cal: PacePayload["cal"] = {};
   const linhas: PaceRow[] = [];
-  const add = (d: string, c: string, n: number, preco: number, f = 10, ev: string | null = null) => {
+  const add = (
+    d: string,
+    c: string,
+    n: number,
+    preco: number,
+    f = 10,
+    ev: string | null = null,
+  ) => {
     cal[d] = ["Média", ev, ev ? 0 : null];
     linhas.push({ d, c, f, a: Array(n).fill(30), m: Array(n).fill(preco) });
   };
@@ -230,13 +292,23 @@ describe("faixa de preço por época", () => {
     expect(ps[2]).toMatchObject({ diaria: 60, revVeic: 48, occ: 0.8 });
   });
   it("todas as categorias somam faturamento e frota; sazonalidade filtra", () => {
-    const todas = pontosEpoca(payload, { categoria: null, mes: 1, sazonalidade: null }).find((p) => p.date === "2026-01-10")!;
+    const todas = pontosEpoca(payload, { categoria: null, mes: 1, sazonalidade: null }).find(
+      (p) => p.date === "2026-01-10",
+    )!;
     expect(todas).toMatchObject({ diaria: 80 });
     expect(pontosEpoca(payload, { categoria: "A", mes: null, sazonalidade: "Alta" })).toEqual([]);
-    expect(pontosEpoca(payload, { categoria: "A", mes: null, sazonalidade: "Média" }).length).toBe(4);
+    expect(pontosEpoca(payload, { categoria: "A", mes: null, sazonalidade: "Média" }).length).toBe(
+      4,
+    );
   });
   const pt = (n: number, diaria: number, revVeic: number): PontoEpoca[] =>
-    Array.from({ length: n }, (_, i) => ({ date: `2025-01-${String(i + 1).padStart(2, "0")}`, ano: "2025", diaria, revVeic, occ: 0.5 }));
+    Array.from({ length: n }, (_, i) => ({
+      date: `2025-01-${String(i + 1).padStart(2, "0")}`,
+      ano: "2025",
+      diaria,
+      revVeic,
+      occ: 0.5,
+    }));
   it("faixas de US$ 5; destaca a de maior faturamento/veículo com amostra suficiente; abaixo disso, amostra pequena", () => {
     const fs = faixasPreco([...pt(5, 41, 20), ...pt(6, 52, 30), ...pt(2, 63, 99)]);
     expect(fs.map((f) => [f.de, f.ate, f.datas, f.pequena, f.destaque])).toEqual([
@@ -250,12 +322,22 @@ describe("faixa de preço por época", () => {
   it("limites: 45 cai na faixa 45–50; mínimo e largura configuráveis; sem amostra suficiente nada é destacado", () => {
     expect(faixasPreco(pt(1, 45, 10))[0]).toMatchObject({ de: 45, ate: 50 });
     expect(faixasPreco(pt(1, 44.99, 10))[0]).toMatchObject({ de: 40 });
-    expect(faixasPreco([...pt(5, 41, 20), ...pt(6, 52, 30)], { minDatas: 6 }).map((f) => f.destaque)).toEqual([false, true]);
+    expect(
+      faixasPreco([...pt(5, 41, 20), ...pt(6, 52, 30)], { minDatas: 6 }).map((f) => f.destaque),
+    ).toEqual([false, true]);
     expect(faixasPreco(pt(4, 41, 20)).some((f) => f.destaque)).toBe(false);
-    expect(faixasPreco([...pt(5, 41, 20), ...pt(5, 52, 30)], { largura: 20 }).map((f) => [f.de, f.datas])).toEqual([[40, 10]]);
+    expect(
+      faixasPreco([...pt(5, 41, 20), ...pt(5, 52, 30)], { largura: 20 }).map((f) => [
+        f.de,
+        f.datas,
+      ]),
+    ).toEqual([[40, 10]]);
     expect(faixasPreco([])).toEqual([]);
   });
   it("empate no faturamento: vale a faixa mais barata", () => {
-    expect(faixasPreco([...pt(5, 41, 25), ...pt(5, 52, 25)]).map((f) => f.destaque)).toEqual([true, false]);
+    expect(faixasPreco([...pt(5, 41, 25), ...pt(5, 52, 25)]).map((f) => f.destaque)).toEqual([
+      true,
+      false,
+    ]);
   });
 });

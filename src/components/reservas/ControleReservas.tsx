@@ -2,7 +2,16 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarCheck, Maximize2, Minimize2, X } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PeriodoPicker } from "@/components/PeriodoPicker";
@@ -36,14 +45,17 @@ const RESPONSAVEIS_ONBOARDING = ["Vinicius", "Lizie"] as const;
 type Onboarding = { reservation_id: string; realizado: boolean; responsavel: string | null };
 
 // A tabela reservation_onboarding não está nos tipos gerados do Supabase.
-const onboardingTable = () => (supabase as unknown as { from: (t: string) => any }).from("reservation_onboarding");
+const onboardingTable = () =>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (supabase as unknown as { from: (t: string) => any }).from("reservation_onboarding");
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "Pendente",
   confirmed: "Confirmada (open)",
   cancelled: "Cancelada",
 };
-const statusLabel = (status: string | null | undefined) => (status ? STATUS_LABELS[status] ?? status : "—");
+const statusLabel = (status: string | null | undefined) =>
+  status ? (STATUS_LABELS[status] ?? status) : "—";
 
 /** Dia local (YYYY-MM-DD) de um instante. */
 const TZ = "America/Sao_Paulo";
@@ -85,8 +97,16 @@ async function fetchPendingToOpen(from: string, to: string) {
 
 /** Colunas de onboarding: checkbox "realizado" e responsável (só habilitado com onboarding realizado). */
 function OnboardingCells({
-  reservationId, onboarding, canEdit, className,
-}: { reservationId: string; onboarding: Onboarding | undefined; canEdit: boolean; className: string }) {
+  reservationId,
+  onboarding,
+  canEdit,
+  className,
+}: {
+  reservationId: string;
+  onboarding: Onboarding | undefined;
+  canEdit: boolean;
+  className: string;
+}) {
   const queryClient = useQueryClient();
   const realizado = onboarding?.realizado ?? false;
   const salvar = useMutation({
@@ -108,7 +128,12 @@ function OnboardingCells({
           checked={realizado}
           disabled={!canEdit || salvar.isPending}
           // desmarcar limpa o responsável
-          onChange={(e) => salvar.mutate({ realizado: e.target.checked, responsavel: e.target.checked ? onboarding?.responsavel ?? null : null })}
+          onChange={(e) =>
+            salvar.mutate({
+              realizado: e.target.checked,
+              responsavel: e.target.checked ? (onboarding?.responsavel ?? null) : null,
+            })
+          }
         />
       </td>
       <td className={className}>
@@ -120,7 +145,11 @@ function OnboardingCells({
           onChange={(e) => salvar.mutate({ realizado: true, responsavel: e.target.value || null })}
         >
           <option value="">—</option>
-          {RESPONSAVEIS_ONBOARDING.map((r) => <option key={r} value={r}>{r}</option>)}
+          {RESPONSAVEIS_ONBOARDING.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
       </td>
     </>
@@ -140,23 +169,41 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const { data: onboardingList } = useQuery({
     queryKey: ["reservas-onboarding"],
     queryFn: async () => {
-      const res = await fetchAll((a, b) => onboardingTable().select("reservation_id, realizado, responsavel").order("reservation_id").range(a, b));
+      const res = await fetchAll((a, b) =>
+        onboardingTable()
+          .select("reservation_id, realizado, responsavel")
+          .order("reservation_id")
+          .range(a, b),
+      );
       if (res.error) throw res.error;
       return res.data as Onboarding[];
     },
   });
-  const onboardingById = useMemo(() => new Map((onboardingList ?? []).map((o) => [o.reservation_id, o])), [onboardingList]);
-  const { data: allChanges, isLoading, error } = useQuery({
+  const onboardingById = useMemo(
+    () => new Map((onboardingList ?? []).map((o) => [o.reservation_id, o])),
+    [onboardingList],
+  );
+  const {
+    data: allChanges,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["reservas-pending-open", from, to],
     queryFn: () => fetchPendingToOpen(from, to),
   });
   // Status atual de cada reserva (pode já ter mudado depois de virar open): filtro e coluna.
   const statusOptions = useMemo(
-    () => [...new Set((allChanges ?? []).map((c) => c.info?.status).filter((v): v is string => Boolean(v)))].sort(),
+    () =>
+      [
+        ...new Set(
+          (allChanges ?? []).map((c) => c.info?.status).filter((v): v is string => Boolean(v)),
+        ),
+      ].sort(),
     [allChanges],
   );
   const data = useMemo(
-    () => (allChanges ?? []).filter((c) => statusFilter === "all" || c.info?.status === statusFilter),
+    () =>
+      (allChanges ?? []).filter((c) => statusFilter === "all" || c.info?.status === statusFilter),
     [allChanges, statusFilter],
   );
   const query = search.trim().toLowerCase();
@@ -167,9 +214,15 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
 
   const daily = useMemo(() => {
     const byDay = new Map<string, number>();
-    (data ?? []).forEach((c) => byDay.set(localDay(c.changed_at), (byDay.get(localDay(c.changed_at)) ?? 0) + 1));
+    (data ?? []).forEach((c) =>
+      byDay.set(localDay(c.changed_at), (byDay.get(localDay(c.changed_at)) ?? 0) + 1),
+    );
     const days: { day: string; label: string; reservas: number }[] = [];
-    for (let t = Date.parse(`${from}T12:00:00`); t <= Date.parse(`${to}T12:00:00`); t += 86_400_000) {
+    for (
+      let t = Date.parse(`${from}T12:00:00`);
+      t <= Date.parse(`${to}T12:00:00`);
+      t += 86_400_000
+    ) {
       const day = ymd(new Date(t));
       days.push({ day, label: br(day).slice(0, 5), reservas: byDay.get(day) ?? 0 });
     }
@@ -189,7 +242,8 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
       if (vistas.has(c.reservation_id)) return;
       vistas.add(c.reservation_id);
       const o = onboardingById.get(c.reservation_id);
-      if (o?.realizado && o.responsavel) counts.set(o.responsavel, (counts.get(o.responsavel) ?? 0) + 1);
+      if (o?.realizado && o.responsavel)
+        counts.set(o.responsavel, (counts.get(o.responsavel) ?? 0) + 1);
     });
     return counts;
   }, [data, onboardingById]);
@@ -204,46 +258,96 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         style={{ background: "var(--gradient-brand)" }}
       >
         <div className="flex items-center gap-3">
-          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-9 rounded-lg object-cover" />
+          <img
+            src="/logo-orc.png"
+            alt="Orlando Rent Car"
+            className="size-9 rounded-lg object-cover"
+          />
           <div>
             <h1 className="text-lg font-semibold text-foreground">Controle de Reservas</h1>
-            <p className="text-sm text-foreground/70">Reservas que passaram de pending para open (sinal pago).</p>
+            <p className="text-sm text-foreground/70">
+              Reservas que passaram de pending para open (sinal pago).
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <PeriodoPicker inicio={from} fim={to} className="h-9 w-auto min-w-52 !mt-0 bg-card" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+          <PeriodoPicker
+            inicio={from}
+            fim={to}
+            className="h-9 w-auto min-w-52 !mt-0 bg-card"
+            onChange={(i, f) => {
+              if (i && f) {
+                setFrom(i);
+                setTo(f);
+              }
+            }}
+          />
           <PushToggle />
           <ManualSyncButton />
           {showBack ? (
             <Button asChild variant="outline" size="sm">
-              <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Módulos</Link>
+              <Link to="/app">
+                <ArrowLeft className="mr-1 size-4" /> Módulos
+              </Link>
             </Button>
           ) : null}
         </div>
       </header>
 
       <main className="mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:p-6">
-        {error ? <Card className="border-destructive/40 p-4 text-sm text-destructive">Não foi possível carregar: {(error as Error).message}</Card> : null}
+        {error ? (
+          <Card className="border-destructive/40 p-4 text-sm text-destructive">
+            Não foi possível carregar: {(error as Error).message}
+          </Card>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <KpiCard icon={CalendarCheck} label="Pending → Open no período" value={isLoading ? "—" : total.toLocaleString("pt-BR")} highlight
+          <KpiCard
+            icon={CalendarCheck}
+            label="Pending → Open no período"
+            value={isLoading ? "—" : total.toLocaleString("pt-BR")}
+            highlight
             help={"Reservas que passaram de pending para open (sinal pago) no período selecionado."}
-            calc={isLoading ? undefined : `${total.toLocaleString("pt-BR")} reservas ÷ ${Math.max(1, daily.length)} dias = ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`}
-            footer={`Média de ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`} />
-          <KpiCard icon={CalendarCheck} label="Valor dessas reservas" value={isLoading ? "—" : brl(amount)}
-            help={"Soma do valor total atual das reservas que passaram de pending para open no período."}
-            calc={isLoading ? undefined : `${total.toLocaleString("pt-BR")} reservas somando ${brl(amount)}${total ? ` → ${brl(amount / total)} por reserva` : ""}`}
-            footer="Soma do valor total atual das reservas" />
+            calc={
+              isLoading
+                ? undefined
+                : `${total.toLocaleString("pt-BR")} reservas ÷ ${Math.max(1, daily.length)} dias = ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`
+            }
+            footer={`Média de ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`}
+          />
+          <KpiCard
+            icon={CalendarCheck}
+            label="Valor dessas reservas"
+            value={isLoading ? "—" : brl(amount)}
+            help={
+              "Soma do valor total atual das reservas que passaram de pending para open no período."
+            }
+            calc={
+              isLoading
+                ? undefined
+                : `${total.toLocaleString("pt-BR")} reservas somando ${brl(amount)}${total ? ` → ${brl(amount / total)} por reserva` : ""}`
+            }
+            footer="Soma do valor total atual das reservas"
+          />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           {RESPONSAVEIS_ONBOARDING.map((nome) => {
             const feitos = onboardingsPorResponsavel.get(nome) ?? 0;
             return (
-              <KpiCard key={nome} icon={CalendarCheck} label={`Onboardings feitos: ${nome}`} value={isLoading ? "—" : feitos.toLocaleString("pt-BR")}
+              <KpiCard
+                key={nome}
+                icon={CalendarCheck}
+                label={`Onboardings feitos: ${nome}`}
+                value={isLoading ? "—" : feitos.toLocaleString("pt-BR")}
                 help={`Reservas do período (e do filtro de status atual) com onboarding realizado por ${nome}.`}
-                calc={isLoading ? undefined : `${feitos.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")} reservas listadas`}
-                footer={`De ${total.toLocaleString("pt-BR")} reservas listadas`} />
+                calc={
+                  isLoading
+                    ? undefined
+                    : `${feitos.toLocaleString("pt-BR")} de ${total.toLocaleString("pt-BR")} reservas listadas`
+                }
+                footer={`De ${total.toLocaleString("pt-BR")} reservas listadas`}
+              />
             );
           })}
         </div>
@@ -251,10 +355,20 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         <Card className="p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Reservas que viraram open por dia</h2>
-              <p className="text-xs text-muted-foreground">Uma barra por dia do período. O dia é o da sincronização que detectou a mudança. Clique em uma barra para listar as reservas do dia.</p>
+              <h2 className="text-sm font-semibold text-foreground">
+                Reservas que viraram open por dia
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Uma barra por dia do período. O dia é o da sincronização que detectou a mudança.
+                Clique em uma barra para listar as reservas do dia.
+              </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Recolher gráfico" : "Expandir gráfico"}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExpanded((v) => !v)}
+              aria-label={expanded ? "Recolher gráfico" : "Expandir gráfico"}
+            >
               {expanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
             </Button>
           </div>
@@ -275,10 +389,16 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   fill="#44E500"
                   radius={[4, 4, 0, 0]}
                   cursor="pointer"
-                  onClick={(d: { day?: string }) => d?.day && setSelectedDay((cur) => (cur === d.day ? null : d.day!))}
+                  onClick={(d: { day?: string }) =>
+                    d?.day && setSelectedDay((cur) => (cur === d.day ? null : d.day!))
+                  }
                 >
                   {daily.map((d) => (
-                    <Cell key={d.day} fill="#44E500" fillOpacity={selectedDay && selectedDay !== d.day ? 0.4 : 1} />
+                    <Cell
+                      key={d.day}
+                      fill="#44E500"
+                      fillOpacity={selectedDay && selectedDay !== d.day ? 0.4 : 1}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -291,7 +411,14 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                 <h3 className="text-sm font-semibold text-foreground">
                   Viraram open em {br(selectedDay)} ({dayList.length.toLocaleString("pt-BR")})
                 </h3>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedDay(null)} aria-label="Fechar lista"><X className="size-4" /></Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedDay(null)}
+                  aria-label="Fechar lista"
+                >
+                  <X className="size-4" />
+                </Button>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -314,13 +441,30 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                         <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
                         <td className="px-3 py-2">{statusLabel(c.info?.status)}</td>
                         <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
-                        <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
-                        <td className="py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
-                        <OnboardingCells reservationId={c.reservation_id} onboarding={onboardingById.get(c.reservation_id)} canEdit={canEditOnboarding} className="px-3 py-2" />
+                        <td className="px-3 py-2">
+                          {c.info
+                            ? new Date(c.info.created_at).toLocaleDateString("pt-BR", {
+                                timeZone: TZ,
+                              })
+                            : "—"}
+                        </td>
+                        <td className="py-2 text-right">
+                          {c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}
+                        </td>
+                        <OnboardingCells
+                          reservationId={c.reservation_id}
+                          onboarding={onboardingById.get(c.reservation_id)}
+                          canEdit={canEditOnboarding}
+                          className="px-3 py-2"
+                        />
                       </tr>
                     ))}
                     {!dayList.length ? (
-                      <tr><td colSpan={8} className="py-6 text-center text-muted-foreground">Nenhuma reserva virou open nesse dia.</td></tr>
+                      <tr>
+                        <td colSpan={8} className="py-6 text-center text-muted-foreground">
+                          Nenhuma reserva virou open nesse dia.
+                        </td>
+                      </tr>
                     ) : null}
                   </tbody>
                 </table>
@@ -350,7 +494,9 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
             >
               <option value="all">Status atual: todos</option>
               {statusOptions.map((st) => (
-                <option key={st} value={st}>{statusLabel(st)}</option>
+                <option key={st} value={st}>
+                  {statusLabel(st)}
+                </option>
               ))}
             </select>
           </div>
@@ -372,18 +518,37 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
               <tbody>
                 {tableRows.map((c, i) => (
                   <tr key={c.reservation_id + i} className="border-t border-border">
-                    <td className="px-5 py-2">{new Date(c.changed_at).toLocaleDateString("pt-BR", { timeZone: TZ })}</td>
+                    <td className="px-5 py-2">
+                      {new Date(c.changed_at).toLocaleDateString("pt-BR", { timeZone: TZ })}
+                    </td>
                     <td className="px-3 py-2 font-medium text-foreground">{c.reservation_id}</td>
                     <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
                     <td className="px-3 py-2">{statusLabel(c.info?.status)}</td>
                     <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
-                    <td className="px-3 py-2">{c.info ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ }) : "—"}</td>
-                    <td className="px-5 py-2 text-right">{c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}</td>
-                    <OnboardingCells reservationId={c.reservation_id} onboarding={onboardingById.get(c.reservation_id)} canEdit={canEditOnboarding} className="px-3 py-2" />
+                    <td className="px-3 py-2">
+                      {c.info
+                        ? new Date(c.info.created_at).toLocaleDateString("pt-BR", { timeZone: TZ })
+                        : "—"}
+                    </td>
+                    <td className="px-5 py-2 text-right">
+                      {c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}
+                    </td>
+                    <OnboardingCells
+                      reservationId={c.reservation_id}
+                      onboarding={onboardingById.get(c.reservation_id)}
+                      canEdit={canEditOnboarding}
+                      className="px-3 py-2"
+                    />
                   </tr>
                 ))}
                 {!isLoading && !tableRows.length ? (
-                  <tr><td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">{query ? "Nenhuma reserva encontrada para essa busca." : "Nenhuma reserva mudou de pending para open no período."}</td></tr>
+                  <tr>
+                    <td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">
+                      {query
+                        ? "Nenhuma reserva encontrada para essa busca."
+                        : "Nenhuma reserva mudou de pending para open no período."}
+                    </td>
+                  </tr>
                 ) : null}
               </tbody>
             </table>
@@ -391,7 +556,9 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          O histórico começa na data em que o controle foi ativado e a hora é a da sincronização com o HQ, não a do pagamento. Se uma reserva avançar mais de um status entre duas sincronizações, ela aparece só como pending → confirmed.
+          O histórico começa na data em que o controle foi ativado e a hora é a da sincronização com
+          o HQ, não a do pagamento. Se uma reserva avançar mais de um status entre duas
+          sincronizações, ela aparece só como pending → confirmed.
         </p>
       </main>
     </div>

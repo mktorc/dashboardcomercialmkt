@@ -1,148 +1,209 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Card, Carregando, Erro, Vazio } from './Estados'
-import { EditarComissaoDialog } from './EditarComissaoDialog'
-import { FiltrosBar } from './FiltrosBar'
-import { filtrosPadraoAPagar, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
-import { data, moeda } from '@/lib/comissoes/format'
-import { definirIncluirManualCharge, definirIncluirManualChargeEmLote, listarAPagar, listarEstornos, marcarComoPagas, validarDescontos } from '@/lib/comissoes/service'
-import { descontoPct, podeEditarComissao, precisaValidar, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { Card, Carregando, Erro, Vazio } from "./Estados";
+import { EditarComissaoDialog } from "./EditarComissaoDialog";
+import { FiltrosBar } from "./FiltrosBar";
+import {
+  filtrosPadraoAPagar,
+  useNotasParceiros,
+  useParceiros,
+  usePerfil,
+  useReservas,
+} from "@/lib/comissoes/hooks";
+import { data, moeda } from "@/lib/comissoes/format";
+import {
+  definirIncluirManualCharge,
+  definirIncluirManualChargeEmLote,
+  listarAPagar,
+  listarEstornos,
+  marcarComoPagas,
+  validarDescontos,
+} from "@/lib/comissoes/service";
+import {
+  descontoPct,
+  podeEditarComissao,
+  precisaValidar,
+  temAjusteManual,
+  type Filtros,
+  type Reserva,
+} from "@/lib/comissoes/types";
 
 interface GrupoParceiro {
-  parceiro: string
-  reservas: Reserva[]
-  estornos: Reserva[]
-  bruto: number
-  desconto: number
-  total: number // líquido: bruto - estornos
-  travado: boolean // há reserva com desconto ainda não validada: pagamento do parceiro bloqueado
+  parceiro: string;
+  reservas: Reserva[];
+  estornos: Reserva[];
+  bruto: number;
+  desconto: number;
+  total: number; // líquido: bruto - estornos
+  travado: boolean; // há reserva com desconto ainda não validada: pagamento do parceiro bloqueado
 }
 
 export default function ComissoesAPagar() {
-  const [filtros, setFiltros] = useState<Filtros>(filtrosPadraoAPagar)
-  const parceiros = useParceiros()
-  const notas = useNotasParceiros()
-  const { podePagar, podeValidar, podeEditar } = usePerfil()
-  const { linhas, carregando, erro, recarregar } = useReservas(listarAPagar, filtros)
-  const [estornos, setEstornos] = useState<Reserva[]>([])
+  const [filtros, setFiltros] = useState<Filtros>(filtrosPadraoAPagar);
+  const parceiros = useParceiros();
+  const notas = useNotasParceiros();
+  const { podePagar, podeValidar, podeEditar } = usePerfil();
+  const { linhas, carregando, erro, recarregar } = useReservas(listarAPagar, filtros);
+  const [estornos, setEstornos] = useState<Reserva[]>([]);
   useEffect(() => {
-    listarEstornos(filtros.parceiro).then(setEstornos).catch(() => setEstornos([]))
-  }, [filtros.parceiro, linhas])
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
-  const [abertos, setAbertos] = useState<Set<string>>(new Set())
-  const [salvando, setSalvando] = useState(false)
-  const [editando, setEditando] = useState<Reserva | null>(null)
-  const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+    listarEstornos(filtros.parceiro)
+      .then(setEstornos)
+      .catch(() => setEstornos([]));
+  }, [filtros.parceiro, linhas]);
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [salvando, setSalvando] = useState(false);
+  const [editando, setEditando] = useState<Reserva | null>(null);
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
   const grupos = useMemo<GrupoParceiro[]>(() => {
-    const mapa = new Map<string, GrupoParceiro>()
+    const mapa = new Map<string, GrupoParceiro>();
     const grupo = (p: string) => {
-      const g = mapa.get(p) ?? { parceiro: p, reservas: [], estornos: [], bruto: 0, desconto: 0, total: 0, travado: false }
-      mapa.set(p, g)
-      return g
-    }
+      const g = mapa.get(p) ?? {
+        parceiro: p,
+        reservas: [],
+        estornos: [],
+        bruto: 0,
+        desconto: 0,
+        total: 0,
+        travado: false,
+      };
+      mapa.set(p, g);
+      return g;
+    };
     for (const r of linhas) {
-      const g = grupo(r.commission_partner)
-      g.reservas.push(r)
-      g.bruto += r.valor_repasse
+      const g = grupo(r.commission_partner);
+      g.reservas.push(r);
+      g.bruto += r.valor_repasse;
     }
     // só desconta estorno de parceiro que tem comissão a receber nesta lista
     for (const e of estornos) {
-      const g = mapa.get(e.commission_partner)
-      if (!g) continue
-      g.estornos.push(e)
-      g.desconto += e.valor_repasse
+      const g = mapa.get(e.commission_partner);
+      if (!g) continue;
+      g.estornos.push(e);
+      g.desconto += e.valor_repasse;
     }
     for (const g of mapa.values()) {
-      g.total = g.bruto - g.desconto
-      g.travado = g.reservas.some(precisaValidar)
+      g.total = g.bruto - g.desconto;
+      g.travado = g.reservas.some(precisaValidar);
     }
-    return [...mapa.values()].sort((a, b) => b.total - a.total)
-  }, [linhas, estornos])
+    return [...mapa.values()].sort((a, b) => b.total - a.total);
+  }, [linhas, estornos]);
 
   const resumo = useMemo(
-    () => ({ total: grupos.reduce((s, g) => s + g.total, 0), qtd: linhas.length, parceiros: grupos.length }),
+    () => ({
+      total: grupos.reduce((s, g) => s + g.total, 0),
+      qtd: linhas.length,
+      parceiros: grupos.length,
+    }),
     [grupos, linhas],
-  )
+  );
 
   // descarta seleções de parceiros que saíram da lista (por filtro ou recarga)
-  const marcados = grupos.filter((g) => selecionados.has(g.parceiro))
-  const todos = grupos.length > 0 && marcados.length === grupos.length
+  const marcados = grupos.filter((g) => selecionados.has(g.parceiro));
+  const todos = grupos.length > 0 && marcados.length === grupos.length;
 
   const alternar = (set: Set<string>, chave: string) => {
-    const n = new Set(set)
-    n.has(chave) ? n.delete(chave) : n.add(chave)
-    return n
-  }
+    const n = new Set(set);
+    if (n.has(chave)) n.delete(chave);
+    else n.add(chave);
+    return n;
+  };
 
   async function alternarManualCharge(r: Reserva) {
-    setSalvando(true)
-    setAviso(null)
+    setSalvando(true);
+    setAviso(null);
     try {
-      await definirIncluirManualCharge(r.id, !r.incluir_manual_charge)
-      await recarregar()
+      await definirIncluirManualCharge(r.id, !r.incluir_manual_charge);
+      await recarregar();
     } catch (e) {
-      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao salvar.' })
+      setAviso({ tipo: "erro", texto: e instanceof Error ? e.message : "Falha ao salvar." });
     } finally {
-      setSalvando(false)
+      setSalvando(false);
     }
   }
 
   async function manualChargeEmLote(rs: Reserva[], incluir: boolean) {
-    setSalvando(true)
-    setAviso(null)
+    setSalvando(true);
+    setAviso(null);
     try {
-      await definirIncluirManualChargeEmLote(rs.map((r) => r.id), incluir)
-      await recarregar()
+      await definirIncluirManualChargeEmLote(
+        rs.map((r) => r.id),
+        incluir,
+      );
+      await recarregar();
     } catch (e) {
-      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao salvar.' })
+      setAviso({ tipo: "erro", texto: e instanceof Error ? e.message : "Falha ao salvar." });
     } finally {
-      setSalvando(false)
+      setSalvando(false);
     }
   }
 
   async function validar(rs: Reserva[]) {
-    setSalvando(true)
-    setAviso(null)
+    setSalvando(true);
+    setAviso(null);
     try {
-      const n = await validarDescontos(rs.map((r) => r.id))
-      setAviso({ tipo: 'ok', texto: `${n} desconto(s) validado(s).` })
-      await recarregar()
+      const n = await validarDescontos(rs.map((r) => r.id));
+      setAviso({ tipo: "ok", texto: `${n} desconto(s) validado(s).` });
+      await recarregar();
     } catch (e) {
-      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao validar.' })
+      setAviso({ tipo: "erro", texto: e instanceof Error ? e.message : "Falha ao validar." });
     } finally {
-      setSalvando(false)
+      setSalvando(false);
     }
   }
 
   async function pagar(alvo: Reserva[], descricao: string, descontos: Reserva[] = []) {
-    if (!alvo.length || !podePagar) return
-    const travados = grupos.filter((g) => g.travado && alvo.some((r) => r.commission_partner === g.parceiro)).map((g) => g.parceiro)
+    if (!alvo.length || !podePagar) return;
+    const travados = grupos
+      .filter((g) => g.travado && alvo.some((r) => r.commission_partner === g.parceiro))
+      .map((g) => g.parceiro);
     if (travados.length) {
-      setAviso({ tipo: 'erro', texto: `Pagamento bloqueado: valide primeiro os descontos de ${travados.join(', ')}.` })
-      return
+      setAviso({
+        tipo: "erro",
+        texto: `Pagamento bloqueado: valide primeiro os descontos de ${travados.join(", ")}.`,
+      });
+      return;
     }
-    const bruto = alvo.reduce((s, r) => s + r.valor_repasse, 0)
-    const desc = descontos.reduce((s, r) => s + r.valor_repasse, 0)
+    const bruto = alvo.reduce((s, r) => s + r.valor_repasse, 0);
+    const desc = descontos.reduce((s, r) => s + r.valor_repasse, 0);
     if (bruto - desc < 0) {
-      setAviso({ tipo: 'erro', texto: `${descricao}: os estornos (${moeda(desc)}) superam as comissões (${moeda(bruto)}); nada a pagar agora.` })
-      return
+      setAviso({
+        tipo: "erro",
+        texto: `${descricao}: os estornos (${moeda(desc)}) superam as comissões (${moeda(bruto)}); nada a pagar agora.`,
+      });
+      return;
     }
-    const mc = alvo.filter((r) => r.incluir_manual_charge).reduce((s, r) => s + r.manual_charge, 0)
-    const semMc = alvo.filter((r) => r.manual_charge > 0 && !r.incluir_manual_charge).reduce((s, r) => s + r.manual_charge, 0)
-    const detalheMc = mc || semMc ? `\nManual charge incluído: ${moeda(mc)}${semMc ? ` (NÃO incluído: ${moeda(semMc)})` : ''}` : ''
-    const detalhe = detalheMc + (desc ? `\nComissões: ${moeda(bruto)} − estornos de canceladas: ${moeda(desc)}` : '')
-    if (!window.confirm(`Marcar como paga(s) ${alvo.length} comissão(ões) — ${descricao}?${detalhe}\nTotal a pagar: ${moeda(bruto - desc)}`)) return
-    setSalvando(true)
-    setAviso(null)
+    const mc = alvo.filter((r) => r.incluir_manual_charge).reduce((s, r) => s + r.manual_charge, 0);
+    const semMc = alvo
+      .filter((r) => r.manual_charge > 0 && !r.incluir_manual_charge)
+      .reduce((s, r) => s + r.manual_charge, 0);
+    const detalheMc =
+      mc || semMc
+        ? `\nManual charge incluído: ${moeda(mc)}${semMc ? ` (NÃO incluído: ${moeda(semMc)})` : ""}`
+        : "";
+    const detalhe =
+      detalheMc +
+      (desc ? `\nComissões: ${moeda(bruto)} − estornos de canceladas: ${moeda(desc)}` : "");
+    if (
+      !window.confirm(
+        `Marcar como paga(s) ${alvo.length} comissão(ões) — ${descricao}?${detalhe}\nTotal a pagar: ${moeda(bruto - desc)}`,
+      )
+    )
+      return;
+    setSalvando(true);
+    setAviso(null);
     try {
-      const n = await marcarComoPagas(alvo.map((r) => r.id), descontos.map((r) => r.id))
-      setAviso({ tipo: 'ok', texto: `${n} comissão(ões) marcada(s) como paga(s).` })
-      setSelecionados(new Set())
-      await recarregar()
+      const n = await marcarComoPagas(
+        alvo.map((r) => r.id),
+        descontos.map((r) => r.id),
+      );
+      setAviso({ tipo: "ok", texto: `${n} comissão(ões) marcada(s) como paga(s).` });
+      setSelecionados(new Set());
+      await recarregar();
     } catch (e) {
-      setAviso({ tipo: 'erro', texto: e instanceof Error ? e.message : 'Falha ao salvar.' })
+      setAviso({ tipo: "erro", texto: e instanceof Error ? e.message : "Falha ao salvar." });
     } finally {
-      setSalvando(false)
+      setSalvando(false);
     }
   }
 
@@ -151,7 +212,8 @@ export default function ComissoesAPagar() {
       <header>
         <h1 className="text-2xl font-semibold text-foreground">Comissões a Pagar</h1>
         <p className="text-sm text-muted-foreground">
-          Um parceiro por linha, somando as reservas com total pago ≥ rack rate e repasse ainda não realizado.
+          Um parceiro por linha, somando as reservas com total pago ≥ rack rate e repasse ainda não
+          realizado.
         </p>
       </header>
 
@@ -161,25 +223,45 @@ export default function ComissoesAPagar() {
         <Card titulo="Parceiros a receber" valor={String(resumo.parceiros)} />
       </div>
 
-      <FiltrosBar filtros={filtros} parceiros={parceiros} onChange={setFiltros} padrao={filtrosPadraoAPagar()} />
+      <FiltrosBar
+        filtros={filtros}
+        parceiros={parceiros}
+        onChange={setFiltros}
+        padrao={filtrosPadraoAPagar()}
+      />
 
       {aviso && (
-        <div role="alert" className={`rounded-md p-3 text-sm ${aviso.tipo === 'ok' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-destructive/10 text-destructive'}`}>
+        <div
+          role="alert"
+          className={`rounded-md p-3 text-sm ${aviso.tipo === "ok" ? "bg-emerald-500/10 text-emerald-400" : "bg-destructive/10 text-destructive"}`}
+        >
           {aviso.texto}
         </div>
       )}
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="text-sm text-muted-foreground">{marcados.length} parceiro(s) selecionado(s)</span>
+          <span className="text-sm text-muted-foreground">
+            {marcados.length} parceiro(s) selecionado(s)
+          </span>
           <button
             hidden={!podePagar}
             disabled={!marcados.length || salvando || marcados.some((g) => g.travado)}
-            title={marcados.some((g) => g.travado) ? 'Há parceiro selecionado com desconto a validar' : undefined}
-            onClick={() => pagar(marcados.flatMap((g) => g.reservas), `${marcados.length} parceiro(s)`, marcados.flatMap((g) => g.estornos))}
+            title={
+              marcados.some((g) => g.travado)
+                ? "Há parceiro selecionado com desconto a validar"
+                : undefined
+            }
+            onClick={() =>
+              pagar(
+                marcados.flatMap((g) => g.reservas),
+                `${marcados.length} parceiro(s)`,
+                marcados.flatMap((g) => g.estornos),
+              )
+            }
             className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {salvando ? 'Salvando...' : 'Marcar selecionados como pagos'}
+            {salvando ? "Salvando..." : "Marcar selecionados como pagos"}
           </button>
         </div>
 
@@ -195,8 +277,15 @@ export default function ComissoesAPagar() {
               <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3">
-                    <input type="checkbox" aria-label="Selecionar todos" disabled={!podePagar} checked={todos}
-                      onChange={() => setSelecionados(todos ? new Set() : new Set(grupos.map((g) => g.parceiro)))} />
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos"
+                      disabled={!podePagar}
+                      checked={todos}
+                      onChange={() =>
+                        setSelecionados(todos ? new Set() : new Set(grupos.map((g) => g.parceiro)))
+                      }
+                    />
                   </th>
                   <th className="px-4 py-3">Parceiro</th>
                   <th className="px-4 py-3 text-right">Reservas</th>
@@ -206,19 +295,26 @@ export default function ComissoesAPagar() {
               </thead>
               <tbody className="divide-y divide-border">
                 {grupos.map((g) => {
-                  const aberto = abertos.has(g.parceiro)
+                  const aberto = abertos.has(g.parceiro);
                   return (
                     <Fragment key={g.parceiro}>
                       <tr className="hover:bg-muted/40">
                         <td className="px-4 py-3">
-                          <input type="checkbox" aria-label={`Selecionar ${g.parceiro}`}
-                            disabled={!podePagar} checked={selecionados.has(g.parceiro)}
-                            onChange={() => setSelecionados(alternar(selecionados, g.parceiro))} />
+                          <input
+                            type="checkbox"
+                            aria-label={`Selecionar ${g.parceiro}`}
+                            disabled={!podePagar}
+                            checked={selecionados.has(g.parceiro)}
+                            onChange={() => setSelecionados(alternar(selecionados, g.parceiro))}
+                          />
                         </td>
                         <td className="px-4 py-3 font-medium">
-                          <button onClick={() => setAbertos(alternar(abertos, g.parceiro))} aria-expanded={aberto}
-                            className="flex items-center gap-2 text-left">
-                            <span className="text-muted-foreground">{aberto ? '▾' : '▸'}</span>
+                          <button
+                            onClick={() => setAbertos(alternar(abertos, g.parceiro))}
+                            aria-expanded={aberto}
+                            className="flex items-center gap-2 text-left"
+                          >
+                            <span className="text-muted-foreground">{aberto ? "▾" : "▸"}</span>
                             {g.parceiro}
                           </button>
                           {notas[g.parceiro] && (
@@ -227,31 +323,43 @@ export default function ComissoesAPagar() {
                             </div>
                           )}
                           {(() => {
-                            const comMc = g.reservas.filter((r) => r.manual_charge > 0)
-                            if (!comMc.length) return null
-                            const incluidas = comMc.filter((r) => r.incluir_manual_charge)
-                            const totalMc = comMc.reduce((s, r) => s + r.manual_charge, 0)
-                            const totalIncl = incluidas.reduce((s, r) => s + r.manual_charge, 0)
+                            const comMc = g.reservas.filter((r) => r.manual_charge > 0);
+                            if (!comMc.length) return null;
+                            const incluidas = comMc.filter((r) => r.incluir_manual_charge);
+                            const totalMc = comMc.reduce((s, r) => s + r.manual_charge, 0);
+                            const totalIncl = incluidas.reduce((s, r) => s + r.manual_charge, 0);
                             return (
                               <div className="mt-1 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs font-normal text-amber-300">
-                                <strong>Atenção: manual charge.</strong> {comMc.length} reserva(s) deste parceiro têm {moeda(totalMc)} de manual charge.{' '}
+                                <strong>Atenção: manual charge.</strong> {comMc.length} reserva(s)
+                                deste parceiro têm {moeda(totalMc)} de manual charge.{" "}
                                 {incluidas.length
                                   ? `${moeda(totalIncl)} (${incluidas.length}) já está no total a pagar.`
-                                  : 'Nada está incluído no total a pagar.'}
+                                  : "Nada está incluído no total a pagar."}
                                 {podeEditar && (
                                   <span className="ml-2">
-                                    <button disabled={salvando || incluidas.length === comMc.length} onClick={() => manualChargeEmLote(comMc, true)}
-                                      className="mr-2 underline hover:text-amber-200 disabled:opacity-50">Incluir todos</button>
-                                    <button disabled={salvando || !incluidas.length} onClick={() => manualChargeEmLote(comMc, false)}
-                                      className="underline hover:text-amber-200 disabled:opacity-50">Remover todos</button>
+                                    <button
+                                      disabled={salvando || incluidas.length === comMc.length}
+                                      onClick={() => manualChargeEmLote(comMc, true)}
+                                      className="mr-2 underline hover:text-amber-200 disabled:opacity-50"
+                                    >
+                                      Incluir todos
+                                    </button>
+                                    <button
+                                      disabled={salvando || !incluidas.length}
+                                      onClick={() => manualChargeEmLote(comMc, false)}
+                                      className="underline hover:text-amber-200 disabled:opacity-50"
+                                    >
+                                      Remover todos
+                                    </button>
                                   </span>
                                 )}
                               </div>
-                            )
+                            );
                           })()}
                           {g.travado && (
                             <div className="mt-1 text-xs font-normal text-amber-400">
-                              Pagamento travado: {g.reservas.filter(precisaValidar).length} reserva(s) com desconto a validar
+                              Pagamento travado: {g.reservas.filter(precisaValidar).length}{" "}
+                              reserva(s) com desconto a validar
                             </div>
                           )}
                         </td>
@@ -266,11 +374,23 @@ export default function ComissoesAPagar() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {g.travado && (
-                            <button hidden={!podeValidar} disabled={salvando} onClick={() => validar(g.reservas.filter(precisaValidar))}
-                              className="mr-3 text-amber-400 hover:underline disabled:opacity-50">Validar descontos</button>
+                            <button
+                              hidden={!podeValidar}
+                              disabled={salvando}
+                              onClick={() => validar(g.reservas.filter(precisaValidar))}
+                              className="mr-3 text-amber-400 hover:underline disabled:opacity-50"
+                            >
+                              Validar descontos
+                            </button>
                           )}
-                          <button hidden={!podePagar} disabled={salvando || g.travado} onClick={() => pagar(g.reservas, g.parceiro, g.estornos)}
-                            className="text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50">Marcar pago</button>
+                          <button
+                            hidden={!podePagar}
+                            disabled={salvando || g.travado}
+                            onClick={() => pagar(g.reservas, g.parceiro, g.estornos)}
+                            className="text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Marcar pago
+                          </button>
                         </td>
                       </tr>
                       {aberto && (
@@ -295,61 +415,121 @@ export default function ComissoesAPagar() {
                                   <tr key={r.id} className="border-t border-border">
                                     <td className="py-1.5 pr-4 font-mono">
                                       {r.hq_reservation_id}
-                                      {r.hq_status === 'cancelled' && (
-                                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-sans text-foreground/80">Cancelada</span>
+                                      {r.hq_status === "cancelled" && (
+                                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-sans text-foreground/80">
+                                          Cancelada
+                                        </span>
                                       )}
                                       {r.exige_validacao && (
-                                        <span className={`ml-2 rounded px-1.5 py-0.5 font-sans ${r.desconto_validado_em ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}`}>
-                                          Desconto {descontoPct(r).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%{' '}
-                                          {r.desconto_validado_em ? 'validado' : temAjusteManual(r) ? '· a validar' : '· a validar, comissão não reduzida'}
+                                        <span
+                                          className={`ml-2 rounded px-1.5 py-0.5 font-sans ${r.desconto_validado_em ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}
+                                        >
+                                          Desconto{" "}
+                                          {descontoPct(r).toLocaleString("pt-BR", {
+                                            maximumFractionDigits: 1,
+                                          })}
+                                          %{" "}
+                                          {r.desconto_validado_em
+                                            ? "validado"
+                                            : temAjusteManual(r)
+                                              ? "· a validar"
+                                              : "· a validar, comissão não reduzida"}
                                         </span>
                                       )}
                                     </td>
                                     <td className="py-1.5 pr-4">{data(r.created_at)}</td>
-                                    <td className="py-1.5 pr-4">{r.seller_name || '—'}</td>
-                                    <td className="py-1.5 pr-4 text-right">{moeda(r.total_paid)}</td>
+                                    <td className="py-1.5 pr-4">{r.seller_name || "—"}</td>
+                                    <td className="py-1.5 pr-4 text-right">
+                                      {moeda(r.total_paid)}
+                                    </td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.rack_rate)}</td>
                                     <td className="py-1.5 pr-4 text-right font-medium">
                                       {moeda(r.valor_comissao)}
-                                      {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 font-sans text-xs font-normal text-accent">Manual</span>}
+                                      {temAjusteManual(r) && (
+                                        <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 font-sans text-xs font-normal text-accent">
+                                          Manual
+                                        </span>
+                                      )}
                                     </td>
                                     <td className="py-1.5 pr-4 text-right">
                                       {r.manual_charge > 0 ? (
-                                        <label className="inline-flex items-center gap-2" title="Repassar o manual charge junto com a comissão">
-                                          <input type="checkbox" checked={r.incluir_manual_charge}
-                                            disabled={salvando || !podeEditar || !podeEditarComissao(r)}
-                                            onChange={() => alternarManualCharge(r)} />
+                                        <label
+                                          className="inline-flex items-center gap-2"
+                                          title="Repassar o manual charge junto com a comissão"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={r.incluir_manual_charge}
+                                            disabled={
+                                              salvando || !podeEditar || !podeEditarComissao(r)
+                                            }
+                                            onChange={() => alternarManualCharge(r)}
+                                          />
                                           {moeda(r.manual_charge)}
                                         </label>
-                                      ) : '—'}
+                                      ) : (
+                                        "—"
+                                      )}
                                     </td>
-                                    <td className="py-1.5 pr-4 text-right font-semibold">{moeda(r.valor_repasse)}</td>
+                                    <td className="py-1.5 pr-4 text-right font-semibold">
+                                      {moeda(r.valor_repasse)}
+                                    </td>
                                     <td className="py-1.5 text-right">
                                       {podeEditar && podeEditarComissao(r) && (
-                                        <button disabled={salvando} onClick={() => setEditando(r)}
-                                          className="mr-3 text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50">Editar</button>
+                                        <button
+                                          disabled={salvando}
+                                          onClick={() => setEditando(r)}
+                                          className="mr-3 text-muted-foreground hover:text-foreground hover:underline disabled:opacity-50"
+                                        >
+                                          Editar
+                                        </button>
                                       )}
                                       {precisaValidar(r) && (
-                                        <button hidden={!podeValidar} disabled={salvando} onClick={() => validar([r])}
-                                          className="mr-3 text-amber-400 hover:underline disabled:opacity-50">Validar</button>
+                                        <button
+                                          hidden={!podeValidar}
+                                          disabled={salvando}
+                                          onClick={() => validar([r])}
+                                          className="mr-3 text-amber-400 hover:underline disabled:opacity-50"
+                                        >
+                                          Validar
+                                        </button>
                                       )}
-                                      <button hidden={!podePagar} disabled={salvando || g.travado} onClick={() => pagar([r], r.hq_reservation_id)}
-                                        className="text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50">Marcar paga</button>
+                                      <button
+                                        hidden={!podePagar}
+                                        disabled={salvando || g.travado}
+                                        onClick={() => pagar([r], r.hq_reservation_id)}
+                                        className="text-accent hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                                      >
+                                        Marcar paga
+                                      </button>
                                     </td>
                                   </tr>
                                 ))}
                                 {g.estornos.map((r) => (
-                                  <tr key={r.id} className="border-t border-border text-destructive">
+                                  <tr
+                                    key={r.id}
+                                    className="border-t border-border text-destructive"
+                                  >
                                     <td className="py-1.5 pr-4 font-mono">
                                       {r.hq_reservation_id}
-                                      <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 font-sans">Estorno (cancelada, já paga)</span>
+                                      <span className="ml-2 rounded bg-destructive/15 px-1.5 py-0.5 font-sans">
+                                        Estorno (cancelada, já paga)
+                                      </span>
                                     </td>
                                     <td className="py-1.5 pr-4">{data(r.created_at)}</td>
-                                    <td className="py-1.5 pr-4 text-right">{moeda(r.total_paid)}</td>
+                                    <td className="py-1.5 pr-4 text-right">
+                                      {moeda(r.total_paid)}
+                                    </td>
                                     <td className="py-1.5 pr-4 text-right">{moeda(r.rack_rate)}</td>
-                                    <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_comissao)}</td>
-                                    <td className="py-1.5 pr-4 text-right">{r.incluir_manual_charge ? `−${moeda(r.manual_charge)}` : '—'}</td>
-                                    <td className="py-1.5 pr-4 text-right font-medium">−{moeda(r.valor_repasse)}</td>
+                                    <td className="py-1.5 pr-4 text-right font-medium">
+                                      −{moeda(r.valor_comissao)}
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-right">
+                                      {r.incluir_manual_charge ? `−${moeda(r.manual_charge)}` : "—"}
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-right font-medium">
+                                      −{moeda(r.valor_repasse)}
+                                    </td>
                                     <td />
                                   </tr>
                                 ))}
@@ -359,14 +539,18 @@ export default function ComissoesAPagar() {
                         </tr>
                       )}
                     </Fragment>
-                  )
+                  );
                 })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-      <EditarComissaoDialog reserva={editando} onClose={() => setEditando(null)} onSalvo={recarregar} />
+      <EditarComissaoDialog
+        reserva={editando}
+        onClose={() => setEditando(null)}
+        onSalvo={recarregar}
+      />
     </div>
-  )
+  );
 }

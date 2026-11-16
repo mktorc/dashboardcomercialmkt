@@ -8,11 +8,18 @@ const COOLDOWN_MS = 30_000;
 
 export const syncReservations = createServerFn({ method: "POST" }).handler(async () => {
   try {
-    const secret = process.env["SYNC_CRON_TOKEN"] || process.env["LOVABLE_CRON_SECRET"] || process.env["CRON_SECRET"];
+    const secret =
+      process.env["SYNC_CRON_TOKEN"] ||
+      process.env["LOVABLE_CRON_SECRET"] ||
+      process.env["CRON_SECRET"];
     if (!secret) return { ok: false as const, error: "Segredo do cron não configurado" };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin.from("sync_runs").select("last_success_at").eq("service", "hqrentals").maybeSingle();
+    const { data } = await supabaseAdmin
+      .from("sync_runs")
+      .select("last_success_at")
+      .eq("service", "hqrentals")
+      .maybeSingle();
     const last = data?.last_success_at ? Date.parse(data.last_success_at) : 0;
     if (Date.now() - last < COOLDOWN_MS) return { ok: true as const, throttled: true as const };
 
@@ -35,7 +42,11 @@ export const syncReservations = createServerFn({ method: "POST" }).handler(async
 export const getLastReservationsSync = createServerFn({ method: "GET" }).handler(async () => {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin.from("sync_runs").select("last_success_at").eq("service", "hqrentals").maybeSingle();
+    const { data } = await supabaseAdmin
+      .from("sync_runs")
+      .select("last_success_at")
+      .eq("service", "hqrentals")
+      .maybeSingle();
     return { at: data?.last_success_at ?? null };
   } catch (e) {
     console.error("[getLastReservationsSync]", e);

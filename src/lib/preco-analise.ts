@@ -34,12 +34,26 @@ export type Tolerancias = {
   /** Aviso "Referência lotou em D-X" só aparece para X maior que isto (lotar perto da data não indica preço baixo). */
   lotacaoDias: number;
 };
-export const TOL_PADRAO: Tolerancias = { ocupPp: 5, ocupCarros: 1, precoPct: 5, ritmoCarros: 1, ritmoPct: 10, lotacaoDias: 14 };
+export const TOL_PADRAO: Tolerancias = {
+  ocupPp: 5,
+  ocupCarros: 1,
+  precoPct: 5,
+  ritmoCarros: 1,
+  ritmoPct: 10,
+  lotacaoDias: 14,
+};
 
 export type SinalOcupacao = "abaixo" | "no-ritmo" | "acima";
 export type SinalPreco = "mais-caro" | "alinhado" | "mais-barato";
 export type SinalRitmo = "abaixo" | "igual" | "acima";
-export type Diagnostico = "preco-alto" | "avaliar-preco" | "aguardar" | "demanda-fraca" | "no-ritmo" | "vendendo-barato" | "forte";
+export type Diagnostico =
+  | "preco-alto"
+  | "avaliar-preco"
+  | "aguardar"
+  | "demanda-fraca"
+  | "no-ritmo"
+  | "vendendo-barato"
+  | "forte";
 
 export const DIAGNOSTICO_LABEL: Record<Diagnostico, string> = {
   "preco-alto": "Preço alto",
@@ -53,20 +67,36 @@ export const DIAGNOSTICO_LABEL: Record<Diagnostico, string> = {
 export const DIAGNOSTICO_ORDEM = Object.keys(DIAGNOSTICO_LABEL) as Diagnostico[];
 
 /** Gap (p.p.) contra a esperada: dentro de ±ocupPp ou ±ocupCarros carros (o maior limite vale) = no ritmo; limites inclusivos. */
-export function sinalOcupacao(gapPp: number, capCov: number, tol: Tolerancias = TOL_PADRAO): SinalOcupacao {
+export function sinalOcupacao(
+  gapPp: number,
+  capCov: number,
+  tol: Tolerancias = TOL_PADRAO,
+): SinalOcupacao {
   const lim = Math.max(tol.ocupPp, capCov > 0 ? (tol.ocupCarros / capCov) * 100 : 0);
   return gapPp < -lim - EPS ? "abaixo" : gapPp > lim + EPS ? "acima" : "no-ritmo";
 }
 
 /** Diária já vendida contra a de referência: alinhado dentro de ±precoPct (inclusivo). Null sem os dois valores. */
-export function sinalPreco(hoje: number | null, ref: number | null, tol: Tolerancias = TOL_PADRAO): SinalPreco | null {
+export function sinalPreco(
+  hoje: number | null,
+  ref: number | null,
+  tol: Tolerancias = TOL_PADRAO,
+): SinalPreco | null {
   if (hoje == null || ref == null || !(ref > 0)) return null;
   const dif = (hoje / ref - 1) * 100;
-  return dif > tol.precoPct + EPS ? "mais-caro" : dif < -tol.precoPct - EPS ? "mais-barato" : "alinhado";
+  return dif > tol.precoPct + EPS
+    ? "mais-caro"
+    : dif < -tol.precoPct - EPS
+      ? "mais-barato"
+      : "alinhado";
 }
 
 /** Reservas criadas nos últimos 14 dias contra as da referência no mesmo estágio (já em carros da frota atual); igual = ±carros ou ±% (o maior). */
-export function sinalRitmo(hoje: number | null, ref: number | null, tol: Tolerancias = TOL_PADRAO): SinalRitmo | null {
+export function sinalRitmo(
+  hoje: number | null,
+  ref: number | null,
+  tol: Tolerancias = TOL_PADRAO,
+): SinalRitmo | null {
   if (hoje == null || ref == null) return null;
   const lim = Math.max(tol.ritmoCarros, (Math.abs(ref) * tol.ritmoPct) / 100);
   const dif = hoje - ref;
@@ -78,7 +108,11 @@ export function sinalRitmo(hoje: number | null, ref: number | null, tol: Toleran
  * sem confirmar que a demanda segue entrando, não se recomenda esperar. Sem tarifa (sinal de preço nulo) o diagnóstico usa só ocupação
  * e ritmo: o preço entra como "alinhado", isto é, não pesa (nada de "Preço alto", "Demanda fraca" ou "Vendendo barato").
  */
-export function diagnostico(o: SinalOcupacao, p: SinalPreco | null, r: SinalRitmo | null): Diagnostico | null {
+export function diagnostico(
+  o: SinalOcupacao,
+  p: SinalPreco | null,
+  r: SinalRitmo | null,
+): Diagnostico | null {
   if (o === "no-ritmo") return "no-ritmo";
   if (p == null) p = "alinhado";
   if (o === "abaixo") {
@@ -110,7 +144,12 @@ export function diariaRestanteJanela(janela: Pick<JanelaRef, "itens">): number |
 }
 
 /** Ritmo recente (reservas ativas criadas nos últimos `dias` dias) do ano escolhido no mesmo estágio, em carros da frota atual `capacity`. */
-export function ritmoJanela(janela: Pick<JanelaRef, "itens">, de: string, capacity: number, dias = 14): number | null {
+export function ritmoJanela(
+  janela: Pick<JanelaRef, "itens">,
+  de: string,
+  capacity: number,
+  dias = 14,
+): number | null {
   const partes: number[] = [];
   for (const it of janela.itens) {
     const r = ritmoRecente(it.hist, it.lead, dias, { date: it.date, de });
@@ -144,7 +183,18 @@ export type Quadrante = {
 const plural = (n: number, s: string, p: string) => (n === 1 ? s : p);
 
 export function fraseQuadrante(
-  q: Pick<Quadrante, "ocupacao" | "gapCarros" | "precoPct" | "preco" | "ritmo" | "ano" | "fontePreco" | "diariaAtual" | "diariaRef">,
+  q: Pick<
+    Quadrante,
+    | "ocupacao"
+    | "gapCarros"
+    | "precoPct"
+    | "preco"
+    | "ritmo"
+    | "ano"
+    | "fontePreco"
+    | "diariaAtual"
+    | "diariaRef"
+  >,
   lead: number,
   closed = false,
 ): string {
@@ -195,7 +245,17 @@ export function quadranteDia(
   const ritmoRef = d.closed ? null : ritmoJanela(janela, de, d.capacity, 14);
   const ritmo = sinalRitmo(ritmoAtual, ritmoRef, tol);
   const gc = Math.round((d.gap / 100) * capCov);
-  const base = { ocupacao, preco, ritmo, gapCarros: gc, precoPct, ano: janela.escolhido?.label ?? null, fontePreco, diariaAtual, diariaRef };
+  const base = {
+    ocupacao,
+    preco,
+    ritmo,
+    gapCarros: gc,
+    precoPct,
+    ano: janela.escolhido?.label ?? null,
+    fontePreco,
+    diariaAtual,
+    diariaRef,
+  };
   return {
     ...base,
     diagnostico: diagnostico(ocupacao, preco, ritmo),
@@ -216,7 +276,12 @@ export const FAIXAS_ANTECEDENCIA = [
   { label: "D-7 a D-0", min: 0, max: 7 },
 ] as const;
 
-export type FaixaAntecedencia = { label: string; carros: number; pct: number; diaria: number | null };
+export type FaixaAntecedencia = {
+  label: string;
+  carros: number;
+  pct: number;
+  diaria: number | null;
+};
 export type QuebraAntecedencia = {
   faixas: FaixaAntecedencia[];
   /** `faturamento` = soma do preço pago das diárias consideradas (a diária média é faturamento ÷ diárias com preço). */
@@ -251,7 +316,11 @@ export function quebraAntecedencia(rows: PaceRow[], desdeLead = 0): QuebraAntece
       pct: n ? acc[k]!.n / n : 0,
       diaria: acc[k]!.p ? acc[k]!.v / acc[k]!.p : null,
     })),
-    total: { carros: n, diaria: p ? sum(acc.map((x) => x.v)) / p : null, faturamento: sum(acc.map((x) => x.v)) },
+    total: {
+      carros: n,
+      diaria: p ? sum(acc.map((x) => x.v)) / p : null,
+      faturamento: sum(acc.map((x) => x.v)),
+    },
   };
 }
 
@@ -262,7 +331,12 @@ export type VendasRecentes = { carros: number; diaria: number | null };
  * Conta as confirmadas hoje (as depois canceladas não têm preço). Null em data encerrada (L ≤ 0) ou quando L+dias cai antes do
  * início da base `de` (para uma referência `date`).
  */
-export function vendasRecentes(rows: PaceRow[], L: number, dias: number, opts?: { date: string; de: string }): VendasRecentes | null {
+export function vendasRecentes(
+  rows: PaceRow[],
+  L: number,
+  dias: number,
+  opts?: { date: string; de: string },
+): VendasRecentes | null {
   if (L <= 0 || !rows.length) return null;
   if (opts && addDays(opts.date, -(L + dias)) < opts.de) return null;
   let n = 0;
@@ -284,14 +358,28 @@ export function vendasRecentes(rows: PaceRow[], L: number, dias: number, opts?: 
 
 /* ───────────────────────── 3.3 Faixa de preço por época ───────────────────────── */
 
-export type PontoEpoca = { date: string; ano: string; diaria: number; revVeic: number; occ: number };
-export type FiltroEpoca = { categoria: string | null; mes: number | null; sazonalidade: string | null; desde?: string };
+export type PontoEpoca = {
+  date: string;
+  ano: string;
+  diaria: number;
+  revVeic: number;
+  occ: number;
+};
+export type FiltroEpoca = {
+  categoria: string | null;
+  mes: number | null;
+  sazonalidade: string | null;
+  desde?: string;
+};
 
 /**
  * Datas passadas (encerradas antes de `hoje`, de `desde` em diante, padrão 2024) da época escolhida, com diária média final,
  * faturamento/veículo final e ocupação final (frota da época). Fora: datas de evento e datas sem preço.
  */
-export function pontosEpoca(payload: Pick<PacePayload, "linhas" | "cal" | "hoje">, f: FiltroEpoca): PontoEpoca[] {
+export function pontosEpoca(
+  payload: Pick<PacePayload, "linhas" | "cal" | "hoje">,
+  f: FiltroEpoca,
+): PontoEpoca[] {
   const desde = f.desde ?? "2024-01-01";
   const porData = new Map<string, PaceRow[]>();
   for (const r of payload.linhas) {
@@ -325,18 +413,35 @@ export function pontosEpoca(payload: Pick<PacePayload, "linhas" | "cal" | "hoje"
       }
     }
     if (!p || !fPreco || !fTotal) continue;
-    out.push({ date, ano: date.slice(0, 4), diaria: v / p, revVeic: v / fPreco, occ: carros / fTotal });
+    out.push({
+      date,
+      ano: date.slice(0, 4),
+      diaria: v / p,
+      revVeic: v / fPreco,
+      occ: carros / fTotal,
+    });
   }
   return out;
 }
 
-export type FaixaPreco = { de: number; ate: number; datas: number; occMedia: number; revVeicMedio: number; pequena: boolean; destaque: boolean };
+export type FaixaPreco = {
+  de: number;
+  ate: number;
+  datas: number;
+  occMedia: number;
+  revVeicMedio: number;
+  pequena: boolean;
+  destaque: boolean;
+};
 
 /**
  * Agrupa as datas por faixa de diária final (largura em US$, padrão 5). Destaque = faixa de maior faturamento/veículo médio entre as
  * que têm ao menos `minDatas` datas (padrão 5); abaixo disso a faixa é "amostra pequena" e nunca é destacada. Empate: a faixa mais barata.
  */
-export function faixasPreco(pontos: PontoEpoca[], opts?: { largura?: number; minDatas?: number }): FaixaPreco[] {
+export function faixasPreco(
+  pontos: PontoEpoca[],
+  opts?: { largura?: number; minDatas?: number },
+): FaixaPreco[] {
   const largura = opts?.largura && opts.largura > 0 ? opts.largura : 5;
   const minDatas = opts?.minDatas ?? 5;
   const grupos = new Map<number, PontoEpoca[]>();

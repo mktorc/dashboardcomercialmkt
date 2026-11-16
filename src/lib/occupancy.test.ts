@@ -44,8 +44,12 @@ describe("segmentDays (critério do relatório de Utilização do HQ)", () => {
   it("conta 1 dia para qualquer trecho que encosta em um único dia", () => {
     const day = Date.UTC(2026, 10, 15);
     // devolução às 04:30 e retirada às 19:30 do mesmo dia contam, cada uma, 1 dia
-    expect(segmentDays("2026-11-14T10:00:00Z", "2026-11-15T04:30:00Z", day, day + 86400000)).toBe(1);
-    expect(segmentDays("2026-11-15T19:30:00Z", "2026-11-24T15:05:00Z", day, day + 86400000)).toBe(1);
+    expect(segmentDays("2026-11-14T10:00:00Z", "2026-11-15T04:30:00Z", day, day + 86400000)).toBe(
+      1,
+    );
+    expect(segmentDays("2026-11-15T19:30:00Z", "2026-11-24T15:05:00Z", day, day + 86400000)).toBe(
+      1,
+    );
   });
 
   it("não conta trecho fora do período", () => {
@@ -66,7 +70,9 @@ describe("segmentDays (critério do relatório de Utilização do HQ)", () => {
 
   it("conta o dia de uma retirada feita à noite", () => {
     // 4 h restantes no dia da retirada ainda contam 1 dia no período de um dia só
-    expect(segmentDays("2026-11-30T20:00:00Z", "2026-12-08T12:00:00Z", Date.UTC(2026, 10, 30), dec)).toBe(1);
+    expect(
+      segmentDays("2026-11-30T20:00:00Z", "2026-12-08T12:00:00Z", Date.UTC(2026, 10, 30), dec),
+    ).toBe(1);
   });
 });
 
@@ -81,7 +87,13 @@ describe("vehicleDays", () => {
   });
 
   it("para de contar na saída", () => {
-    expect(vehicleDays({ entry_date: "2025-01-01T00:00:00Z", exit_date: "2026-11-11T00:00:00Z" }, nov, dec)).toBe(10);
+    expect(
+      vehicleDays(
+        { entry_date: "2025-01-01T00:00:00Z", exit_date: "2026-11-11T00:00:00Z" },
+        nov,
+        dec,
+      ),
+    ).toBe(10);
   });
 });
 

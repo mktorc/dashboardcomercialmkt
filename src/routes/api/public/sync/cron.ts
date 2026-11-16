@@ -23,12 +23,18 @@ function originOf(request: Request): string {
 
 async function run(request: Request) {
   if (!isSyncAuthorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  const secret = process.env["SYNC_CRON_TOKEN"] || process.env["CRON_SECRET"] || process.env["LOVABLE_CRON_SECRET"];
+  const secret =
+    process.env["SYNC_CRON_TOKEN"] ||
+    process.env["CRON_SECRET"] ||
+    process.env["LOVABLE_CRON_SECRET"];
   if (!secret) return Response.json({ error: "Segredo do cron não configurado" }, { status: 500 });
   const origin = originOf(request);
   const runOne = async (job: (typeof JOBS)[number]) => {
     try {
-      const r = await fetch(`${origin}${job.path}`, { method: "POST", headers: { Authorization: `Bearer ${secret}` } });
+      const r = await fetch(`${origin}${job.path}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}` },
+      });
       const body = (await r.text()).slice(0, 300);
       if (!r.ok) console.error(`[cron] ${job.name} HTTP ${r.status}: ${body}`);
       return { job: job.name, status: r.status, ok: r.ok, body };
@@ -39,7 +45,9 @@ async function run(request: Request) {
   };
   // O HQ limita as chamadas por janela: hqrentals e hq-rates dividem a cota e rodam em sequência; os demais, em paralelo.
   const grupos = JOBS.filter((j) => j.name !== "hq-rates").map((j) =>
-    j.name === "hqrentals" ? JOBS.filter((x) => x.name === "hqrentals" || x.name === "hq-rates") : [j],
+    j.name === "hqrentals"
+      ? JOBS.filter((x) => x.name === "hqrentals" || x.name === "hq-rates")
+      : [j],
   );
   const results = (
     await Promise.all(

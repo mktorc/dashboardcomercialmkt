@@ -311,17 +311,38 @@ describe("categoria sem histórico não anula a data inteira", () => {
 describe("windowOccupancy (igual à Utilização do HQ na janela)", () => {
   const min = (iso: string) => Date.parse(`${iso}:00Z`) / 60000;
   const payload = {
-    versao: 7, gerado_em: "", hoje: "2026-01-10", de: "2026-01-01", ate: "2026-01-31", categorias: ["A", "B"],
-    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal: {},
-    linhas: ["2026-01-01", "2026-01-02", "2026-01-03"].flatMap((d) => [{ d, c: "A", f: 1, a: [] }, { d, c: "B", f: 1, a: [] }]),
-    t: [[0, min("2026-01-01T15:00"), min("2026-01-03T12:00")], [1, min("2026-01-02T10:00"), min("2026-01-02T12:00")]],
+    versao: 7,
+    gerado_em: "",
+    hoje: "2026-01-10",
+    de: "2026-01-01",
+    ate: "2026-01-31",
+    categorias: ["A", "B"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+    cal: {},
+    linhas: ["2026-01-01", "2026-01-02", "2026-01-03"].flatMap((d) => [
+      { d, c: "A", f: 1, a: [] },
+      { d, c: "B", f: 1, a: [] },
+    ]),
+    t: [
+      [0, min("2026-01-01T15:00"), min("2026-01-03T12:00")],
+      [1, min("2026-01-02T10:00"), min("2026-01-02T12:00")],
+    ],
   } as unknown as Parameters<typeof windowOccupancy>[0];
   it("um dia: o trecho conta em toda data que toca", () => {
-    expect(windowOccupancy(payload, null, "2026-01-02", "2026-01-02")).toMatchObject({ carDays: 2, capacity: 2 });
-    expect(windowOccupancy(payload, null, "2026-01-03", "2026-01-03")).toMatchObject({ carDays: 1, capacity: 2 });
+    expect(windowOccupancy(payload, null, "2026-01-02", "2026-01-02")).toMatchObject({
+      carDays: 2,
+      capacity: 2,
+    });
+    expect(windowOccupancy(payload, null, "2026-01-03", "2026-01-03")).toMatchObject({
+      carDays: 1,
+      capacity: 2,
+    });
   });
   it("intervalo: arredonda o trecho inteiro na janela (45 h − 5 h → 2 dias), não a soma dos dias", () => {
-    expect(windowOccupancy(payload, "A", "2026-01-01", "2026-01-03")).toMatchObject({ carDays: 2, capacity: 3 });
+    expect(windowOccupancy(payload, "A", "2026-01-01", "2026-01-03")).toMatchObject({
+      carDays: 2,
+      capacity: 3,
+    });
   });
   it("sem trechos publicados devolve null", () => {
     const { t: _t, ...sem } = payload;
@@ -331,18 +352,35 @@ describe("windowOccupancy (igual à Utilização do HQ na janela)", () => {
 
 describe("esperada escolhida pelo dia todo", () => {
   const mk = (d: string, c: string, f: number, n: number, preco: number, g?: number) => ({
-    d, c, f, ...(g ? { g } : {}), a: Array(n).fill(30), m: Array(n).fill(preco),
+    d,
+    c,
+    f,
+    ...(g ? { g } : {}),
+    a: Array(n).fill(30),
+    m: Array(n).fill(preco),
   });
   const linhas = [
     // 2025 (364 dias antes): ocupação 6/10, US$ 40 por veículo. 2024 (728): 9/10, US$ 90 por veículo (a de maior faturamento).
-    mk("2026-11-12", "A", 5, 3, 50), mk("2026-11-12", "B", 5, 3, 50),
-    mk("2025-11-13", "A", 5, 3, 40), mk("2025-11-13", "B", 5, 3, 40),
-    mk("2024-11-14", "A", 5, 5, 90), mk("2024-11-14", "B", 5, 4, 90),
+    mk("2026-11-12", "A", 5, 3, 50),
+    mk("2026-11-12", "B", 5, 3, 50),
+    mk("2025-11-13", "A", 5, 3, 40),
+    mk("2025-11-13", "B", 5, 3, 40),
+    mk("2024-11-14", "A", 5, 5, 90),
+    mk("2024-11-14", "B", 5, 4, 90),
   ];
   const payload = {
-    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2026-12-31", categorias: ["A", "B"],
+    versao: 7,
+    gerado_em: "",
+    hoje: "2026-11-10",
+    de: "2024-01-01",
+    ate: "2026-12-31",
+    categorias: ["A", "B"],
     params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
-    cal: { "2026-11-12": ["Média", null, null], "2025-11-13": ["Média", null, null], "2024-11-14": ["Média", null, null] },
+    cal: {
+      "2026-11-12": ["Média", null, null],
+      "2025-11-13": ["Média", null, null],
+      "2024-11-14": ["Média", null, null],
+    },
     linhas,
   } as unknown as Parameters<typeof buildModel>[0];
   it("usa a ocupação da data de maior faturamento por veículo, somando as categorias", () => {
@@ -366,12 +404,27 @@ describe("referência escolhida pelo faturamento final", () => {
   const linhas = [
     mk("2026-12-25", [], []),
     mk("2025-12-26", Array(6).fill(60), Array(6).fill(50)),
-    mk("2024-12-27", [...Array(2).fill(60), ...Array(6).fill(5)], [...Array(2).fill(10), ...Array(6).fill(130)]),
+    mk(
+      "2024-12-27",
+      [...Array(2).fill(60), ...Array(6).fill(5)],
+      [...Array(2).fill(10), ...Array(6).fill(130)],
+    ),
   ];
-  const cal = { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null], "2024-12-27": ["Alta", null, null] };
+  const cal = {
+    "2026-12-25": ["Alta", null, null],
+    "2025-12-26": ["Alta", null, null],
+    "2024-12-27": ["Alta", null, null],
+  };
   const pl = {
-    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A"],
-    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal, linhas,
+    versao: 7,
+    gerado_em: "",
+    hoje: "2026-11-10",
+    de: "2024-01-01",
+    ate: "2027-05-01",
+    categorias: ["A"],
+    params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+    cal,
+    linhas,
   } as unknown as Parameters<typeof buildModel>[0];
   it("escolhe pelo faturamento final e usa a ocupação dela na antecedência analisada", () => {
     const m = buildModel(pl, "maximo");
@@ -389,15 +442,33 @@ describe("referência escolhida pelo faturamento final", () => {
 
 describe("referência com categoria sem tarifa", () => {
   // A e B no alvo; na referência, B não tem preço (sem `m`): o faturamento vale só A (US$ 100 ÷ frota 10 de A).
-  const alvo = [{ d: "2026-12-25", c: "A", f: 10, a: [] }, { d: "2026-12-25", c: "B", f: 10, a: [] }];
-  const ref = [{ d: "2025-12-26", c: "A", f: 10, a: [60, 60], m: [50, 50] }, { d: "2025-12-26", c: "B", f: 10, a: [60] }];
+  const alvo = [
+    { d: "2026-12-25", c: "A", f: 10, a: [] },
+    { d: "2026-12-25", c: "B", f: 10, a: [] },
+  ];
+  const ref = [
+    { d: "2025-12-26", c: "A", f: 10, a: [60, 60], m: [50, 50] },
+    { d: "2025-12-26", c: "B", f: 10, a: [60] },
+  ];
   const pl = {
-    versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A", "B"],
+    versao: 7,
+    gerado_em: "",
+    hoje: "2026-11-10",
+    de: "2024-01-01",
+    ate: "2027-05-01",
+    categorias: ["A", "B"],
     params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
-    cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] }, linhas: [...alvo, ...ref],
+    cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] },
+    linhas: [...alvo, ...ref],
   } as unknown as Parameters<typeof buildModel>[0];
   it("calcula o faturamento só com as categorias que têm preço", () => {
-    const it = referenceItems(buildModel(pl, "maximo"), alvo as never, "2026-12-25", "2026-11-10", 45)[0]!;
+    const it = referenceItems(
+      buildModel(pl, "maximo"),
+      alvo as never,
+      "2026-12-25",
+      "2026-11-10",
+      45,
+    )[0]!;
     expect(it.revFinal).toBe(10);
     expect(it.rev).toBe(10);
     expect(it.occFinal).toBeCloseTo(3 / 20, 5);
@@ -420,11 +491,23 @@ describe("painel de referências: ganho e frota", () => {
     const alvo = [{ d: "2026-12-25", c: "A", f: 10, a: [] }];
     const ref = { d: "2025-12-26", c: "A", f: 7, g: 7, a: [60] };
     const pl = {
-      versao: 7, gerado_em: "", hoje: "2026-11-10", de: "2024-01-01", ate: "2027-05-01", categorias: ["A"],
+      versao: 7,
+      gerado_em: "",
+      hoje: "2026-11-10",
+      de: "2024-01-01",
+      ate: "2027-05-01",
+      categorias: ["A"],
       params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
-      cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] }, linhas: [...alvo, ref],
+      cal: { "2026-12-25": ["Alta", null, null], "2025-12-26": ["Alta", null, null] },
+      linhas: [...alvo, ref],
     } as unknown as Parameters<typeof buildModel>[0];
-    const it = referenceItems(buildModel(pl, "maximo"), alvo as never, "2026-12-25", "2026-11-10", 45)[0]!;
+    const it = referenceItems(
+      buildModel(pl, "maximo"),
+      alvo as never,
+      "2026-12-25",
+      "2026-11-10",
+      45,
+    )[0]!;
     expect([it.fleet, it.fleetAtual]).toEqual([7, 10]);
     expect(avisoFrota(it.fleet, it.fleetAtual)).toBe("frota 30% menor que a atual");
   });
@@ -451,16 +534,35 @@ describe("esperada pela janela de 7 dias (data ±3)", () => {
   const B = "2026-11-10";
   const D = "2026-12-16";
   const ev = (d: string, n: number, preco: number, ant = 60, g?: number): PaceRow =>
-    ({ d, c: "A", f: 10, ...(g ? { g } : {}), a: Array(n).fill(ant), m: Array(n).fill(preco) }) as PaceRow;
+    ({
+      d,
+      c: "A",
+      f: 10,
+      ...(g ? { g } : {}),
+      a: Array(n).fill(ant),
+      m: Array(n).fill(preco),
+    }) as PaceRow;
   const alvo = { d: D, c: "A", f: 10, a: [] } as PaceRow;
   const monta = (linhas: PaceRow[], cal: PacePayload["cal"] = {}) =>
     buildModel(
-      { versao: 7, gerado_em: "", hoje: B, de: "2023-01-01", ate: "2027-05-01", categorias: ["A"], params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" }, cal, linhas } as PacePayload,
+      {
+        versao: 7,
+        gerado_em: "",
+        hoje: B,
+        de: "2023-01-01",
+        ate: "2027-05-01",
+        categorias: ["A"],
+        params: { n_evento: 1, n_dow: 1, n_saz: 1, estatistica: "maximo" },
+        cal,
+        linhas,
+      } as PacePayload,
       "maximo",
     );
   /** Uma linha por dia da janela de `ano` (offset em dias −3..+3 do alvo, deslocado por `lag`). */
   const ano = (lag: number, f: (k: number) => PaceRow | null) =>
-    [-3, -2, -1, 0, 1, 2, 3].map((k) => f(k) && { ...f(k)!, d: addDays(D, k - lag) }).filter((x): x is PaceRow => !!x);
+    [-3, -2, -1, 0, 1, 2, 3]
+      .map((k) => f(k) && { ...f(k)!, d: addDays(D, k - lag) })
+      .filter((x): x is PaceRow => !!x);
 
   it("janela comum: o ano vem da média da janela, não só do dia analisado", () => {
     // No dia do alvo 2024 fatura mais (US$ 90 contra 20), mas na janela 2025 ganha (20 contra ~16).
@@ -498,13 +600,19 @@ describe("esperada pela janela de 7 dias (data ±3)", () => {
   it("janela que encosta em evento: dia comum não leva dia de evento; dia de evento só leva o mesmo evento", () => {
     const e = (d: string, rel: number): [string, string, number] => ["Alta", "carnaval", rel];
     const cal: PacePayload["cal"] = {
-      [addDays(D, 2)]: e("", 0), [addDays(D, 1)]: e("", -1), [addDays(D, 3)]: e("", 1),
-      [addDays(D, 2 - 364)]: e("", 0), [addDays(D, 1 - 364)]: e("", -1), [addDays(D, 3 - 364)]: e("", 1),
+      [addDays(D, 2)]: e("", 0),
+      [addDays(D, 1)]: e("", -1),
+      [addDays(D, 3)]: e("", 1),
+      [addDays(D, 2 - 364)]: e("", 0),
+      [addDays(D, 1 - 364)]: e("", -1),
+      [addDays(D, 3 - 364)]: e("", 1),
     };
     const l25 = ano(364, (k) => ev("x", 4, 50));
     const m = monta([alvo, ...l25], cal);
     // comum: sai D+1, D+2 e D+3 (evento)
-    expect(windowAnalysis(m, [alvo], D, B, 36).janela.dias).toEqual([-3, -2, -1, 0].map((k) => addDays(D, k)));
+    expect(windowAnalysis(m, [alvo], D, B, 36).janela.dias).toEqual(
+      [-3, -2, -1, 0].map((k) => addDays(D, k)),
+    );
     // evento (D+2, posição 0): só D+1..D+3 (mesmo evento); a quarta e os demais dias comuns ficam de fora
     const dEv = addDays(D, 2);
     const evRow = { d: dEv, c: "A", f: 10, a: [] } as PaceRow;

@@ -25,14 +25,22 @@ export const DIAG_STYLE: Record<Diagnostico, string> = {
 /** Selo discreto do diagnóstico (calendário e detalhe). */
 export function SeloDiagnostico({ d, grande }: { d: Diagnostico; grande?: boolean }) {
   return (
-    <span className={`inline-block truncate rounded px-1 font-medium ${grande ? "px-2 py-0.5 text-xs" : "text-[9px] leading-4"} ${DIAG_STYLE[d]}`}>
+    <span
+      className={`inline-block truncate rounded px-1 font-medium ${grande ? "px-2 py-0.5 text-xs" : "text-[9px] leading-4"} ${DIAG_STYLE[d]}`}
+    >
       {DIAGNOSTICO_LABEL[d]}
     </span>
   );
 }
 
 /** Limites configuráveis do diagnóstico. */
-export function ToleranciasConfig({ tol, onChange }: { tol: Tolerancias; onChange: (t: Tolerancias) => void }) {
+export function ToleranciasConfig({
+  tol,
+  onChange,
+}: {
+  tol: Tolerancias;
+  onChange: (t: Tolerancias) => void;
+}) {
   const set = (k: keyof Tolerancias, v: string) => {
     const n = Number(v);
     if (Number.isFinite(n) && n >= 0) onChange({ ...tol, [k]: n });
@@ -51,7 +59,9 @@ export function ToleranciasConfig({ tol, onChange }: { tol: Tolerancias; onChang
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 space-y-3 text-sm">
-        <p className="text-muted-foreground">Limites dos sinais do diagnóstico de preço (inclusivos).</p>
+        <p className="text-muted-foreground">
+          Limites dos sinais do diagnóstico de preço (inclusivos).
+        </p>
         {campo("ocupPp", "Ocupação no ritmo: ± p.p.")}
         {campo("ocupCarros", "…ou ± carros (vale o maior)")}
         {campo("precoPct", "Preço alinhado: ± %")}
@@ -67,7 +77,11 @@ export function ToleranciasConfig({ tol, onChange }: { tol: Tolerancias; onChang
 }
 
 /** Referências e a data atual lado a lado: carros, % do total e diária média por faixa de antecedência de criação. */
-export function TabelaFaixasAntecedencia({ colunas }: { colunas: { titulo: string; q: QuebraAntecedencia | null }[] }) {
+export function TabelaFaixasAntecedencia({
+  colunas,
+}: {
+  colunas: { titulo: string; q: QuebraAntecedencia | null }[];
+}) {
   return (
     <div className="space-y-1">
       <div className="text-xs font-medium">Preço por faixa de antecedência de criação</div>
@@ -91,7 +105,11 @@ export function TabelaFaixasAntecedencia({ colunas }: { colunas: { titulo: strin
                   const x = c.q?.faixas[i];
                   return (
                     <td key={c.titulo} className="px-2 py-1">
-                      {x ? (x.carros ? `${x.carros} · ${pct(x.pct)} · ${usd(x.diaria)}` : "—") : "indisp."}
+                      {x
+                        ? x.carros
+                          ? `${x.carros} · ${pct(x.pct)} · ${usd(x.diaria)}`
+                          : "—"
+                        : "indisp."}
                     </td>
                   );
                 })}
@@ -109,8 +127,9 @@ export function TabelaFaixasAntecedencia({ colunas }: { colunas: { titulo: strin
         </table>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Cada célula: carros · % do total · diária média. Referências: reservas não canceladas (composição final). Data atual: reservas ativas hoje, criadas
-        até a data-base. A unidade é a diária (carro × dia).
+        Cada célula: carros · % do total · diária média. Referências: reservas não canceladas
+        (composição final). Data atual: reservas ativas hoje, criadas até a data-base. A unidade é a
+        diária (carro × dia).
       </p>
     </div>
   );

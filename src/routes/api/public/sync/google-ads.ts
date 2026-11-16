@@ -22,8 +22,13 @@ async function googleAccessToken(clientId: string, clientSecret: string, refresh
       grant_type: "refresh_token",
     }),
   });
-  const j = (await r.json()) as { access_token?: string; error?: string; error_description?: string };
-  if (!r.ok || !j.access_token) throw new Error(`OAuth Google: ${j.error ?? r.status} ${j.error_description ?? ""}`.trim());
+  const j = (await r.json()) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
+  if (!r.ok || !j.access_token)
+    throw new Error(`OAuth Google: ${j.error ?? r.status} ${j.error_description ?? ""}`.trim());
   return j.access_token;
 }
 
@@ -53,9 +58,15 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
             !clientSecret && "GOOGLE_ADS_CLIENT_SECRET",
             !refreshToken && "GOOGLE_ADS_REFRESH_TOKEN",
           ].filter(Boolean);
-          return Response.json({ error: "Google Ads não configurado", faltando: missing }, { status: 500 });
+          return Response.json(
+            { error: "Google Ads não configurado", faltando: missing },
+            { status: 500 },
+          );
         }
-        const days = Math.min(365, Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30));
+        const days = Math.min(
+          365,
+          Math.max(1, Number(new URL(request.url).searchParams.get("days")) || 30),
+        );
         const d = (x: Date) => x.toISOString().slice(0, 10);
         const until = new Date();
         const since = new Date(Date.now() - (days - 1) * 86400000);
@@ -63,7 +74,9 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
         try {
           const query = `SELECT segments.date, campaign.id, campaign.name, campaign.tracking_url_template, campaign.final_url_suffix, metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${d(since)}' AND '${d(until)}'`;
           const rows: Obj[] = [];
-          const accessToken = direct ? await googleAccessToken(clientId!, clientSecret!, refreshToken!) : null;
+          const accessToken = direct
+            ? await googleAccessToken(clientId!, clientSecret!, refreshToken!)
+            : null;
           const endpoint = direct
             ? `${DIRECT}/${version}/customers/${customer}/googleAds:search`
             : `${GATEWAY}/${version}/customers/${customer}/googleAds:search`;
@@ -87,7 +100,8 @@ export const Route = createFileRoute("/api/public/sync/google-ads")({
               body: JSON.stringify({ query, pageToken }),
             });
             const text = await r.text();
-            if (!r.ok) return Response.json({ error: `Google Ads ${r.status}: ${text}` }, { status: 502 });
+            if (!r.ok)
+              return Response.json({ error: `Google Ads ${r.status}: ${text}` }, { status: 502 });
             const j = JSON.parse(text) as Obj;
             for (const row of (j["results"] as Obj[]) ?? []) {
               const c = row["campaign"] as Obj;

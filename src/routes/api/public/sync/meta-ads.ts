@@ -40,8 +40,11 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
 
         if (!isValidDate(sinceParam) || !isValidDate(untilParam)) {
           return Response.json(
-            { error: 'Formato de data inválido. Use YYYY-MM-DD (ex: ?since=2026-01-01&until=2026-09-30)' },
-            { status: 400 }
+            {
+              error:
+                "Formato de data inválido. Use YYYY-MM-DD (ex: ?since=2026-01-01&until=2026-09-30)",
+            },
+            { status: 400 },
           );
         }
 
@@ -73,14 +76,17 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
         if (since > until) {
           return Response.json(
             { error: 'Data "since" deve ser menor ou igual a "until"' },
-            { status: 400 }
+            { status: 400 },
           );
         }
 
         const call = async (url: string) => {
           const r = await fetch(url);
           const j = (await r.json()) as Obj;
-          if (!r.ok) throw new Error((j["error"] as Obj | undefined)?.["message"] as string ?? `Meta ${r.status}`);
+          if (!r.ok)
+            throw new Error(
+              ((j["error"] as Obj | undefined)?.["message"] as string) ?? `Meta ${r.status}`,
+            );
           return j;
         };
 
@@ -91,9 +97,7 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
         try {
           await call(`${GRAPH}/${account}?fields=account_id&access_token=${token}`);
         } catch {
-          const ads = await call(
-            `${GRAPH}/me/adaccounts?fields=account_id&access_token=${token}`,
-          );
+          const ads = await call(`${GRAPH}/me/adaccounts?fields=account_id&access_token=${token}`);
           const list = (ads["data"] as Obj[]) ?? [];
           if (list.length === 1) {
             const accId = String(list[0]!["account_id"]);
@@ -106,7 +110,6 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           }
         }
 
-
         try {
           // utm_campaign vem dos url_tags dos anúncios de cada campanha
           const utmByCampaign = new Map<string, string>();
@@ -118,7 +121,8 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
               const tags = String((ad["creative"] as Obj | undefined)?.["url_tags"] ?? "");
               const m = tags.match(/utm_campaign=([^&]+)/i);
               const cid = String(ad["campaign_id"]);
-              if (m && !utmByCampaign.has(cid)) utmByCampaign.set(cid, decodeURIComponent(m[1] ?? ""));
+              if (m && !utmByCampaign.has(cid))
+                utmByCampaign.set(cid, decodeURIComponent(m[1] ?? ""));
             }
             next = ((j["paging"] as Obj | undefined)?.["next"] as string) ?? null;
           }
@@ -126,7 +130,9 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           const rows: Obj[] = [];
           const range = encodeURIComponent(JSON.stringify({ since: d(since), until: d(until) }));
 
-          console.log(`[Meta Ads Sync] Iniciando sincronização para período: ${d(since)} a ${d(until)}`);
+          console.log(
+            `[Meta Ads Sync] Iniciando sincronização para período: ${d(since)} a ${d(until)}`,
+          );
           console.log(`[Meta Ads Sync] Conta: ${usedAccount}`);
 
           next = `${GRAPH}/${usedAccount}/insights?level=campaign&time_increment=1&time_range=${range}&fields=campaign_id,campaign_name,spend,clicks,impressions,actions&limit=500&access_token=${token}`;
@@ -141,8 +147,19 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
                 spend: Number(r["spend"]) || 0,
                 clicks: Number(r["clicks"]) || 0,
                 impressions: Number(r["impressions"]) || 0,
-                conversations: Number(((r["actions"] as Obj[] | undefined) ?? []).find((a) => a["action_type"] === "onsite_conversion.messaging_conversation_started_7d")?.["value"]) || 0,
-                leads: Number(((r["actions"] as Obj[] | undefined) ?? []).find((a) => a["action_type"] === "lead")?.["value"]) || 0,
+                conversations:
+                  Number(
+                    ((r["actions"] as Obj[] | undefined) ?? []).find(
+                      (a) =>
+                        a["action_type"] === "onsite_conversion.messaging_conversation_started_7d",
+                    )?.["value"],
+                  ) || 0,
+                leads:
+                  Number(
+                    ((r["actions"] as Obj[] | undefined) ?? []).find(
+                      (a) => a["action_type"] === "lead",
+                    )?.["value"],
+                  ) || 0,
                 utm_campaign: utmByCampaign.get(cid) ?? null,
               });
             }
@@ -156,7 +173,9 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           // 1. LIMPAR período anterior para evitar duplicação
-          console.log(`[Meta Ads Sync] Limpando registos anteriores do período ${d(since)} a ${d(until)}...`);
+          console.log(
+            `[Meta Ads Sync] Limpando registos anteriores do período ${d(since)} a ${d(until)}...`,
+          );
           const { error: deleteError } = await supabaseAdmin
             .from("meta_ads_metrics")
             .delete()
@@ -165,7 +184,10 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
 
           if (deleteError) {
             console.error(`[Meta Ads Sync] Erro ao limpar período:`, deleteError);
-            return Response.json({ error: `Erro ao limpar dados: ${deleteError.message}` }, { status: 500 });
+            return Response.json(
+              { error: `Erro ao limpar dados: ${deleteError.message}` },
+              { status: 500 },
+            );
           }
 
           let totalInserted = 0;
@@ -178,12 +200,17 @@ export const Route = createFileRoute("/api/public/sync/meta-ads")({
               .insert(batch as never);
 
             if (error) {
-              console.error(`[Meta Ads Sync] Erro ao inserir lote ${Math.floor(i / 500) + 1}:`, error);
+              console.error(
+                `[Meta Ads Sync] Erro ao inserir lote ${Math.floor(i / 500) + 1}:`,
+                error,
+              );
               return Response.json({ error: error.message }, { status: 500 });
             }
 
             totalInserted += batch.length;
-            console.log(`[Meta Ads Sync] Lote ${Math.floor(i / 500) + 1}: ${batch.length} registos inseridos`);
+            console.log(
+              `[Meta Ads Sync] Lote ${Math.floor(i / 500) + 1}: ${batch.length} registos inseridos`,
+            );
           }
 
           console.log(`[Meta Ads Sync] ✅ Sincronização concluída com sucesso`);

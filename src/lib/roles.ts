@@ -1,7 +1,8 @@
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "superadmin" | "comercial" | "marketing" | "comercial_gerencial" | "financeiro";
+export type AppRole =
+  "superadmin" | "comercial" | "marketing" | "comercial_gerencial" | "financeiro";
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   superadmin: "Superadmin",
@@ -11,7 +12,8 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   financeiro: "Financeiro",
 };
 
-export type PageKey = "dashboard" | "comercial" | "comercial-operacional" | "comissoes" | "configuracoes";
+export type PageKey =
+  "dashboard" | "comercial" | "comercial-operacional" | "comissoes" | "configuracoes";
 
 const ACCESS: Record<AppRole, PageKey[]> = {
   superadmin: ["dashboard", "comercial", "comercial-operacional", "comissoes", "configuracoes"],
@@ -27,7 +29,10 @@ export function canAccess(role: AppRole | null, page: PageKey) {
   return role ? ACCESS[role].includes(page) : false;
 }
 
-export const HOME: Record<AppRole, "/app/dashboard" | "/comercial" | "/comercial-operacional" | "/app/comissoes/a-pagar"> = {
+export const HOME: Record<
+  AppRole,
+  "/app/dashboard" | "/comercial" | "/comercial-operacional" | "/app/comissoes/a-pagar"
+> = {
   superadmin: "/app/dashboard",
   comercial: "/comercial-operacional",
   marketing: "/app/dashboard",

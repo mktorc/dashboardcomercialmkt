@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 type Role = "superadmin" | "comercial" | "marketing" | "comercial_gerencial" | "financeiro";
 const ROLES: Role[] = ["superadmin", "comercial", "marketing", "comercial_gerencial", "financeiro"];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- cliente do middleware sem tipo exportado
 async function assertSuperadmin(supabase: any, userId: string) {
   const { data, error } = await supabase.rpc("has_role", { _user_id: userId, _role: "superadmin" });
   if (error || !data) throw new Error("Acesso negado");
@@ -71,7 +72,9 @@ export const updateUser = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
     }
     if (data.password) {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, { password: data.password });
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+        password: data.password,
+      });
       if (error) throw new Error(error.message);
     }
     return { ok: true };

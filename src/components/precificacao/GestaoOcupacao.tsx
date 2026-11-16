@@ -64,9 +64,7 @@ import {
   type PacePayload,
   type PaceRow,
 } from "@/lib/occupancy-pace";
-import {
-  precoVendaAtual,
-} from "@/lib/occupancy-detail";
+import { precoVendaAtual } from "@/lib/occupancy-detail";
 import { useOurRates } from "@/lib/competitive-data";
 import { SeloDiagnostico, ToleranciasConfig } from "@/components/precificacao/DiagnosticoPreco";
 import {
@@ -144,7 +142,12 @@ function Painel({
   const [tol, setTol] = useState<Tolerancias>(TOL_PADRAO);
   const rates = useOurRates();
   const tarifas = useMemo(
-    () => new Map((rates.data ?? []).map((r) => [rateKey(r.pickupDate, r.category), r.dailyRate] as [string, number])),
+    () =>
+      new Map(
+        (rates.data ?? []).map(
+          (r) => [rateKey(r.pickupDate, r.category), r.dailyRate] as [string, number],
+        ),
+      ),
     [rates.data],
   );
   const [filtroDiag, setFiltroDiag] = useState<Diagnostico | "todos">("todos");
@@ -166,7 +169,14 @@ function Painel({
     for (const d of days) {
       const rows = byDate.get(d.date);
       if (!rows?.length || d.gap == null) continue;
-      const q = quadranteDia(d, rows, windowAnalysis(model, rows, d.date, base).janela, payload.de, tol, precoVendaAtual(rows, tarifas, d.date)?.valor ?? null);
+      const q = quadranteDia(
+        d,
+        rows,
+        windowAnalysis(model, rows, d.date, base).janela,
+        payload.de,
+        tol,
+        precoVendaAtual(rows, tarifas, d.date)?.valor ?? null,
+      );
       if (q) m.set(d.date, q);
     }
     return m;
@@ -245,11 +255,12 @@ function Painel({
 
       <p className="text-xs text-muted-foreground">
         A antecedência de cada data é a retirada menos a data-base ({dataBR(base)}): por exemplo,{" "}
-        {dataBR(addDays(base, 49))} está em D-49. Esperada = média, na janela de 7 dias (a data ±3), das ocupações do ano de
-        referência (mesmo dia da semana 1 e 2 anos antes; em Carnaval, Semana Santa e Corpus Christi, a mesma
-        posição nas edições passadas) com maior faturamento/veículo final médio, cada dia lido na sua
-        antecedência e só com datas encerradas antes da data-base. Não é previsão da ocupação
-        final. Datas já encerradas aparecem em D-0, com a ocupação final.
+        {dataBR(addDays(base, 49))} está em D-49. Esperada = média, na janela de 7 dias (a data ±3),
+        das ocupações do ano de referência (mesmo dia da semana 1 e 2 anos antes; em Carnaval,
+        Semana Santa e Corpus Christi, a mesma posição nas edições passadas) com maior
+        faturamento/veículo final médio, cada dia lido na sua antecedência e só com datas encerradas
+        antes da data-base. Não é previsão da ocupação final. Datas já encerradas aparecem em D-0,
+        com a ocupação final.
       </p>
       {outOfRange ? (
         <Card className="p-3 text-sm text-muted-foreground">
@@ -443,7 +454,10 @@ function Calendario({
           {title} · base {dataBR(base)}
         </h2>
         <div className="flex items-center gap-1">
-          <Select value={filtroDiag} onValueChange={(v) => onFiltroDiag(v as Diagnostico | "todos")}>
+          <Select
+            value={filtroDiag}
+            onValueChange={(v) => onFiltroDiag(v as Diagnostico | "todos")}
+          >
             <SelectTrigger className="h-9 w-44 text-xs" aria-label="Filtrar por diagnóstico">
               <SelectValue />
             </SelectTrigger>
@@ -550,8 +564,9 @@ function Calendario({
         );
       })}
       <p className="text-[11px] text-muted-foreground">
-        O selo em cada data é o diagnóstico de preço (ocupação contra a esperada × diária contra a do ano escolhido × ritmo recente). Datas sem selo não
-        têm diária para comparar. Use o filtro para destacar um diagnóstico.
+        O selo em cada data é o diagnóstico de preço (ocupação contra a esperada × diária contra a
+        do ano escolhido × ritmo recente). Datas sem selo não têm diária para comparar. Use o filtro
+        para destacar um diagnóstico.
       </p>
       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
         {(Object.keys(LEVEL) as GapLevel[]).map((l) => (

@@ -46,7 +46,16 @@ const cat = (category: string, ours: number, med: number): CategoryPosition => (
   ours,
   median: med,
   pct: ((ours - med) / med) * 100,
-  market: { n: 3, median: med, mean: med, min: med, max: med, reliable: true, partial: false, lastCollectedAt: NOW },
+  market: {
+    n: 3,
+    median: med,
+    mean: med,
+    min: med,
+    max: med,
+    reliable: true,
+    partial: false,
+    lastCollectedAt: NOW,
+  },
 });
 
 describe("posição acima / alinhado / abaixo (±5%)", () => {
@@ -72,7 +81,9 @@ describe("posição acima / alinhado / abaixo (±5%)", () => {
 
 describe("mediana geral e banner", () => {
   it("número par de categorias: média dos dois do meio", () => {
-    expect(medianOfMedians([cat("A", 1, 100), cat("B", 1, 200), cat("C", 1, 300), cat("D", 1, 1000)])).toBe(250);
+    expect(
+      medianOfMedians([cat("A", 1, 100), cat("B", 1, 200), cat("C", 1, 300), cat("D", 1, 1000)]),
+    ).toBe(250);
     expect(medianOfMedians([cat("A", 1, 100), cat("B", 1, 200)])).toBe(150);
     expect(medianOfMedians([])).toBeNull();
   });
@@ -137,7 +148,11 @@ describe("idade da coleta e confiança", () => {
 
 describe("período de retirada × duração da locação", () => {
   it("o intervalo lista as datas de retirada, inclusive", () => {
-    expect(pickupDates("2027-01-14", "2027-01-16")).toEqual(["2027-01-14", "2027-01-15", "2027-01-16"]);
+    expect(pickupDates("2027-01-14", "2027-01-16")).toEqual([
+      "2027-01-14",
+      "2027-01-15",
+      "2027-01-16",
+    ]);
     expect(pickupDates("2027-01-14", "2027-01-14")).toEqual(["2027-01-14"]);
   });
   const q = (competitor: string, pickup: string, ret: string, daily: number) =>
@@ -169,20 +184,59 @@ describe("período de retirada × duração da locação", () => {
     expect(c.quotes.map((x) => Math.round(x.vsUs!))).toEqual([-29, -14, 0]);
   });
   it("duração de 7 usa a cotação exata", () => {
-    const c7 = buildComparisons({ rows, categories: ["SUV"], from: "2026-12-01", to: "2026-12-01", duration: 7, rateOf, now: NOW, currency: "USD" });
+    const c7 = buildComparisons({
+      rows,
+      categories: ["SUV"],
+      from: "2026-12-01",
+      to: "2026-12-01",
+      duration: 7,
+      rateOf,
+      now: NOW,
+      currency: "USD",
+    });
     expect(c7[0]!.market.n).toBe(3);
     expect(c7[0]!.quotes.every((x) => !x.row.composta)).toBe(true);
   });
   it("calendário: célula vazia e datas sem nenhuma cotação", () => {
     const cells = buildCalendar(comps, NOW);
-    expect(cells.get(cellKey("2026-12-01", "SUV"))).toMatchObject({ empty: false, ours: 130, median: 120, n: 3, confidence: "alta", ageDays: 1, position: "acima", strong: false });
+    expect(cells.get(cellKey("2026-12-01", "SUV"))).toMatchObject({
+      empty: false,
+      ours: 130,
+      median: 120,
+      n: 3,
+      confidence: "alta",
+      ageDays: 1,
+      position: "acima",
+      strong: false,
+    });
     expect(cells.get(cellKey("2026-12-02", "SUV"))!.strong).toBe(true);
-    expect(cells.get(cellKey("2026-12-01", "Minivan"))).toMatchObject({ empty: true, n: 0, median: null, pct: null, position: null, confidence: null });
+    expect(cells.get(cellKey("2026-12-01", "Minivan"))).toMatchObject({
+      empty: true,
+      n: 0,
+      median: null,
+      pct: null,
+      position: null,
+      confidence: null,
+    });
     // 07/12 em diante: a reserva de 2 noites passa da devolução 08/12 das cotações.
-    expect(datesWithoutQuotes(pickupDates("2026-12-01", "2026-12-10"), cells)).toEqual(["2026-12-07", "2026-12-08", "2026-12-09", "2026-12-10"]);
+    expect(datesWithoutQuotes(pickupDates("2026-12-01", "2026-12-10"), cells)).toEqual([
+      "2026-12-07",
+      "2026-12-08",
+      "2026-12-09",
+      "2026-12-10",
+    ]);
   });
   it("sem nossa tarifa a célula fica vazia", () => {
-    const c = buildComparisons({ rows, categories: ["SUV"], from: "2026-12-01", to: "2026-12-01", duration: 2, rateOf: () => null, now: NOW, currency: "USD" });
+    const c = buildComparisons({
+      rows,
+      categories: ["SUV"],
+      from: "2026-12-01",
+      to: "2026-12-01",
+      duration: 2,
+      rateOf: () => null,
+      now: NOW,
+      currency: "USD",
+    });
     expect(buildCalendar(c, NOW).get(cellKey("2026-12-01", "SUV"))!.empty).toBe(true);
   });
   it("resumo por categoria no intervalo: média das datas, ordenado por diferença", () => {
@@ -242,7 +296,9 @@ describe("régua em eixo único de %", () => {
 
 describe("coleta mais antiga e alerta de equivalência", () => {
   it("selo usa a mais antiga; tooltip o intervalo", () => {
-    expect(collectionAges(["2026-11-08T10:00:00Z", "2026-11-04T10:00:00Z", "2026-11-09T10:00:00Z"], NOW)).toEqual({ oldest: 5, newest: 0 });
+    expect(
+      collectionAges(["2026-11-08T10:00:00Z", "2026-11-04T10:00:00Z", "2026-11-09T10:00:00Z"], NOW),
+    ).toEqual({ oldest: 5, newest: 0 });
     expect(collectionAges([], NOW)).toBeNull();
   });
   it("alerta com um único concorrente ou diferença acima de ±30%", () => {

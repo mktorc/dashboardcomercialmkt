@@ -31,7 +31,9 @@ export function extractAdditionalChargesPrice(r: HqReservation): number {
   const items = miscValue(r, "all_additional_charges");
   if (Array.isArray(items)) {
     return items.reduce(
-      (s, i) => s + (num(((i as HqReservation)?.["pivot"] as HqReservation | undefined)?.["total_price"]) ?? 0),
+      (s, i) =>
+        s +
+        (num(((i as HqReservation)?.["pivot"] as HqReservation | undefined)?.["total_price"]) ?? 0),
       0,
     );
   }

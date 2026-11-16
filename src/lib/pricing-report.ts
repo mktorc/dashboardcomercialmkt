@@ -17,7 +17,9 @@ const LABELS: Record<string, string> = {
 export function splitPricingReport(html: string): { css: string; tabs: PricingTab[] } {
   const css = /<style>([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
   const tabs: PricingTab[] = [];
-  for (const m of html.matchAll(/<section id="([^"]+)"><h2>([\s\S]*?)<\/h2>([\s\S]*?)<\/section>/g)) {
+  for (const m of html.matchAll(
+    /<section id="([^"]+)"><h2>([\s\S]*?)<\/h2>([\s\S]*?)<\/section>/g,
+  )) {
     const id = m[1] ?? "";
     const title = m[2] ?? "";
     tabs.push({ id, title, label: LABELS[id] ?? title, html: m[3] ?? "" });

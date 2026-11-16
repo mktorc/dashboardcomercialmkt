@@ -183,11 +183,11 @@ export function PricingHubView({
                   ? "Datas abaixo do esperado, o que pode explicar e o que avaliar agora."
                   : secao === "faixa-preco"
                     ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
-                  : secao === "competitividade"
-                    ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
-                    : secao === "gestao"
-                      ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
-                      : "Ocupação atual e esperada por categoria, data a data."}
+                    : secao === "competitividade"
+                      ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
+                      : secao === "gestao"
+                        ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
+                        : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           <SyncButton fn={syncPricing} ultimaAtualizacao={ultimaAtualizacao} />

@@ -5,13 +5,32 @@ import { fetchAll } from "@/lib/fetch-all";
 export type OccSegment = { pick_up_at: string | null; return_at: string | null };
 /** Veículo da frota com a data em que passou a contar (e, se houver, a data de saída). */
 export type OccVehicle = { entry_date: string; exit_date: string | null };
-export type OccMonth = { label: string; month: string; rate: number; carDays: number; capacity: number };
+export type OccMonth = {
+  label: string;
+  month: string;
+  rate: number;
+  carDays: number;
+  capacity: number;
+};
 
 const DAY = 86400000;
 const HOUR = 3600000;
 /** Tolerância do HQ (max_hours_before_daily_price): até 5 h além de um dia cheio não contam como novo dia. */
 const GRACE_HOURS = 5;
-const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTHS_PT = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 
 /**
  * Dias de aluguel de um trecho no período [start, end), no critério do relatório de Utilização do HQ
@@ -20,7 +39,12 @@ const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set"
  * - dias = maior entre 1 e (horas dentro do período − 5 h) ÷ 24, arredondado para cima.
  * Os horários são usados como o HQ os devolve, sem converter de fuso.
  */
-export function segmentDays(pickUpAt: string | null, returnAt: string | null, start: number, end: number): number {
+export function segmentDays(
+  pickUpAt: string | null,
+  returnAt: string | null,
+  start: number,
+  end: number,
+): number {
   if (!pickUpAt || !returnAt) return 0;
   const pickUp = Date.parse(pickUpAt);
   const returned = Date.parse(returnAt);
@@ -59,7 +83,9 @@ export function computeOccupancy(
     let carDays = 0;
     for (const s of segments) carDays += segmentDays(s.pick_up_at, s.return_at, start, end);
     const capacity =
-      typeof fleet === "number" ? fleet * days : fleet.reduce((sum, v) => sum + vehicleDays(v, start, end), 0);
+      typeof fleet === "number"
+        ? fleet * days
+        : fleet.reduce((sum, v) => sum + vehicleDays(v, start, end), 0);
     const d = new Date(start);
     out.push({
       label: `${MONTHS_PT[d.getUTCMonth()]}/${d.getUTCFullYear()}`,
@@ -74,13 +100,19 @@ export function computeOccupancy(
 
 export function occupancyMonthVariation(current?: OccMonth, previous?: OccMonth) {
   if (!current || !previous) return undefined;
-  return previous.rate ? ((current.rate - previous.rate) / previous.rate) * 100 : current.rate ? 100 : 0;
+  return previous.rate
+    ? ((current.rate - previous.rate) / previous.rate) * 100
+    : current.rate
+      ? 100
+      : 0;
 }
 
 export async function fetchOccupancy(from?: string, to?: string) {
   const now = new Date();
   const currentMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const periodFrom = from ?? `${currentMonth.getUTCFullYear()}-${String(currentMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  const periodFrom =
+    from ??
+    `${currentMonth.getUTCFullYear()}-${String(currentMonth.getUTCMonth() + 1).padStart(2, "0")}-01`;
   const periodTo = to ?? now.toISOString().slice(0, 10);
   const monthOffset = (value: string) => {
     const [year, month] = value.slice(0, 7).split("-").map(Number);
@@ -88,8 +120,12 @@ export async function fetchOccupancy(from?: string, to?: string) {
   };
   const firstOffset = monthOffset(periodFrom) - 13;
   const lastOffset = Math.max(2, monthOffset(periodTo) + 2);
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + firstOffset, 1)).toISOString();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + lastOffset + 1, 1)).toISOString();
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + firstOffset, 1),
+  ).toISOString();
+  const end = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + lastOffset + 1, 1),
+  ).toISOString();
   const months = lastOffset - firstOffset + 1;
 
   const [segments, fleet] = await Promise.all([
@@ -108,7 +144,8 @@ export async function fetchOccupancy(from?: string, to?: string) {
   if (!segments.error && !fleet.error && fleet.data.length > 0) {
     const vehicles = fleet.data as OccVehicle[];
     return {
-      vehicles: vehicles.filter((v) => !v.exit_date || Date.parse(v.exit_date) > now.getTime()).length,
+      vehicles: vehicles.filter((v) => !v.exit_date || Date.parse(v.exit_date) > now.getTime())
+        .length,
       months: computeOccupancy(segments.data as OccSegment[], vehicles, now, months, firstOffset),
     };
   }
@@ -128,5 +165,8 @@ export async function fetchOccupancy(from?: string, to?: string) {
   ]);
   if (res.error) throw res.error;
   const vehicles = size.data?.vehicles ?? 0;
-  return { vehicles, months: computeOccupancy(res.data as OccSegment[], vehicles, now, months, firstOffset) };
+  return {
+    vehicles,
+    months: computeOccupancy(res.data as OccSegment[], vehicles, now, months, firstOffset),
+  };
 }

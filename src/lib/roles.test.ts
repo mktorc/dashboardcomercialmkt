@@ -5,7 +5,8 @@ const TABS = ["dashboard", "comercial", "comercial-operacional"] as const;
 
 describe("permissões por perfil", () => {
   it("superadmin vê todas as abas", () => {
-    for (const p of [...TABS, "configuracoes"] as const) expect(canAccess("superadmin", p)).toBe(true);
+    for (const p of [...TABS, "configuracoes"] as const)
+      expect(canAccess("superadmin", p)).toBe(true);
   });
   it("equipes veem todas as abas de dados", () => {
     for (const r of ["comercial", "marketing"] as const)

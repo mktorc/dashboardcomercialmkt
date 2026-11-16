@@ -1,7 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- respostas de tabelas fora dos tipos gerados do Supabase; tipar exige regenerar types.ts */
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { fetchKommoLeads, kommoAsOpportunity } from "@/lib/kommo-leads";
-import { averageDiscount, GLOBAL_GOAL, OCCUPANCY_GOAL, previousYearDate, yearOverYearDiscount } from "@/lib/commercial-goals";
+import {
+  averageDiscount,
+  GLOBAL_GOAL,
+  OCCUPANCY_GOAL,
+  previousYearDate,
+  yearOverYearDiscount,
+} from "@/lib/commercial-goals";
 
 export const UNASSIGNED_LABEL = "Fila de Atendimento / Não Atribuído";
 export type COpp = {
@@ -18,28 +25,55 @@ export type COpp = {
 };
 // Origens que NÃO são agência de viagem: a aba Operacional só considera oportunidades vindas delas.
 const NON_AGENCY_ORIGIN_NAMES = [
-  "meta ads", "google ads", "camp.hispana", "turistorlando", "viajando barato para orlando", "alex veiga",
-  "victoria salvalaggio", "gabi blanck", "theodoro", "talu concept", "natalia souza", "redirectbox",
-  "master vacation", "indicacao", "cliente recorrente", "instagram",
+  "meta ads",
+  "google ads",
+  "camp.hispana",
+  "turistorlando",
+  "viajando barato para orlando",
+  "alex veiga",
+  "victoria salvalaggio",
+  "gabi blanck",
+  "theodoro",
+  "talu concept",
+  "natalia souza",
+  "redirectbox",
+  "master vacation",
+  "indicacao",
+  "cliente recorrente",
+  "instagram",
 ];
 // Comparação sem acento, caixa, espaço ou pontuação ("@ViajandobaratoparaOrlando" = "Viajando barato para Orlando").
 const originKey = (v: string | null | undefined) =>
-  (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  (v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 const NON_AGENCY_ORIGINS = new Set(NON_AGENCY_ORIGIN_NAMES.map(originKey));
-export const isNonAgencyOrigin = (origin: string | null | undefined) => NON_AGENCY_ORIGINS.has(originKey(origin));
+export const isNonAgencyOrigin = (origin: string | null | undefined) =>
+  NON_AGENCY_ORIGINS.has(originKey(origin));
 
 /** lead_id → origem do lead (apenas leads com origem preenchida). */
 export async function fetchLeadOrigins(): Promise<Map<string, string>> {
   const { data, error } = await fetchAll((a, b) =>
-    supabase.from("crm_leads").select("lead_id, lead_origin").not("lead_origin", "is", null).order("lead_id").range(a, b),
+    supabase
+      .from("crm_leads")
+      .select("lead_id, lead_origin")
+      .not("lead_origin", "is", null)
+      .order("lead_id")
+      .range(a, b),
   );
   if (error) throw error;
-  return new Map((data as { lead_id: string; lead_origin: string }[]).map((l) => [l.lead_id, l.lead_origin]));
+  return new Map(
+    (data as { lead_id: string; lead_origin: string }[]).map((l) => [l.lead_id, l.lead_origin]),
+  );
 }
 
 /** Mantém só oportunidades cujo lead tem origem fora de agência de viagem. */
-export const keepNonAgencyOpps = <T extends { lead_id: string | null }>(opps: T[], origins: Map<string, string>) =>
-  opps.filter((o) => !!o.lead_id && isNonAgencyOrigin(origins.get(o.lead_id)));
+export const keepNonAgencyOpps = <T extends { lead_id: string | null }>(
+  opps: T[],
+  origins: Map<string, string>,
+) => opps.filter((o) => !!o.lead_id && isNonAgencyOrigin(origins.get(o.lead_id)));
 
 export const DIRECT_SALE_LABEL = "Venda Direta / Site";
 export type CRes = {
@@ -56,10 +90,8 @@ export type CRes = {
 };
 // Faturamento / receita provisionada = coluna rack_rate (HQ) em ambas as abas comerciais.
 // Sem rack_rate a reserva não contribui; não há fallback para total_amount.
-const reservationRackRate = (
-  reservation: Pick<CRes, "rack_rate">,
-  _useHqRackRate = true,
-) => reservation.rack_rate ?? 0;
+const reservationRackRate = (reservation: Pick<CRes, "rack_rate">, _useHqRackRate = true) =>
+  reservation.rack_rate ?? 0;
 export type CTask = {
   lead_id: string | null;
   user_name: string | null;
@@ -67,13 +99,13 @@ export type CTask = {
   due_date: string | null;
   created_at: string;
 };
-export type Goal = { 
-  seller_name: string; 
-  month: string; 
-  revenue_goal: number; 
-  ticket_goal: number; 
+export type Goal = {
+  seller_name: string;
+  month: string;
+  revenue_goal: number;
+  ticket_goal: number;
   discount_goal?: number;
-  conversion_goal?: number; 
+  conversion_goal?: number;
 };
 
 // Apelidos usados no HQ Rentals -> nome do usuário no ClickMassa
@@ -104,7 +136,9 @@ export function getPreviousPeriod(from: string, to: string) {
   const previousMonthDate = (value: string) => {
     const [year, month, day] = value.split("-").map(Number);
     const date = new Date(Date.UTC(year!, month! - 2, 1));
-    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+    const lastDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+    ).getUTCDate();
     date.setUTCDate(Math.min(day!, lastDay));
     return date.toISOString().slice(0, 10);
   };
@@ -129,7 +163,9 @@ async function fetchRevenueBreakdown() {
     const { data, error } = await fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price")
+        .select(
+          "created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price",
+        )
         .gte("created_at", histFrom)
         .range(a, b),
     );
@@ -169,7 +205,15 @@ async function fetchRevenueBreakdown() {
       rack_rate: r.rack_rate ?? 0,
       miscellaneous_price: r.miscellaneous_price ?? 0,
       additional_charges_price: r.additional_charges_price ?? 0,
-    })) as Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[];
+    })) as Pick<
+      CRes,
+      | "created_at"
+      | "seller_name"
+      | "status"
+      | "rack_rate"
+      | "miscellaneous_price"
+      | "additional_charges_price"
+    >[];
   } catch (err) {
     console.error("fetchRevenueBreakdown exception:", err);
     return [];
@@ -181,14 +225,18 @@ export async function fetchActiveOpportunities(): Promise<COpp[]> {
   const { data, error } = await fetchAll((a, b) =>
     supabase
       .from("crm_opportunities")
-      .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
+      .select(
+        "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at",
+      )
       .eq("pipeline_name", "Comercial")
       .eq("status", "open")
       .order("opportunity_id")
       .range(a, b),
   );
   if (error) throw error;
-  return (data as COpp[]).filter((o) => isOperationalSeller(o.seller_name) || !o.seller_name?.trim());
+  return (data as COpp[]).filter(
+    (o) => isOperationalSeller(o.seller_name) || !o.seller_name?.trim(),
+  );
 }
 
 export async function fetchComercial(from: string, to: string) {
@@ -200,7 +248,9 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("reservations")
-        .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name, pick_up_at, reservation_id")
+        .select(
+          "created_at, total_amount, discount_amount, rack_rate, status, seller_name, pick_up_at, reservation_id",
+        )
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
         .range(a, b),
@@ -211,11 +261,15 @@ export async function fetchComercial(from: string, to: string) {
         .select("lead_id, user_name, completed, due_date, created_at")
         .range(a, b),
     ),
-    supabase.from("sales_goals").select("seller_name, month, revenue_goal, ticket_goal, discount_goal, conversion_goal"),
+    supabase
+      .from("sales_goals")
+      .select("seller_name, month, revenue_goal, ticket_goal, discount_goal, conversion_goal"),
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
+        .select(
+          "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at",
+        )
         .eq("pipeline_name", "Comercial")
         .order("opportunity_id")
         .range(a, b),
@@ -232,14 +286,17 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, status, seller_name, pending_tasks, total_tasks, created_at")
+        .select(
+          "opportunity_id, lead_id, status, seller_name, pending_tasks, total_tasks, created_at",
+        )
         .eq("pipeline_name", "Comercial")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
         .range(a, b),
     ),
     fetchAll((a, b) =>
-      supabase.from("reservations")
+      supabase
+        .from("reservations")
         .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
         .eq("status", "confirmed")
         .gte("created_at", startIso(previousYearDate(from)))
@@ -249,7 +306,9 @@ export async function fetchComercial(from: string, to: string) {
     fetchAll((a, b) =>
       supabase
         .from("crm_opportunities")
-        .select("opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at")
+        .select(
+          "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at",
+        )
         .eq("pipeline_name", "Comercial")
         .gte("created_at", startIso(previousYearDate(from)))
         .lte("created_at", endIso(previousYearDate(to)))
@@ -259,13 +318,20 @@ export async function fetchComercial(from: string, to: string) {
 
   // Reservas do período sem retirada em reservations: usa o primeiro trecho (reservation_segments), que o sync preenche por veículo.
   const missingPickup = ((res.data ?? []) as CRes[]).filter(
-    (r) => !r.pick_up_at && r.reservation_id && r.created_at >= startIso(from) && r.created_at <= endIso(to),
+    (r) =>
+      !r.pick_up_at &&
+      r.reservation_id &&
+      r.created_at >= startIso(from) &&
+      r.created_at <= endIso(to),
   );
   if (missingPickup.length) {
     const firstPickup = new Map<string, string>();
     for (let i = 0; i < missingPickup.length; i += 200) {
       const ids = missingPickup.slice(i, i + 200).map((r) => r.reservation_id!);
-      const { data: segs } = await supabase.from("reservation_segments").select("reservation_id, pick_up_at").in("reservation_id", ids);
+      const { data: segs } = await supabase
+        .from("reservation_segments")
+        .select("reservation_id, pick_up_at")
+        .in("reservation_id", ids);
       (segs ?? []).forEach((sg) => {
         const cur = firstPickup.get(sg.reservation_id);
         if (!cur || sg.pick_up_at < cur) firstPickup.set(sg.reservation_id, sg.pick_up_at);
@@ -287,7 +353,15 @@ export async function fetchComercial(from: string, to: string) {
     fetchKommoLeads(startIso(previousYearDate(from)), endIso(previousYearDate(to))),
   ]);
   const kommoOpps = kommo.map((lead) => kommoAsOpportunity(lead));
-  const err = res.error || tasks.error || goals.error || opps.error || prevRes.error || prevOpps.error || yearRes.error || yearOpps.error;
+  const err =
+    res.error ||
+    tasks.error ||
+    goals.error ||
+    opps.error ||
+    prevRes.error ||
+    prevOpps.error ||
+    yearRes.error ||
+    yearOpps.error;
   if (err) throw err;
 
   return {
@@ -298,7 +372,8 @@ export async function fetchComercial(from: string, to: string) {
       discount_amount: Number(r.discount_amount),
       rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
       miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price),
-      additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
+      additional_charges_price:
+        r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
     })),
     tasks: tasks.data as CTask[],
     goals: ((goals.data ?? []) as any[]).map((g) => ({
@@ -308,8 +383,19 @@ export async function fetchComercial(from: string, to: string) {
       discount_goal: Number(g.discount_goal ?? 0),
       conversion_goal: Number(g.conversion_goal ?? 0),
     })),
-    yearReservations: (yearRes.data as CRes[]).map((r) => ({ ...r, total_amount: Number(r.total_amount), discount_amount: Number(r.discount_amount), rack_rate: r.rack_rate == null ? null : Number(r.rack_rate), miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price), additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price) })),
-    yearOpportunities: [...((yearOpps.data ?? []) as COpp[]), ...kommoYear.map((lead) => kommoAsOpportunity(lead))] as COpp[],
+    yearReservations: (yearRes.data as CRes[]).map((r) => ({
+      ...r,
+      total_amount: Number(r.total_amount),
+      discount_amount: Number(r.discount_amount),
+      rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
+      miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price),
+      additional_charges_price:
+        r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
+    })),
+    yearOpportunities: [
+      ...((yearOpps.data ?? []) as COpp[]),
+      ...kommoYear.map((lead) => kommoAsOpportunity(lead)),
+    ] as COpp[],
     prevData: {
       reservations: (prevRes.data ?? []).map((r: any) => ({
         ...r,
@@ -317,9 +403,15 @@ export async function fetchComercial(from: string, to: string) {
         discount_amount: Number(r.discount_amount ?? 0),
         rack_rate: r.rack_rate == null ? null : Number(r.rack_rate),
         miscellaneous_price: r.miscellaneous_price == null ? 0 : Number(r.miscellaneous_price),
-        additional_charges_price: r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
+        additional_charges_price:
+          r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
       })),
-      opportunities: [...(prevOpps.data ?? []), ...kommoOpps.filter((o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo))],
+      opportunities: [
+        ...(prevOpps.data ?? []),
+        ...kommoOpps.filter(
+          (o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo),
+        ),
+      ],
     },
     revenueBreakdownData,
   };
@@ -328,7 +420,8 @@ export async function fetchComercial(from: string, to: string) {
 export type ComercialData = Awaited<ReturnType<typeof fetchComercial>>;
 
 const OPERATIONAL_SELLERS = new Set(["nathalia", "mauro", "gessica", "thalita"]);
-export const isOperationalSeller = (name: string | null | undefined) => OPERATIONAL_SELLERS.has(sellerKey(name));
+export const isOperationalSeller = (name: string | null | undefined) =>
+  OPERATIONAL_SELLERS.has(sellerKey(name));
 
 export function filterOperationalData(data: ComercialData): ComercialData {
   const keepGoal = (goal: Goal) =>
@@ -345,24 +438,36 @@ export function filterOperationalData(data: ComercialData): ComercialData {
     yearOpportunities: data.yearOpportunities.filter((row) => isOperationalSeller(row.seller_name)),
     prevData: {
       ...data.prevData,
-      reservations: data.prevData.reservations.filter((row) => isOperationalSeller(row.seller_name)),
-      opportunities: (data.prevData.opportunities as { seller_name: string | null }[])
-        .filter((row) => isOperationalSeller(row.seller_name)),
+      reservations: data.prevData.reservations.filter((row) =>
+        isOperationalSeller(row.seller_name),
+      ),
+      opportunities: (data.prevData.opportunities as { seller_name: string | null }[]).filter(
+        (row) => isOperationalSeller(row.seller_name),
+      ),
     },
   };
 }
 
-export function filterNonAgencyData(data: ComercialData, origins: Map<string, string>): ComercialData {
+export function filterNonAgencyData(
+  data: ComercialData,
+  origins: Map<string, string>,
+): ComercialData {
   return {
     ...data,
     opportunities: keepNonAgencyOpps(data.opportunities, origins),
     yearOpportunities: keepNonAgencyOpps(data.yearOpportunities, origins),
-    prevData: { ...data.prevData, opportunities: keepNonAgencyOpps(data.prevData.opportunities as COpp[], origins) },
+    prevData: {
+      ...data.prevData,
+      opportunities: keepNonAgencyOpps(data.prevData.opportunities as COpp[], origins),
+    },
   };
 }
 
 export function computeOpportunityTotalsBySeller(opportunities: Pick<COpp, "seller_name">[]) {
-  const totals = new Map<string, { key: string; name: string; oportunidades: number; reservas: number }>();
+  const totals = new Map<
+    string,
+    { key: string; name: string; oportunidades: number; reservas: number }
+  >();
   opportunities.forEach((opportunity) => {
     const key = sellerKey(opportunity.seller_name);
     const row = totals.get(key) ?? {
@@ -408,11 +513,27 @@ export type MonthlyCommercial = {
   descontoPct: number;
 };
 
-const MONTHS_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTHS_PT = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 
 export function computeMonthlyCommercial(
   opportunities: Pick<COpp, "created_at" | "seller_name">[],
-  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "total_amount" | "discount_amount" | "rack_rate">[],
+  reservations: Pick<
+    CRes,
+    "created_at" | "seller_name" | "status" | "total_amount" | "discount_amount" | "rack_rate"
+  >[],
   seller: string,
   from: string,
   to: string,
@@ -445,7 +566,8 @@ export function computeMonthlyCommercial(
   reservations.forEach((reservation) => {
     if (reservation.status !== "confirmed") return;
     const reservationSeller = sellerKey(reservation.seller_name);
-    const effectiveSeller = reservationSeller === "sem_vendedor" ? "venda_direta" : reservationSeller;
+    const effectiveSeller =
+      reservationSeller === "sem_vendedor" ? "venda_direta" : reservationSeller;
     if (seller !== "all" && effectiveSeller !== seller) return;
     const bucket = buckets.get(reservation.created_at.slice(0, 7));
     if (!bucket) return;
@@ -471,11 +593,28 @@ const COMMERCIAL_TEAM = new Set(["thalita", "mauro", "nathalia", "gessica"]);
 const isCommercialTeam = (name: string | null | undefined) => COMMERCIAL_TEAM.has(sellerKey(name));
 
 export function computeDailyRevenueBreakdown(
-  reservations: Pick<CRes, "created_at" | "seller_name" | "status" | "rack_rate" | "miscellaneous_price" | "additional_charges_price">[],
+  reservations: Pick<
+    CRes,
+    | "created_at"
+    | "seller_name"
+    | "status"
+    | "rack_rate"
+    | "miscellaneous_price"
+    | "additional_charges_price"
+  >[],
   from: string,
   to: string,
-): Array<{ dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number; total: number }> {
-  const buckets = new Map<string, { dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }>();
+): Array<{
+  dia: string;
+  rackRate: number;
+  miscellaneousPrice: number;
+  additionalChargesPrice: number;
+  total: number;
+}> {
+  const buckets = new Map<
+    string,
+    { dia: string; rackRate: number; miscellaneousPrice: number; additionalChargesPrice: number }
+  >();
   for (const key of revenueBreakdownMonths()) {
     const dia = `${key.slice(5, 7)}/${key.slice(2, 4)}`;
     buckets.set(key, {
@@ -513,7 +652,12 @@ export function computeDailyRevenueBreakdown(
   });
 
   if (processedCount > 0) {
-    console.debug("[RevenueBreakdown] Processados:", { processedCount, totalRackRate, totalMiscellaneous, totalAdditionalCharges });
+    console.debug("[RevenueBreakdown] Processados:", {
+      processedCount,
+      totalRackRate,
+      totalMiscellaneous,
+      totalAdditionalCharges,
+    });
   }
 
   return [...buckets.values()].map((b) => ({
@@ -522,7 +666,13 @@ export function computeDailyRevenueBreakdown(
   }));
 }
 
-export function computeComercial(d: ComercialData, from: string, to: string, seller: string, useHqRackRate = false) {
+export function computeComercial(
+  d: ComercialData,
+  from: string,
+  to: string,
+  seller: string,
+  useHqRackRate = false,
+) {
   const today = new Date().toISOString().slice(0, 10);
   const inPeriod = (iso: string) => iso >= startIso(from) && iso <= endIso(to);
   const names = new Map<string, string>();
@@ -544,8 +694,25 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const touch = (k: string) => {
     if (!rows.has(k))
       rows.set(k, {
-        key: k, name: "", leads: 0, oportunidades: 0, overdue: 0, pending: 0, done: 0, tasksTotal: 0, noTask: 0, reservas: 0, conversao: 0,
-        ticket: 0, faturamento: 0, descontoPct: 0, revenueGoal: 0, ticketGoal: 0, discountGoal: 0, gross: 0, disc: 0,
+        key: k,
+        name: "",
+        leads: 0,
+        oportunidades: 0,
+        overdue: 0,
+        pending: 0,
+        done: 0,
+        tasksTotal: 0,
+        noTask: 0,
+        reservas: 0,
+        conversao: 0,
+        ticket: 0,
+        faturamento: 0,
+        descontoPct: 0,
+        revenueGoal: 0,
+        ticketGoal: 0,
+        discountGoal: 0,
+        gross: 0,
+        disc: 0,
       });
     return rows.get(k)!;
   };
@@ -563,15 +730,17 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     if (hasNoTask(o)) r.noTask++;
   });
 
-  d.tasks.filter((t) => inPeriod(t.created_at)).forEach((t) => {
-    const r = touch(nameOf(t.user_name));
-    r.tasksTotal++;
-    if (t.completed) r.done++;
-    else {
-      r.pending++;
-      if (t.due_date && t.due_date < today) r.overdue++;
-    }
-  });
+  d.tasks
+    .filter((t) => inPeriod(t.created_at))
+    .forEach((t) => {
+      const r = touch(nameOf(t.user_name));
+      r.tasksTotal++;
+      if (t.completed) r.done++;
+      else {
+        r.pending++;
+        if (t.due_date && t.due_date < today) r.overdue++;
+      }
+    });
 
   confirmed
     .filter((r) => inPeriod(r.created_at))
@@ -587,9 +756,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     });
 
   // Faturamento das reservas criadas no período (e do vendedor filtrado), agrupado pelo mês de retirada.
-  const pickupMonths = new Map<string, { monthKey: string; mes: string; faturamento: number; reservas: number }>();
+  const pickupMonths = new Map<
+    string,
+    { monthKey: string; mes: string; faturamento: number; reservas: number }
+  >();
   confirmed
-    .filter((r) => inPeriod(r.created_at) && (seller === "all" || sellerKey(r.seller_name) === seller))
+    .filter(
+      (r) => inPeriod(r.created_at) && (seller === "all" || sellerKey(r.seller_name) === seller),
+    )
     .forEach((r) => {
       const monthKey = r.pick_up_at ? r.pick_up_at.slice(0, 7) : "sem-data";
       const [y, m] = monthKey.split("-");
@@ -603,7 +777,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
       row.reservas++;
       pickupMonths.set(monthKey, row);
     });
-  const revenueByPickupMonth = [...pickupMonths.values()].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+  const revenueByPickupMonth = [...pickupMonths.values()].sort((a, b) =>
+    a.monthKey.localeCompare(b.monthKey),
+  );
 
   const goalCount = new Map<string, number>();
   d.goals
@@ -657,18 +833,24 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const leadsNoTask = noTaskList.length;
   // Sem tarefas por vendedor: todos os períodos, sem filtro de data, só time comercial.
   const noTaskBySellerMap = new Map<string, { name: string; noTask: number }>();
-  d.opportunities.filter((o) => isOperationalSeller(o.seller_name) && hasNoTask(o)).forEach((o) => {
-    const k = nameOf(o.seller_name);
-    const row = noTaskBySellerMap.get(k) ?? { name: names.get(k) ?? UNASSIGNED_LABEL, noTask: 0 };
-    row.noTask++;
-    noTaskBySellerMap.set(k, row);
-  });
+  d.opportunities
+    .filter((o) => isOperationalSeller(o.seller_name) && hasNoTask(o))
+    .forEach((o) => {
+      const k = nameOf(o.seller_name);
+      const row = noTaskBySellerMap.get(k) ?? { name: names.get(k) ?? UNASSIGNED_LABEL, noTask: 0 };
+      row.noTask++;
+      noTaskBySellerMap.set(k, row);
+    });
   const noTaskBySeller = [...noTaskBySellerMap.values()].sort((a, b) => b.noTask - a.noTask);
 
   const daily = new Map<string, { dia: string; leads: number; oportunidades: number }>();
   const dailyOpportunitiesBySeller = new Map<string, Record<string, string | number>>();
   const dailyRevenueBySeller = new Map<string, Record<string, string | number>>();
-  for (let c = new Date(from + "T00:00:00"); c <= new Date(to + "T00:00:00"); c.setDate(c.getDate() + 1)) {
+  for (
+    let c = new Date(from + "T00:00:00");
+    c <= new Date(to + "T00:00:00");
+    c.setDate(c.getDate() + 1)
+  ) {
     const key = `${c.getFullYear()}-${String(c.getMonth() + 1).padStart(2, "0")}-${String(c.getDate()).padStart(2, "0")}`;
     const dia = `${key.slice(8)}/${key.slice(5, 7)}`;
     daily.set(key, { dia, leads: 0, oportunidades: 0 });
@@ -692,19 +874,22 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   });
 
   const dailyRevenueKeys = new Set<string>();
-  confirmed.filter((r) => inPeriod(r.created_at)).forEach((r) => {
-    const key = dayKey(r.created_at);
-    const sellerKeyValue = nameOf(r.seller_name);
-    const effectiveSeller = sellerKeyValue === "sem_vendedor" ? "venda_direta" : sellerKeyValue;
-    if (seller !== "all" && effectiveSeller !== seller) return;
-    if (effectiveSeller === "venda_direta") names.set(effectiveSeller, DIRECT_SALE_LABEL);
-    const sellerName = names.get(effectiveSeller) ?? effectiveSeller;
-    const stacked = dailyRevenueBySeller.get(key);
-    if (stacked) {
-      stacked[sellerName] = Number(stacked[sellerName] ?? 0) + reservationRackRate(r, useHqRackRate);
-      dailyRevenueKeys.add(sellerName);
-    }
-  });
+  confirmed
+    .filter((r) => inPeriod(r.created_at))
+    .forEach((r) => {
+      const key = dayKey(r.created_at);
+      const sellerKeyValue = nameOf(r.seller_name);
+      const effectiveSeller = sellerKeyValue === "sem_vendedor" ? "venda_direta" : sellerKeyValue;
+      if (seller !== "all" && effectiveSeller !== seller) return;
+      if (effectiveSeller === "venda_direta") names.set(effectiveSeller, DIRECT_SALE_LABEL);
+      const sellerName = names.get(effectiveSeller) ?? effectiveSeller;
+      const stacked = dailyRevenueBySeller.get(key);
+      if (stacked) {
+        stacked[sellerName] =
+          Number(stacked[sellerName] ?? 0) + reservationRackRate(r, useHqRackRate);
+        dailyRevenueKeys.add(sellerName);
+      }
+    });
 
   const leads = sum((r) => r.leads);
   const oportunidades = sum((r) => r.oportunidades);
@@ -715,11 +900,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const tasksTotal = sum((r) => r.tasksTotal);
 
   const totalTasksUnfiltered = pendingTasks + doneTasks;
-  const taskExecutionRateFormatted = totalTasksUnfiltered > 0
-    ? `${((doneTasks / totalTasksUnfiltered) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
-    : '0%';
+  const taskExecutionRateFormatted =
+    totalTasksUnfiltered > 0
+      ? `${((doneTasks / totalTasksUnfiltered) * 100).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+      : "0%";
 
-  const filteredTasks = d.tasks.filter((t) => seller === "all" || sellerKey(t.user_name) === seller);
+  const filteredTasks = d.tasks.filter(
+    (t) => seller === "all" || sellerKey(t.user_name) === seller,
+  );
   const leadFirstTaskMap = new Map<string, number>();
 
   filteredTasks.forEach((t) => {
@@ -740,7 +928,8 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     const createdAt = new Date(opportunity.created_at).getTime();
     if (isNaN(createdAt)) return;
     const existing = leadCreatedAt.get(opportunity.lead_id);
-    if (existing === undefined || createdAt < existing) leadCreatedAt.set(opportunity.lead_id, createdAt);
+    if (existing === undefined || createdAt < existing)
+      leadCreatedAt.set(opportunity.lead_id, createdAt);
   });
   leadCreatedAt.forEach((leadTime, leadId) => {
     const firstTaskTime = leadFirstTaskMap.get(leadId);
@@ -749,9 +938,10 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     }
   });
 
-  let slaFormatted = '--';
+  let slaFormatted = "--";
   if (responseTimesInMinutes.length > 0) {
-    const avgMinutes = responseTimesInMinutes.reduce((a, b) => a + b, 0) / responseTimesInMinutes.length;
+    const avgMinutes =
+      responseTimesInMinutes.reduce((a, b) => a + b, 0) / responseTimesInMinutes.length;
     if (!isNaN(avgMinutes) && avgMinutes >= 0) {
       if (avgMinutes < 60) {
         slaFormatted = `${Math.round(avgMinutes)} min`;
@@ -765,8 +955,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
 
   // --- CÁLCULO DO PERÍODO ANTERIOR E VARIAÇÕES PERCENTUAIS ---
   const prevConfirmed = d.prevData.reservations.filter((r: any) => r.status === "confirmed");
-  const prevFilteredRes = seller === "all" ? prevConfirmed : prevConfirmed.filter((r: any) => sellerKey(r.seller_name) === seller);
-  const prevFilteredOpps = seller === "all" ? d.prevData.opportunities : d.prevData.opportunities.filter((o: any) => sellerKey(o.seller_name) === seller);
+  const prevFilteredRes =
+    seller === "all"
+      ? prevConfirmed
+      : prevConfirmed.filter((r: any) => sellerKey(r.seller_name) === seller);
+  const prevFilteredOpps =
+    seller === "all"
+      ? d.prevData.opportunities
+      : d.prevData.opportunities.filter((o: any) => sellerKey(o.seller_name) === seller);
 
   const prevOppsCount = prevFilteredOpps.length;
   const prevReservasCount = prevFilteredRes.length;
@@ -776,7 +972,7 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   );
   const prevConversao = prevOppsCount ? prevReservasCount / prevOppsCount : 0;
   const prevTicket = prevReservasCount ? prevFaturamento / prevReservasCount : 0;
-  
+
   const currentPeriodNoTaskCount = sellerOpps.filter(hasNoTask).length;
   const prevNoTaskCount = (prevFilteredOpps as COpp[]).filter(hasNoTask).length;
 
@@ -788,13 +984,21 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   const currentConversao = oportunidades ? reservas / oportunidades : 0;
   const currentTicket = reservas ? faturamento / reservas : 0;
 
-  const belongsToSeller = (r: { seller_name: string | null }) => seller === "all" ||
-    (sellerKey(r.seller_name) === "sem_vendedor" ? "venda_direta" : sellerKey(r.seller_name)) === seller;
-  const currentDiscount = averageDiscount(confirmed.filter((r) => inPeriod(r.created_at) && belongsToSeller(r)));
+  const belongsToSeller = (r: { seller_name: string | null }) =>
+    seller === "all" ||
+    (sellerKey(r.seller_name) === "sem_vendedor" ? "venda_direta" : sellerKey(r.seller_name)) ===
+      seller;
+  const currentDiscount = averageDiscount(
+    confirmed.filter((r) => inPeriod(r.created_at) && belongsToSeller(r)),
+  );
   const priorYear = d.yearReservations.filter(belongsToSeller);
   const kpis = {
     descontoPct: currentDiscount,
-    descontoYearDiff: yearOverYearDiscount(currentDiscount, averageDiscount(priorYear), priorYear.length > 0),
+    descontoYearDiff: yearOverYearDiscount(
+      currentDiscount,
+      averageDiscount(priorYear),
+      priorYear.length > 0,
+    ),
     leads,
     oportunidades,
     oportunidadesVar: calcVariation(oportunidades, prevOppsCount),
@@ -841,7 +1045,9 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
   return {
     daily: [...daily.values()],
     dailyOpportunitiesBySeller: [...dailyOpportunitiesBySeller.values()],
-    dailyOpportunityKeys: [...new Set(sellerOpps.map((o) => names.get(nameOf(o.seller_name)) ?? UNASSIGNED_LABEL))],
+    dailyOpportunityKeys: [
+      ...new Set(sellerOpps.map((o) => names.get(nameOf(o.seller_name)) ?? UNASSIGNED_LABEL)),
+    ],
     dailyRevenueBySeller: [...dailyRevenueBySeller.values()],
     dailyRevenueKeys: [...dailyRevenueKeys],
     noTaskList,
@@ -851,7 +1057,14 @@ export function computeComercial(d: ComercialData, from: string, to: string, sel
     sellers,
     monthly: [...monthly.values()],
     revenueByPickupMonth,
-    monthlyKpis: computeMonthlyCommercial(d.opportunities, d.reservations, seller, from, to, useHqRackRate),
+    monthlyKpis: computeMonthlyCommercial(
+      d.opportunities,
+      d.reservations,
+      seller,
+      from,
+      to,
+      useHqRackRate,
+    ),
     monthlyKpisPreviousYear: computeMonthlyCommercial(
       d.yearOpportunities,
       d.yearReservations,

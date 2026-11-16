@@ -1,7 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { isOperationalSeller } from "@/lib/comercial";
-import { fetchKommoLeads, fetchKommoWins, kommoAsOpportunity, KOMMO_PREFIX } from "@/lib/kommo-leads";
+import {
+  fetchKommoLeads,
+  fetchKommoWins,
+  kommoAsOpportunity,
+  KOMMO_PREFIX,
+} from "@/lib/kommo-leads";
 
 const iso = (d: Date) => d.toISOString();
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
@@ -136,9 +141,27 @@ type ContactRule = {
 const CONTACT_RULES: ContactRule[] = [
   // Meta: só pela Origem do Lead. A conexão "Campanha Meta" recebe contatos de qualquer origem (recorrentes, indicações, sem origem).
   { id: "meta", match: /^meta$/, connection: [], origin: ["%meta%"], combined: true },
-  { id: "google", match: /^google$/, connection: ["%Oficial AFS%", "%Google Ads%"], origin: ["%google%"], combined: false },
-  { id: "turistorlando", match: /turist/, connection: ["%turist%"], origin: ["%turist%"], combined: true },
-  { id: "agencias", match: /agenc|indica/, connection: ["%agenc%", "%indica%"], origin: ["%agenc%", "%indica%"], combined: true },
+  {
+    id: "google",
+    match: /^google$/,
+    connection: ["%Oficial AFS%", "%Google Ads%"],
+    origin: ["%google%"],
+    combined: false,
+  },
+  {
+    id: "turistorlando",
+    match: /turist/,
+    connection: ["%turist%"],
+    origin: ["%turist%"],
+    combined: true,
+  },
+  {
+    id: "agencias",
+    match: /agenc|indica/,
+    connection: ["%agenc%", "%indica%"],
+    origin: ["%agenc%", "%indica%"],
+    combined: true,
+  },
 ];
 
 export async function fetchAnalytics(from: string, to: string): Promise<AnalyticsData> {
@@ -147,83 +170,93 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   // Mesmos limites em UTC da aba Comercial, para as oportunidades baterem.
   const utcFrom = `${from}T00:00:00.000Z`;
   const utcTo = `${to}T23:59:59.999Z`;
-  const [meta, google, reservations, createdOpportunities, updatedOpportunities, contacts, allLeads] = await Promise.all([
-      fetchAll((a, b) =>
-        supabase
-          .from("meta_ads_metrics")
-          .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversations, leads")
-          .gte("date", from)
-          .lte("date", to)
-          .range(a, b),
-      ),
-      // `conversions` exige a migração 0033; sem ela, cai para a consulta antiga.
-      fetchAll((a, b) =>
-        supabase
-          .from("google_ads_metrics")
-          .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversions")
-          .gte("date", from)
-          .lte("date", to)
-          .range(a, b),
-      ).then((res) =>
-        res.error
-          ? fetchAll((a, b) =>
-              supabase
-                .from("google_ads_metrics")
-                .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
-                .gte("date", from)
-                .lte("date", to)
-                .range(a, b),
-            )
-          : res,
-      ),
-      // Base global: todas as reservas confirmadas criadas no período, sem exigir UTM/origem/lead.
-      fetchAll((a, b) =>
-        supabase
-          .from("reservations")
-          .select(
-            "reservation_id, created_at, pick_up_at, car_category, rental_days, total_amount, rack_rate, status, utm_campaign, commission_partner, phone8, email_lc",
-          )
-          .eq("status", "confirmed")
-          .gte("created_at", iso(fromDate))
-          .lte("created_at", iso(toDate))
-          .order("reservation_id")
-          .range(a, b),
-      ),
-      fetchAll((a, b) =>
-        supabase
-          .from("crm_opportunities")
-          .select(
-            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
-          )
-          .eq("pipeline_name", "Comercial")
-          .gte("created_at", utcFrom)
-          .lte("created_at", utcTo)
-          .range(a, b),
-      ),
-      fetchAll((a, b) =>
-        supabase
-          .from("crm_opportunities")
-          .select(
-            "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
-          )
-          .eq("pipeline_name", "Comercial")
-          .gte("updated_at", iso(fromDate))
-          .lte("updated_at", iso(toDate))
-          .range(a, b),
-      ),
+  const [
+    meta,
+    google,
+    reservations,
+    createdOpportunities,
+    updatedOpportunities,
+    contacts,
+    allLeads,
+  ] = await Promise.all([
+    fetchAll((a, b) =>
       supabase
-        .from("crm_leads")
-        .select("id", { count: "exact", head: true })
-        .not("first_connection_name", "is", null)
-        .neq("first_connection_name", "")
-        .gte("created_at", iso(fromDate))
-        .lte("created_at", iso(toDate)),
+        .from("meta_ads_metrics")
+        .select(
+          "date, campaign_name, spend, clicks, impressions, utm_campaign, conversations, leads",
+        )
+        .gte("date", from)
+        .lte("date", to)
+        .range(a, b),
+    ),
+    // `conversions` exige a migração 0033; sem ela, cai para a consulta antiga.
+    fetchAll((a, b) =>
       supabase
-        .from("crm_leads")
-        .select("id", { count: "exact", head: true })
+        .from("google_ads_metrics")
+        .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversions")
+        .gte("date", from)
+        .lte("date", to)
+        .range(a, b),
+    ).then((res) =>
+      res.error
+        ? fetchAll((a, b) =>
+            supabase
+              .from("google_ads_metrics")
+              .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
+              .gte("date", from)
+              .lte("date", to)
+              .range(a, b),
+          )
+        : res,
+    ),
+    // Base global: todas as reservas confirmadas criadas no período, sem exigir UTM/origem/lead.
+    fetchAll((a, b) =>
+      supabase
+        .from("reservations")
+        .select(
+          "reservation_id, created_at, pick_up_at, car_category, rental_days, total_amount, rack_rate, status, utm_campaign, commission_partner, phone8, email_lc",
+        )
+        .eq("status", "confirmed")
         .gte("created_at", iso(fromDate))
-        .lte("created_at", iso(toDate)),
-    ]);
+        .lte("created_at", iso(toDate))
+        .order("reservation_id")
+        .range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase
+        .from("crm_opportunities")
+        .select(
+          "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
+        )
+        .eq("pipeline_name", "Comercial")
+        .gte("created_at", utcFrom)
+        .lte("created_at", utcTo)
+        .range(a, b),
+    ),
+    fetchAll((a, b) =>
+      supabase
+        .from("crm_opportunities")
+        .select(
+          "opportunity_id, lead_id, seller_name, created_at, updated_at, stage_name, status, pipeline_step_id, value",
+        )
+        .eq("pipeline_name", "Comercial")
+        .gte("updated_at", iso(fromDate))
+        .lte("updated_at", iso(toDate))
+        .range(a, b),
+    ),
+    supabase
+      .from("crm_leads")
+      .select("id", { count: "exact", head: true })
+      .not("first_connection_name", "is", null)
+      .neq("first_connection_name", "")
+      .gte("created_at", iso(fromDate))
+      .lte("created_at", iso(toDate)),
+    supabase
+      .from("crm_leads")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", iso(fromDate))
+      .lte("created_at", iso(toDate)),
+  ]);
   // Contatos por origem vêm só de crm_leads (nunca de crm_opportunities).
   const countContacts = async (rule: ContactRule) => {
     const ilikes = (col: string, terms: string[]) => terms.map((t) => `${col}.ilike.${t}`);
@@ -244,7 +277,9 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     return (await count(conn)) || (await count(origin));
   };
   const contactCounts = await Promise.all(CONTACT_RULES.map(countContacts));
-  const contactsByOrigin = Object.fromEntries(CONTACT_RULES.map((r, i) => [r.id, contactCounts[i]!]));
+  const contactsByOrigin = Object.fromEntries(
+    CONTACT_RULES.map((r, i) => [r.id, contactCounts[i]!]),
+  );
   const [kommoLeads, kommoWins] = await Promise.all([
     fetchKommoLeads(utcFrom, utcTo),
     fetchKommoWins(iso(fromDate), iso(toDate)),
@@ -262,12 +297,21 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
 
   // Mesma base da aba Comercial: só vendedores operacionais.
   const createdRows = [
-    ...((createdOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
+    ...((createdOpportunities.data ?? []) as Omit<
+      OpportunityOriginRow,
+      "utm_source" | "utm_campaign"
+    >[]),
     ...kommoLeads.map((lead) => kommoAsOpportunity(lead)),
-  ].filter((row) => isOperationalSeller(row.seller_name)) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
+  ].filter((row) => isOperationalSeller(row.seller_name)) as Omit<
+    OpportunityOriginRow,
+    "utm_source" | "utm_campaign"
+  >[];
   // Kommo: o updated_at foi reescrito na importação; o ganho é datado pela reserva do HQ.
   const updatedRows = [
-    ...((updatedOpportunities.data ?? []) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[]),
+    ...((updatedOpportunities.data ?? []) as Omit<
+      OpportunityOriginRow,
+      "utm_source" | "utm_campaign"
+    >[]),
     ...kommoWins.map(({ lead, wonAt }) => ({ ...kommoAsOpportunity(lead, ""), updated_at: wonAt })),
   ] as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[];
   const leadIds = [
@@ -282,7 +326,9 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       fetchAll((a, b) =>
         supabase
           .from("crm_leads")
-          .select("lead_id, utm_source, lead_origin, utm_campaign, first_connection_name, phone8, email_lc")
+          .select(
+            "lead_id, utm_source, lead_origin, utm_campaign, first_connection_name, phone8, email_lc",
+          )
           .in("lead_id", leadIds.slice(index * 400, (index + 1) * 400))
           .range(a, b),
       ),
@@ -292,7 +338,12 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   if (originLeadError) throw originLeadError;
   const leadAttributionById = new Map<
     string,
-    { source: string | null; campaign: string | null; phone8: string | null; email_lc: string | null }
+    {
+      source: string | null;
+      campaign: string | null;
+      phone8: string | null;
+      email_lc: string | null;
+    }
   >();
   [...kommoLeads, ...kommoWins.map((win) => win.lead)].forEach((lead) =>
     leadAttributionById.set(lead.lead_id, {
@@ -335,8 +386,12 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       utm_campaign: opportunity.lead_id
         ? (leadAttributionById.get(opportunity.lead_id)?.campaign ?? null)
         : null,
-      phone8: opportunity.lead_id ? (leadAttributionById.get(opportunity.lead_id)?.phone8 ?? null) : null,
-      email_lc: opportunity.lead_id ? (leadAttributionById.get(opportunity.lead_id)?.email_lc ?? null) : null,
+      phone8: opportunity.lead_id
+        ? (leadAttributionById.get(opportunity.lead_id)?.phone8 ?? null)
+        : null,
+      email_lc: opportunity.lead_id
+        ? (leadAttributionById.get(opportunity.lead_id)?.email_lc ?? null)
+        : null,
     }));
 
   const num = <T extends { spend: unknown }>(rows: T[]) =>
@@ -344,12 +399,12 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const opportunities = attachOrigin(createdRows);
   const updated = attachOrigin(updatedRows);
 
-  const rawReservations = ((reservations.data ?? []) as (ReservationRow & { rack_rate: number | null })[]).map(
-    ({ rack_rate, ...reservation }) => ({
-      ...reservation,
-      total_amount: Number(rack_rate ?? reservation.total_amount),
-    }),
-  );
+  const rawReservations = (
+    (reservations.data ?? []) as (ReservationRow & { rack_rate: number | null })[]
+  ).map(({ rack_rate, ...reservation }) => ({
+    ...reservation,
+    total_amount: Number(rack_rate ?? reservation.total_amount),
+  }));
 
   const linkedReservations = await attachLeadOrigin(rawReservations);
 
@@ -360,7 +415,10 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
     opportunities,
     updatedOpportunities: updated,
     kommoLeadsAll: attachOrigin(
-      kommoLeads.map((lead) => kommoAsOpportunity(lead)) as Omit<OpportunityOriginRow, "utm_source" | "utm_campaign">[],
+      kommoLeads.map((lead) => kommoAsOpportunity(lead)) as Omit<
+        OpportunityOriginRow,
+        "utm_source" | "utm_campaign"
+      >[],
     ),
     contactsReceived: contacts.count ?? 0,
     leadsCreated: allLeads.count ?? 0,
@@ -373,11 +431,16 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
  * Sem isso só reservas com UTM ou Commission Partner entram na atribuição por canal.
  */
 async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[]> {
-  const chunk = <V,>(items: V[], size: number) =>
-    Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
-  const phones = [...new Set(rows.map((r) => r.phone8).filter((v): v is string => Boolean(v) && v!.length === 8))];
+  const chunk = <V>(items: V[], size: number) =>
+    Array.from({ length: Math.ceil(items.length / size) }, (_, i) =>
+      items.slice(i * size, (i + 1) * size),
+    );
+  const phones = [
+    ...new Set(rows.map((r) => r.phone8).filter((v): v is string => Boolean(v) && v!.length === 8)),
+  ];
   const emails = [...new Set(rows.map((r) => r.email_lc).filter((v): v is string => Boolean(v)))];
-  const select = "lead_id, phone8, email_lc, created_at, utm_source, lead_origin, first_connection_name";
+  const select =
+    "lead_id, phone8, email_lc, created_at, utm_source, lead_origin, first_connection_name";
   type L = {
     lead_id: string | null;
     phone8: string | null;
@@ -389,10 +452,14 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
   };
   const pages = await Promise.all([
     ...chunk(phones, 200).map((ids) =>
-      fetchAll((a, b) => supabase.from("crm_leads").select(select).in("phone8", ids).order("lead_id").range(a, b)),
+      fetchAll((a, b) =>
+        supabase.from("crm_leads").select(select).in("phone8", ids).order("lead_id").range(a, b),
+      ),
     ),
     ...chunk(emails, 100).map((ids) =>
-      fetchAll((a, b) => supabase.from("crm_leads").select(select).in("email_lc", ids).order("lead_id").range(a, b)),
+      fetchAll((a, b) =>
+        supabase.from("crm_leads").select(select).in("email_lc", ids).order("lead_id").range(a, b),
+      ),
     ),
   ]);
   const failed = pages.find((page) => page.error);
@@ -437,7 +504,8 @@ export function teamCostForRange(costs: Record<string, number>, from: string, to
     const day = new Date(t);
     const amount = costs[day.toISOString().slice(0, 7)];
     if (!amount) continue;
-    total += amount / new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)).getUTCDate();
+    total +=
+      amount / new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0)).getUTCDate();
   }
   return total;
 }
@@ -475,12 +543,10 @@ export function computeTimeseries(d: AnalyticsData, from?: string) {
   };
   [...d.meta, ...d.google].forEach((r) => (touch(r.date).investimento += r.spend));
   // Faturamento alocado pela data real de fechamento (created_at), não pela data de pick_up_at.
-  d.reservations.forEach(
-    (r) => {
-      const day = r.created_at.slice(0, 10);
-      touch(from && day < from ? from : day).faturamento += r.total_amount;
-    },
-  );
+  d.reservations.forEach((r) => {
+    const day = r.created_at.slice(0, 10);
+    touch(from && day < from ? from : day).faturamento += r.total_amount;
+  });
   return [...map.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((r) => ({ ...r, label: r.date.slice(8) + "/" + r.date.slice(5, 7) }));
@@ -769,7 +835,8 @@ export function computeOpportunityOrigins(
     return stagePosition.get(stageKey) ?? -1;
   };
   const latestById = new Map(updatedOpportunities.map((o) => [o.opportunity_id, o]));
-  const isWonNow = (o: OpportunityOriginRow) => isWonOpportunity(latestById.get(o.opportunity_id) ?? o);
+  const isWonNow = (o: OpportunityOriginRow) =>
+    isWonOpportunity(latestById.get(o.opportunity_id) ?? o);
   const funnel = sourceKeys.map((key, originIndex) => {
     const sourceOpportunities = opportunities.filter(
       (opportunity) => originKey(opportunity.utm_source) === key,
@@ -861,7 +928,11 @@ export function filterAnalyticsByOrigin(data: AnalyticsData, origin: string | nu
     ...(data.leadsCreated !== undefined ? { leadsCreated: data.leadsCreated } : {}),
     ...(data.contactsByOrigin ? { contactsByOrigin: data.contactsByOrigin } : {}),
     ...(data.kommoLeadsAll
-      ? { kommoLeadsAll: data.kommoLeadsAll.filter((o) => normalizeOrigin(o.utm_source) === selectedOrigin) }
+      ? {
+          kommoLeadsAll: data.kommoLeadsAll.filter(
+            (o) => normalizeOrigin(o.utm_source) === selectedOrigin,
+          ),
+        }
       : {}),
     meta: selectedOrigin === "meta" ? data.meta : [],
     google: selectedOrigin === "google" ? data.google : [],
@@ -909,7 +980,16 @@ const ratio = (a: number, b: number) => (b ? a / b : null);
 /** Funil por filtro: geral (Meta+Google, 2 etapas), Meta (3 etapas com conversas), Google (2 etapas). */
 export function buildDynamicFunnel(
   mode: "all" | "meta" | "google" | "other",
-  input: { conversations: number; metaLeads: number; metaRes: number; googleLeads: number; googleRes: number; otherLeads?: number; otherRes?: number; otherLabel?: string },
+  input: {
+    conversations: number;
+    metaLeads: number;
+    metaRes: number;
+    googleLeads: number;
+    googleRes: number;
+    otherLeads?: number;
+    otherRes?: number;
+    otherLabel?: string;
+  },
 ): DynamicFunnel {
   if (mode === "meta") {
     const { conversations: c, metaLeads: l, metaRes: r } = input;
@@ -929,9 +1009,9 @@ export function buildDynamicFunnel(
   }
   if (mode === "google" || mode === "other") {
     const isG = mode === "google";
-    const l = isG ? input.googleLeads : input.otherLeads ?? 0;
-    const r = isG ? input.googleRes : input.otherRes ?? 0;
-    const name = isG ? "Google Ads" : input.otherLabel ?? "Origem";
+    const l = isG ? input.googleLeads : (input.otherLeads ?? 0);
+    const r = isG ? input.googleRes : (input.otherRes ?? 0);
+    const name = isG ? "Google Ads" : (input.otherLabel ?? "Origem");
     return {
       title: name,
       stages: [
@@ -1039,7 +1119,10 @@ export function buildMarketingFunnel(
   });
   const useHq = partnerReservations.length >= MIN_CHANNEL_RESERVATIONS;
   const wonCount = useHq ? partnerReservations.length : summary.won;
-  const revenue = (useHq ? partnerReservations : summary.revenueRows).reduce((s, r) => s + r.total_amount, 0);
+  const revenue = (useHq ? partnerReservations : summary.revenueRows).reduce(
+    (s, r) => s + r.total_amount,
+    0,
+  );
 
   // Contatos por origem (nome da conexão). Só "todas" tem fallback para o total de leads criados.
   let contacts: number | null;
@@ -1058,7 +1141,11 @@ export function buildMarketingFunnel(
   const stages: MarketingFunnel["stages"] = [];
   const metrics: MarketingFunnel["metrics"] = [];
   const oppStage = { label: "Oportunidades criadas", count: opportunities };
-  const wonStage = { label: "Oportunidades ganhas (reservas)", count: wonCount, hint: brl(revenue) };
+  const wonStage = {
+    label: "Oportunidades ganhas (reservas)",
+    count: wonCount,
+    hint: brl(revenue),
+  };
 
   if (key === "google") {
     const conversions = Math.round(d.google.reduce((s, r) => s + (Number(r.conversions) || 0), 0));
@@ -1075,7 +1162,10 @@ export function buildMarketingFunnel(
       count: conversions,
       hint: conversions ? `CPA ${brl(spend / conversions)}` : undefined,
     });
-    metrics.push({ label: "Taxa de Recepção (Mídia → Contato)", value: ratio(contacts ?? 0, conversions) });
+    metrics.push({
+      label: "Taxa de Recepção (Mídia → Contato)",
+      value: ratio(contacts ?? 0, conversions),
+    });
   }
   if (key === "meta") {
     const nativeLeads = d.meta.reduce((s, r) => s + (Number(r.leads) || 0), 0);
@@ -1083,23 +1173,48 @@ export function buildMarketingFunnel(
     const clicks = d.meta.reduce((s, r) => s + (Number(r.clicks) || 0), 0);
     const metaLeads = nativeLeads || conversations || clicks;
     const spend = d.meta.reduce((s, r) => s + r.spend, 0);
-    const fallback = nativeLeads ? undefined : conversations ? "conversas (fallback)" : clicks ? "cliques (fallback)" : undefined;
+    const fallback = nativeLeads
+      ? undefined
+      : conversations
+        ? "conversas (fallback)"
+        : clicks
+          ? "cliques (fallback)"
+          : undefined;
     stages.push({
       label: "Leads gerados no Meta Ads",
       count: metaLeads,
-      hint: metaLeads ? [`CPL ${brl(spend / metaLeads)}`, fallback].filter(Boolean).join(" · ") : undefined,
+      hint: metaLeads
+        ? [`CPL ${brl(spend / metaLeads)}`, fallback].filter(Boolean).join(" · ")
+        : undefined,
     });
-    metrics.push({ label: "Taxa de Recepção (Mídia → Contato)", value: ratio(contacts ?? 0, metaLeads) });
+    metrics.push({
+      label: "Taxa de Recepção (Mídia → Contato)",
+      value: ratio(contacts ?? 0, metaLeads),
+    });
   }
-  if (contacts !== null) stages.push({ label: "Contatos recebidos no ClickMassa", count: contacts, hint: contactsHint });
+  if (contacts !== null)
+    stages.push({ label: "Contatos recebidos no ClickMassa", count: contacts, hint: contactsHint });
   stages.push(oppStage, wonStage);
 
-  if (contacts !== null) metrics.push({ label: "Taxa de Qualificação (Contato → Oportunidade)", value: ratio(opportunities, contacts) });
-  metrics.push({ label: "Taxa de Fechamento (Oportunidade → Ganha)", value: ratio(wonCount, opportunities) });
-  if (contacts !== null) {
-    const denom = key === "meta" ? stages[0]!.count : key === "google" ? stages[1]!.count : contacts;
+  if (contacts !== null)
     metrics.push({
-      label: key === "meta" ? "Conversão Global (Lead Meta → Ganha)" : key === "google" ? "Conversão Global (Conversão Google → Ganha)" : "Conversão Global (Contato → Ganha)",
+      label: "Taxa de Qualificação (Contato → Oportunidade)",
+      value: ratio(opportunities, contacts),
+    });
+  metrics.push({
+    label: "Taxa de Fechamento (Oportunidade → Ganha)",
+    value: ratio(wonCount, opportunities),
+  });
+  if (contacts !== null) {
+    const denom =
+      key === "meta" ? stages[0]!.count : key === "google" ? stages[1]!.count : contacts;
+    metrics.push({
+      label:
+        key === "meta"
+          ? "Conversão Global (Lead Meta → Ganha)"
+          : key === "google"
+            ? "Conversão Global (Conversão Google → Ganha)"
+            : "Conversão Global (Contato → Ganha)",
       value: ratio(wonCount, denom),
     });
   }
@@ -1144,14 +1259,34 @@ export type ChannelMonthlyPoint = {
   conversao: number | null;
   cac: number | null;
   /** Componentes do cálculo, mostrados no tooltip para conferência. */
-  detail: { created: number; won: number; reservations: number; revenue: number; media: number; team: number };
+  detail: {
+    created: number;
+    won: number;
+    reservations: number;
+    revenue: number;
+    media: number;
+    team: number;
+  };
 };
 // Mínimos para exibir os indicadores: abaixo disso a origem do lead não foi registrada o bastante
 // e a razão fica distorcida (ex.: CAC % de 120% com 1 reserva atribuída).
 export const MIN_CHANNEL_OPPORTUNITIES = 10;
 export const MIN_CHANNEL_RESERVATIONS = 5;
 
-const MONTH_LABEL = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTH_LABEL = [
+  "jan",
+  "fev",
+  "mar",
+  "abr",
+  "mai",
+  "jun",
+  "jul",
+  "ago",
+  "set",
+  "out",
+  "nov",
+  "dez",
+];
 
 /** Por mês: taxa de conversão (ganhas ÷ criadas) e CAC % (investimento ÷ rack rate), em %, por canal. */
 /** Até esta data o CRM era o Kommo (sem valor): o faturamento vem das reservas do HQ pela origem. */
@@ -1197,7 +1332,9 @@ function computeWonSummary(input: {
   inRange: (iso: string) => boolean;
 }) {
   const isClickmassaEra = (iso: string) => iso.slice(0, 10) >= CLICKMASSA_START;
-  const rangeOpportunities = input.opportunities.filter((o) => input.inRange(o.created_at) && isClickmassaEra(o.created_at));
+  const rangeOpportunities = input.opportunities.filter(
+    (o) => input.inRange(o.created_at) && isClickmassaEra(o.created_at),
+  );
   const usedReservations = new Set<ReservationRow>();
   const clickmassaRows: ReservationRow[] = [];
   rangeOpportunities
@@ -1216,12 +1353,17 @@ function computeWonSummary(input: {
         return;
       }
       if (match) usedReservations.add(match);
-      clickmassaRows.push(value > 0 ? { ...EMPTY_WON, created_at: o.created_at, total_amount: value } : match!);
+      clickmassaRows.push(
+        value > 0 ? { ...EMPTY_WON, created_at: o.created_at, total_amount: value } : match!,
+      );
     });
   const kommoReservations = input.attributedReservations.filter(
-    (r) => r.status === "confirmed" && input.inRange(r.created_at) && !isClickmassaEra(r.created_at),
+    (r) =>
+      r.status === "confirmed" && input.inRange(r.created_at) && !isClickmassaEra(r.created_at),
   );
-  const kommoCreated = input.kommoLeads.filter((o) => input.inRange(o.created_at) && !isClickmassaEra(o.created_at)).length;
+  const kommoCreated = input.kommoLeads.filter(
+    (o) => input.inRange(o.created_at) && !isClickmassaEra(o.created_at),
+  ).length;
   return {
     created: rangeOpportunities.length + kommoCreated,
     won: clickmassaRows.length + kommoReservations.length,
@@ -1258,7 +1400,8 @@ export function computeChannelMonthly(
   teamCosts: Record<string, number> = {},
 ): ChannelMonthlyPoint[] {
   // A atribuição usa o período todo (campanha → canal); só depois divide por mês.
-  const scopedAll: AnalyticsData = mode === "both" ? scopeMetaGoogle(data) : filterAnalyticsByOrigin(data, mode);
+  const scopedAll: AnalyticsData =
+    mode === "both" ? scopeMetaGoogle(data) : filterAnalyticsByOrigin(data, mode);
   const reservationsByContact = indexReservationsByContact(data.reservations);
   const inChannel = (o: OpportunityOriginRow) => {
     const origin = normalizeOrigin(o.utm_source);
@@ -1277,7 +1420,10 @@ export function computeChannelMonthly(
     // Faturamento do HQ: reservas confirmadas do mês cujo parceiro de comissão é o canal. Meses em que o HQ
     // não registrava o parceiro (antes de ago/2026) seguem a atribuição por origem do lead.
     const hqReservations = data.reservations.filter(
-      (r) => r.status === "confirmed" && inMonth(r.created_at) && inChannel({ utm_source: r.commission_partner } as OpportunityOriginRow),
+      (r) =>
+        r.status === "confirmed" &&
+        inMonth(r.created_at) &&
+        inChannel({ utm_source: r.commission_partner } as OpportunityOriginRow),
     );
     const scoped: AnalyticsData = {
       ...scopedAll,
@@ -1285,10 +1431,13 @@ export function computeChannelMonthly(
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: summary.clickmassaOpportunities,
       updatedOpportunities: [],
-      reservations: hqReservations.length >= MIN_CHANNEL_RESERVATIONS ? hqReservations : summary.revenueRows,
+      reservations:
+        hqReservations.length >= MIN_CHANNEL_RESERVATIONS ? hqReservations : summary.revenueRows,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
-    const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).toISOString().slice(0, 10);
+    const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0))
+      .toISOString()
+      .slice(0, 10);
     const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
     const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
     const kpis = computeKpis(scoped, teamSpend);
@@ -1298,7 +1447,10 @@ export function computeChannelMonthly(
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,
-      cac: kpis.reservations >= MIN_CHANNEL_RESERVATIONS && kpis.spend > 0 && kpis.cacPct != null ? kpis.cacPct * 100 : null,
+      cac:
+        kpis.reservations >= MIN_CHANNEL_RESERVATIONS && kpis.spend > 0 && kpis.cacPct != null
+          ? kpis.cacPct * 100
+          : null,
       detail: {
         created,
         won,

@@ -1,65 +1,107 @@
-import { useMemo, useState } from 'react'
-import { Carregando, Erro, Vazio } from './Estados'
-import { Input } from '@/components/ui/input'
-import { EditarComissaoDialog } from './EditarComissaoDialog'
-import { FiltrosBar } from './FiltrosBar'
-import { StatusBadge } from './StatusBadge'
-import { filtrosVazios, useNotasParceiros, useParceiros, usePerfil, useReservas } from '@/lib/comissoes/hooks'
-import { data, moeda } from '@/lib/comissoes/format'
-import { listarHistorico } from '@/lib/comissoes/service'
-import { descontoPct, podeEditarComissao, precisaValidar, statusDaReserva, temAjusteManual, type Filtros, type Reserva } from '@/lib/comissoes/types'
+import { useMemo, useState } from "react";
+import { Carregando, Erro, Vazio } from "./Estados";
+import { Input } from "@/components/ui/input";
+import { EditarComissaoDialog } from "./EditarComissaoDialog";
+import { FiltrosBar } from "./FiltrosBar";
+import { StatusBadge } from "./StatusBadge";
+import {
+  filtrosVazios,
+  useNotasParceiros,
+  useParceiros,
+  usePerfil,
+  useReservas,
+} from "@/lib/comissoes/hooks";
+import { data, moeda } from "@/lib/comissoes/format";
+import { listarHistorico } from "@/lib/comissoes/service";
+import {
+  descontoPct,
+  podeEditarComissao,
+  precisaValidar,
+  statusDaReserva,
+  temAjusteManual,
+  type Filtros,
+  type Reserva,
+} from "@/lib/comissoes/types";
 
 export default function Historico() {
-  const [filtros, setFiltros] = useState<Filtros>(filtrosVazios)
-  const parceiros = useParceiros()
-  const notas = useNotasParceiros()
-  const { podeEditar } = usePerfil()
-  const { linhas: todas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros)
-  const [visao, setVisao] = useState<'reserva' | 'parceiro'>('reserva')
-  const [busca, setBusca] = useState('')
-  const [editando, setEditando] = useState<Reserva | null>(null)
+  const [filtros, setFiltros] = useState<Filtros>(filtrosVazios);
+  const parceiros = useParceiros();
+  const notas = useNotasParceiros();
+  const { podeEditar } = usePerfil();
+  const { linhas: todas, carregando, erro, recarregar } = useReservas(listarHistorico, filtros);
+  const [visao, setVisao] = useState<"reserva" | "parceiro">("reserva");
+  const [busca, setBusca] = useState("");
+  const [editando, setEditando] = useState<Reserva | null>(null);
 
   const linhas = useMemo(() => {
-    const q = busca.trim().toLowerCase()
-    return q ? todas.filter((r) => r.hq_reservation_id.toLowerCase().includes(q)) : todas
-  }, [todas, busca])
+    const q = busca.trim().toLowerCase();
+    return q ? todas.filter((r) => r.hq_reservation_id.toLowerCase().includes(q)) : todas;
+  }, [todas, busca]);
 
   const porParceiro = useMemo(() => {
-    const mapa = new Map<string, { parceiro: string; reservas: number; retida: number; paga: number; liberada: number; bloqueada: number }>()
+    const mapa = new Map<
+      string,
+      {
+        parceiro: string;
+        reservas: number;
+        retida: number;
+        paga: number;
+        liberada: number;
+        bloqueada: number;
+      }
+    >();
     for (const r of linhas) {
-      const g = mapa.get(r.commission_partner) ?? { parceiro: r.commission_partner, reservas: 0, retida: 0, paga: 0, liberada: 0, bloqueada: 0 }
-      g.reservas++
-      g[statusDaReserva(r)] += r.valor_repasse
-      mapa.set(r.commission_partner, g)
+      const g = mapa.get(r.commission_partner) ?? {
+        parceiro: r.commission_partner,
+        reservas: 0,
+        retida: 0,
+        paga: 0,
+        liberada: 0,
+        bloqueada: 0,
+      };
+      g.reservas++;
+      g[statusDaReserva(r)] += r.valor_repasse;
+      mapa.set(r.commission_partner, g);
     }
-    return [...mapa.values()].sort((a, b) => a.parceiro.localeCompare(b.parceiro, 'pt-BR'))
-  }, [linhas])
+    return [...mapa.values()].sort((a, b) => a.parceiro.localeCompare(b.parceiro, "pt-BR"));
+  }, [linhas]);
 
   return (
     <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold text-foreground">Histórico de Comissões</h1>
-        <p className="text-sm text-muted-foreground">Todas as reservas importadas do HQ, com a checagem total pago × rack rate.</p>
+        <p className="text-sm text-muted-foreground">
+          Todas as reservas importadas do HQ, com a checagem total pago × rack rate.
+        </p>
       </header>
 
       <FiltrosBar filtros={filtros} parceiros={parceiros} onChange={setFiltros} />
 
       <div className="flex flex-wrap items-center gap-3">
-      <Input
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        placeholder="Buscar por reserva (nº do HQ)"
-        aria-label="Buscar por reserva"
-        className="h-9 w-64 bg-card"
-      />
-      <div className="inline-flex rounded-md border border-border bg-card p-0.5 text-sm">
-        {([['reserva', 'Por reserva'], ['parceiro', 'Por parceiro']] as const).map(([id, rotulo]) => (
-          <button key={id} onClick={() => setVisao(id)} aria-pressed={visao === id}
-            className={`rounded px-3 py-1.5 font-medium ${visao === id ? 'bg-primary text-white' : 'text-foreground/80 hover:bg-muted/40'}`}>
-            {rotulo}
-          </button>
-        ))}
-      </div>
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por reserva (nº do HQ)"
+          aria-label="Buscar por reserva"
+          className="h-9 w-64 bg-card"
+        />
+        <div className="inline-flex rounded-md border border-border bg-card p-0.5 text-sm">
+          {(
+            [
+              ["reserva", "Por reserva"],
+              ["parceiro", "Por parceiro"],
+            ] as const
+          ).map(([id, rotulo]) => (
+            <button
+              key={id}
+              onClick={() => setVisao(id)}
+              aria-pressed={visao === id}
+              className={`rounded px-3 py-1.5 font-medium ${visao === id ? "bg-primary text-white" : "text-foreground/80 hover:bg-muted/40"}`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -68,8 +110,14 @@ export default function Historico() {
         ) : erro ? (
           <Erro mensagem={erro} onRetry={recarregar} />
         ) : linhas.length === 0 ? (
-          <Vazio mensagem={busca.trim() ? "Nenhuma reserva encontrada para a busca." : "Nenhuma reserva encontrada com os filtros atuais."} />
-        ) : visao === 'parceiro' ? (
+          <Vazio
+            mensagem={
+              busca.trim()
+                ? "Nenhuma reserva encontrada para a busca."
+                : "Nenhuma reserva encontrada com os filtros atuais."
+            }
+          />
+        ) : visao === "parceiro" ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-border text-sm">
               <thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -93,8 +141,12 @@ export default function Historico() {
                     <td className="px-4 py-3 text-right text-emerald-400">{moeda(g.paga)}</td>
                     <td className="px-4 py-3 text-right text-blue-400">{moeda(g.liberada)}</td>
                     <td className="px-4 py-3 text-right text-amber-400">{moeda(g.bloqueada)}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{moeda(g.retida + g.paga + g.liberada + g.bloqueada)}</td>
-                    <td className="max-w-xs whitespace-pre-line px-4 py-3 text-xs text-muted-foreground">{notas[g.parceiro] ?? ""}</td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      {moeda(g.retida + g.paga + g.liberada + g.bloqueada)}
+                    </td>
+                    <td className="max-w-xs whitespace-pre-line px-4 py-3 text-xs text-muted-foreground">
+                      {notas[g.parceiro] ?? ""}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -123,53 +175,96 @@ export default function Historico() {
               </thead>
               <tbody className="divide-y divide-border">
                 {linhas.map((r) => {
-                  const dif = r.total_paid - r.rack_rate
+                  const dif = r.total_paid - r.rack_rate;
                   return (
                     <tr key={r.id} className="hover:bg-muted/40">
                       <td className="px-4 py-3 font-mono">
-                      {r.hq_reservation_id}
-                      {r.hq_status === 'cancelled' && (
-                        <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-sans text-xs text-foreground/80">Cancelada</span>
-                      )}
-                    </td>
+                        {r.hq_reservation_id}
+                        {r.hq_status === "cancelled" && (
+                          <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-sans text-xs text-foreground/80">
+                            Cancelada
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">{r.commission_partner}</td>
                       <td className="px-4 py-3">{data(r.created_at)}</td>
-                      <td className="px-4 py-3">{r.seller_name || '—'}</td>
+                      <td className="px-4 py-3">{r.seller_name || "—"}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.total_price)}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.total_paid)}</td>
                       <td className="px-4 py-3 text-right">{moeda(r.rack_rate)}</td>
-                      <td className={`px-4 py-3 text-right font-medium ${dif >= 0 ? 'text-emerald-400' : 'text-destructive'}`}>
-                        {dif >= 0 ? '+' : ''}{moeda(dif)}
+                      <td
+                        className={`px-4 py-3 text-right font-medium ${dif >= 0 ? "text-emerald-400" : "text-destructive"}`}
+                      >
+                        {dif >= 0 ? "+" : ""}
+                        {moeda(dif)}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {moeda(r.valor_comissao)}
-                        {temAjusteManual(r) && <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">Manual</span>}
+                        {temAjusteManual(r) && (
+                          <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">
+                            Manual
+                          </span>
+                        )}
                       </td>
-                      <td className="px-4 py-3 text-right">{r.manual_charge > 0 ? <>{moeda(r.manual_charge)}{r.incluir_manual_charge ? <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">No repasse</span> : null}</> : '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        {r.manual_charge > 0 ? (
+                          <>
+                            {moeda(r.manual_charge)}
+                            {r.incluir_manual_charge ? (
+                              <span className="ml-2 rounded bg-accent/20 px-1.5 py-0.5 text-xs text-accent">
+                                No repasse
+                              </span>
+                            ) : null}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         {r.desconto > 0 ? (
-                          <span className={precisaValidar(r) ? 'text-amber-400' : 'text-muted-foreground'}>
-                            {descontoPct(r).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
-                            {r.exige_validacao ? (r.desconto_validado_em ? ' · validado' : ' · a validar') : ''}
+                          <span
+                            className={
+                              precisaValidar(r) ? "text-amber-400" : "text-muted-foreground"
+                            }
+                          >
+                            {descontoPct(r).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%
+                            {r.exige_validacao
+                              ? r.desconto_validado_em
+                                ? " · validado"
+                                : " · a validar"
+                              : ""}
                           </span>
-                        ) : '—'}
+                        ) : (
+                          "—"
+                        )}
                       </td>
-                      <td className="px-4 py-3"><StatusBadge status={statusDaReserva(r)} /></td>
-                      <td className="px-4 py-3">{r.paga_em ? data(r.paga_em) : '—'}</td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={statusDaReserva(r)} />
+                      </td>
+                      <td className="px-4 py-3">{r.paga_em ? data(r.paga_em) : "—"}</td>
                       <td className="px-4 py-3 text-right">
                         {podeEditar && podeEditarComissao(r) && (
-                          <button onClick={() => setEditando(r)} className="text-accent hover:underline">Editar comissão</button>
+                          <button
+                            onClick={() => setEditando(r)}
+                            className="text-accent hover:underline"
+                          >
+                            Editar comissão
+                          </button>
                         )}
                       </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
           </div>
         )}
       </div>
-      <EditarComissaoDialog reserva={editando} onClose={() => setEditando(null)} onSalvo={recarregar} />
+      <EditarComissaoDialog
+        reserva={editando}
+        onClose={() => setEditando(null)}
+        onSalvo={recarregar}
+      />
     </div>
-  )
+  );
 }

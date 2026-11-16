@@ -17,7 +17,11 @@ export function ManualSyncButton() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const readLast = useServerFn(getLastReservationsSync);
-  const { data: last } = useQuery({ queryKey: ["last-sync-reservations"], queryFn: () => readLast(), staleTime: 60_000 });
+  const { data: last } = useQuery({
+    queryKey: ["last-sync-reservations"],
+    queryFn: () => readLast(),
+    staleTime: 60_000,
+  });
 
   async function onClick() {
     if (syncing) return;
@@ -29,7 +33,11 @@ export function ManualSyncButton() {
         return;
       }
       await queryClient.invalidateQueries();
-      toast.success(result.throttled ? "Dados já estavam atualizados (sincronizado há instantes)." : "Dados sincronizados com sucesso!");
+      toast.success(
+        result.throttled
+          ? "Dados já estavam atualizados (sincronizado há instantes)."
+          : "Dados sincronizados com sucesso!",
+      );
     } catch (e) {
       toast.error((e as Error).message || "Erro ao sincronizar");
     } finally {
@@ -39,7 +47,9 @@ export function ManualSyncButton() {
 
   return (
     <div className="flex items-center gap-2">
-      {last?.at ? <span className="text-xs text-foreground/60">Última atualização: {format(last.at)}</span> : null}
+      {last?.at ? (
+        <span className="text-xs text-foreground/60">Última atualização: {format(last.at)}</span>
+      ) : null}
       <Button size="sm" variant="outline" onClick={onClick} disabled={syncing} className="bg-card">
         <RefreshCw className={`mr-1 size-4 ${syncing ? "animate-spin" : ""}`} />
         {syncing ? "Sincronizando..." : "Sincronizar"}

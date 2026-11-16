@@ -15,7 +15,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowLeft, ArrowUpDown, DollarSign, Gauge, Maximize2, RefreshCw, Target, TrendingUp, UserCheck, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpDown,
+  DollarSign,
+  Gauge,
+  Maximize2,
+  RefreshCw,
+  Target,
+  TrendingUp,
+  UserCheck,
+  Wallet,
+} from "lucide-react";
 
 import { guardPage } from "@/lib/roles";
 import { SyncButton } from "@/components/dashboard/SyncButton";
@@ -23,12 +34,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card } from "@/components/ui/card";
 import { PeriodoPicker } from "@/components/PeriodoPicker";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
   brl,
@@ -110,7 +116,16 @@ const getPriorYearDates = (from: string, to: string) => {
   };
 };
 
-type AttributionSortKey = "utm" | "investimento" | "leads" | "cpl" | "reservas" | "conversao" | "faturamento" | "roas" | "cac";
+type AttributionSortKey =
+  | "utm"
+  | "investimento"
+  | "leads"
+  | "cpl"
+  | "reservas"
+  | "conversao"
+  | "faturamento"
+  | "roas"
+  | "cac";
 
 function Dashboard() {
   const today = new Date();
@@ -120,7 +135,11 @@ function Dashboard() {
   const [to, setTo] = useState(localDateInput(today));
   const [originFilter, setOriginFilter] = useState("all");
   const [includeTeam, setIncludeTeam] = useState(false);
-  const { data: teamCosts } = useQuery({ queryKey: ["team-costs"], queryFn: fetchTeamCosts, staleTime: 10 * 60 * 1000 });
+  const { data: teamCosts } = useQuery({
+    queryKey: ["team-costs"],
+    queryFn: fetchTeamCosts,
+    staleTime: 10 * 60 * 1000,
+  });
   // De janeiro do ano atual até o mês atual.
   const last12 = Array.from({ length: today.getMonth() + 1 }, (_, i) => {
     const d = new Date(today.getFullYear(), i, 1);
@@ -134,7 +153,9 @@ function Dashboard() {
   // Gráficos de oportunidades criadas/ganhas: sempre o ano todo (janeiro até hoje), independente do período.
   const yearStart = `${last12[0]}-01`;
   const priorYearStart = `${today.getFullYear() - 1}-01-01`;
-  const priorYearToday = localDateInput(new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()));
+  const priorYearToday = localDateInput(
+    new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()),
+  );
   const { data: data12Prior } = useQuery({
     queryKey: ["analytics-12m-prior", priorYearStart, priorYearToday],
     queryFn: () => fetchAnalytics(priorYearStart, priorYearToday),
@@ -143,7 +164,10 @@ function Dashboard() {
   const [channelMode, setChannelMode] = useState<ChannelComparisonMode>("both");
   // O funil tem seu próprio seletor (independe do filtro de origem do topo).
   const [funnelMode, setFunnelMode] = useState<ChannelComparisonMode>("both");
-  const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({ key: "investimento", dir: -1 });
+  const [attributionSort, setAttributionSort] = useState<{ key: AttributionSortKey; dir: 1 | -1 }>({
+    key: "investimento",
+    dir: -1,
+  });
   const priorYear = getPriorYearDates(from, to);
   const { data, isLoading, isFetching, refetch, error } = useQuery({
     queryKey: ["analytics", from, to],
@@ -178,27 +202,56 @@ function Dashboard() {
   const metaConversationsDaily = (() => {
     if (!data) return [];
     const byDay = new Map<string, number>();
-    data.current.meta.forEach((r) => byDay.set(r.date, (byDay.get(r.date) ?? 0) + (Number(r.conversations) || 0)));
+    data.current.meta.forEach((r) =>
+      byDay.set(r.date, (byDay.get(r.date) ?? 0) + (Number(r.conversations) || 0)),
+    );
     const days: { date: string; label: string; conversations: number }[] = [];
-    for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) {
+    for (
+      let t = Date.parse(`${from}T00:00:00Z`);
+      t <= Date.parse(`${to}T00:00:00Z`);
+      t += 86_400_000
+    ) {
       const date = new Date(t).toISOString().slice(0, 10);
-      days.push({ date, label: date.slice(8) + "/" + date.slice(5, 7), conversations: byDay.get(date) ?? 0 });
+      days.push({
+        date,
+        label: date.slice(8) + "/" + date.slice(5, 7),
+        conversations: byDay.get(date) ?? 0,
+      });
     }
     return days;
   })();
 
-  const metaConversationsTotal = metaConversationsDaily.reduce((sum, d) => sum + d.conversations, 0);
+  const metaConversationsTotal = metaConversationsDaily.reduce(
+    (sum, d) => sum + d.conversations,
+    0,
+  );
   const selectedOrigin = originFilter === "all" ? null : originFilter;
   const originData = data ? filterAnalyticsByOrigin(data.current, selectedOrigin) : null;
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
-  const teamSpend = includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
-  const kpis = originData && data ? computeKpis(withPartnerReservations(originData, selectedOrigin, data.current.reservations), teamSpend) : null;
+  const teamSpend =
+    includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
+  const kpis =
+    originData && data
+      ? computeKpis(
+          withPartnerReservations(originData, selectedOrigin, data.current.reservations),
+          teamSpend,
+        )
+      : null;
   // Mesmo cálculo do filtro de origem, por canal, para a linha "Meta · Google" de cada card.
   const channelKpis = (origin: "meta" | "google") =>
-    data ? computeKpis(withPartnerReservations(filterAnalyticsByOrigin(data.current, origin), origin, data.current.reservations)) : null;
+    data
+      ? computeKpis(
+          withPartnerReservations(
+            filterAnalyticsByOrigin(data.current, origin),
+            origin,
+            data.current.reservations,
+          ),
+        )
+      : null;
   const metaKpis = !selectedOrigin ? channelKpis("meta") : null;
   const googleKpis = !selectedOrigin ? channelKpis("google") : null;
-  const fmtPct = (v: number | null) => (v == null ? "—" : `${(v * 100).toFixed(1).replace(".", ",")}%`);
+  const fmtPct = (v: number | null) =>
+    v == null ? "—" : `${(v * 100).toFixed(1).replace(".", ",")}%`;
   const channelRows = (format: (k: NonNullable<typeof kpis>) => string) =>
     metaKpis && googleKpis
       ? [
@@ -210,14 +263,17 @@ function Dashboard() {
     const rows = channelRows(format);
     return rows ? { columns: [column], rows } : undefined;
   };
-  const channelMonthly = data12 ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {}) : [];
+  const channelMonthly = data12
+    ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {})
+    : [];
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
   attribution = attribution.sort((a, b) => {
     const va = a[attributionSort.key];
     const vb = b[attributionSort.key];
     if (va === null || vb === null) return (vb === null ? 1 : 0) - (va === null ? 1 : 0);
-    const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
+    const cmp =
+      typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
     return cmp * attributionSort.dir;
   });
   // "Todas as Origens": uma única série consolidada (atual vs. anterior), sem barras por origem.
@@ -227,10 +283,20 @@ function Dashboard() {
       : (originAnalytics?.sources ?? []).filter((source) => source.label === originFilter);
 
   const yearOrigin = data12
-    ? computeOpportunityOrigins(data12.opportunities, data12.updatedOpportunities, yearStart, localDateInput(today))
+    ? computeOpportunityOrigins(
+        data12.opportunities,
+        data12.updatedOpportunities,
+        yearStart,
+        localDateInput(today),
+      )
     : null;
   const yearPriorOrigin = data12Prior
-    ? computeOpportunityOrigins(data12Prior.opportunities, data12Prior.updatedOpportunities, priorYearStart, priorYearToday)
+    ? computeOpportunityOrigins(
+        data12Prior.opportunities,
+        data12Prior.updatedOpportunities,
+        priorYearStart,
+        priorYearToday,
+      )
     : null;
   const yoyCreatedMonthly =
     yearOrigin && yearPriorOrigin
@@ -257,14 +323,16 @@ function Dashboard() {
   // Entre set/2024 e nov/2025 o Kommo quase não etiquetou leads como Google (origem vazia ou "Outros Canais").
   const googleNote =
     selectedOrigin && /google/i.test(selectedOrigin)
-      ? "Atenção: de set/2024 a nov/2025 a origem Google está subestimada, pois o Kommo deixou de etiquetar esses leads (ficaram sem origem ou como \"Outros Canais\"). Comparações com 2026 mostram um salto que não é real."
+      ? 'Atenção: de set/2024 a nov/2025 a origem Google está subestimada, pois o Kommo deixou de etiquetar esses leads (ficaram sem origem ou como "Outros Canais"). Comparações com 2026 mostram um salto que não é real.'
       : undefined;
 
   const funnelOrigin = funnelMode === "both" ? null : funnelMode;
   // Consolidado do funil = Meta + Google, o mesmo escopo do Consolidado do comparativo de CAC.
   const dynamicFunnel = data
     ? buildMarketingFunnel(
-        funnelOrigin ? filterAnalyticsByOrigin(data.current, funnelOrigin) : scopeMetaGoogle(data.current),
+        funnelOrigin
+          ? filterAnalyticsByOrigin(data.current, funnelOrigin)
+          : scopeMetaGoogle(data.current),
         funnelOrigin,
         data.current.reservations,
         !funnelOrigin,
@@ -280,16 +348,30 @@ function Dashboard() {
         >
           <div>
             <h1 className="text-xl font-semibold text-foreground">Painel de Performance</h1>
-            <p className="text-sm text-foreground/70">Mídia paga, oportunidades ClickMassa e reservas HQ</p>
+            <p className="text-sm text-foreground/70">
+              Mídia paga, oportunidades ClickMassa e reservas HQ
+            </p>
           </div>
           <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
             <Button asChild variant="outline" size="sm" className="h-9">
-              <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
+              <Link to="/app">
+                <ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos
+              </Link>
             </Button>
             <SyncButton />
             <div className="text-xs text-foreground/70">
               Período
-              <PeriodoPicker inicio={from} fim={to} className="mt-1 h-9 w-full bg-card sm:w-56" onChange={(i, f) => { if (i && f) { setFrom(i); setTo(f); } }} />
+              <PeriodoPicker
+                inicio={from}
+                fim={to}
+                className="mt-1 h-9 w-full bg-card sm:w-56"
+                onChange={(i, f) => {
+                  if (i && f) {
+                    setFrom(i);
+                    setTo(f);
+                  }
+                }}
+              />
             </div>
             <label className="text-xs text-foreground/70">
               Origem
@@ -314,13 +396,19 @@ function Dashboard() {
           {error ? (
             <Card className="border-destructive/40 p-4 text-sm text-destructive">
               Não foi possível carregar os dados agora. Tente sincronizar novamente.
-              {error instanceof Error ? <p className="mt-1 break-words text-xs">{error.message}</p> : null}
+              {error instanceof Error ? (
+                <p className="mt-1 break-words text-xs">{error.message}</p>
+              ) : null}
             </Card>
           ) : null}
 
           <label
             className="flex w-fit items-center gap-2 text-xs text-foreground/80"
-            title={selectedOrigin ? "Disponível só em \"Todas as origens\"" : "Soma o investimento mensal da equipe (Configurações) a Investimento, CPL, CAC e ROAS"}
+            title={
+              selectedOrigin
+                ? 'Disponível só em "Todas as origens"'
+                : "Soma o investimento mensal da equipe (Configurações) a Investimento, CPL, CAC e ROAS"
+            }
           >
             <input
               type="checkbox"
@@ -335,9 +423,15 @@ function Dashboard() {
             <KpiCard
               icon={Wallet}
               label="Investimento total em mídia"
-              help={"Quanto foi investido em anúncios no período.\nSoma do gasto do Meta Ads e do Google Ads (mais a equipe de marketing, se a opção estiver marcada)."}
+              help={
+                "Quanto foi investido em anúncios no período.\nSoma do gasto do Meta Ads e do Google Ads (mais a equipe de marketing, se a opção estiver marcada)."
+              }
               value={kpis ? brl(kpis.spend) : "—"}
-              calc={kpis ? `Meta ${brl(kpis.metaSpend)} + Google ${brl(kpis.googleSpend)}${kpis.teamSpend ? ` + Equipe ${brl(kpis.teamSpend)}` : ""} = ${brl(kpis.spend)}` : undefined}
+              calc={
+                kpis
+                  ? `Meta ${brl(kpis.metaSpend)} + Google ${brl(kpis.googleSpend)}${kpis.teamSpend ? ` + Equipe ${brl(kpis.teamSpend)}` : ""} = ${brl(kpis.spend)}`
+                  : undefined
+              }
               breakdown={
                 kpis
                   ? {
@@ -356,9 +450,15 @@ function Dashboard() {
             <KpiCard
               icon={Target}
               label="CPL global"
-              help={"Custo por lead: investimento ÷ oportunidades criadas no ClickMassa no período.\nMostra quanto custa gerar cada oportunidade."}
+              help={
+                "Custo por lead: investimento ÷ oportunidades criadas no ClickMassa no período.\nMostra quanto custa gerar cada oportunidade."
+              }
               value={kpis ? brl(kpis.cpl) : "—"}
-              calc={kpis ? `${brl(kpis.spend)} investidos ÷ ${kpis.leads} oportunidades no ClickMassa = ${brl(kpis.cpl)}` : undefined}
+              calc={
+                kpis
+                  ? `${brl(kpis.spend)} investidos ÷ ${kpis.leads} oportunidades no ClickMassa = ${brl(kpis.cpl)}`
+                  : undefined
+              }
               breakdown={breakdownOf("CPL", (k) => brl(k.cpl))}
               wrapHint
               compact
@@ -367,9 +467,15 @@ function Dashboard() {
             <KpiCard
               icon={UserCheck}
               label="Conversão comercial"
-              help={"Percentual de oportunidades que viraram reserva.\nReservas confirmadas no HQ ÷ oportunidades criadas no ClickMassa."}
+              help={
+                "Percentual de oportunidades que viraram reserva.\nReservas confirmadas no HQ ÷ oportunidades criadas no ClickMassa."
+              }
               value={kpis ? pct(kpis.conversion) : "—"}
-              calc={kpis ? `${kpis.reservations} reservas no HQ ÷ ${kpis.leads} oportunidades no ClickMassa = ${pct(kpis.conversion)}` : undefined}
+              calc={
+                kpis
+                  ? `${kpis.reservations} reservas no HQ ÷ ${kpis.leads} oportunidades no ClickMassa = ${pct(kpis.conversion)}`
+                  : undefined
+              }
               breakdown={breakdownOf("Conversão", (k) => pct(k.conversion))}
               highlight
               wrapHint
@@ -379,9 +485,15 @@ function Dashboard() {
             <KpiCard
               icon={DollarSign}
               label="Ticket médio"
-              help={"Valor médio por reserva HQ.\nFaturamento das reservas confirmadas ÷ número de reservas."}
+              help={
+                "Valor médio por reserva HQ.\nFaturamento das reservas confirmadas ÷ número de reservas."
+              }
               value={kpis ? brl(kpis.ticket) : "—"}
-              calc={kpis ? `${brl(kpis.revenue)} de faturamento ÷ ${kpis.reservations} reservas HQ = ${brl(kpis.ticket)}` : undefined}
+              calc={
+                kpis
+                  ? `${brl(kpis.revenue)} de faturamento ÷ ${kpis.reservations} reservas HQ = ${brl(kpis.ticket)}`
+                  : undefined
+              }
               breakdown={breakdownOf("Ticket", (k) => brl(k.ticket))}
               wrapHint
               compact
@@ -390,7 +502,9 @@ function Dashboard() {
             <KpiCard
               icon={Gauge}
               label="Custo de aquisição de clientes"
-              help={"CAC: quanto custa conquistar cada reserva.\nInvestimento em mídia (Meta + Google, mais equipe se marcada) ÷ reservas HQ.\nCAC percentual: investimento ÷ faturamento em rack rate."}
+              help={
+                "CAC: quanto custa conquistar cada reserva.\nInvestimento em mídia (Meta + Google, mais equipe se marcada) ÷ reservas HQ.\nCAC percentual: investimento ÷ faturamento em rack rate."
+              }
               value={kpis?.cac == null ? "—" : `${brl(kpis.cac)} (${fmtPct(kpis.cacPct)})`}
               calc={
                 kpis
@@ -402,8 +516,20 @@ function Dashboard() {
                   ? {
                       columns: ["CAC", "CAC %"],
                       rows: [
-                        { label: "Meta", values: [metaKpis.cac == null ? "—" : brl(metaKpis.cac), fmtPct(metaKpis.cacPct)] },
-                        { label: "Google", values: [googleKpis.cac == null ? "—" : brl(googleKpis.cac), fmtPct(googleKpis.cacPct)] },
+                        {
+                          label: "Meta",
+                          values: [
+                            metaKpis.cac == null ? "—" : brl(metaKpis.cac),
+                            fmtPct(metaKpis.cacPct),
+                          ],
+                        },
+                        {
+                          label: "Google",
+                          values: [
+                            googleKpis.cac == null ? "—" : brl(googleKpis.cac),
+                            fmtPct(googleKpis.cacPct),
+                          ],
+                        },
                       ],
                     }
                   : undefined
@@ -415,9 +541,15 @@ function Dashboard() {
             <KpiCard
               icon={TrendingUp}
               label="ROAS real global"
-              help={"Retorno sobre o investimento.\nFaturamento das reservas confirmadas ÷ investimento. 2x = cada US$ 1 investido voltou US$ 2."}
+              help={
+                "Retorno sobre o investimento.\nFaturamento das reservas confirmadas ÷ investimento. 2x = cada US$ 1 investido voltou US$ 2."
+              }
               value={kpis ? `${kpis.roas.toFixed(2)}x` : "—"}
-              calc={kpis ? `${brl(kpis.revenue)} de faturamento ÷ ${brl(kpis.spend)} investidos = ${kpis.roas.toFixed(2)}x` : undefined}
+              calc={
+                kpis
+                  ? `${brl(kpis.revenue)} de faturamento ÷ ${brl(kpis.spend)} investidos = ${kpis.roas.toFixed(2)}x`
+                  : undefined
+              }
               breakdown={breakdownOf("ROAS", (k) => `${k.roas.toFixed(2)}x`)}
               highlight
               wrapHint
@@ -429,55 +561,55 @@ function Dashboard() {
           <section className="grid gap-4">
             <ExpandableChartPanel title="Evolução diária — Investimento x Faturamento">
               {(expanded) => (
-              <div style={{ height: expanded ? "70vh" : 288 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={0.5} />
-                        <stop offset="95%" stopColor={CHART_PRIMARY} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="inv" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={CHART_SECONDARY} stopOpacity={0.7} />
-                        <stop offset="95%" stopColor={CHART_SECONDARY} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                    <XAxis dataKey="label" {...axis} />
-                    <YAxis
-                      yAxisId="revenue"
-                      {...axis}
-                      tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
-                    />
-                    <YAxis
-                      yAxisId="spend"
-                      orientation="right"
-                      {...axis}
-                      domain={[0, "auto"]}
-                      tickFormatter={(value: number) => `$${Math.round(value)}`}
-                    />
-                    <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                    <Area
-                      type="monotone"
-                      dataKey="faturamento"
-                      yAxisId="revenue"
-                      name="Faturamento"
-                      stroke={CHART_PRIMARY}
-                      fill="url(#rev)"
-                      strokeWidth={2}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="investimento"
-                      yAxisId="spend"
-                      name="Investimento"
-                      stroke={CHART_SECONDARY}
-                      strokeWidth={2.5}
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+                <div style={{ height: expanded ? "70vh" : 288 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={series} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={CHART_PRIMARY} stopOpacity={0.5} />
+                          <stop offset="95%" stopColor={CHART_PRIMARY} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="inv" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={CHART_SECONDARY} stopOpacity={0.7} />
+                          <stop offset="95%" stopColor={CHART_SECONDARY} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                      <XAxis dataKey="label" {...axis} />
+                      <YAxis
+                        yAxisId="revenue"
+                        {...axis}
+                        tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`}
+                      />
+                      <YAxis
+                        yAxisId="spend"
+                        orientation="right"
+                        {...axis}
+                        domain={[0, "auto"]}
+                        tickFormatter={(value: number) => `$${Math.round(value)}`}
+                      />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
+                      <Area
+                        type="monotone"
+                        dataKey="faturamento"
+                        yAxisId="revenue"
+                        name="Faturamento"
+                        stroke={CHART_PRIMARY}
+                        fill="url(#rev)"
+                        strokeWidth={2}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="investimento"
+                        yAxisId="spend"
+                        name="Investimento"
+                        stroke={CHART_SECONDARY}
+                        strokeWidth={2.5}
+                        dot={false}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
               )}
             </ExpandableChartPanel>
           </section>
@@ -506,33 +638,53 @@ function Dashboard() {
                 title="Conversas iniciadas por mensagem (Meta Ads)"
                 subtitle="Uma barra por dia do período selecionado. Fonte: Meta, ação messaging_conversation_started_7d."
               >
-                {(expanded) => (<>
-                <p className="-mt-2 mb-2 text-2xl font-bold text-foreground">
-                  {metaConversationsTotal.toLocaleString("pt-BR")}
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">conversas no período (soma de todos os dias)</span>
-                </p>
-                {metaConversationsDaily.length ? (
-                  <div className="w-full min-w-0" style={{ height: expanded ? "65vh" : 300 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={metaConversationsDaily} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="label" minTickGap={8} {...axis} />
-                        <YAxis allowDecimals={false} {...axis} />
-                        <Tooltip
-                          contentStyle={tooltipStyle}
-                          formatter={(v: number) => [v.toLocaleString("pt-BR"), "Conversas iniciadas"]}
-                          labelFormatter={(_, payload) => String(payload?.[0]?.payload?.date ?? "").split("-").reverse().join("/")}
-                        />
-                        <Bar dataKey="conversations" name="Conversas iniciadas" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
-                    {isLoading ? "Carregando..." : "Sem dados no período."}
-                  </div>
+                {(expanded) => (
+                  <>
+                    <p className="-mt-2 mb-2 text-2xl font-bold text-foreground">
+                      {metaConversationsTotal.toLocaleString("pt-BR")}
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        conversas no período (soma de todos os dias)
+                      </span>
+                    </p>
+                    {metaConversationsDaily.length ? (
+                      <div className="w-full min-w-0" style={{ height: expanded ? "65vh" : 300 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={metaConversationsDaily}
+                            margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                            <XAxis dataKey="label" minTickGap={8} {...axis} />
+                            <YAxis allowDecimals={false} {...axis} />
+                            <Tooltip
+                              contentStyle={tooltipStyle}
+                              formatter={(v: number) => [
+                                v.toLocaleString("pt-BR"),
+                                "Conversas iniciadas",
+                              ]}
+                              labelFormatter={(_, payload) =>
+                                String(payload?.[0]?.payload?.date ?? "")
+                                  .split("-")
+                                  .reverse()
+                                  .join("/")
+                              }
+                            />
+                            <Bar
+                              dataKey="conversations"
+                              name="Conversas iniciadas"
+                              fill={CHART_PRIMARY}
+                              radius={[4, 4, 0, 0]}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+                        {isLoading ? "Carregando..." : "Sem dados no período."}
+                      </div>
+                    )}
+                  </>
                 )}
-                </>)}
               </ExpandableChartPanel>
             </div>
             <ExpandableChartPanel
@@ -541,50 +693,90 @@ function Dashboard() {
               subtitle="Desde janeiro · Conversão = ganhas ÷ criadas · CAC % = investimento ÷ faturamento em rack rate."
               actions={
                 <div className="flex gap-1">
-                  {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
-                    <Button key={key} size="sm" variant={channelMode === key ? "default" : "outline"} onClick={() => setChannelMode(key)}>
+                  {(
+                    [
+                      ["meta", "Meta Ads"],
+                      ["google", "Google Ads"],
+                      ["both", "Consolidado"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      size="sm"
+                      variant={channelMode === key ? "default" : "outline"}
+                      onClick={() => setChannelMode(key)}
+                    >
                       {label}
                     </Button>
                   ))}
                 </div>
               }
             >
-              {(expanded) => (<>
-              <div className="w-full min-w-0" style={{ height: expanded ? "60vh" : 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={channelMonthly} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="month" interval={0} tick={{ fontSize: 11 }} />
-                    <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      content={({ active, payload, label }) => {
-                        const point = active ? (payload?.[0]?.payload as ChannelMonthlyPoint | undefined) : undefined;
-                        if (!point) return null;
-                        const d = point.detail;
-                        const fmt = (v: number | null) => (v == null ? "sem dados suficientes" : `${v.toFixed(2).replace(".", ",")}%`);
-                        return (
-                          <div className="rounded-md border border-border bg-card p-3 text-xs text-foreground shadow-md">
-                            <p className="mb-1 font-semibold">{label}</p>
-                            <p>Conversão: {fmt(point.conversao)}</p>
-                            <p className="text-muted-foreground">{d.won} ganhas ÷ {d.created} oportunidades criadas</p>
-                            <p className="mt-1">CAC %: {fmt(point.cac)}</p>
-                            <p className="text-muted-foreground">
-                              {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷ {brl(d.revenue)} faturamento ({d.reservations} reservas/ganhas)
-                            </p>
-                          </div>
-                        );
-                      }}
-                    />
-                    <Legend />
-                    <Bar dataKey="conversao" name="Taxa de Conversão (%)" fill={CHART_PRIMARY} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cac" name="CAC Percentual (%)" fill={CHART_SECONDARY} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-                Meses sem barra não têm dados suficientes: o canal precisa de pelo menos {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026. No Consolidado, o CAC % também inclui o investimento mensal na equipe de marketing (Configurações).
-              </p>
-              </>)}
+              {(expanded) => (
+                <>
+                  <div className="w-full min-w-0" style={{ height: expanded ? "60vh" : 300 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={channelMonthly}
+                        margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                        <XAxis dataKey="month" interval={0} tick={{ fontSize: 11 }} />
+                        <YAxis tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 12 }} />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            const point = active
+                              ? (payload?.[0]?.payload as ChannelMonthlyPoint | undefined)
+                              : undefined;
+                            if (!point) return null;
+                            const d = point.detail;
+                            const fmt = (v: number | null) =>
+                              v == null
+                                ? "sem dados suficientes"
+                                : `${v.toFixed(2).replace(".", ",")}%`;
+                            return (
+                              <div className="rounded-md border border-border bg-card p-3 text-xs text-foreground shadow-md">
+                                <p className="mb-1 font-semibold">{label}</p>
+                                <p>Conversão: {fmt(point.conversao)}</p>
+                                <p className="text-muted-foreground">
+                                  {d.won} ganhas ÷ {d.created} oportunidades criadas
+                                </p>
+                                <p className="mt-1">CAC %: {fmt(point.cac)}</p>
+                                <p className="text-muted-foreground">
+                                  {brl(d.media)} mídia{d.team ? ` + ${brl(d.team)} equipe` : ""} ÷{" "}
+                                  {brl(d.revenue)} faturamento ({d.reservations} reservas/ganhas)
+                                </p>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Legend />
+                        <Bar
+                          dataKey="conversao"
+                          name="Taxa de Conversão (%)"
+                          fill={CHART_PRIMARY}
+                          radius={[4, 4, 0, 0]}
+                        />
+                        <Bar
+                          dataKey="cac"
+                          name="CAC Percentual (%)"
+                          fill={CHART_SECONDARY}
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+                    Meses sem barra não têm dados suficientes: o canal precisa de pelo menos{" "}
+                    {MIN_CHANNEL_OPPORTUNITIES} oportunidades (conversão) e{" "}
+                    {MIN_CHANNEL_RESERVATIONS} reservas atribuídas (CAC %). Quando o Kommo não
+                    registrou a origem do lead, quase nenhuma reserva é atribuída ao canal e a razão
+                    fica distorcida. Isso ocorre sobretudo no Google Ads antes de junho/2026. No
+                    Consolidado, o CAC % também inclui o investimento mensal na equipe de marketing
+                    (Configurações).
+                  </p>
+                </>
+              )}
             </ExpandableChartPanel>
             <ExpandableChartPanel
               className="xl:col-span-2"
@@ -592,50 +784,78 @@ function Dashboard() {
               subtitle="Cada etapa é contada pela sua própria data de criação no período: contatos (pessoas), oportunidades criadas (um contato pode ter mais de uma, ou ser anterior ao período) e oportunidades ganhas, as mesmas do gráfico de Comparativo de CAC. Por isso uma etapa pode superar a anterior. A primeira etapa de mídia aparece para Meta Ads (leads) e Google Ads (cliques e conversões)."
               actions={
                 <div className="flex gap-1">
-                  {([["meta", "Meta Ads"], ["google", "Google Ads"], ["both", "Consolidado"]] as const).map(([key, label]) => (
-                    <Button key={key} size="sm" variant={funnelMode === key ? "default" : "outline"} onClick={() => setFunnelMode(key)}>
+                  {(
+                    [
+                      ["meta", "Meta Ads"],
+                      ["google", "Google Ads"],
+                      ["both", "Consolidado"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      size="sm"
+                      variant={funnelMode === key ? "default" : "outline"}
+                      onClick={() => setFunnelMode(key)}
+                    >
                       {label}
                     </Button>
                   ))}
                 </div>
               }
             >
-              {() => (<>
-              {dynamicFunnel ? (
+              {() => (
                 <>
-                  <div className="mt-6 flex flex-col items-center gap-2">
-                    {dynamicFunnel.stages.map((stage, index) => {
-                      const base = dynamicFunnel.stages[0]?.count ?? 0;
-                      const w = base ? Math.max(40, (stage.count / base) * 100) : 40;
-                      return (
-                        <div
-                          key={index}
-                          className="flex min-h-14 max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
-                          style={{ width: `${Math.min(100, w)}%` }}
-                        >
-                          <span className="text-xs font-medium">{stage.label}</span>
-                          <span className="text-sm font-semibold text-accent">{stage.count.toLocaleString("pt-BR")}</span>
-                          {stage.hint ? <span className="text-xs text-muted-foreground">{stage.hint}</span> : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
-                    {dynamicFunnel.metrics.map((m) => (
-                      <div key={m.label} className="flex min-w-0 flex-col justify-between gap-1 rounded-md border border-border p-3">
-                        <p className="break-words text-[11px] leading-4 text-muted-foreground">{m.label}</p>
-                        <p className="text-lg font-semibold leading-6 text-foreground">{m.value === null ? "—" : pct(m.value)}</p>
+                  {dynamicFunnel ? (
+                    <>
+                      <div className="mt-6 flex flex-col items-center gap-2">
+                        {dynamicFunnel.stages.map((stage, index) => {
+                          const base = dynamicFunnel.stages[0]?.count ?? 0;
+                          const w = base ? Math.max(40, (stage.count / base) * 100) : 40;
+                          return (
+                            <div
+                              key={index}
+                              className="flex min-h-14 max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-sm border border-border bg-secondary/70 px-3 py-2 text-center"
+                              style={{ width: `${Math.min(100, w)}%` }}
+                            >
+                              <span className="text-xs font-medium">{stage.label}</span>
+                              <span className="text-sm font-semibold text-accent">
+                                {stage.count.toLocaleString("pt-BR")}
+                              </span>
+                              {stage.hint ? (
+                                <span className="text-xs text-muted-foreground">{stage.hint}</span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
-                  {funnelOrigin === "meta" && !dynamicFunnel.stages[0]?.count ? (
-                    <p className="mt-3 text-xs text-muted-foreground">Leads do Meta aparecem após a próxima sincronização do Meta Ads.</p>
-                  ) : null}
+                      <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(100%,200px),1fr))] gap-3">
+                        {dynamicFunnel.metrics.map((m) => (
+                          <div
+                            key={m.label}
+                            className="flex min-w-0 flex-col justify-between gap-1 rounded-md border border-border p-3"
+                          >
+                            <p className="break-words text-[11px] leading-4 text-muted-foreground">
+                              {m.label}
+                            </p>
+                            <p className="text-lg font-semibold leading-6 text-foreground">
+                              {m.value === null ? "—" : pct(m.value)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      {funnelOrigin === "meta" && !dynamicFunnel.stages[0]?.count ? (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                          Leads do Meta aparecem após a próxima sincronização do Meta Ads.
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      {isLoading ? "Carregando…" : "Sem dados."}
+                    </p>
+                  )}
                 </>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">{isLoading ? "Carregando…" : "Sem dados."}</p>
               )}
-              </>)}
             </ExpandableChartPanel>
           </section>
 
@@ -646,8 +866,8 @@ function Dashboard() {
                   Atribuição e CAC por UTM / Campanha
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. CAC "—" = sem investimento ou nenhuma reserva
-                  chegou com a UTM desta campanha.
+                  Mídia paga → oportunidades ClickMassa → reservas fechadas no HQ. CAC "—" = sem
+                  investimento ou nenhuma reserva chegou com a UTM desta campanha.
                 </p>
               </div>
               {isLoading ? (
@@ -661,82 +881,145 @@ function Dashboard() {
                     <th className="px-5 py-3 text-left font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground"
-                        onClick={() => setAttributionSort((s) => ({ key: "utm", dir: s.key === "utm" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "utm",
+                            dir: s.key === "utm" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         UTM / Campanha
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "utm" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "utm" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "investimento", dir: s.key === "investimento" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "investimento",
+                            dir: s.key === "investimento" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         Investimento
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "investimento" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "investimento" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "leads", dir: s.key === "leads" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "leads",
+                            dir: s.key === "leads" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         Leads / Oportunidades
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "leads" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "leads" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "cpl", dir: s.key === "cpl" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "cpl",
+                            dir: s.key === "cpl" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         CPL
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "cpl" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "cpl" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "reservas", dir: s.key === "reservas" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "reservas",
+                            dir: s.key === "reservas" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         Reservas
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "reservas" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "reservas" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "conversao", dir: s.key === "conversao" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "conversao",
+                            dir: s.key === "conversao" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         Conversão
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "conversao" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "conversao" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "faturamento", dir: s.key === "faturamento" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "faturamento",
+                            dir: s.key === "faturamento" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         Faturamento
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "faturamento" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "faturamento" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "roas", dir: s.key === "roas" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "roas",
+                            dir: s.key === "roas" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         ROAS
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "roas" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "roas" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                     <th className="px-5 py-3 text-right font-medium">
                       <button
                         className="inline-flex items-center gap-1 hover:text-foreground float-right"
-                        onClick={() => setAttributionSort((s) => ({ key: "cac", dir: s.key === "cac" ? ((s.dir * -1) as 1 | -1) : -1 }))}
+                        onClick={() =>
+                          setAttributionSort((s) => ({
+                            key: "cac",
+                            dir: s.key === "cac" ? ((s.dir * -1) as 1 | -1) : -1,
+                          }))
+                        }
                       >
                         CAC
-                        <ArrowUpDown className={`size-3 ${attributionSort.key === "cac" ? "text-accent" : ""}`} />
+                        <ArrowUpDown
+                          className={`size-3 ${attributionSort.key === "cac" ? "text-accent" : ""}`}
+                        />
                       </button>
                     </th>
                   </tr>
@@ -809,7 +1092,8 @@ function ExpandableChartPanel({
   children: React.ReactNode | ((expanded: boolean) => React.ReactNode);
 }) {
   const [open, setOpen] = useState(false);
-  const body = (expanded: boolean) => (typeof children === "function" ? children(expanded) : children);
+  const body = (expanded: boolean) =>
+    typeof children === "function" ? children(expanded) : children;
   const header = (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
@@ -916,70 +1200,77 @@ function OriginMonthlyChart({
 }) {
   return (
     <ExpandableChartPanel title={title} subtitle={subtitle}>
-      {(expanded) => (<>
-      <div className="min-w-0" style={{ height: expanded ? "65vh" : 208 }}>
-        {data.length ? (
-          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-            <BarChart
-              data={data}
-              maxBarSize={32}
-              barCategoryGap="20%"
-              margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-              <XAxis
-                dataKey="monthLabel"
-                interval="preserveStartEnd"
-                minTickGap={12}
-                tick={{ fontSize: 10 }}
-                height={36}
-                {...axis}
-              />
-              <YAxis {...axis} allowDecimals={false} />
-              <Tooltip
-                content={
-                  <OpportunityComparisonTooltip
-                    currentYear={currentYear}
-                    previousYear={previousYear}
+      {(expanded) => (
+        <>
+          <div className="min-w-0" style={{ height: expanded ? "65vh" : 208 }}>
+            {data.length ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart
+                  data={data}
+                  maxBarSize={32}
+                  barCategoryGap="20%"
+                  margin={{ top: 22, right: 12, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                  <XAxis
+                    dataKey="monthLabel"
+                    interval="preserveStartEnd"
+                    minTickGap={12}
+                    tick={{ fontSize: 10 }}
+                    height={36}
+                    {...axis}
                   />
-                }
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar
-                dataKey="previousYear"
-                name={`Ano Anterior (${previousYear})`}
-                fill={CHART_SECONDARY}
-              />
-              <Bar dataKey="currentYear" name={`Ano Atual (${currentYear})`} fill={CHART_PRIMARY}>
-                <LabelList
-                  dataKey="currentYear"
-                  content={(props) => {
-                    const row = data[props.index ?? -1];
-                    if (!row || !(row.previousYear > 0)) return null;
-                    const variation = ((row.currentYear - row.previousYear) / row.previousYear) * 100;
-                    return (
-                      <text
-                        x={Number(props.x) + Number(props.width) / 2}
-                        y={Number(props.y) - 6}
-                        textAnchor="middle"
-                        fontSize={8}
-                        fontWeight={600}
-                        fill={variation >= 0 ? CHART_PRIMARY : "#ef4444"}
-                      >
-                        {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
-                      </text>
-                    );
-                  }}
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        ) : (
-          <EmptyOriginChart loading={loading} />
-        )}
-      </div>
-      {note ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{note}</p> : null}
-      </>)}
+                  <YAxis {...axis} allowDecimals={false} />
+                  <Tooltip
+                    content={
+                      <OpportunityComparisonTooltip
+                        currentYear={currentYear}
+                        previousYear={previousYear}
+                      />
+                    }
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar
+                    dataKey="previousYear"
+                    name={`Ano Anterior (${previousYear})`}
+                    fill={CHART_SECONDARY}
+                  />
+                  <Bar
+                    dataKey="currentYear"
+                    name={`Ano Atual (${currentYear})`}
+                    fill={CHART_PRIMARY}
+                  >
+                    <LabelList
+                      dataKey="currentYear"
+                      content={(props) => {
+                        const row = data[props.index ?? -1];
+                        if (!row || !(row.previousYear > 0)) return null;
+                        const variation =
+                          ((row.currentYear - row.previousYear) / row.previousYear) * 100;
+                        return (
+                          <text
+                            x={Number(props.x) + Number(props.width) / 2}
+                            y={Number(props.y) - 6}
+                            textAnchor="middle"
+                            fontSize={8}
+                            fontWeight={600}
+                            fill={variation >= 0 ? CHART_PRIMARY : "#ef4444"}
+                          >
+                            {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                          </text>
+                        );
+                      }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyOriginChart loading={loading} />
+            )}
+          </div>
+          {note ? <p className="mt-2 text-[11px] leading-4 text-muted-foreground">{note}</p> : null}
+        </>
+      )}
     </ExpandableChartPanel>
   );
 }

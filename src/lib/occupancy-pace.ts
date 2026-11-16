@@ -243,7 +243,13 @@ export function samplesFor(
     const items: BenchSample[] = [];
     for (const n of PERIODOS_ANTERIORES) {
       const h = model.byKey.get(`${addDays(row.d, -n)}|${row.c}`);
-      if (h && histFleet(h) >= REF_FROTA_MIN * row.f && histFleet(h) > 0 && h.d < base && !truncated(h.d))
+      if (
+        h &&
+        histFleet(h) >= REF_FROTA_MIN * row.f &&
+        histFleet(h) > 0 &&
+        h.d < base &&
+        !truncated(h.d)
+      )
         items.push({
           date: h.d,
           fleet: histFleet(h),
@@ -264,7 +270,13 @@ export function samplesFor(
   for (const [key, min, level] of steps) {
     const items: BenchSample[] = [];
     for (const h of model.groups.get(key) ?? [])
-      if (histFleet(h) >= REF_FROTA_MIN * row.f && histFleet(h) > 0 && h.d < base && h.d !== row.d && !truncated(h.d))
+      if (
+        histFleet(h) >= REF_FROTA_MIN * row.f &&
+        histFleet(h) > 0 &&
+        h.d < base &&
+        h.d !== row.d &&
+        !truncated(h.d)
+      )
         items.push({
           date: h.d,
           fleet: histFleet(h),
@@ -360,7 +372,11 @@ export function ganhoAteData(it: Pick<RefItem, "occ" | "occFinal">): number | nu
 }
 
 /** Aviso quando a frota da referência difere da atual em mais que `limite` (ex.: "frota 30% menor que a atual"); null se não difere. */
-export function avisoFrota(fleet: number, fleetAtual: number, limite = FROTA_AVISO_LIMITE): string | null {
+export function avisoFrota(
+  fleet: number,
+  fleetAtual: number,
+  limite = FROTA_AVISO_LIMITE,
+): string | null {
   if (!fleet || !fleetAtual) return null;
   const d = (fleet - fleetAtual) / fleetAtual;
   if (Math.abs(d) <= limite) return null;
@@ -368,7 +384,6 @@ export function avisoFrota(fleet: number, fleetAtual: number, limite = FROTA_AVI
 }
 
 const sum = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
-
 
 /** Uma data de referência da esperada, com os números que a escolha usa (os mesmos que o painel mostra). */
 export type RefItem = {
@@ -446,7 +461,23 @@ const mean = (xs: number[]) => (xs.length ? sum(xs) / xs.length : null);
 function buildRefItem(model: PaceModel, cur: PaceRow[], d: string, L: number): RefItem {
   const capacity = sum(cur.map((r) => r.f));
   const truncated = L > 0 && addDays(d, -L) < model.payload.de;
-  const base0 = { date: d, lead: L, occ: null, rev: null, revFinal: null, occFinal: null, carros: null, fleet: 0, fleetAtual: 0, cobertura: 0, eligible: false, chosen: false, cov: [] as PaceRow[], capCov: 0, hist: [] as PaceRow[] };
+  const base0 = {
+    date: d,
+    lead: L,
+    occ: null,
+    rev: null,
+    revFinal: null,
+    occFinal: null,
+    carros: null,
+    fleet: 0,
+    fleetAtual: 0,
+    cobertura: 0,
+    eligible: false,
+    chosen: false,
+    cov: [] as PaceRow[],
+    capCov: 0,
+    hist: [] as PaceRow[],
+  };
   const all = cur
     .map((r) => ({ r, h: model.byKey.get(`${d}|${r.c}`) }))
     .filter((x): x is { r: PaceRow; h: PaceRow } => !!x.h && histFleet(x.h) > 0);
@@ -497,7 +528,8 @@ function buildRefItem(model: PaceModel, cur: PaceRow[], d: string, L: number): R
 }
 
 /** Item com dado final (existem linhas históricas): conta na escolha do ano, mesmo sem leitura na antecedência L. */
-const temDados = (it: RefItem | undefined): it is RefItem => !!it && it.hist.length > 0 && it.occFinal != null;
+const temDados = (it: RefItem | undefined): it is RefItem =>
+  !!it && it.hist.length > 0 && it.occFinal != null;
 
 /**
  * Esperada pela JANELA de 7 dias (a data ±3). Cada dia da janela usa as referências de hoje (mesmo dia da semana 364 e 728 dias antes;
@@ -515,7 +547,21 @@ export function windowAnalysis(
   base: string,
   L?: number,
 ): { items: RefItem[]; janela: JanelaRef } {
-  const vazio: JanelaRef = { dias: [date], anos: [], diasComuns: 0, criterio: null, escolhido: null, outro: null, usados: [], itens: [], esperada: null, carros: null, fleetAtual: null, cov: [], capCov: 0 };
+  const vazio: JanelaRef = {
+    dias: [date],
+    anos: [],
+    diasComuns: 0,
+    criterio: null,
+    escolhido: null,
+    outro: null,
+    usados: [],
+    itens: [],
+    esperada: null,
+    carros: null,
+    fleetAtual: null,
+    cov: [],
+    capCov: 0,
+  };
   if (!rows.length) return { items: [], janela: vazio };
   const { cal } = model.payload;
   const info = cal[date];
@@ -528,8 +574,12 @@ export function windowAnalysis(
     if (w === date || (isEvent ? ehEvento(w) && cal[w]![1] === ev : !ehEvento(w))) dias.push(w);
   }
   const natural = L == null || L === leadOf(date, base).lead;
-  const leadDe = (w: string) => (natural ? leadOf(w, base).lead : Math.max(0, L! + daysBetween(date, w)));
-  const anosOrd = PERIODOS_ANTERIORES.map((n) => ({ key: String(n), label: addDays(date, -n).slice(0, 4) }));
+  const leadDe = (w: string) =>
+    natural ? leadOf(w, base).lead : Math.max(0, L! + daysBetween(date, w));
+  const anosOrd = PERIODOS_ANTERIORES.map((n) => ({
+    key: String(n),
+    label: addDays(date, -n).slice(0, 4),
+  }));
 
   const porDia = new Map<string, Map<string, RefItem>>();
   const rotulos = new Map<string, string>();
@@ -538,7 +588,11 @@ export function windowAnalysis(
     const lw = leadDe(w);
     const m = new Map<string, RefItem>();
     const refs = isEvent
-      ? referenceDates(model, w, base).datas.map((d) => ({ key: d.slice(0, 4), label: d.slice(0, 4), d }))
+      ? referenceDates(model, w, base).datas.map((d) => ({
+          key: d.slice(0, 4),
+          label: d.slice(0, 4),
+          d,
+        }))
       : PERIODOS_ANTERIORES.map((n, i) => ({ ...anosOrd[i]!, d: addDays(w, -n) }));
     for (const x of refs) {
       if (x.d >= base) continue;
@@ -549,10 +603,14 @@ export function windowAnalysis(
   }
 
   // Anos comparados: os com dado em algum dia (mais recente primeiro; em evento, pelo ano da edição).
-  const chaves = [...rotulos.keys()].filter((k) => dias.some((w) => temDados(porDia.get(w)?.get(k))));
+  const chaves = [...rotulos.keys()].filter((k) =>
+    dias.some((w) => temDados(porDia.get(w)?.get(k))),
+  );
   if (isEvent) chaves.sort((a, b) => Number(b) - Number(a));
   else chaves.sort((a, b) => Number(a) - Number(b));
-  const comuns = dias.filter((w) => chaves.length > 0 && chaves.every((k) => temDados(porDia.get(w)?.get(k))));
+  const comuns = dias.filter(
+    (w) => chaves.length > 0 && chaves.every((k) => temDados(porDia.get(w)?.get(k))),
+  );
   const anos: JanelaAno[] = chaves.map((key) => {
     const its = comuns.map((w) => porDia.get(w)!.get(key)!);
     const revs = its.map((i) => i.revFinal);
@@ -572,14 +630,27 @@ export function windowAnalysis(
       })(),
     };
   });
-  const criterio = !comuns.length ? null : anos.every((a) => a.revMedio != null) ? "faturamento" : "ocupacao";
+  const criterio = !comuns.length
+    ? null
+    : anos.every((a) => a.revMedio != null)
+      ? "faturamento"
+      : "ocupacao";
   const valor = (a: JanelaAno) => (criterio === "faturamento" ? a.revMedio! : a.occFinalMedia!);
   let escolhido: JanelaAno | null = null;
   if (criterio) for (const a of anos) if (!escolhido || valor(a) > valor(escolhido)) escolhido = a; // empate: fica o mais recente
-  const outro = criterio && escolhido ? anos.filter((a) => a !== escolhido).reduce<JanelaAno | null>((b, a) => (!b || valor(a) > valor(b) ? a : b), null) : null;
+  const outro =
+    criterio && escolhido
+      ? anos
+          .filter((a) => a !== escolhido)
+          .reduce<JanelaAno | null>((b, a) => (!b || valor(a) > valor(b) ? a : b), null)
+      : null;
 
   const centro = new Map(porDia.get(date) ?? []);
-  const items = (isEvent ? referenceDates(model, date, base).datas : PERIODOS_ANTERIORES.map((n) => addDays(date, -n)))
+  const items = (
+    isEvent
+      ? referenceDates(model, date, base).datas
+      : PERIODOS_ANTERIORES.map((n) => addDays(date, -n))
+  )
     .map((d) => [...centro.values()].find((i) => i.date === d))
     .filter((i): i is RefItem => !!i);
   if (escolhido) {
@@ -587,10 +658,17 @@ export function windowAnalysis(
     if (c) c.chosen = true;
   }
 
-  const lidos = escolhido ? dias.filter((w) => { const i = porDia.get(w)?.get(escolhido!.key); return !!i && i.eligible && i.occ != null; }) : [];
+  const lidos = escolhido
+    ? dias.filter((w) => {
+        const i = porDia.get(w)?.get(escolhido!.key);
+        return !!i && i.eligible && i.occ != null;
+      })
+    : [];
   const usados = lidos.map((w) => porDia.get(w)!.get(escolhido!.key)!);
   const media = mean(usados.map((i) => i.occ!));
-  const ref0 = (escolhido && centro.get(escolhido.key)?.eligible ? centro.get(escolhido.key) : usados[0]) ?? null;
+  const ref0 =
+    (escolhido && centro.get(escolhido.key)?.eligible ? centro.get(escolhido.key) : usados[0]) ??
+    null;
   const cats = new Set((ref0?.cov ?? []).map((r) => r.c));
   const cov = ref0 ? rows.filter((r) => cats.has(r.c)) : [];
   return {
@@ -614,11 +692,23 @@ export function windowAnalysis(
 }
 
 /** Referências do próprio dia (ver `windowAnalysis`): a do ano escolhido pela janela vem com `chosen`. */
-export function referenceItems(model: PaceModel, rows: PaceRow[], date: string, base: string, L: number): RefItem[] {
+export function referenceItems(
+  model: PaceModel,
+  rows: PaceRow[],
+  date: string,
+  base: string,
+  L: number,
+): RefItem[] {
   return windowAnalysis(model, rows, date, base, L).items;
 }
 
-function wholeDayBenchmark(model: PaceModel, rows: PaceRow[], date: string, base: string, L?: number) {
+function wholeDayBenchmark(
+  model: PaceModel,
+  rows: PaceRow[],
+  date: string,
+  base: string,
+  L?: number,
+) {
   if (!rows.length) return null;
   const info = model.payload.cal[date];
   const isEvent = !!(info?.[1] && info[2] != null);
@@ -785,7 +875,12 @@ export function usePace() {
  * Ocupação de um intervalo [from, to] (datas ISO, inclusive) igual à Utilização do HQ filtrada nesse intervalo: dias de cada trecho
  * na janela inteira (max(1, ceil((horas − 5 h) / 24))) ÷ frota somada dos dias da janela. null sem trechos publicados (payload < v7).
  */
-export function windowOccupancy(payload: PacePayload, categoria: string | null, from: string, to: string) {
+export function windowOccupancy(
+  payload: PacePayload,
+  categoria: string | null,
+  from: string,
+  to: string,
+) {
   if (!payload.t) return null;
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${addDays(to, 1)}T00:00:00Z`);
@@ -793,9 +888,15 @@ export function windowOccupancy(payload: PacePayload, categoria: string | null, 
   let carDays = 0;
   for (const [c, p, r] of payload.t) {
     if (only != null && c !== only) continue;
-    carDays += segmentDays(new Date(p * 60000).toISOString(), new Date(r * 60000).toISOString(), start, end);
+    carDays += segmentDays(
+      new Date(p * 60000).toISOString(),
+      new Date(r * 60000).toISOString(),
+      start,
+      end,
+    );
   }
   let capacity = 0;
-  for (const l of payload.linhas) if (l.d >= from && l.d <= to && (categoria == null || l.c === categoria)) capacity += l.f;
+  for (const l of payload.linhas)
+    if (l.d >= from && l.d <= to && (categoria == null || l.c === categoria)) capacity += l.f;
   return capacity ? { rate: carDays / capacity, carDays, capacity } : null;
 }

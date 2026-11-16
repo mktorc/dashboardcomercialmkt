@@ -10,4 +10,5 @@ export const normCategoria = (c: string | null | undefined) =>
     .replace(/[^a-z0-9]/g, "");
 
 /** Chave "data|categoria normalizada" dos mapas de tarifa e de coletas. */
-export const rateKey = (date: string, category: string | null | undefined) => `${date}|${normCategoria(category)}`;
+export const rateKey = (date: string, category: string | null | undefined) =>
+  `${date}|${normCategoria(category)}`;

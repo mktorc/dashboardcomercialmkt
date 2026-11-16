@@ -27,8 +27,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 });
 
 const ROLE_OPTIONS = Object.entries(ROLE_LABELS) as [AppRole, string][];
-const selectCls =
-  "h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground";
+const selectCls = "h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground";
 
 function SettingsPage() {
   const qc = useQueryClient();
@@ -70,7 +69,10 @@ function SettingsPage() {
   const costs = useQuery({
     queryKey: ["team-costs-admin"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("marketing_team_costs").select("month, amount").order("month", { ascending: false });
+      const { data, error } = await supabase
+        .from("marketing_team_costs")
+        .select("month, amount")
+        .order("month", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -85,10 +87,14 @@ function SettingsPage() {
   const saveCost = useMutation({
     mutationFn: async () => {
       const amount = Number(costAmount.replace(/\./g, "").replace(",", "."));
-      if (!costMonth || !Number.isFinite(amount) || amount < 0) throw new Error("Informe mês e valor válidos");
+      if (!costMonth || !Number.isFinite(amount) || amount < 0)
+        throw new Error("Informe mês e valor válidos");
       const { error } = await supabase
         .from("marketing_team_costs")
-        .upsert({ month: costMonth, amount, updated_at: new Date().toISOString() }, { onConflict: "month" });
+        .upsert(
+          { month: costMonth, amount, updated_at: new Date().toISOString() },
+          { onConflict: "month" },
+        );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -111,7 +117,9 @@ function SettingsPage() {
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
         <Button asChild variant="outline" size="sm">
-          <Link to="/app"><ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos</Link>
+          <Link to="/app">
+            <ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos
+          </Link>
         </Button>
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Configurações</h1>
@@ -128,47 +136,77 @@ function SettingsPage() {
             onClick={() => setCostOpen((o) => !o)}
           >
             <h2 className="font-semibold text-foreground">Investimento na equipe de marketing</h2>
-            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${costOpen ? "rotate-180" : ""}`} />
+            <ChevronDown
+              className={`size-4 text-muted-foreground transition-transform ${costOpen ? "rotate-180" : ""}`}
+            />
           </button>
           {costOpen ? (
             <div className="mt-1">
-          <p className="mb-4 text-xs text-muted-foreground">
-            Valor mensal (USD). No dashboard, marque "Incluir equipe de marketing" para somá-lo ao investimento do CAC, rateado pelos dias do período.
-          </p>
-          <form
-            className="grid gap-4 md:grid-cols-[180px_200px_auto] md:items-end"
-            onSubmit={(e) => {
-              e.preventDefault();
-              saveCost.mutate();
-            }}
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="tc-month">Mês</Label>
-              <Input id="tc-month" type="month" required value={costMonth} onChange={(e) => setCostMonth(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="tc-amount">Valor mensal</Label>
-              <Input id="tc-amount" inputMode="decimal" required placeholder="15000" value={costAmount} onChange={(e) => setCostAmount(e.target.value)} />
-            </div>
-            <Button type="submit" disabled={saveCost.isPending}>Salvar</Button>
-          </form>
-          {costs.data?.length ? (
-            <table className="mt-4 w-full text-sm">
-              <tbody>
-                {costs.data.map((c) => (
-                  <tr key={c.month} className="border-t border-border">
-                    <td className="py-2 text-foreground">{c.month.slice(5)}/{c.month.slice(0, 4)}</td>
-                    <td className="text-foreground">{Number(c.amount).toLocaleString("pt-BR", { style: "currency", currency: "USD" })}</td>
-                    <td className="text-right">
-                      <Button size="sm" variant="ghost" title="Excluir" onClick={() => removeCost.mutate(c.month)}>
-                        <Trash2 className="size-4 text-destructive" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
+              <p className="mb-4 text-xs text-muted-foreground">
+                Valor mensal (USD). No dashboard, marque "Incluir equipe de marketing" para somá-lo
+                ao investimento do CAC, rateado pelos dias do período.
+              </p>
+              <form
+                className="grid gap-4 md:grid-cols-[180px_200px_auto] md:items-end"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveCost.mutate();
+                }}
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="tc-month">Mês</Label>
+                  <Input
+                    id="tc-month"
+                    type="month"
+                    required
+                    value={costMonth}
+                    onChange={(e) => setCostMonth(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="tc-amount">Valor mensal</Label>
+                  <Input
+                    id="tc-amount"
+                    inputMode="decimal"
+                    required
+                    placeholder="15000"
+                    value={costAmount}
+                    onChange={(e) => setCostAmount(e.target.value)}
+                  />
+                </div>
+                <Button type="submit" disabled={saveCost.isPending}>
+                  Salvar
+                </Button>
+              </form>
+              {costs.data?.length ? (
+                <table className="mt-4 w-full text-sm">
+                  <tbody>
+                    {costs.data.map((c) => (
+                      <tr key={c.month} className="border-t border-border">
+                        <td className="py-2 text-foreground">
+                          {c.month.slice(5)}/{c.month.slice(0, 4)}
+                        </td>
+                        <td className="text-foreground">
+                          {Number(c.amount).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "USD",
+                          })}
+                        </td>
+                        <td className="text-right">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Excluir"
+                            onClick={() => removeCost.mutate(c.month)}
+                          >
+                            <Trash2 className="size-4 text-destructive" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
             </div>
           ) : null}
         </Card>
@@ -184,24 +222,47 @@ function SettingsPage() {
           >
             <div className="space-y-1.5">
               <Label htmlFor="nu-email">E-mail</Label>
-              <Input id="nu-email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input
+                id="nu-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nu-pass">Senha</Label>
-              <Input id="nu-pass" type="text" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Input
+                id="nu-pass"
+                type="text"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nu-role">Perfil</Label>
-              <select id="nu-role" className={`${selectCls} w-full`} value={role} onChange={(e) => setRole(e.target.value as AppRole)}>
+              <select
+                id="nu-role"
+                className={`${selectCls} w-full`}
+                value={role}
+                onChange={(e) => setRole(e.target.value as AppRole)}
+              >
                 {ROLE_OPTIONS.map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
                 ))}
               </select>
             </div>
-            <Button type="submit" disabled={create.isPending}>Cadastrar</Button>
+            <Button type="submit" disabled={create.isPending}>
+              Cadastrar
+            </Button>
           </form>
           <p className="mt-3 text-xs text-muted-foreground">
-            Equipes (Comercial e Mkt): Marketing, Comercial e Comercial Operacional · Superadmin: todas as abas, incluindo Configurações.
+            Equipes (Comercial e Mkt): Marketing, Comercial e Comercial Operacional · Superadmin:
+            todas as abas, incluindo Configurações.
           </p>
         </Card>
 
@@ -225,17 +286,24 @@ function SettingsPage() {
                 <tbody>
                   {users.data?.map((u) => (
                     <tr key={u.id} className="border-t border-border">
-                      <td className="py-2 text-foreground">{u.email}{u.isSelf ? " (você)" : ""}</td>
+                      <td className="py-2 text-foreground">
+                        {u.email}
+                        {u.isSelf ? " (você)" : ""}
+                      </td>
                       <td>
                         <select
                           className={selectCls}
                           value={u.role ?? ""}
                           disabled={u.isSelf}
-                          onChange={(e) => update.mutate({ id: u.id, role: e.target.value as AppRole })}
+                          onChange={(e) =>
+                            update.mutate({ id: u.id, role: e.target.value as AppRole })
+                          }
                         >
                           {!u.role ? <option value="">Sem acesso</option> : null}
                           {ROLE_OPTIONS.map(([v, l]) => (
-                            <option key={v} value={v}>{l}</option>
+                            <option key={v} value={v}>
+                              {l}
+                            </option>
                           ))}
                         </select>
                       </td>
@@ -248,7 +316,9 @@ function SettingsPage() {
                           variant="ghost"
                           title="Trocar senha"
                           onClick={() => {
-                            const p = window.prompt(`Nova senha para ${u.email} (mín. 6 caracteres):`);
+                            const p = window.prompt(
+                              `Nova senha para ${u.email} (mín. 6 caracteres):`,
+                            );
                             if (p) update.mutate({ id: u.id, password: p });
                           }}
                         >

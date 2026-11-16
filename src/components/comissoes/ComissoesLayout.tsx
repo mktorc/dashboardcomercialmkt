@@ -39,7 +39,10 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
           <ManualSyncButton />
           {voltar ? (
             <Button asChild variant="outline" size="sm">
-              <Link to={voltar}><ArrowLeft className="mr-1 size-4" /> {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}</Link>
+              <Link to={voltar}>
+                <ArrowLeft className="mr-1 size-4" />{" "}
+                {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}
+              </Link>
             </Button>
           ) : null}
           {role ? (
@@ -52,7 +55,9 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
       <nav className="flex gap-2 border-b border-border px-4 py-3 sm:px-6">
         {ABAS.map((a) => (
           <Button key={a.to} asChild size="sm" variant="outline">
-            <Link to={a.to} activeProps={{ className: "bg-primary text-primary-foreground" }}>{a.rotulo}</Link>
+            <Link to={a.to} activeProps={{ className: "bg-primary text-primary-foreground" }}>
+              {a.rotulo}
+            </Link>
           </Button>
         ))}
       </nav>

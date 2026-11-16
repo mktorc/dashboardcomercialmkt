@@ -1686,7 +1686,9 @@ function Detalhe({
                     tol={TOL_PADRAO}
                     tarifa={row.price.ourRate}
                     precoVenda={
-                      row.price.ourRate != null ? { valor: row.price.ourRate, cobertas: 1, total: 1, faltam: [] } : null
+                      row.price.ourRate != null
+                        ? { valor: row.price.ourRate, cobertas: 1, total: 1, faltam: [] }
+                        : null
                     }
                     todas={false}
                     rowsFor={(dt) => {

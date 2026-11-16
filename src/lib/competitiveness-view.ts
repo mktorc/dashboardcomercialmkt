@@ -354,7 +354,14 @@ export type Distribution = {
 
 /** Distribuição do banner: quantas categorias acima / alinhadas / abaixo e as maiores diferenças de cada lado. */
 export function distributionOf(cats: CategorySummary[], b: ViewBands = VIEW_BANDS): Distribution {
-  const out: Distribution = { acima: 0, alinhado: 0, abaixo: 0, topAcima: [], topAbaixo: [], mean: null };
+  const out: Distribution = {
+    acima: 0,
+    alinhado: 0,
+    abaixo: 0,
+    topAcima: [],
+    topAbaixo: [],
+    mean: null,
+  };
   for (const c of cats) out[positionOf(c.pct, b)!]++;
   out.topAcima = cats
     .filter((c) => positionOf(c.pct, b) === "acima")
@@ -370,7 +377,10 @@ export function distributionOf(cats: CategorySummary[], b: ViewBands = VIEW_BAND
 
 /** Eixo simétrico da régua (%): cobre o maior |valor| com folga, em múltiplos de 10, mínimo ±10%. */
 export function symmetricAxis(values: (number | null)[]): number {
-  const m = Math.max(0, ...values.filter((v): v is number => v != null && Number.isFinite(v)).map(Math.abs));
+  const m = Math.max(
+    0,
+    ...values.filter((v): v is number => v != null && Number.isFinite(v)).map(Math.abs),
+  );
   return Math.max(10, Math.ceil((m * 1.05) / 10) * 10);
 }
 
@@ -393,7 +403,8 @@ export function usVsThem(
   const p = positionOf(pct, b);
   if (pct == null || p == null) return { text: "—", position: null };
   const v = Math.round(Math.abs(pct));
-  if (p === "alinhado") return { text: `alinhados (${pct > 0 ? "+" : ""}${pct.toFixed(0)}%)`, position: p };
+  if (p === "alinhado")
+    return { text: `alinhados (${pct > 0 ? "+" : ""}${pct.toFixed(0)}%)`, position: p };
   return { text: `nós ${v}% mais ${p === "acima" ? "caros" : "baratos"}`, position: p };
 }
 

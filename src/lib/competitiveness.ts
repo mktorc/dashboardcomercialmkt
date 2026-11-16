@@ -159,12 +159,13 @@ export function latestOffers<T extends Snapshot>(rows: T[]): T[] {
  * Correções de pareamento aplicadas na leitura (coletas antigas foram gravadas com o mapa anterior). Chave: concorrente e trecho
  * do modelo dele, em minúsculas; valor: nossa categoria (null = sem par, não entra na comparação).
  */
-export const CATEGORY_OVERRIDES: { competitor: string; model: string; category: string | null }[] = [
-  // Outlander (5+2 compacto) não bate com nenhum carro nosso.
-  { competitor: "allycar", model: "outlander", category: null },
-  // Yukon XL da Allycar: fora do comparativo por decisão do usuário (2026-11-15).
-  { competitor: "allycar", model: "yukon", category: null },
-];
+export const CATEGORY_OVERRIDES: { competitor: string; model: string; category: string | null }[] =
+  [
+    // Outlander (5+2 compacto) não bate com nenhum carro nosso.
+    { competitor: "allycar", model: "outlander", category: null },
+    // Yukon XL da Allycar: fora do comparativo por decisão do usuário (2026-11-15).
+    { competitor: "allycar", model: "yukon", category: null },
+  ];
 
 /** Categoria nossa de uma coleta, com as correções de CATEGORY_OVERRIDES. */
 export function overrideCategory(

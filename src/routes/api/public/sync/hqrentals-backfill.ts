@@ -37,7 +37,9 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
         let lastPage = 1;
         let totalProcessed = 0;
 
-        console.log(`[HQ Backfill] Iniciando re-sincronização dos últimos ${daysParam} dias (limite: ${limitParam} registos)`);
+        console.log(
+          `[HQ Backfill] Iniciando re-sincronização dos últimos ${daysParam} dias (limite: ${limitParam} registos)`,
+        );
 
         do {
           const hqRes = await fetch(`${base}?page=${page}`, {
@@ -66,24 +68,32 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
         } while (page <= lastPage);
 
         // Limita ao número máximo de registos para não sobrecarregar
-        const rows = all.slice(0, limitParam).map((r) => ({
-          reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
-          ...extractFinancials(r),
-        })).filter((r) => r.reservation_id !== "");
+        const rows = all
+          .slice(0, limitParam)
+          .map((r) => ({
+            reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
+            ...extractFinancials(r),
+          }))
+          .filter((r) => r.reservation_id !== "");
 
         console.log(`[HQ Backfill] Encontrados ${rows.length} registos para backfill`);
 
         // Diagnosticar se há dados reais
-        const withMisc = rows.filter(r => r.miscellaneous_price > 0).length;
-        const withAddl = rows.filter(r => r.additional_charges_price > 0).length;
-        console.log(`[HQ Backfill] Com Taxas Diversas: ${withMisc}, Com Cobranças Adicionais: ${withAddl}`);
+        const withMisc = rows.filter((r) => r.miscellaneous_price > 0).length;
+        const withAddl = rows.filter((r) => r.additional_charges_price > 0).length;
+        console.log(
+          `[HQ Backfill] Com Taxas Diversas: ${withMisc}, Com Cobranças Adicionais: ${withAddl}`,
+        );
 
         if (rows.length === 0) {
-          return Response.json({
-            ok: false,
-            error: "Nenhum registo encontrado para backfill no período especificado",
-            days: daysParam
-          }, { status: 400 });
+          return Response.json(
+            {
+              ok: false,
+              error: "Nenhum registo encontrado para backfill no período especificado",
+              days: daysParam,
+            },
+            { status: 400 },
+          );
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -96,12 +106,19 @@ export const Route = createFileRoute("/api/public/sync/hqrentals-backfill")({
           const { data } = await supabaseAdmin
             .from("reservations")
             .select("reservation_id")
-            .in("reservation_id", rows.slice(i, i + 200).map((r) => r.reservation_id));
+            .in(
+              "reservation_id",
+              rows.slice(i, i + 200).map((r) => r.reservation_id),
+            );
           (data ?? []).forEach((d) => existing.add(String(d.reservation_id)));
         }
-        const missingInDb = rows.filter((r) => !existing.has(r.reservation_id)).map((r) => r.reservation_id);
+        const missingInDb = rows
+          .filter((r) => !existing.has(r.reservation_id))
+          .map((r) => r.reservation_id);
 
-        for (const { reservation_id, ...values } of rows.filter((r) => existing.has(r.reservation_id))) {
+        for (const { reservation_id, ...values } of rows.filter((r) =>
+          existing.has(r.reservation_id),
+        )) {
           const { error: updateError } = await supabaseAdmin
             .from("reservations")
             .update(values)

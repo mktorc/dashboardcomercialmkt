@@ -41,7 +41,12 @@ function checkAuth(request: Request): boolean {
 function unwrap(payload: ClickmassaPayload): ClickmassaPayload {
   let p = payload;
   for (let i = 0; i < 3; i++) {
-    const nested = (p["data"] ?? p["lead"] ?? p["contact"] ?? p["opportunity"] ?? p["card"] ?? p["ticket"]) as unknown;
+    const nested = (p["data"] ??
+      p["lead"] ??
+      p["contact"] ??
+      p["opportunity"] ??
+      p["card"] ??
+      p["ticket"]) as unknown;
     if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
       p = nested as ClickmassaPayload;
     } else {
@@ -59,7 +64,10 @@ async function processOpportunity(p: ClickmassaPayload): Promise<void> {
   if (!id) return;
   const tc = obj(p["tasksCount"]);
   // Etapas 1–6 pertencem ao funil "Comercial"; 7+ ao "Sucesso do Cliente".
-  const stepId = Number.isFinite(Number(p["pipelineStepId"])) && p["pipelineStepId"] != null ? Number(p["pipelineStepId"]) : null;
+  const stepId =
+    Number.isFinite(Number(p["pipelineStepId"])) && p["pipelineStepId"] != null
+      ? Number(p["pipelineStepId"])
+      : null;
   const row = {
     opportunity_id: id,
     lead_id: p["contactId"] ? `cm-${p["contactId"]}` : null,
@@ -70,13 +78,20 @@ async function processOpportunity(p: ClickmassaPayload): Promise<void> {
     status: str(p["status"]),
     seller_name: str(obj(p["responsible"])["name"]) ?? str(obj(p["user"])["name"]),
     value: num(p["value"]),
-    pending_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
-    total_tasks: num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]) + num(tc["countComplete"]),
+    pending_tasks:
+      num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
+    total_tasks:
+      num(tc["countSchendule"]) +
+      num(tc["countDelayed"]) +
+      num(tc["countRequiredPending"]) +
+      num(tc["countComplete"]),
     created_at: str(p["createdAt"]) ?? new Date().toISOString(),
     updated_at: str(p["updatedAt"]) ?? new Date().toISOString(),
   };
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.from("crm_opportunities").upsert(row, { onConflict: "opportunity_id" });
+  const { error } = await supabaseAdmin
+    .from("crm_opportunities")
+    .upsert(row, { onConflict: "opportunity_id" });
   if (error) throw error;
 }
 
@@ -93,16 +108,19 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
     const origin = str((contact?.["leadOrigin"] as Record<string, unknown> | null)?.["name"]);
     if (contact?.["id"] != null && origin) {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.from("crm_leads").update({ lead_origin: origin }).eq("lead_id", `cm-${contact["id"]}`);
+      await supabaseAdmin
+        .from("crm_leads")
+        .update({ lead_origin: origin })
+        .eq("lead_id", `cm-${contact["id"]}`);
     }
     return;
   }
   const p = unwrap(payload);
 
-
   const rawId = pick(p, ["lead_id", "id", "leadId", "codigo", "code", "contact_id", "contactId"]);
   // Eventos de contato do ClickMassa usam o mesmo ID da sincronização (prefixo cm-)
-  const leadId = rawId && /contact/i.test(event) && !rawId.startsWith("cm-") ? `cm-${rawId}` : rawId;
+  const leadId =
+    rawId && /contact/i.test(event) && !rawId.startsWith("cm-") ? `cm-${rawId}` : rawId;
   const row = {
     lead_id: leadId,
     name: pick(p, ["name", "nome", "full_name", "contact_name"]),
@@ -116,7 +134,14 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
     utm_source: pick(p, ["utm_source", "source", "origem"]),
     utm_medium: pick(p, ["utm_medium", "medium", "canal"]),
     utm_campaign: pick(p, ["utm_campaign", "campaign", "campanha"]),
-    first_response_at: pick(p, ["first_response_at", "firstResponseAt", "first_attendance_at", "firstAttendanceAt", "answered_at", "answeredAt"]),
+    first_response_at: pick(p, [
+      "first_response_at",
+      "firstResponseAt",
+      "first_attendance_at",
+      "firstAttendanceAt",
+      "answered_at",
+      "answeredAt",
+    ]),
     updated_at: new Date().toISOString(),
   };
   // Atualização parcial: campos que não vieram no payload preservam o valor salvo.
@@ -135,10 +160,7 @@ async function processPayload(payload: ClickmassaPayload): Promise<void> {
       .maybeSingle();
 
     if (existing) {
-      const { error } = await supabaseAdmin
-        .from("crm_leads")
-        .update(partial)
-        .eq("id", existing.id);
+      const { error } = await supabaseAdmin.from("crm_leads").update(partial).eq("id", existing.id);
       if (error) throw error;
       return;
     }
@@ -174,9 +196,7 @@ async function auditAndProcess(rawBody: string, authHeader: string): Promise<voi
       payload = null;
     }
 
-    const eventType = payload
-      ? pick(payload, ["event", "event_type", "type", "action"])
-      : null;
+    const eventType = payload ? pick(payload, ["event", "event_type", "type", "action"]) : null;
     const auditPayload = (payload ?? { raw: rawBody }) as Json;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: log, error: logError } = await supabaseAdmin
@@ -186,7 +206,8 @@ async function auditAndProcess(rawBody: string, authHeader: string): Promise<voi
         event_type: eventType,
         payload: auditPayload,
         authorized,
-        processing_status: authorized && payload ? "processing" : authorized ? "invalid_payload" : "unauthorized",
+        processing_status:
+          authorized && payload ? "processing" : authorized ? "invalid_payload" : "unauthorized",
         received_at: receivedAt,
       })
       .select("id")
@@ -212,7 +233,11 @@ async function auditAndProcess(rawBody: string, authHeader: string): Promise<voi
       if (logId) {
         await supabaseAdmin
           .from("webhook_logs")
-          .update({ processing_status: "failed", error_message: message, processed_at: new Date().toISOString() })
+          .update({
+            processing_status: "failed",
+            error_message: message,
+            processed_at: new Date().toISOString(),
+          })
           .eq("id", logId);
       } else {
         await supabaseAdmin.from("webhook_logs").insert({
@@ -241,11 +266,14 @@ export const Route = createFileRoute("/api/public/webhooks/clickmassa")({
           const rawBody = await request.text();
           const authHeader = request.headers.get("authorization") ?? "";
           const task = auditAndProcess(rawBody, authHeader);
-          const waitUntil = (request as unknown as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil;
+          const waitUntil = (request as unknown as { waitUntil?: (p: Promise<unknown>) => void })
+            .waitUntil;
           if (typeof waitUntil === "function") {
             waitUntil(task);
           } else {
-            task.catch((error) => console.error("[webhook-clickmassa] detached task error:", error));
+            task.catch((error) =>
+              console.error("[webhook-clickmassa] detached task error:", error),
+            );
           }
           return received();
         } catch (error) {

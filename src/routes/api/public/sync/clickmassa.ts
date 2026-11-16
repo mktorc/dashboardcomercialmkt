@@ -33,13 +33,16 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
         const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
-        const token = (process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"]);
+        const token = process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"];
         if (!base || !token) {
           return Response.json({ error: "ClickMassa não configurado" }, { status: 500 });
         }
         const url = new URL(request.url);
         const startPage = Math.max(1, Number(url.searchParams.get("startPage")) || 1);
-        const maxPages = Math.min(1000, Math.max(1, Number(url.searchParams.get("maxPages")) || 1000));
+        const maxPages = Math.min(
+          1000,
+          Math.max(1, Number(url.searchParams.get("maxPages")) || 1000),
+        );
 
         const get = async (path: string) => {
           const r = await fetch(`${base}${path}`, {
@@ -116,7 +119,9 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                   s((c["customFields"] as Obj | null)?.["origem_do_lead"]),
                 first_connection_name:
                   s(c["firstConnectionName"]) ??
-                  (c["firstConnection"] != null ? (connectionNames.get(String(c["firstConnection"])) ?? null) : null),
+                  (c["firstConnection"] != null
+                    ? (connectionNames.get(String(c["firstConnection"])) ?? null)
+                    : null),
                 utm_medium: utm.medium,
                 utm_campaign: utm.campaign,
                 created_at: s(c["createdAt"]) ?? new Date().toISOString(),
@@ -174,7 +179,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
           }
 
           await recordSyncRun("clickmassa");
-        return Response.json({
+          return Response.json({
             ok: true,
             tasksSynced,
             pipelines: pipelines.map((p) => p["name"]),

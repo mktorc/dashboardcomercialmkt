@@ -4,7 +4,11 @@ self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim(
 
 self.addEventListener("push", (event) => {
   let data = {};
-  try { data = event.data ? event.data.json() : {}; } catch { /* payload inválido */ }
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    /* payload inválido */
+  }
   event.waitUntil(
     self.registration.showNotification(data.title || "Controle de Reservas", {
       body: data.body || "",
@@ -21,7 +25,11 @@ self.addEventListener("notificationclick", (event) => {
   const url = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
-      for (const c of list) if ("focus" in c) { c.navigate(url); return c.focus(); }
+      for (const c of list)
+        if ("focus" in c) {
+          c.navigate(url);
+          return c.focus();
+        }
       return self.clients.openWindow(url);
     }),
   );

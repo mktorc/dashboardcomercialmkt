@@ -36,7 +36,12 @@ export function PickupChart({
   /** Nome da linha esperada (na tela da data: a referência usada, com a data). */
   esperadaNome?: string;
   /** Outras referências, desenhadas tracejadas e finas; passar (mesmo vazio) destaca a esperada como a referência usada. */
-  extras?: { key: string; name: string; /** Cor e traço próprios da linha (e da legenda); sem eles, cinza tracejado. */ color?: string; dash?: string }[];
+  extras?: {
+    key: string;
+    name: string;
+    /** Cor e traço próprios da linha (e da legenda); sem eles, cinza tracejado. */ color?: string;
+    dash?: string;
+  }[];
   /** Pontos em que cada série chegou a 100% (chave da série e rótulo do eixo). */
   marcas?: { key: string; label: string }[];
   /** Rótulo do ponto da data-base: ganha uma linha vertical "hoje". */
@@ -52,7 +57,11 @@ export function PickupChart({
           <TooltipProvider delayDuration={100}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button type="button" aria-label="Como ler a curva" className="text-muted-foreground hover:text-foreground">
+                <button
+                  type="button"
+                  aria-label="Como ler a curva"
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <Info className="size-4" />
                 </button>
               </TooltipTrigger>
@@ -71,10 +80,25 @@ export function PickupChart({
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
               <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
               {hoje ? (
-                <ReferenceLine x={hoje} stroke="var(--foreground)" strokeDasharray="4 3" strokeOpacity={0.6} label={{ value: "hoje", position: "insideTopRight", fontSize: 11, fill: "var(--foreground)" }} />
+                <ReferenceLine
+                  x={hoje}
+                  stroke="var(--foreground)"
+                  strokeDasharray="4 3"
+                  strokeOpacity={0.6}
+                  label={{
+                    value: "hoje",
+                    position: "insideTopRight",
+                    fontSize: 11,
+                    fill: "var(--foreground)",
+                  }}
+                />
               ) : null}
               <ChartTooltip
-                formatter={(v: number | string, _n: string, item: { dataKey?: string | number; payload?: Record<string, unknown> }) => {
+                formatter={(
+                  v: number | string,
+                  _n: string,
+                  item: { dataKey?: string | number; payload?: Record<string, unknown> },
+                ) => {
                   if (typeof v !== "number") return "—";
                   const c = item?.payload?.[`${item.dataKey}Carros`];
                   const cap = item?.payload?.["capacidade"];
@@ -93,7 +117,11 @@ export function PickupChart({
                   stroke={e.color ?? "var(--muted-foreground)"}
                   strokeDasharray={e.dash ?? "2 3"}
                   strokeWidth={e.color ? 1.75 : 1}
-                  dot={{ r: 2, fill: e.color ?? "var(--muted-foreground)", stroke: e.color ?? "var(--muted-foreground)" }}
+                  dot={{
+                    r: 2,
+                    fill: e.color ?? "var(--muted-foreground)",
+                    stroke: e.color ?? "var(--muted-foreground)",
+                  }}
                   connectNulls={false}
                 />
               ))}
@@ -117,7 +145,15 @@ export function PickupChart({
                 connectNulls={false}
               />
               {(marcas ?? []).map((m) => (
-                <ReferenceDot key={m.key} x={m.label} y={100} r={6} fill="var(--background)" stroke="var(--foreground)" strokeWidth={2} />
+                <ReferenceDot
+                  key={m.key}
+                  x={m.label}
+                  y={100}
+                  r={6}
+                  fill="var(--background)"
+                  stroke="var(--foreground)"
+                  strokeWidth={2}
+                />
               ))}
             </LineChart>
           </ResponsiveContainer>
@@ -137,7 +173,16 @@ export function PickupChart({
         {(extras ?? []).map((e) => (
           <span key={e.key}>
             <svg width="22" height="6" className="mr-1 inline-block align-middle" aria-hidden>
-              <line x1="0" y1="3" x2="22" y2="3" stroke={e.color ?? "var(--muted-foreground)"} strokeWidth={e.color ? 1.75 : 1} strokeDasharray={e.dash ?? "2 3"} strokeLinecap="round" />
+              <line
+                x1="0"
+                y1="3"
+                x2="22"
+                y2="3"
+                stroke={e.color ?? "var(--muted-foreground)"}
+                strokeWidth={e.color ? 1.75 : 1}
+                strokeDasharray={e.dash ?? "2 3"}
+                strokeLinecap="round"
+              />
             </svg>
             {e.name}
           </span>
@@ -147,7 +192,10 @@ export function PickupChart({
             <span className="mr-1 inline-block size-2.5 rounded-full border-2 border-foreground align-middle" />
             chegou a 100%:{" "}
             {marcas
-              .map((m) => `${m.key === "esperada" ? esperadaNome : (extras ?? []).find((e) => e.key === m.key)?.name ?? m.key} em ${m.label.replace(" (base)", "")}`)
+              .map(
+                (m) =>
+                  `${m.key === "esperada" ? esperadaNome : ((extras ?? []).find((e) => e.key === m.key)?.name ?? m.key)} em ${m.label.replace(" (base)", "")}`,
+              )
               .join("; ")}
           </span>
         ) : null}
@@ -155,4 +203,3 @@ export function PickupChart({
     </Card>
   );
 }
-

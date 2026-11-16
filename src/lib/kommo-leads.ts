@@ -19,14 +19,18 @@ export type KommoLead = {
   email_lc?: string | null;
 };
 
-export async function fetchKommoLeads(fromIso: string, toIso: string,
+export async function fetchKommoLeads(
+  fromIso: string,
+  toIso: string,
   dateColumn: "created_at" | "updated_at" = "created_at",
 ): Promise<KommoLead[]> {
   if (fromIso > toIso) return [];
   const { data, error } = await fetchAll((a, b) =>
     supabase
       .from("crm_leads")
-      .select("lead_id, name, stage_name, seller_name, utm_source, lead_origin, utm_campaign, created_at, updated_at, phone8, email_lc")
+      .select(
+        "lead_id, name, stage_name, seller_name, utm_source, lead_origin, utm_campaign, created_at, updated_at, phone8, email_lc",
+      )
       .like("lead_id", `${KOMMO_PREFIX}%`)
       .gte(dateColumn, fromIso)
       .lte(dateColumn, toIso)
@@ -45,7 +49,8 @@ export const kommoAsOpportunity = (l: KommoLead, status = "closed") => ({
   stage_name: l.stage_name,
   status,
   seller_name: l.seller_name,
-  pending_tasks: 0, total_tasks: 0,
+  pending_tasks: 0,
+  total_tasks: 0,
   pipeline_step_id: null as number | null,
   created_at: l.created_at,
   updated_at: l.updated_at,
@@ -55,8 +60,10 @@ export const kommoAsOpportunity = (l: KommoLead, status = "closed") => ({
 
 export type KommoWin = { lead: KommoLead; wonAt: string };
 
-const chunk = <T,>(items: T[], size: number) =>
-  Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
+const chunk = <T>(items: T[], size: number) =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, i) =>
+    items.slice(i * size, (i + 1) * size),
+  );
 
 /**
  * Ganhos do Kommo datados pelo HQ: o updated_at do Kommo foi reescrito na importação, então a data
@@ -76,9 +83,17 @@ export async function fetchKommoWins(fromIso: string, toIso: string): Promise<Ko
       .range(a, b),
   );
   if (res.error) throw res.error;
-  const reservations = res.data as { created_at: string; phone8: string | null; email_lc: string | null }[];
-  const phones = [...new Set(reservations.map((r) => r.phone8).filter((v): v is string => Boolean(v)))];
-  const emails = [...new Set(reservations.map((r) => r.email_lc).filter((v): v is string => Boolean(v)))];
+  const reservations = res.data as {
+    created_at: string;
+    phone8: string | null;
+    email_lc: string | null;
+  }[];
+  const phones = [
+    ...new Set(reservations.map((r) => r.phone8).filter((v): v is string => Boolean(v))),
+  ];
+  const emails = [
+    ...new Set(reservations.map((r) => r.email_lc).filter((v): v is string => Boolean(v))),
+  ];
 
   const select =
     "lead_id, name, stage_name, seller_name, utm_source, lead_origin, utm_campaign, created_at, updated_at, phone8, email_lc";
@@ -86,14 +101,26 @@ export async function fetchKommoWins(fromIso: string, toIso: string): Promise<Ko
   const pages = await Promise.all([
     ...chunk(phones, 200).map((ids) =>
       fetchAll((a, b) =>
-        supabase.from("crm_leads").select(select).like("lead_id", `${KOMMO_PREFIX}%`)
-          .ilike("stage_name", "ganho").in("phone8", ids).order("lead_id").range(a, b),
+        supabase
+          .from("crm_leads")
+          .select(select)
+          .like("lead_id", `${KOMMO_PREFIX}%`)
+          .ilike("stage_name", "ganho")
+          .in("phone8", ids)
+          .order("lead_id")
+          .range(a, b),
       ),
     ),
     ...chunk(emails, 100).map((ids) =>
       fetchAll((a, b) =>
-        supabase.from("crm_leads").select(select).like("lead_id", `${KOMMO_PREFIX}%`)
-          .ilike("stage_name", "ganho").in("email_lc", ids).order("lead_id").range(a, b),
+        supabase
+          .from("crm_leads")
+          .select(select)
+          .like("lead_id", `${KOMMO_PREFIX}%`)
+          .ilike("stage_name", "ganho")
+          .in("email_lc", ids)
+          .order("lead_id")
+          .range(a, b),
       ),
     ),
   ]);

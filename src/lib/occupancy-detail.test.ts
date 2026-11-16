@@ -37,9 +37,16 @@ describe("conversão em carros", () => {
 });
 
 describe("faixa das referências", () => {
-  const refs = [{ date: "2025-01-07", occ: 0.78 }, { date: "2026-01-06", occ: 0.24 }];
+  const refs = [
+    { date: "2025-01-07", occ: 0.78 },
+    { date: "2026-01-06", occ: 0.24 },
+  ];
   it("vai da menor à maior ocupação e classifica a atual", () => {
-    expect(faixaReferencias(refs, 0.1)).toMatchObject({ status: "abaixo", min: { date: "2026-01-06" }, max: { date: "2025-01-07" } });
+    expect(faixaReferencias(refs, 0.1)).toMatchObject({
+      status: "abaixo",
+      min: { date: "2026-01-06" },
+      max: { date: "2025-01-07" },
+    });
     expect(faixaReferencias(refs, 0.5)?.status).toBe("dentro");
     expect(faixaReferencias(refs, 0.24)?.status).toBe("dentro");
     expect(faixaReferencias(refs, 0.9)?.status).toBe("acima");
@@ -138,7 +145,11 @@ describe("faixa pela média da semana", () => {
     { label: "2024", occMedia: null },
   ];
   it("min e max entre as médias dos anos com leitura; status da atual", () => {
-    expect(faixaJanela(anos, 0.5)).toEqual({ min: { label: "2025", occ: 0.4 }, max: { label: "2026", occ: 0.45 }, status: "acima" });
+    expect(faixaJanela(anos, 0.5)).toEqual({
+      min: { label: "2025", occ: 0.4 },
+      max: { label: "2026", occ: 0.45 },
+      status: "acima",
+    });
     expect(faixaJanela(anos, 0.42)!.status).toBe("dentro");
     expect(faixaJanela(anos, 0.2)!.status).toBe("abaixo");
     expect(faixaJanela(anos, null)!.status).toBeNull();
@@ -148,7 +159,15 @@ describe("faixa pela média da semana", () => {
     expect(f.status).toBe("dentro");
   });
   it("menos de dois anos com leitura: sem faixa", () => {
-    expect(faixaJanela([{ label: "2025", occMedia: 0.4 }, { label: "2024", occMedia: null }], 0.4)).toBeNull();
+    expect(
+      faixaJanela(
+        [
+          { label: "2025", occMedia: 0.4 },
+          { label: "2024", occMedia: null },
+        ],
+        0.4,
+      ),
+    ).toBeNull();
   });
 });
 
@@ -187,12 +206,25 @@ describe("curva com as referências", () => {
     { label: "D-20", L: 20, atual: null, esperada: 1 },
   ];
   const usada = { date: "2025-01-07", chosen: true, occ: 1, hist: [row([30], undefined, 2)] }; // frota 2, 1 carro: nunca chega a 100%
-  const outra = { date: "2026-01-06", chosen: false, occ: 0.5, hist: [row([30, 30], undefined, 4)] };
+  const outra = {
+    date: "2026-01-06",
+    chosen: false,
+    occ: 0.5,
+    hist: [row([30, 30], undefined, 4)],
+  };
   it("uma série por outra referência, tooltip em carros e marcas de cada série", () => {
     const c = curvaDetalhe(pontos, [usada, outra] as never, 10);
     expect(c.extras).toEqual([{ key: "ref0", date: "2026-01-06" }]);
     expect(c.dia).toEqual({ key: "refDia", date: "2025-01-07" });
-    expect(c.data[0]).toMatchObject({ esperada: 50, esperadaCarros: 5, atualCarros: 2, ref0: 50, ref0Carros: 5, refDia: 50, capacidade: 10 });
+    expect(c.data[0]).toMatchObject({
+      esperada: 50,
+      esperadaCarros: 5,
+      atualCarros: 2,
+      ref0: 50,
+      ref0Carros: 5,
+      refDia: 50,
+      capacidade: 10,
+    });
   });
   it("a marca da esperada vem da própria linha da esperada (média da janela), não da referência do dia", () => {
     const c = curvaDetalhe(pontos, [usada, outra] as never, 10);
@@ -206,15 +238,24 @@ describe("curva com as referências", () => {
     ]);
     // esperada que nunca chega a 100%: sem marca, mesmo com a referência do dia cheia
     const sem = pontos.map((p) => ({ ...p, esperada: 0.9 }));
-    expect(curvaDetalhe(sem, [cheia, outra] as never, 10).marcas).toEqual([{ key: "refDia", label: "D-20" }]);
+    expect(curvaDetalhe(sem, [cheia, outra] as never, 10).marcas).toEqual([
+      { key: "refDia", label: "D-20" },
+    ]);
   });
 });
 
 describe("preço de venda atual", () => {
   const r = (c: string, f: number): PaceRow => ({ d: "2027-01-28", c, f, a: [] }) as PaceRow;
-  const t = new Map([[rateKey("2027-01-28", "A"), 60], [rateKey("2027-01-28", "B"), 100]]);
+  const t = new Map([
+    [rateKey("2027-01-28", "A"), 60],
+    [rateKey("2027-01-28", "B"), 100],
+  ]);
   it("uma categoria: a tarifa dela", () => {
-    expect(precoVendaAtual([r("A", 10)], t, "2027-01-28")).toMatchObject({ valor: 60, cobertas: 1, total: 1 });
+    expect(precoVendaAtual([r("A", 10)], t, "2027-01-28")).toMatchObject({
+      valor: 60,
+      cobertas: 1,
+      total: 1,
+    });
   });
   it("várias: média ponderada pela frota, só das que têm tarifa", () => {
     const p = precoVendaAtual([r("A", 30), r("B", 10), r("C", 50)], t, "2027-01-28")!;
@@ -227,7 +268,13 @@ describe("preço de venda atual", () => {
   });
   it("casa a categoria com nome em caixa/espaço diferente (Fullsize Suv × Fullsize SUV)", () => {
     const tf = new Map([[rateKey("2027-01-12", "Fullsize SUV"), 90]]);
-    expect(precoVendaAtual([{ d: "2027-01-12", c: "Fullsize Suv", f: 9, a: [] } as PaceRow], tf, "2027-01-12")?.valor).toBe(90);
+    expect(
+      precoVendaAtual(
+        [{ d: "2027-01-12", c: "Fullsize Suv", f: 9, a: [] } as PaceRow],
+        tf,
+        "2027-01-12",
+      )?.valor,
+    ).toBe(90);
   });
 });
 

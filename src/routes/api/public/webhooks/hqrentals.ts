@@ -30,8 +30,13 @@ async function log(rawBody: string, ok: boolean): Promise<void> {
   } catch {
     payload = { raw: rawBody.slice(0, 20_000) };
   }
-  const obj = payload && typeof payload === "object" && !Array.isArray(payload) ? (payload as Record<string, Json>) : {};
-  const eventType = [obj["event"], obj["event_type"], obj["type"], obj["action"]].find((v) => typeof v === "string") as string | undefined;
+  const obj =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, Json>)
+      : {};
+  const eventType = [obj["event"], obj["event_type"], obj["type"], obj["action"]].find(
+    (v) => typeof v === "string",
+  ) as string | undefined;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { error } = await supabaseAdmin.from("webhook_logs").insert({
     source: "hq_rentals",
@@ -53,7 +58,8 @@ export const Route = createFileRoute("/api/public/webhooks/hqrentals")({
           const ok = authorized(request);
           const rawBody = (await request.text()).slice(0, MAX_BODY);
           const task = log(rawBody, ok);
-          const waitUntil = (request as unknown as { waitUntil?: (p: Promise<unknown>) => void }).waitUntil;
+          const waitUntil = (request as unknown as { waitUntil?: (p: Promise<unknown>) => void })
+            .waitUntil;
           if (typeof waitUntil === "function") waitUntil(task);
           else task.catch((e) => console.error("[webhook-hqrentals] detached task error:", e));
         } catch (error) {
@@ -62,7 +68,9 @@ export const Route = createFileRoute("/api/public/webhooks/hqrentals")({
         return received();
       },
       GET: async ({ request }) =>
-        authorized(request) ? Response.json({ ok: true, status: "active" }) : Response.json({ error: "Unauthorized" }, { status: 401 }),
+        authorized(request)
+          ? Response.json({ ok: true, status: "active" })
+          : Response.json({ error: "Unauthorized" }, { status: 401 }),
     },
   },
 });

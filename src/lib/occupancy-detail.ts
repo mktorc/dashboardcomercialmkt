@@ -25,7 +25,9 @@ export const carros = (occ: number, fleet: number) => Math.round(occ * fleet);
  * atual das mesmas categorias. Ex.: 76 carros contra frota atual 105 = 72%. Null sem carros ou sem frota.
  */
 export function metaCarros(carros: number | null, fleetAtual: number | null) {
-  return carros == null || !fleetAtual ? null : { carros: Math.round(carros), pct: carros / fleetAtual, frota: Math.round(fleetAtual) };
+  return carros == null || !fleetAtual
+    ? null
+    : { carros: Math.round(carros), pct: carros / fleetAtual, frota: Math.round(fleetAtual) };
 }
 
 /** Gap em p.p. convertido para carros, na frota sobre a qual o gap foi medido. */
@@ -39,12 +41,16 @@ export type Faixa = {
 };
 
 /** Faixa entre a menor e a maior ocupação das referências (na antecedência analisada). Com menos de duas referências, null. */
-export function faixaReferencias(items: Pick<RefItem, "date" | "occ">[], atual: number | null): Faixa | null {
+export function faixaReferencias(
+  items: Pick<RefItem, "date" | "occ">[],
+  atual: number | null,
+): Faixa | null {
   const xs = items.filter((i): i is { date: string; occ: number } => i.occ != null);
   if (xs.length < 2) return null;
   const min = xs.reduce((a, b) => (b.occ < a.occ ? b : a));
   const max = xs.reduce((a, b) => (b.occ > a.occ ? b : a));
-  const status = atual == null ? null : atual < min.occ ? "abaixo" : atual > max.occ ? "acima" : "dentro";
+  const status =
+    atual == null ? null : atual < min.occ ? "abaixo" : atual > max.occ ? "acima" : "dentro";
   return { min: { date: min.date, occ: min.occ }, max: { date: max.date, occ: max.occ }, status };
 }
 
@@ -58,18 +64,41 @@ export type FaixaJanela = {
  * Faixa das referências pela MÉDIA DA SEMANA de cada ano (mesma regra da esperada: janela de 7 dias, cada dia na sua antecedência).
  * A esperada é a média do ano escolhido, então sempre cai dentro da faixa. Com menos de dois anos com leitura, null.
  */
-export function faixaJanela(anos: { label: string; occMedia: number | null }[], atual: number | null): FaixaJanela | null {
+export function faixaJanela(
+  anos: { label: string; occMedia: number | null }[],
+  atual: number | null,
+): FaixaJanela | null {
   const xs = anos.filter((a): a is { label: string; occMedia: number } => a.occMedia != null);
   if (xs.length < 2) return null;
   const min = xs.reduce((a, b) => (b.occMedia < a.occMedia ? b : a));
   const max = xs.reduce((a, b) => (b.occMedia > a.occMedia ? b : a));
-  const status = atual == null ? null : atual < min.occMedia ? "abaixo" : atual > max.occMedia ? "acima" : "dentro";
-  return { min: { label: min.label, occ: min.occMedia }, max: { label: max.label, occ: max.occMedia }, status };
+  const status =
+    atual == null
+      ? null
+      : atual < min.occMedia
+        ? "abaixo"
+        : atual > max.occMedia
+          ? "acima"
+          : "dentro";
+  return {
+    min: { label: min.label, occ: min.occMedia },
+    max: { label: max.label, occ: max.occMedia },
+    status,
+  };
 }
 
-export const FAIXA_TXT = { abaixo: "abaixo da faixa", dentro: "dentro da faixa", acima: "acima da faixa" } as const;
+export const FAIXA_TXT = {
+  abaixo: "abaixo da faixa",
+  dentro: "dentro da faixa",
+  acima: "acima da faixa",
+} as const;
 
-export type Projecao = { ganhoCarros: number; fechaCarros: number; fechaOcc: number; revPorVeiculo: number | null };
+export type Projecao = {
+  ganhoCarros: number;
+  fechaCarros: number;
+  fechaOcc: number;
+  revPorVeiculo: number | null;
+};
 
 /**
  * Projeção simples de fechamento: reservados hoje + o ganho que a referência teve até a data (em p.p. da frota, convertido para a
@@ -111,7 +140,12 @@ export function projecaoNoRitmo(
   const ganho = (ritmo / dias) * lead;
   const fechaCarros = Math.max(0, Math.min(capacity, Math.round(booked + ganho)));
   const fechaOcc = fechaCarros / capacity;
-  return { ganhoCarros: fechaCarros - booked, fechaCarros, fechaOcc, revPorVeiculo: diariaAtual != null ? fechaOcc * diariaAtual : null };
+  return {
+    ganhoCarros: fechaCarros - booked,
+    fechaCarros,
+    fechaOcc,
+    revPorVeiculo: diariaAtual != null ? fechaOcc * diariaAtual : null,
+  };
 }
 
 /** Diferença % da diária média de hoje contra a da referência na mesma antecedência; null sem os dois valores. */
@@ -127,7 +161,12 @@ export const diariaEmL = (hist: PaceRow[], L: number): number | null => revenueO
  * Mesma regra da ocupação: as depois canceladas contam se ainda estavam ativas. Null quando L+dias cai antes do início da base `de`
  * (para uma data da referência `date`) ou quando L ≤ 0 (data encerrada).
  */
-export function ritmoRecente(rows: PaceRow[], L: number, dias: number, opts?: { date: string; de: string }): number | null {
+export function ritmoRecente(
+  rows: PaceRow[],
+  L: number,
+  dias: number,
+  opts?: { date: string; de: string },
+): number | null {
   if (L <= 0 || !rows.length) return null;
   if (opts && addDays(opts.date, -(L + dias)) < opts.de) return null;
   const at = (l: number) => rows.reduce((n, r) => n + activeAt(r, l), 0);
@@ -159,20 +198,30 @@ export function lotacaoAvisavel(hist: PaceRow[], limite = 14): number | null {
 }
 
 /** Aviso de frota pequena: cada carro vale 100/frota p.p. Null quando a frota atinge o limite. */
-export function avisoFrotaPequena(capacity: number, limite = FROTA_PEQUENA_LIMITE): { ppPorCarro: number; texto: string } | null {
+export function avisoFrotaPequena(
+  capacity: number,
+  limite = FROTA_PEQUENA_LIMITE,
+): { ppPorCarro: number; texto: string } | null {
   if (!capacity || capacity >= limite) return null;
   const pp = 100 / capacity;
-  return { ppPorCarro: pp, texto: `cada carro vale ${pp.toFixed(1).replace(".", ",")} p.p.; a esperada oscila muito` };
+  return {
+    ppPorCarro: pp,
+    texto: `cada carro vale ${pp.toFixed(1).replace(".", ",")} p.p.; a esperada oscila muito`,
+  };
 }
 
 /** Ocupação (0–1, sem limite) de uma referência em cada antecedência da lista. */
 export function curvaReferencia(hist: PaceRow[], leads: number[]): { L: number; occ: number }[] {
   const fleet = hist.reduce((n, h) => n + histFleet(h), 0);
-  return leads.map((L) => ({ L, occ: fleet ? hist.reduce((n, h) => n + activeAt(h, L), 0) / fleet : 0 }));
+  return leads.map((L) => ({
+    L,
+    occ: fleet ? hist.reduce((n, h) => n + activeAt(h, L), 0) / fleet : 0,
+  }));
 }
 
 /** Primeiro ponto da curva (maior antecedência) com ocupação de 100% ou mais; null se nenhum. */
-export const primeiroCheio = (curva: { L: number; occ: number }[]) => curva.find((p) => p.occ >= 1) ?? null;
+export const primeiroCheio = (curva: { L: number; occ: number }[]) =>
+  curva.find((p) => p.occ >= 1) ?? null;
 
 export type CurvaDetalhePonto = {
   label: string;
@@ -229,9 +278,11 @@ export function curvaDetalhe(
     extras: outras.map((i, k) => ({ key: `ref${k}`, date: i.date })),
     /** Referência do ano escolhido só no próprio dia (linha fina); a esperada é a média da janela, não esta. */
     dia: usada ? { key: "refDia", date: usada.date } : null,
-    marcas: [cheia ? { key: "esperada", label: cheia.label } : null, marca(curvaUsada, "refDia"), ...curvas.map((c, k) => marca(c, `ref${k}`))].filter(
-      (m): m is { key: string; label: string } => !!m,
-    ),
+    marcas: [
+      cheia ? { key: "esperada", label: cheia.label } : null,
+      marca(curvaUsada, "refDia"),
+      ...curvas.map((c, k) => marca(c, `ref${k}`)),
+    ].filter((m): m is { key: string; label: string } => !!m),
   };
 }
 
@@ -241,7 +292,11 @@ export type PrecoVenda = { valor: number; cobertas: number; total: number; falta
  * Preço de venda atual (nossa tarifa para a data) das linhas analisadas: com uma categoria, o dela; com várias, a média ponderada
  * pela frota das que têm tarifa. `tarifas` vem de "data|categoria" → diária. Sem nenhuma tarifa, null.
  */
-export function precoVendaAtual(rows: PaceRow[], tarifas: Map<string, number>, date: string): PrecoVenda | null {
+export function precoVendaAtual(
+  rows: PaceRow[],
+  tarifas: Map<string, number>,
+  date: string,
+): PrecoVenda | null {
   let v = 0;
   let f = 0;
   const faltam: string[] = [];
@@ -254,5 +309,7 @@ export function precoVendaAtual(rows: PaceRow[], tarifas: Map<string, number>, d
     v += t * r.f;
     f += r.f;
   }
-  return f ? { valor: v / f, cobertas: rows.length - faltam.length, total: rows.length, faltam } : null;
+  return f
+    ? { valor: v / f, cobertas: rows.length - faltam.length, total: rows.length, faltam }
+    : null;
 }

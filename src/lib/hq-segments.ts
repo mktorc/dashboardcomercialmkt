@@ -23,13 +23,20 @@ export function extractSegments(
   status: string,
   skipVehicles?: Set<number>,
 ): SegmentRow[] {
-  const allInfo = Array.isArray(r["reservation_vehicle_information"]) ? (r["reservation_vehicle_information"] as HqRecord[]) : [];
+  const allInfo = Array.isArray(r["reservation_vehicle_information"])
+    ? (r["reservation_vehicle_information"] as HqRecord[])
+    : [];
   // Veículos de classe que o HQ não lista mais (ex.: "Extra") ficam fora da Utilização.
-  const info = skipVehicles ? allInfo.filter((v) => !skipVehicles.has(Number(v["vehicle_id"]))) : allInfo;
+  const info = skipVehicles
+    ? allInfo.filter((v) => !skipVehicles.has(Number(v["vehicle_id"])))
+    : allInfo;
   if (allInfo.length > 0 && info.length === 0) return [];
   const valid = info
     .filter((v) => isDate(v["pick_up_date"]) && isDate(v["return_date"]))
-    .map((v) => ({ pick_up_at: v["pick_up_date"] as string, return_at: v["return_date"] as string }))
+    .map((v) => ({
+      pick_up_at: v["pick_up_date"] as string,
+      return_at: v["return_date"] as string,
+    }))
     .sort((a, b) => Date.parse(a.pick_up_at) - Date.parse(b.pick_up_at));
   const trechos =
     valid.length > 0
@@ -45,5 +52,9 @@ export function extractFleetVehicle(v: HqRecord): FleetVehicleRow | null {
   const id = Number(v["id"]);
   const entry = [v["vehicle_entry_date"], v["available_date"], v["created_at"]].find(isDate);
   if (!Number.isFinite(id) || !entry) return null;
-  return { id, entry_date: entry, exit_date: isDate(v["vehicle_exit_date"]) ? v["vehicle_exit_date"] : null };
+  return {
+    id,
+    entry_date: entry,
+    exit_date: isDate(v["vehicle_exit_date"]) ? v["vehicle_exit_date"] : null,
+  };
 }
