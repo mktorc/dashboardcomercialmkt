@@ -353,6 +353,7 @@ function seed() {
       {
         id: "r1",
         reservation_id: "ORC-1",
+        customer_key: "kA",
         car_category: "SUV",
         rental_days: 5,
         total_amount: 1000,
@@ -371,6 +372,7 @@ function seed() {
       {
         id: "r2",
         reservation_id: "ORC-2",
+        customer_key: "kB",
         car_category: "Minivan",
         rental_days: 10,
         total_amount: 3000,
@@ -389,6 +391,7 @@ function seed() {
       {
         id: "r3",
         reservation_id: "ORC-3",
+        customer_key: "kA",
         car_category: "SUV",
         rental_days: 3,
         total_amount: 700,
@@ -407,6 +410,7 @@ function seed() {
       {
         id: "r4",
         reservation_id: "ORC-4",
+        customer_key: "kA",
         car_category: "SUV",
         rental_days: 2,
         total_amount: 400,
@@ -780,6 +784,7 @@ const SAMPLE_ARGS: Record<string, Record<string, unknown>> = {
   competitor_prices: { pickup_from: "2026-03-01", pickup_to: "2026-03-01" },
   sales_goals_progress: { from_month: "2026-01" },
   sync_status: {},
+  customers_summary: {},
 };
 
 beforeEach(() => {
@@ -1002,6 +1007,25 @@ describe("filtros e intervalos de datas", () => {
     await expect(
       call("reservations_report", { from: "2026-01-01", to: "2026-01-31", raw_sql: "select 1" }),
     ).rejects.toThrow();
+  });
+});
+
+describe("clientes", () => {
+  it("customers_summary conta clientes únicos, novos e recorrentes sem expor dados pessoais", async () => {
+    const all = await call("customers_summary", {});
+    expect(all).toMatchObject({
+      unique_customers: 2,
+      reservations: 3,
+      customers_with_more_than_one_reservation: 1,
+    });
+    const feb = await call("customers_summary", { from: "2026-02-01", to: "2026-02-28" });
+    expect(feb).toMatchObject({ unique_customers: 1, new_customers: 0, returning_customers: 1 });
+    const jan = await call("customers_summary", {
+      from: "2026-01-01",
+      to: "2026-01-31",
+      include_cancelled: true,
+    });
+    expect(jan).toMatchObject({ unique_customers: 2, new_customers: 2, reservations: 3 });
   });
 });
 

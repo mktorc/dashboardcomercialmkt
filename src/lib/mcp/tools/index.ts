@@ -4,6 +4,7 @@ import { crmFunnel, crmLeadJourney, crmLeads, crmOpportunities, crmTasks } from 
 import {
   commissionPartners,
   commissionsReport,
+  customersSummary,
   reservationDetails,
   reservationOnboardingReport,
   reservationSegments,
@@ -42,6 +43,7 @@ export const TOOLS = [
   reservationSegments,
   reservationStatusChanges,
   reservationOnboardingReport,
+  customersSummary,
   // Comissões
   commissionsReport,
   commissionPartners,

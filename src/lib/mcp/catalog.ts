@@ -159,6 +159,11 @@ export const DATASETS: readonly Dataset[] = [
       ["rack_rate", "numeric"],
       ["miscellaneous_price", "numeric"],
       ["additional_charges_price", "numeric"],
+      [
+        "customer_key",
+        "text",
+        "chave anônima do cliente (HMAC do e-mail ou telefone); não reversível",
+      ],
     ],
     tools: [
       "reservations_report",
@@ -168,6 +173,7 @@ export const DATASETS: readonly Dataset[] = [
       "marketing_summary",
       "ads_performance",
       "reservation_onboarding_report",
+      "customers_summary",
     ],
   },
   {

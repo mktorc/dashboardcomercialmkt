@@ -560,3 +560,93 @@ export const commissionPartners = defineTool({
     });
   },
 });
+
+type CustRes = {
+  customer_key: string | null;
+  created_at: string;
+  pick_up_at: string | null;
+  status: string;
+  total_amount: number;
+  car_category: string | null;
+  seller_name: string | null;
+};
+
+export const customersSummary = defineTool({
+  name: "customers_summary",
+  title: "Clientes atendidos",
+  description:
+    "Clientes únicos (chave anônima por e-mail, ou telefone na falta dele; sem dados pessoais): total já atendido ou num período, novos x recorrentes, reservas por cliente e receita por cliente. Considera reservas não canceladas por padrão. Reservas sem e-mail nem telefone ficam em reservations_without_customer_key.",
+  inputSchema: {
+    from: dateArg.optional().describe("Sem from/to = todo o histórico"),
+    to: dateArg.optional(),
+    date_field: z.enum(["created_at", "pick_up_at"]).default("created_at"),
+    category: textArg.optional(),
+    seller: textArg.optional(),
+    include_cancelled: z.boolean().default(false),
+  },
+  annotations: readOnly,
+  handler: async (a, ctx) => {
+    assertPeriod(a.from, a.to);
+    const sb = mcpDb(ctx);
+    const cols = "customer_key,created_at,pick_up_at,status,total_amount,car_category,seller_name";
+    // Histórico inteiro: necessário para saber se o cliente do período já tinha reservado antes.
+    const all = (await fetchAllFrom<CustRes>(sb, "mcp_reservations", cols, (q) => q, "id")).filter(
+      (r) => a.include_cancelled || !isCancelled(r.status),
+    );
+    const df = a.date_field;
+    const inPeriod = (r: CustRes) => {
+      const d = r[df];
+      if (!a.from && !a.to) return true;
+      if (!d) return false;
+      return (!a.from || d >= a.from) && (!a.to || d <= endOfDay(a.to));
+    };
+    const sel = all.filter(
+      (r) =>
+        inPeriod(r) &&
+        (!a.category || r.car_category === a.category) &&
+        (!a.seller || (r.seller_name ?? "").toLowerCase().includes(a.seller.toLowerCase())),
+    );
+    const firstSeen = new Map<string, string>();
+    for (const r of all) {
+      if (!r.customer_key) continue;
+      const d = r.created_at;
+      const p = firstSeen.get(r.customer_key);
+      if (!p || d < p) firstSeen.set(r.customer_key, d);
+    }
+    const per = new Map<string, { n: number; revenue: number }>();
+    for (const r of sel) {
+      if (!r.customer_key) continue;
+      const e = per.get(r.customer_key) ?? { n: 0, revenue: 0 };
+      e.n++;
+      e.revenue += num(r.total_amount);
+      per.set(r.customer_key, e);
+    }
+    const periodStart = a.from ?? "";
+    let newCustomers = 0;
+    for (const k of per.keys()) if ((firstSeen.get(k) ?? "") >= periodStart) newCustomers++;
+    const dist: Record<string, number> = {};
+    for (const e of per.values()) {
+      const b = e.n >= 5 ? "5+" : String(e.n);
+      dist[b] = (dist[b] ?? 0) + 1;
+    }
+    const customers = per.size;
+    const keyed = sel.filter((r) => r.customer_key);
+    const revenue = keyed.reduce((s, r) => s + num(r.total_amount), 0);
+    return ok({
+      period:
+        a.from || a.to
+          ? { from: a.from ?? null, to: a.to ?? null, date_field: df }
+          : "todo o histórico",
+      unique_customers: customers,
+      new_customers: a.from ? newCustomers : customers,
+      returning_customers: a.from ? customers - newCustomers : null,
+      customers_with_more_than_one_reservation: [...per.values()].filter((e) => e.n > 1).length,
+      reservations: sel.length,
+      reservations_without_customer_key: sel.length - keyed.length,
+      reservations_per_customer: ratio(keyed.length, customers),
+      revenue_per_customer: ratio(revenue, customers),
+      distribution_reservations_per_customer: dist,
+      note: "Novo = primeira reserva (data de criação) dentro do período; recorrente = já tinha reserva antes. Cliente identificado por e-mail; sem e-mail, pelos 8 últimos dígitos do telefone. Base: reservas sincronizadas do HQ.",
+    });
+  },
+});
