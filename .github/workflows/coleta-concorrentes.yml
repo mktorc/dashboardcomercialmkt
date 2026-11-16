@@ -29,9 +29,10 @@ jobs:
     timeout-minutes: 40
     strategy:
       # Uma fonte por job: se uma falha ou demora, as outras seguem e cada uma tem o seu próprio limite de tempo.
+      # Avis e Budget (avislac/budgetlac) ficam de fora: bloqueiam os IPs do GitHub e voltam 0 categorias.
       fail-fast: false
       matrix:
-        fonte: [nosso, up, ally, florida, avis, budget, national, alamo]
+        fonte: [nosso, up, ally, florida, national, alamo]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

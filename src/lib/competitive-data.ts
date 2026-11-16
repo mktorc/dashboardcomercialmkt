@@ -3,7 +3,7 @@ import { rateKey } from "@/lib/categoria";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { fetchAll } from "./fetch-all";
-import { parseExtras, type Equivalence, type OurRate, type Snapshot } from "./competitiveness";
+import { overrideCategory, parseExtras, type Equivalence, type OurRate, type Snapshot } from "./competitiveness";
 
 // Tabelas da migração 0058 ainda não estão em types.ts (gerado): cliente sem tipos, como em pricing-forecast.ts.
 const supabase = typedClient as unknown as SupabaseClient;
@@ -65,7 +65,7 @@ export function useCompetitorSnapshots() {
         id: r.id,
         competitor: r.competitors?.name ?? "—",
         sourceCategory: r.source_category,
-        category: r.normalized_category, // só categorias nossas: coleta sem categoria mapeada fica sem categoria e não entra na tela
+        category: overrideCategory(r.competitors?.name ?? "—", r.source_category, r.normalized_category), // só categorias nossas: coleta sem categoria mapeada fica sem categoria e não entra na tela
         location: r.location,
         collectedAt: r.collected_at,
         pickupAt: r.pickup_at,

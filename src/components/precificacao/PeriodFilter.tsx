@@ -8,6 +8,7 @@ export function PeriodFilter({
   children,
   actions,
   ajuda,
+  label = "Período de retirada",
 }: {
   from: string;
   to: string;
@@ -18,12 +19,14 @@ export function PeriodFilter({
   actions?: React.ReactNode;
   /** Ajuda (interrogação) ao lado do rótulo do período. */
   ajuda?: React.ReactNode;
+  /** Rótulo do período. */
+  label?: string;
 }) {
   return (
     <>
       <div className="space-y-1 text-sm">
         <span className="flex items-center gap-1 text-muted-foreground">
-          Período de retirada
+          {label}
           {ajuda}
         </span>
         <PeriodoPicker

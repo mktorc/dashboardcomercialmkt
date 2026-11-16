@@ -156,22 +156,95 @@ export function latestOffers<T extends Snapshot>(rows: T[]): T[] {
 }
 
 /**
+ * Correções de pareamento aplicadas na leitura (coletas antigas foram gravadas com o mapa anterior). Chave: concorrente e trecho
+ * do modelo dele, em minúsculas; valor: nossa categoria (null = sem par, não entra na comparação).
+ */
+export const CATEGORY_OVERRIDES: { competitor: string; model: string; category: string | null }[] = [
+  // Outlander (5+2 compacto) não bate com nenhum carro nosso.
+  { competitor: "allycar", model: "outlander", category: null },
+  // Yukon XL da Allycar: fora do comparativo por decisão do usuário (2026-11-15).
+  { competitor: "allycar", model: "yukon", category: null },
+];
+
+/** Categoria nossa de uma coleta, com as correções de CATEGORY_OVERRIDES. */
+export function overrideCategory(
+  competitor: string,
+  sourceCategory: string | null | undefined,
+  category: string | null,
+): string | null {
+  const c = competitor.toLowerCase();
+  const m = (sourceCategory ?? "").toLowerCase();
+  const o = CATEGORY_OVERRIDES.find((x) => c.includes(x.competitor) && m.includes(x.model));
+  return o ? o.category : category;
+}
+
+/**
+ * Concorrente + categoria em que a referência é a MÉDIA dos modelos dele (não o mais barato).
+ * Allycar Fullsize Suv: Palisade e Grand Highlander.
+ */
+export const AVERAGE_MODELS: { competitor: string; category: string }[] = [
+  { competitor: "allycar", category: "Fullsize Suv" },
+];
+const averagesModels = (s: Snapshot) =>
+  AVERAGE_MODELS.some(
+    (a) => s.competitor.toLowerCase().includes(a.competitor) && s.category === a.category,
+  );
+
+/** Oferta que resume vários modelos do mesmo concorrente (média): mergedFrom traz as cotações usadas. */
+export type MergedSnapshot = Snapshot & { mergedFrom?: Snapshot[] };
+
+/**
  * Uma coleta por concorrente: a mais recente e, se vários modelos dele caem na mesma categoria nossa nessa coleta,
  * o de menor diária (a oferta mais barata comparável). Nunca preço antigo no lugar do atual.
+ * Exceção (AVERAGE_MODELS): a média das diárias dos modelos dele da coleta mais recente (até 1 h antes da última, mesma rodada).
  */
-export function latestPerCompetitor(rows: Snapshot[]): Snapshot[] {
+export function latestPerCompetitor(rows: Snapshot[]): MergedSnapshot[] {
   const latest = new Map<string, string>();
   for (const r of rows) {
     const cur = latest.get(r.competitor);
     if (!cur || r.collectedAt > cur) latest.set(r.competitor, r.collectedAt);
   }
   const by = new Map<string, Snapshot>();
+  const avg = new Map<string, Snapshot[]>();
   for (const r of rows) {
-    if (r.collectedAt !== latest.get(r.competitor)) continue;
+    const last = latest.get(r.competitor)!;
+    if (averagesModels(r)) {
+      if (Date.parse(last) - Date.parse(r.collectedAt) > 3600000 || dailyOf(r) == null) continue;
+      // Um por modelo (o mais recente).
+      const g = (avg.get(r.competitor) ?? []).filter(
+        (x) => x.sourceCategory !== r.sourceCategory || x.collectedAt > r.collectedAt,
+      );
+      if (!g.some((x) => x.sourceCategory === r.sourceCategory)) g.push(r);
+      avg.set(r.competitor, g);
+      continue;
+    }
+    if (r.collectedAt !== last) continue;
     const cur = by.get(r.competitor);
     if (!cur || (dailyOf(r) ?? Infinity) < (dailyOf(cur) ?? Infinity)) by.set(r.competitor, r);
   }
-  return [...by.values()];
+  const out: MergedSnapshot[] = [...by.values()];
+  for (const g of avg.values()) {
+    if (g.length === 1) {
+      out.push(g[0]!);
+      continue;
+    }
+    const days = Math.max(
+      1,
+      Math.round((Date.parse(g[0]!.returnAt) - Date.parse(g[0]!.pickupAt)) / 86400000),
+    );
+    const daily = g.reduce((s, x) => s + dailyOf(x)!, 0) / g.length;
+    const newest = [...g].sort((a, b) => b.collectedAt.localeCompare(a.collectedAt))[0]!;
+    out.push({
+      ...newest,
+      sourceCategory: `Média: ${g.map((x) => x.sourceCategory ?? "—").join(" + ")}`,
+      dailyPrice: daily,
+      totalPrice: daily * days,
+      // Parcial se algum modelo for parcial.
+      equivalence: g.every((x) => x.equivalence === "equivalente") ? "equivalente" : "parcial",
+      mergedFrom: g,
+    });
+  }
+  return out;
 }
 
 export type Market = {
