@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { AuthContext } from "@lovable.dev/mcp-js";
+import { ToolError, type AuthContext } from "@lovable.dev/mcp-js";
 
 type RuntimeGlobals = typeof globalThis & {
   process?: { env?: Record<string, string | undefined> };
@@ -49,16 +49,21 @@ export const MCP_VIEWS = [
 export type McpView = (typeof MCP_VIEWS)[number];
 
 export function assertMcpView(view: string): asserts view is McpView {
-  if (!(MCP_VIEWS as readonly string[]).includes(view)) throw new Error("Consulta não permitida");
+  if (!(MCP_VIEWS as readonly string[]).includes(view))
+    throw new ToolError("Consulta não permitida");
 }
 
+/**
+ * Erros como ToolError: o mcp-js troca qualquer outro erro por "tool execution failed",
+ * escondendo do cliente o motivo da recusa. As mensagens não contêm segredos.
+ */
 /** Confere usuário técnico (UUID em MCP_ALLOWED_USER_ID, fail-closed) e role no JWT já verificado. */
 export function assertMcpAccess(ctx: AuthContext) {
-  if (!ctx.isAuthenticated()) throw new Error("Usuário não autenticado");
+  if (!ctx.isAuthenticated()) throw new ToolError("Usuário não autenticado");
   const allowed = env(["MCP_ALLOWED_USER_ID"]);
-  if (!allowed) throw new Error("Acesso MCP não configurado");
-  if (ctx.getUserId() !== allowed) throw new Error("Usuário sem permissão para o MCP");
-  if (ctx.getClaims()?.["role"] !== MCP_ROLE) throw new Error("Token sem o papel exigido");
+  if (!allowed) throw new ToolError("Acesso MCP não configurado");
+  if (ctx.getUserId() !== allowed) throw new ToolError("Usuário sem permissão para o MCP");
+  if (ctx.getClaims()?.["role"] !== MCP_ROLE) throw new ToolError("Token sem o papel exigido");
 }
 
 /** Cliente somente leitura: só expõe `from` sobre as views permitidas, com o Bearer do usuário. */
@@ -77,12 +82,12 @@ export type McpDb = ReturnType<typeof mcpDb>;
 
 function supabaseForUser(ctx: AuthContext) {
   const token = ctx.getToken();
-  if (!token) throw new Error("Usuário não autenticado");
+  if (!token) throw new ToolError("Usuário não autenticado");
   const url = env(["SUPABASE_URL", "VITE_SUPABASE_URL"]) ?? import.meta.env["VITE_SUPABASE_URL"];
   const key =
     env(["SUPABASE_PUBLISHABLE_KEY", "VITE_SUPABASE_PUBLISHABLE_KEY"]) ??
     import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"];
-  if (!url || !key) throw new Error("Configuração do backend ausente");
+  if (!url || !key) throw new ToolError("Configuração do backend ausente");
   return createClient(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
