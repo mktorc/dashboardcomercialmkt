@@ -63,7 +63,7 @@ const today = new Date().toISOString().slice(0, 10);
 const monthStart = `${today.slice(0, 7)}-01`;
 const from = new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10);
 
-describe.skipIf(!token)("MCP contra o Supabase real", () => {
+describe.skipIf(!token)("MCP contra o Supabase real", { timeout: 180_000 }, () => {
   beforeAll(() => {
     process.env["MCP_ALLOWED_USER_ID"] ??= String(claims["sub"]);
     process.env["SUPABASE_URL"] ??= url;
@@ -78,10 +78,22 @@ describe.skipIf(!token)("MCP contra o Supabase real", () => {
     await expect(count(v)).resolves.toBeGreaterThanOrEqual(0);
   });
 
-  it("tabelas originais continuam inacessíveis ao mcp_reader", async () => {
-    for (const t of ["reservations", "crm_leads", "reservas", "user_roles"]) {
-      const { data, error } = await sb().from(t).select("*").limit(1);
-      expect(error || (data ?? []).length === 0, t).toBeTruthy();
+  // As views são security_invoker: o mcp_reader tem SELECT só nas colunas que elas expõem.
+  // O que importa é que as colunas escondidas (pessoais/internas) e as tabelas sem view sigam bloqueadas.
+  it("colunas escondidas pelas views e tabelas sem view continuam inacessíveis", async () => {
+    const blocked: [string, string][] = [
+      ["reservations", "customer_email"],
+      ["reservations", "customer_phone"],
+      ["reservations", "email_lc"],
+      ["reservations", "phone8"],
+      ["commission_partners", "internal_notes"],
+      ["pricing_study_report", "html"],
+      ["user_roles", "*"],
+      ["webhook_logs", "*"],
+    ];
+    for (const [t, col] of blocked) {
+      const { data, error } = await sb().from(t).select(col).limit(1);
+      expect(error || (data ?? []).length === 0, `${t}.${col}`).toBeTruthy();
     }
   });
 
