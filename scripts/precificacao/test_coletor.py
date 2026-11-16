@@ -353,6 +353,7 @@ class Avis(unittest.TestCase):
         m = json.loads(C.MAPA.read_text())
         for nome in ("National", "Alamo"):
             self.assertEqual({k: v for k, v in m[nome].items() if v}, {"Médio": "Midsize Sedan", "Minivan": "Mini Van 8 Seats"})
+        self.assertEqual({k: v for k, v in m["Enterprise"].items() if v}, {"Tamanho médio": "Midsize Sedan", "Minivan": "Mini Van 8 Seats"})
 
     def test_parse_national(self):
         def cls(nome, base, status="AVAILABLE_AT_RETAIL_RATE", moeda="USD"):

@@ -3,14 +3,14 @@
 Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, passo "Veículos") e Florida Rental Car (a cotação por data
 exige nome e WhatsApp: vêm das variáveis FLORIDA_NOME e FLORIDA_WHATSAPP, contato real da equipe; nunca dados falsos; só lê telas) e Avis
 e Budget (avislac.com e budgetlac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial) e National e
-Alamo (nationalcar.com/pt e alamo.com/pt, Enterprise Holdings: mesma API do formulário, como convidado, tarifa base sem taxas, em USD;
+Alamo e Enterprise (nationalcar.com/pt, alamo.com/pt e enterprise.com/pt, Enterprise Holdings: mesma API do formulário, como convidado, tarifa base sem taxas, em USD;
 "Minivan" = média da Minivan 7 e da 8 passageiros).
 Fora, de propósito: rentcars.com, sixt.com.br (Cloudflare), hertz.com.br (Imperva) e budget.com (captcha): bloqueiam acesso automatizado,
 não se contorna.
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --retirada 2027-01-13 --devolucao 2027-01-17 (período exato: uma cotação com essas diárias)
           --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
@@ -467,8 +467,8 @@ def parse_national(j):
     return out
 
 
-def _coleta_ehi(nome, brand, home, api, loc, pickups, dias):
-    """Cotação pública da National / Alamo (Enterprise Holdings, mesma plataforma; versão em português, como convidado, sem login):
+def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7 passageiros", "Minivan 8 passageiros")):
+    """Cotação pública da National / Alamo / Enterprise (Enterprise Holdings, mesma plataforma; versão em português, como convidado, sem login):
     MCO, 10:00, 25+ anos, pagar na retirada. Chama a mesma API que o formulário da página usa, de dentro da página.
     Extras não coletados (exigem escolher um carro)."""
     from urllib.parse import urlparse
@@ -483,14 +483,13 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias):
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
             itens = parse_national(pg.evaluate(_NATIONAL_JS, [api, loc, d.isoformat(), fim.isoformat(), brand, urlparse(home).path]))
-            mv = [it for it in itens if it["categoria"] in ("Minivan 7 passageiros", "Minivan 8 passageiros")]
-            if len(mv) == 2:  # "Minivan" = média da 7 e da 8 passageiros (pareada com a nossa minivan); só com as duas na data
+            # "Minivan" = média da 7 e da 8 passageiros (pareada com a nossa minivan); só com as duas na data
+            mv = sorted((it for it in itens if it["categoria"] in minivans), key=lambda it: minivans.index(it["categoria"]))
+            if len(mv) == 2:
                 tot = round((mv[0]["total"] + mv[1]["total"]) / 2, 2)
                 tx = [x["total_com_taxas"] for x in mv if x["total_com_taxas"]]
                 itens.append(dict(categoria="Minivan", total=tot, promo=False, total_com_taxas=round(sum(tx) / 2, 2) if len(tx) == 2 else None,
-                                  tipo=f"média de Minivan 7 passageiros (USD {mv[0]['total']:.2f}) e 8 passageiros (USD {mv[1]['total']:.2f})"
-                                  if mv[0]["categoria"].startswith("Minivan 7") else
-                                  f"média de Minivan 7 passageiros (USD {mv[1]['total']:.2f}) e 8 passageiros (USD {mv[0]['total']:.2f})"))
+                                  tipo=f"média de Minivan 7 passageiros (USD {mv[0]['total']:.2f}) e 8 passageiros (USD {mv[1]['total']:.2f})"))
             print(f"{nome} {d}: {len(itens)} categorias com preço; minivan média: {'sim' if len(mv) == 2 else 'NÃO (falta 7 ou 8)'}")
             for it in itens:
                 if it["total_com_taxas"]:
@@ -513,6 +512,16 @@ def coleta_national(pickups, dias):
 
 def coleta_alamo(pickups, dias):
     return _coleta_ehi("Alamo", "ALAMO", ALAMO_HOME, ALAMO_API, ALAMO_MCO, pickups, dias)
+
+
+ENTERPRISE_HOME = "https://www.enterprise.com/pt/home.html"
+ENTERPRISE_API = "https://prd-west.webapi.enterprise.com/enterprise-ewt"  # gateway próprio (não é o gma- da National/Alamo)
+ENTERPRISE_MCO = "1018631"  # Orlando International Airport (MCO), agência MCOT61
+
+
+def coleta_enterprise(pickups, dias):
+    return _coleta_ehi("Enterprise", "ENTERPRISE", ENTERPRISE_HOME, ENTERPRISE_API, ENTERPRISE_MCO, pickups, dias,
+                       minivans=("Monovolume para 7 passageiros", "Monovolume para 8 passageiros"))
 
 
 NOSSO_NOME = "Orlando Rent Car"
@@ -670,6 +679,9 @@ FONTES = {
     "alamo": ("Alamo", coleta_alamo, NATIONAL_LOCAL,
               "Tarifa base sem taxas (alamo.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
               "não incluídas (tarifa sem proteções)"),
+    "enterprise": ("Enterprise", coleta_enterprise, NATIONAL_LOCAL,
+                   "Tarifa base sem taxas (enterprise.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+                   "não incluídas (tarifa sem proteções)"),
 }
 
 
