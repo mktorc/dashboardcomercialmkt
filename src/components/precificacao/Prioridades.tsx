@@ -593,9 +593,6 @@ function Painel({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado.
-      </p>
       <Card className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
         <PeriodFilter
           from={range.from}

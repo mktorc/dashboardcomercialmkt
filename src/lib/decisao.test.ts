@@ -11,6 +11,8 @@ import {
   impacto,
   receitas,
   aindaCedo,
+  TEXTO_MUDANCA_PEQUENA,
+  grupoDe,
   ETIQUETA_BLOCO,
   matrizOcupacaoMercado,
   movimentoPct,
@@ -1001,5 +1003,110 @@ describe("etiquetas de sustentação dos blocos", () => {
     expect(ETIQUETA_BLOCO.favor.cor).toContain("emerald");
     expect(ETIQUETA_BLOCO.contra.cor).toContain("amber");
     expect(ETIQUETA_BLOCO.neutro.texto).toBe("neutro");
+  });
+});
+
+describe("Subir/Baixar sempre com preço", () => {
+  // Fullsize Suv 18–19/01 do print: tarifa 97, mediana 100 (−3%, alinhado), faixa ótima 90–95 (dentro), ocupação acima.
+  const fullsize = () =>
+    decidir(
+      ent({
+        occ: "acima",
+        gapCarros: 3,
+        lead: 62,
+        tarifa: 97,
+        mercado: { n: 2, idadeDias: 1, pct: -3, mediana: 100 },
+        hist: {
+          faixa: { de: 90, ate: 95, datas: 6, revVeic: 50 },
+          fonte: "mes",
+          rotulo: "janeiro",
+        },
+      }),
+    )!;
+  it("caso Fullsize Suv: alvo centrado na tarifa atual vira Manter", () => {
+    // regra: acima + alinhado + dentro = Subir pouco; alvo = (95–105) ∩ (85,5–99,75) = 95–99,75, centro ≈ 97,4 → arredonda para 97
+    expect(regraAcao("acima", "alinhado", "dentro").acao).toBe("subir-pouco");
+    const d = fullsize();
+    expect(d.acao).toBe("manter");
+    expect(d.sugerido).toBeNull();
+    expect(d.manterMotivo).toBe(TEXTO_MUDANCA_PEQUENA);
+    expect(etiquetaAcao(agruparBlocos([d])[0]!).texto).toBe(
+      "Manter · mudança sugerida pequena demais",
+    );
+  });
+  it("mudança menor que US$ 2 vira Manter; a partir de 2 fica", () => {
+    // hoje 100, mediana 101 → centro 101: mudança de 1 → Manter
+    const peq = decidir(
+      ent({
+        occ: "acima",
+        gapCarros: 3,
+        lead: 5,
+        hist: { faixa: null, fonte: null },
+        mercado: { n: 4, idadeDias: 1, pct: -6, mediana: 101 },
+      }),
+    )!;
+    expect(peq.acao).toBe("manter");
+    const ok = decidir(
+      ent({
+        occ: "acima",
+        gapCarros: 3,
+        lead: 5,
+        hist: { faixa: null, fonte: null },
+        mercado: { n: 4, idadeDias: 1, pct: -6, mediana: 106 },
+      }),
+    )!;
+    expect(ok.acao).toBe("subir-pouco");
+    expect(ok.sugerido!.min).toBe(106);
+  });
+  it("limite configurável", () => {
+    const d = decidir(
+      ent({
+        occ: "acima",
+        gapCarros: 3,
+        lead: 5,
+        hist: { faixa: null, fonte: null },
+        mercado: { n: 4, idadeDias: 1, pct: -6, mediana: 106 },
+      }),
+      { ...C, minMudanca: 10 },
+    )!;
+    expect(d.acao).toBe("manter");
+  });
+  it("toda decisão de Subir/Baixar tem preço", () => {
+    for (const pct of [-40, -20, -8, 8, 20, 40])
+      for (const occ of ["abaixo", "acima"] as const) {
+        const d = decidir(
+          ent({
+            occ,
+            gapCarros: occ === "abaixo" ? -3 : 3,
+            mercado: { n: 4, idadeDias: 1, pct, mediana: 100 / (1 + pct / 100) },
+          }),
+        )!;
+        const g = grupoDe(d.acao);
+        if (g === "baixar" || g === "subir") expect(d.sugerido).not.toBeNull();
+      }
+  });
+});
+
+describe("cor do motivo da ação", () => {
+  it("vermelho quando a ocupação está abaixo, azul quando está acima", () => {
+    const [baixo] = agruparBlocos([decidir(ent({}))!]);
+    expect(blocosPilares(baixo!)[0].tom).toBe("problema");
+    const [alto] = agruparBlocos([
+      decidir(
+        ent({
+          occ: "acima",
+          gapCarros: 3,
+          lead: 5,
+          hist: { faixa: null, fonte: null },
+          mercado: { n: 4, idadeDias: 1, pct: -6, mediana: 106 },
+        }),
+      )!,
+    ]);
+    expect(alto!.acao).toBe("subir-pouco");
+    expect(blocosPilares(alto!)[0].tom).toBe("motivo-alta");
+    expect(ETIQUETA_BLOCO.problema.cor).toContain("red");
+    expect(ETIQUETA_BLOCO["motivo-alta"].cor).toContain("sky");
+    expect(ETIQUETA_BLOCO["motivo-alta"].texto).toBe("motivo da ação");
+    expect(COR_BARRA["motivo-alta"]).toContain("sky");
   });
 });

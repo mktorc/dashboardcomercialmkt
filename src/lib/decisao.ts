@@ -27,6 +27,8 @@ export type DecisaoConfig = {
   leadPerto: number;
   /** "Baixar até 5%". */
   baixarPoucoPct: number;
+  /** Mudança mínima (US$) para Subir/Baixar; abaixo disso a decisão vira Manter. */
+  minMudanca: number;
   /** Qualidade dos dados: abaixo disso a confiança é baixa. */
   minConcorrentes: number;
   idadeMaxDias: number;
@@ -51,6 +53,7 @@ export const DECISAO_PADRAO: DecisaoConfig = {
   leadLonge: 60,
   leadPerto: 15,
   baixarPoucoPct: 5,
+  minMudanca: 2,
   minConcorrentes: 3,
   idadeMaxDias: 3,
   frotaMin: 30,
@@ -288,6 +291,8 @@ export function avisos(
   return { principais, permanentes };
 }
 
+export const TEXTO_MUDANCA_PEQUENA = "mudança sugerida pequena demais";
+
 export const TEXTO_VERIFICAR_EQUIV =
   "a recomendação depende de uma cotação possivelmente não equivalente; confira antes de decidir";
 
@@ -461,6 +466,8 @@ export type Decisao = DecisaoEntrada & {
   confianca: Confianca;
   /** Texto quando a ação virou Verificar dados pela exceção de equivalência. */
   verificarMotivo: string | null;
+  /** Texto quando Subir/Baixar virou Manter porque a mudança sugerida era pequena demais. */
+  manterMotivo: string | null;
   sugerido: PrecoSugerido | null;
   carros: number;
   /** Baixar/Ação comercial: carro-dias abaixo da esperada × tarifa atual. */
@@ -514,9 +521,7 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
       verificarMotivo = TEXTO_VERIFICAR_EQUIV;
     }
   }
-  const conf = verificarMotivo
-    ? { nivel: "baixa" as Nivel, motivos: [verificarMotivo] }
-    : confianca({ acao: regra.acao, occ: e.occ, sinalHist, sinalMerc });
+
   const confMercado: Nivel =
     sinalMerc === "sem-mercado"
       ? "baixa"
@@ -529,7 +534,7 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
       : e.hist.fonte === "mes" && !e.evento
         ? "alta"
         : "media";
-  const sugerido = precoSugerido(
+  let sugerido = precoSugerido(
     {
       tarifa: e.tarifa,
       acao: regra.acao,
@@ -541,6 +546,23 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     },
     cfg,
   );
+  // Subir/Baixar sempre com preço: sem preço, ou mudança menor que minMudanca, vira Manter.
+  let manterMotivo: string | null = null;
+  const g2 = grupoDe(regra.acao);
+  if (
+    (g2 === "baixar" || g2 === "subir") &&
+    e.tarifa != null &&
+    (!sugerido || Math.abs(sugerido.min - e.tarifa) < cfg.minMudanca)
+  ) {
+    regra = { acao: "manter", forca: "media", umPilar: regra.umPilar };
+    sugerido = null;
+    manterMotivo = TEXTO_MUDANCA_PEQUENA;
+  }
+  const conf: Confianca = verificarMotivo
+    ? { nivel: "baixa", motivos: [verificarMotivo] }
+    : manterMotivo
+      ? { nivel: "media", motivos: [manterMotivo] }
+      : confianca({ acao: regra.acao, occ: e.occ, sinalHist, sinalMerc });
   const carros = e.gapCarros ?? 0;
   const rc = receitas(regra.acao, carros, e.tarifa, sugerido);
   const receita = rc.risco + rc.potencial;
@@ -552,6 +574,7 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     acao: regra.acao,
     confianca: conf,
     verificarMotivo,
+    manterMotivo,
     sugerido,
     carros,
     receitaRisco: rc.risco,
@@ -1074,12 +1097,14 @@ export function etiquetas(
 
 /* ───────────────────────── cartão de leitura rápida ───────────────────────── */
 
-export type TomBloco = "favor" | "neutro" | "problema" | "contra" | "sem-dado";
+/** problema = ocupação abaixo motivando a ação (vermelho); motivo-alta = ocupação acima motivando Subir (azul). */
+export type TomBloco = "favor" | "neutro" | "problema" | "motivo-alta" | "contra" | "sem-dado";
 /** Barra no topo de cada bloco: verde a favor, cinza neutro, vermelho = problema que motivou a ação, âmbar = contradiz. */
 export const COR_BARRA: Record<TomBloco, string> = {
   favor: "bg-emerald-500",
   neutro: "bg-muted-foreground/30",
   problema: "bg-red-500",
+  "motivo-alta": "bg-sky-500",
   contra: "bg-amber-500",
   "sem-dado": "bg-muted-foreground/20",
 };
@@ -1087,6 +1112,7 @@ export const COR_CONCLUSAO: Record<TomBloco, string> = {
   favor: "text-emerald-600 dark:text-emerald-400",
   neutro: "text-muted-foreground",
   problema: "text-red-600 dark:text-red-400",
+  "motivo-alta": "text-sky-600 dark:text-sky-400",
   contra: "text-amber-600 dark:text-amber-400",
   "sem-dado": "text-muted-foreground",
 };
@@ -1133,7 +1159,7 @@ export function blocosPilares(b: Bloco, cur = "USD"): [BlocoPilar, BlocoPilar, B
             ? "acima do esperado"
             : "no esperado",
       detalhe: ritmo,
-      tom: motivou ? "problema" : tomDe(ev.ocupacao),
+      tom: motivou ? (d.occ === "acima" ? "motivo-alta" : "problema") : tomDe(ev.ocupacao),
     };
   }
 
@@ -1225,7 +1251,8 @@ export function etiquetaAcao(b: Bloco, cur = "USD"): EtiquetaAcao {
   if (g === "subir") return e(txt("Subir"), "subir");
   if (g === "acao-comercial") return e("Não baixar preço · revisar canais e demanda", "canais");
   if (g === "verificar") return e(`Verificar: ${motivoVerificar(b).curto}`, "verificar");
-  return e("Manter", "manter");
+  const dm = b.itens.find((x) => x.manterMotivo);
+  return e(dm ? "Manter · mudança sugerida pequena demais" : "Manter", "manter");
 }
 
 export function cabecalho(b: Bloco): { titulo: string; sub: string } {
@@ -1356,6 +1383,10 @@ export const ETIQUETA_BLOCO: Record<TomBloco, { texto: string; cor: string }> = 
   problema: {
     texto: "motivo da ação",
     cor: "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400",
+  },
+  "motivo-alta": {
+    texto: "motivo da ação",
+    cor: "border-sky-500/60 bg-sky-500/10 text-sky-600 dark:text-sky-400",
   },
   "sem-dado": {
     texto: "sem dado",
