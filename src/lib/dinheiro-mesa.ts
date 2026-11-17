@@ -957,3 +957,27 @@ export function padraoParaData(
     return { tipo: "repetindo", subirPct: prev.acao.subirPct };
   return { tipo: "nao-baixar" };
 }
+
+/** Célula do mapa do ano: cor só com perda real; esgotou cedo sem sinal de preço maior = neutra, tracejada, sem valor. */
+export function celulaMapa(c: CelulaAno): {
+  tipo: "perda" | "sem-sinal";
+  classe: string;
+  valor: number | null;
+  dica: string;
+} {
+  const n = c.anos.length;
+  const anos = `${n} ano${n === 1 ? "" : "s"}`;
+  if (Math.round(c.min) > 0)
+    return {
+      tipo: "perda",
+      classe: corRecorrencia(n),
+      valor: c.min,
+      dica: `Esgotou cedo em ${anos} (${c.anos.join(", ")}), ${c.datas} datas`,
+    };
+  return {
+    tipo: "sem-sinal",
+    classe: "border border-dashed border-muted-foreground/50 bg-muted/30",
+    valor: null,
+    dica: `Esgotou cedo em ${anos}, mas os últimos clientes pagaram o mesmo preço: sem sinal de que dava para cobrar mais`,
+  };
+}

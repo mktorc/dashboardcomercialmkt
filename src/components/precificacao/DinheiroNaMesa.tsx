@@ -17,6 +17,7 @@ import { dinheiro } from "@/lib/decisao";
 import {
   FAIXAS_LEAD,
   analisarMesa,
+  celulaMapa,
   corRecorrencia,
   curvaVendas,
   mapaAno,
@@ -205,14 +206,18 @@ function Painel({
                                           setCelula(ativo ? null : { category: c, mes }),
                                           setExemploKey(null)
                                         )}
-                                        className={`h-9 w-full rounded px-1 tabular-nums ${corRecorrencia(v.anos.length)} ${ativo ? "ring-2 ring-foreground" : ""}`}
+                                        className={`h-9 w-full rounded px-1 tabular-nums ${celulaMapa(v).classe} ${ativo ? "ring-2 ring-foreground" : ""}`}
                                       >
-                                        {v.min > 0 ? dinheiro(v.min) : ""}
+                                        {celulaMapa(v).valor != null
+                                          ? dinheiro(celulaMapa(v).valor!)
+                                          : ""}
                                       </button>
                                     </TooltipTrigger>
                                     <TooltipContent className="text-xs">
-                                      {c} · {MESES[i]}: {v.anos.join(", ")} · {v.datas} datas ·
-                                      perda {faixaTxt(v.max ? v : null)}
+                                      {c} · {MESES[i]}: {celulaMapa(v).dica}
+                                      {celulaMapa(v).tipo === "perda"
+                                        ? ` · perda ${faixaTxt(v)}`
+                                        : ""}
                                     </TooltipContent>
                                   </Tooltip>
                                 ) : (
@@ -230,9 +235,13 @@ function Painel({
                   {[1, 2, 3].map((n) => (
                     <span key={n} className="flex items-center gap-1">
                       <span className={`size-3 rounded ${corRecorrencia(n)}`} />
-                      {n === 3 ? "3+ anos" : `${n} ano${n > 1 ? "s" : ""}`}
+                      perda em {n === 3 ? "3+ anos" : `${n} ano${n > 1 ? "s" : ""}`}
                     </span>
                   ))}
+                  <span className="flex items-center gap-1">
+                    <span className="size-3 rounded border border-dashed border-muted-foreground/50 bg-muted/30" />
+                    esgotou cedo sem sinal de preço maior
+                  </span>
                 </div>
               </Card>
             ) : null}

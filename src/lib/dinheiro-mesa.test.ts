@@ -13,6 +13,7 @@ import {
   licoes,
   premioFimVenda,
   situacaoAtual,
+  celulaMapa,
   corRecorrencia,
   mapaAno,
   ordenarPadroes,
@@ -499,5 +500,22 @@ describe("lição por data e freio do ritmo", () => {
     });
     expect(padraoParaData({ acao: { tipo: "sem-padrao" }, sit }, "2026-12-17")).toBeNull();
     expect(padraoParaData(undefined, "2026-12-17")).toBeNull();
+  });
+});
+
+describe("célula do mapa do ano", () => {
+  it("cor só com perda real; sem perda = tracejada, sem valor", () => {
+    expect(celulaMapa({ anos: [2024, 2025], datas: 3, min: 300, max: 600 })).toMatchObject({
+      tipo: "perda",
+      valor: 300,
+      classe: corRecorrencia(2),
+    });
+    const s = celulaMapa({ anos: [2024, 2025, 2026], datas: 4, min: 0, max: 0 });
+    expect(s).toMatchObject({ tipo: "sem-sinal", valor: null });
+    expect(s.classe).toContain("dashed");
+    expect(s.dica).toBe(
+      "Esgotou cedo em 3 anos, mas os últimos clientes pagaram o mesmo preço: sem sinal de que dava para cobrar mais",
+    );
+    expect(celulaMapa({ anos: [2025], datas: 1, min: 0.3, max: 0.4 }).tipo).toBe("sem-sinal"); // nunca "US$ 0"
   });
 });
