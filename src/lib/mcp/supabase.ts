@@ -62,7 +62,11 @@ export function assertMcpAccess(ctx: AuthContext) {
   if (!ctx.isAuthenticated()) throw new ToolError("Usuário não autenticado");
   const allowed = env(["MCP_ALLOWED_USER_ID"]);
   if (!allowed) throw new ToolError("Acesso MCP não configurado");
-  if (ctx.getUserId() !== allowed) throw new ToolError("Usuário sem permissão para o MCP");
+  if (ctx.getUserId() !== allowed) {
+    // Mostra ao próprio chamador com qual conta ele entrou; não revela o usuário liberado.
+    const who = ctx.getUserEmail() ?? "conta sem e-mail";
+    throw new ToolError(`Usuário sem permissão para o MCP (conectado como ${who})`);
+  }
   if (ctx.getClaims()?.["role"] !== MCP_ROLE) throw new ToolError("Token sem o papel exigido");
 }
 

@@ -146,6 +146,7 @@ const ctx = (
     isAuthenticated: () => o.auth,
     getToken: () => o.token,
     getUserId: () => o.user,
+    getUserEmail: () => "ceo@example.com",
     getClaims: () => ({ sub: o.user, role: o.role }),
   } as unknown as AuthContext;
 };
@@ -1207,6 +1208,18 @@ describe("segurança", () => {
       await expect(call(name, args, c), name).rejects.toThrow();
     expect(touched.size).toBe(0);
     expect(created).toHaveLength(0);
+  });
+
+  it("a recusa de outro usuário diz com qual conta ele entrou, sem revelar o liberado", () => {
+    const c = ctx({ user: "22222222-2222-2222-2222-222222222222" });
+    expect(() => assertMcpAccess(c)).toThrow(
+      "Usuário sem permissão para o MCP (conectado como ceo@example.com)",
+    );
+    try {
+      assertMcpAccess(c);
+    } catch (e) {
+      expect(String(e)).not.toContain(USER);
+    }
   });
 
   it("falha fechado sem MCP_ALLOWED_USER_ID configurado", async () => {
