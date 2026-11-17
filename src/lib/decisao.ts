@@ -1224,7 +1224,7 @@ export function etiquetaAcao(b: Bloco, cur = "USD"): EtiquetaAcao {
   if (g === "baixar") return e(txt("Baixar"), "baixar");
   if (g === "subir") return e(txt("Subir"), "subir");
   if (g === "acao-comercial") return e("Não baixar preço · revisar canais e demanda", "canais");
-  if (g === "verificar") return e("Verificar dados antes de decidir", "verificar");
+  if (g === "verificar") return e(`Verificar: ${motivoVerificar(b).curto}`, "verificar");
   return e("Manter", "manter");
 }
 
@@ -1362,3 +1362,24 @@ export const ETIQUETA_BLOCO: Record<TomBloco, { texto: string; cor: string }> = 
     cor: "border-dashed border-muted-foreground/50 text-muted-foreground",
   },
 };
+
+/** Por que a decisão é "Verificar dados": texto curto da etiqueta e o que conferir. */
+export function motivoVerificar(b: Bloco): { curto: string; oQueFazer: string } {
+  const d = b.itens.reduce((a, x) => (x.lead < a.lead ? x : a));
+  if (d.verificarMotivo)
+    return {
+      curto: "cotação do concorrente pode não ser equivalente",
+      oQueFazer: `A sugestão de preço dependia só do mercado, e a cotação parece estranha (${d.mercado.n === 1 ? "só 1 concorrente" : `diferença de ${Math.abs(Math.round(d.mercado.pct ?? 0))}%`}). Abra a Competitividade nesta data e confira se a oferta é o mesmo carro, categoria e pacote.`,
+    };
+  if (d.tarifa == null)
+    return {
+      curto: "sem tarifa nossa nesta data",
+      oQueFazer:
+        "Não há tarifa nossa lida para esta data e categoria, então não dá para comparar com o mercado nem com o histórico. Confira se a tarifa foi carregada.",
+    };
+  return {
+    curto: "sem mercado e sem histórico",
+    oQueFazer:
+      "Não há cotação de concorrente para esta data e o histórico da época tem amostra pequena demais. Sem referência de preço, não dá para dizer se subir ou baixar. Confira a coleta de concorrentes desta data.",
+  };
+}

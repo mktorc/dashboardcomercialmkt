@@ -30,6 +30,7 @@ import {
   grupoDe,
   proximaAbertura,
   avisos,
+  motivoVerificar,
   movimentoPct,
   explicarConfianca,
   difFaixaPct,
@@ -545,7 +546,7 @@ function Cartao({
         ) : null}
       </div>
       <div className="mt-2">
-        {acao.icone === "canais" || d.verificarMotivo ? (
+        {acao.icone === "canais" || acao.icone === "verificar" ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="cursor-help" onClick={(e) => e.stopPropagation()}>
@@ -553,7 +554,7 @@ function Cartao({
               </span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs">
-              {acao.icone === "canais" ? DICA_REVISAR : d.verificarMotivo}
+              {acao.icone === "canais" ? DICA_REVISAR : motivoVerificar(b).oQueFazer}
             </TooltipContent>
           </Tooltip>
         ) : (

@@ -851,7 +851,18 @@ describe("cartão de leitura rápida", () => {
       texto: "Não baixar preço · revisar canais e demanda",
       icone: "canais",
     });
-    expect(etiquetaAcao(um({ tarifa: null })).texto).toBe("Verificar dados antes de decidir");
+    expect(etiquetaAcao(um({ tarifa: null })).texto).toBe("Verificar: sem tarifa nossa nesta data");
+    expect(
+      etiquetaAcao(
+        um({
+          hist: { faixa: null, fonte: null },
+          mercado: { n: 0, idadeDias: null, pct: null, mediana: null },
+        }),
+      ).texto,
+    ).toBe("Verificar: sem mercado e sem histórico");
+    expect(
+      etiquetaAcao(um({ tarifa: 84, mercado: { n: 1, idadeDias: 1, pct: 20, mediana: 70 } })).texto,
+    ).toBe("Verificar: cotação do concorrente pode não ser equivalente");
     expect(etiquetaAcao(um({ occ: "dentro" })).texto).toBe("Manter");
   });
   it("cabeçalho e linha de contexto", () => {
