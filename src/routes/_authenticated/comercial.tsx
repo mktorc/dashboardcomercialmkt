@@ -109,8 +109,8 @@ const tooltipStyle = {
 };
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const comparison = (value: number) =>
-  `${value >= 0 ? "+" : ""}${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% vs. mês anterior`;
+const comparison = (value: number, base = "mês anterior") =>
+  `${value >= 0 ? "+" : ""}${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% vs. ${base}`;
 const duration = (minutes: number) =>
   minutes < 60
     ? `${Math.round(minutes)} min`
@@ -470,14 +470,15 @@ export function ComercialPage({
               .toLocaleDateString("pt-BR", { month: "long", timeZone: "UTC" })
               .replace(/^./, (c) => c.toUpperCase());
             const month = occCards?.months.find((item) => item.month === occupancyMonth);
-            const previousMonthKey = new Date(
-              Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index - 1, 1),
+            // Mesmo mês do ano anterior (os cards carregam 13 meses para trás).
+            const yearAgoMonthKey = new Date(
+              Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth() + index, 1),
             )
               .toISOString()
               .slice(0, 7);
-            const previousMonth = occCards?.months.find((item) => item.month === previousMonthKey);
+            const yearAgoMonth = occCards?.months.find((item) => item.month === yearAgoMonthKey);
             const occupancyRate = month?.rate;
-            const occupancyVariation = occupancyMonthVariation(month, previousMonth);
+            const occupancyVariation = occupancyMonthVariation(month, yearAgoMonth);
             const occupancyTarget = data?.goals.find(
               (g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth,
             )?.discount_goal;
@@ -487,12 +488,16 @@ export function ComercialPage({
                 icon={CarFront}
                 label={`${label} (${monthName})`}
                 value={occupancyRate === undefined ? "—" : pct(occupancyRate)}
-                hint={occupancyVariation === undefined ? undefined : comparison(occupancyVariation)}
+                hint={
+                  occupancyVariation === undefined
+                    ? undefined
+                    : comparison(occupancyVariation, "ano anterior")
+                }
                 highlight={index === 0}
                 compact
                 aligned
                 help={
-                  "Percentual de ocupação da frota prevista para o mês, comparado com o mês anterior.\nA meta vem da aba Metas."
+                  "Percentual de ocupação da frota prevista para o mês, comparado com o mesmo mês do ano anterior.\nA meta vem da aba Metas."
                 }
                 calc={
                   occupancyRate === undefined
