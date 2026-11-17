@@ -480,10 +480,26 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7
         pg = b.new_context(user_agent=UA, locale="pt-BR").new_page()
         pg.goto(home, wait_until="domcontentloaded", timeout=90000)
         pg.wait_for_timeout(5000)
+        falhas = []
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
-            itens = parse_national(pg.evaluate(_NATIONAL_JS, [api, loc, d.isoformat(), fim.isoformat(), brand, urlparse(home).path]))
+            itens = None
+            for tentativa in range(3):  # "Failed to fetch" esporádico: recarrega a página e tenta de novo
+                try:
+                    itens = parse_national(pg.evaluate(_NATIONAL_JS, [api, loc, d.isoformat(), fim.isoformat(), brand, urlparse(home).path]))
+                    break
+                except Exception as e:
+                    print(f"  {nome} {d}: tentativa {tentativa + 1} falhou ({str(e).splitlines()[0][:120]})")
+                    pg.wait_for_timeout(10000 * (tentativa + 1))
+                    try:
+                        pg.goto(home, wait_until="domcontentloaded", timeout=90000)
+                        pg.wait_for_timeout(5000)
+                    except Exception:
+                        pass
+            if itens is None:  # pula só esta data; as outras continuam e são gravadas
+                falhas.append(d)
+                continue
             # "Minivan" = média da 7 e da 8 passageiros (pareada com a nossa minivan); só com as duas na data
             mv = sorted((it for it in itens if it["categoria"] in minivans), key=lambda it: minivans.index(it["categoria"]))
             if len(mv) == 2:
@@ -499,6 +515,10 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7
                                 url=home, extras=None))
             time.sleep(PAUSA)
         b.close()
+    if falhas:
+        print(f"{nome}: datas sem coleta após 3 tentativas: {', '.join(map(str, falhas))}")
+        if len(falhas) > len(pickups) / 2:
+            raise RuntimeError(f"{len(falhas)} de {len(pickups)} datas falharam")
     return res
 
 
