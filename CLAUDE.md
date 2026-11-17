@@ -1,1 +1,1 @@
-Nunca usar a service role nem outras credenciais do .env/.env.local para ler ou escrever no banco. Se precisar de dados, peça ao usuário.
+Pode usar a service role do .env.local para ler e escrever no banco quando o trabalho exigir, incluindo executar os SQL de sql-para-gravar/. Não usar outras credenciais do .env/.env.local.
