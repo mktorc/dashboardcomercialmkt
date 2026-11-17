@@ -101,7 +101,8 @@ const idadePrecos = (novo: number, velho: number) => {
   return `preços de ${novo === 0 ? "hoje" : novo} a ${d(velho)} atrás`;
 };
 
-/** Cores categóricas dos concorrentes (legíveis no tema escuro). */
+/** Cores categóricas dos concorrentes (legíveis no tema escuro). 15 cores: cobre as locadoras diretas, as locais e as do
+ * DiscoverCars sem repetir (só repete a partir do 16º concorrente). */
 const COMP_COLORS = [
   "#60a5fa",
   "#f59e0b",
@@ -111,6 +112,13 @@ const COMP_COLORS = [
   "#22d3ee",
   "#fb923c",
   "#a3e635",
+  "#facc15",
+  "#e879f9",
+  "#818cf8",
+  "#94a3b8",
+  "#14b8a6",
+  "#d4a373",
+  "#fb7185",
 ];
 const POS_TEXT: Record<Position, string> = {
   acima: "text-red-400",
