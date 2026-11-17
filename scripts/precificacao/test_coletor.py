@@ -366,5 +366,49 @@ class Avis(unittest.TestCase):
                          [("Minivan 7 passageiros", 454.21, 700.0)])
 
 
+DC = {"days": 7, "input": {"pickup": "2027-02-25T10:00"}, "offers": [
+    {"supplier": "Hertz", "acriss": "ICAR", "car_class": "Intermediate", "car_name": "Kia K4", "total": 543.0, "currency": "USD", "seats": 5},
+    {"supplier": "Hertz", "acriss": "ICAR", "car_class": "Intermediate", "car_name": "Toyota Corolla", "total": 520.0, "currency": "USD", "seats": 5},
+    {"supplier": "SIXT", "acriss": "IFAR", "car_class": "Intermediate SUV", "car_name": "Toyota RAV4", "total": 424.58, "currency": "USD"},
+    {"supplier": "CAPITAL", "acriss": "IDAR", "car_class": "Intermediate", "car_name": "Corolla", "total": 107.21, "currency": "USD"},
+    {"supplier": "Avis", "acriss": "", "car_class": "Luxury", "total": 440.99, "currency": "USD"},
+    {"supplier": "Europcar", "acriss": "CCAR", "car_class": "Compact", "total": 300, "currency": "EUR"}]}
+
+
+class DiscoverCars(unittest.TestCase):
+    def test_pareia_pelo_modelo_e_resto_por_acriss(self):
+        r = sorted(C.parse_discovercars(DC), key=lambda x: (x["concorrente"], x["categoria"]))
+        self.assertEqual([(x["concorrente"], x["categoria"], x["normalizada"], x["total"], x["diaria"]) for x in r],
+                         [("Hertz", "ICAR - Intermediate", None, 543.0, 77.57),
+                          ("Hertz", "Toyota Corolla (ICAR)", "Midsize Sedan", 520.0, 74.29),
+                          ("Sixt", "Toyota RAV4 (IFAR)", "Midsize Suv", 424.58, 60.65)])
+
+    def test_categoria_por_modelo(self):
+        f = lambda nome, seats=5, acriss="", classe="": C.categoria_por_modelo(
+            {"car_name": nome, "seats": seats, "acriss": acriss, "car_class": classe})
+        self.assertEqual(f("Kia Sorento"), "Fullsize Suv")
+        self.assertEqual(f("Toyota Highlander"), "Fullsize Suv")
+        self.assertEqual(f("Hyundai Tucson"), "Midsize Suv")
+        self.assertEqual(f("Cadillac Escalade ESV"), "Luxury")
+        self.assertEqual(f("GMC Yukon XL", 8), "SUV Executive 8 Seats")
+        self.assertEqual(f("Chevrolet Suburban", 7), "SUV Executive 7 Seats")
+        self.assertEqual(f("Chevrolet Suburban", 8), "SUV Executive 8 Seats")
+        self.assertEqual(f("Ford Transit", 12), "Van 12 Seats")
+        self.assertEqual(f("Chrysler Pacifica", 7, "MVAV"), "Mini Van 8 Seats")
+        self.assertEqual(f("Dodge Grand Caravan", 7), "Mini Van 8 Seats")
+        self.assertIsNone(f("Chevrolet Tahoe", 7, "FFAR", "Full-size SUV"))
+        self.assertIsNone(f("GMC Yukon", 7))
+        self.assertIsNone(f("Kia K4"))
+
+    def test_ignora_locadora_fora_da_lista_sem_acriss_e_outra_moeda(self):
+        nomes = {x["concorrente"] for x in C.parse_discovercars(DC)}
+        self.assertNotIn("CAPITAL", nomes)
+        self.assertFalse(nomes & {"Avis (DiscoverCars)", "Europcar"})
+
+    def test_sem_dias_ou_ofertas(self):
+        self.assertEqual(C.parse_discovercars({"days": 0, "offers": DC["offers"]}), [])
+        self.assertEqual(C.parse_discovercars({"days": 7}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

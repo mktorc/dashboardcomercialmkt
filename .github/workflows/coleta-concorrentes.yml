@@ -1,6 +1,7 @@
 # Coleta diária de cotações públicas de concorrentes (scripts/precificacao/coletor.py), sem depender de computador ligado.
 # Requer os segredos do repositório SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY (Settings > Secrets and variables > Actions).
 # A fonte florida também requer FLORIDA_NOME e FLORIDA_WHATSAPP (contato real da equipe: o site pede nome e WhatsApp para cotar por data).
+# A fonte discovercars requer APIFY_TOKEN (robô pago do DiscoverCars na Apify, ~US$ 0,015 por data): roda de 3 em 3 dias.
 name: Coleta de concorrentes
 on:
   schedule:
@@ -32,25 +33,38 @@ jobs:
       # Avis e Budget (avislac/budgetlac) ficam de fora: bloqueiam os IPs do GitHub e voltam 0 categorias.
       fail-fast: false
       matrix:
-        fonte: [nosso, up, ally, florida, national, alamo]
+        fonte: [nosso, up, ally, florida, national, alamo, discovercars]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # DiscoverCars é pago por busca (Apify): para caber nos US$ 5 grátis por mês, roda só de 3 em 3 dias no agendamento
+      # (~10 x 26 datas x US$ 0,015 ≈ US$ 3,90/mês), nunca no push, e sempre que pedido à mão (workflow_dispatch).
+      - name: Decidir se esta fonte roda hoje
+        run: |
+          if [ "${{ matrix.fonte }}" = "discovercars" ]; then
+            if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ $(( $(date -u +%s) / 86400 % 3 )) -ne 0 ]; }; then
+              echo "PULAR=1" >> "$GITHUB_ENV"; echo "DiscoverCars: hoje não (roda de 3 em 3 dias)."
+            fi
+          fi
+      - if: ${{ env.PULAR != '1' }}
+        uses: actions/checkout@v4
+      - if: ${{ env.PULAR != '1' }}
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install playwright && playwright install --with-deps chromium
+      - if: ${{ env.PULAR != '1' }}
+        run: pip install playwright && playwright install --with-deps chromium
       # 26 semanas (~D-185): cobre o horizonte de 180 dias da ocupação. O início desloca 1 dia da semana por dia, então em 7 dias
       # todas as datas entram na janela de 7 dias usada na comparação de preço.
       # Sem período exato: coleta padrão (7 diárias por retirada). Com período exato (pedido na tela de Competitividade): só os
       # concorrentes, uma cotação retirada→devolução. A nossa tarifa fica de fora: ela é gravada por data e somada noite a noite.
-      - if: ${{ !inputs.retirada || !inputs.devolucao }}
+      - if: ${{ env.PULAR != '1' && (!inputs.retirada || !inputs.devolucao) }}
         run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --semanas 26
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FLORIDA_NOME: ${{ secrets.FLORIDA_NOME }}
           FLORIDA_WHATSAPP: ${{ secrets.FLORIDA_WHATSAPP }}
-      - if: ${{ inputs.retirada && inputs.devolucao && matrix.fonte != 'nosso' }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      - if: ${{ env.PULAR != '1' && inputs.retirada && inputs.devolucao && matrix.fonte != 'nosso' }}
         run: python scripts/precificacao/coletor.py ${{ matrix.fonte }} --gravar --retirada "$RETIRADA" --devolucao "$DEVOLUCAO"
         env:
           RETIRADA: ${{ inputs.retirada }}
@@ -59,3 +73,4 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FLORIDA_NOME: ${{ secrets.FLORIDA_NOME }}
           FLORIDA_WHATSAPP: ${{ secrets.FLORIDA_WHATSAPP }}
+          APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}

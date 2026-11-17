@@ -4,13 +4,14 @@ Fontes implementadas: UP Rent a Car e Allycar (motor de reservas HQ público, pa
 exige nome e WhatsApp: vêm das variáveis FLORIDA_NOME e FLORIDA_WHATSAPP, contato real da equipe; nunca dados falsos; só lê telas) e Avis
 e Budget (avislac.com e budgetlac.com: API pública da própria página de resultados, em USD, sempre o Seguro Essencial) e National e
 Alamo e Enterprise (nationalcar.com/pt, alamo.com/pt e enterprise.com/pt, Enterprise Holdings: mesma API do formulário, como convidado, tarifa base sem taxas, em USD;
-"Minivan" = média da Minivan 7 e da 8 passageiros).
+"Minivan" = média da Minivan 7 e da 8 passageiros) e DiscoverCars (robô pago da Apify, APIFY_TOKEN: Hertz, Sixt, Thrifty, Dollar,
+Europcar, Avis e Budget numa busca só; pareamento pelo modelo do carro, igual à nossa frota).
 Fora, de propósito: rentcars.com, sixt.com.br (Cloudflare), hertz.com.br (Imperva) e budget.com (captcha): bloqueiam acesso automatizado,
 não se contorna.
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|discovercars|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|discovercars|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --retirada 2027-01-13 --devolucao 2027-01-17 (período exato: uma cotação com essas diárias)
           --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
@@ -524,6 +525,121 @@ def coleta_enterprise(pickups, dias):
                        minivans=("Monovolume para 7 passageiros", "Monovolume para 8 passageiros"))
 
 
+DC_ACTOR = "scrapercompany~car-rental-prices-scraper"  # Apify: robô do DiscoverCars (pago por busca, ~US$ 0,015)
+DC_URL = "https://www.discovercars.com/"
+DC_LOCAL = "Orlando (Aeroporto MCO)"
+DC_MAPA = "DiscoverCars"  # pareamento pelo modelo (categoria_por_modelo); o mapa_categorias.json não tem esta chave
+# Locadoras do DiscoverCars gravadas (nome no site -> nome do concorrente). Alamo, National e Enterprise ficam de fora: já vêm
+# direto dos sites delas. Avis e Budget levam o sufixo porque a coleta direta delas usa outra base (Seguro Essencial).
+DC_LOCADORAS = {"Hertz": "Hertz", "SIXT": "Sixt", "Thrifty": "Thrifty", "Dollar": "Dollar", "Europcar": "Europcar",
+                "Avis": "Avis (DiscoverCars)", "Budget": "Budget (DiscoverCars)"}
+
+
+def _apify_token():
+    import os
+    if not os.environ.get("APIFY_TOKEN"):
+        from hq import carregar_env
+        carregar_env()
+        carregar_env(str(Path(__file__).resolve().parents[2] / ".env.local"))
+    t = os.environ.get("APIFY_TOKEN")
+    if not t:
+        raise RuntimeError("APIFY_TOKEN não definido (.env.local ou segredo do GitHub)")
+    return t
+
+
+_MINIVAN = re.compile(r"pacifica|caravan|voyager|carnival|odyssey|sienna|minivan|mini van", re.I)
+
+
+def categoria_por_modelo(o):
+    """Pareamento definido pelo usuário (2026-11-17): pelo MODELO do carro, igual à nossa frota; nada parecido = None."""
+    nome, seats = (o.get("car_name") or ""), int(o.get("seats") or 0)
+    acriss, classe = (o.get("acriss") or "").upper(), (o.get("car_class") or "")
+    if re.search(r"sorento|highlander|palisade", nome, re.I):
+        return "Fullsize Suv"
+    if re.search(r"corolla", nome, re.I):
+        return "Midsize Sedan"
+    if re.search(r"sportage|tucson|rav ?4", nome, re.I):
+        return "Midsize Suv"
+    if re.search(r"escalade", nome, re.I):
+        return "Luxury"
+    if re.search(r"yukon xl", nome, re.I):
+        return "SUV Executive 8 Seats"
+    if re.search(r"suburban", nome, re.I):
+        return "SUV Executive 7 Seats" if seats == 7 else "SUV Executive 8 Seats"
+    if re.search(r"transit", nome, re.I) or (seats >= 12 and re.search(r"van", classe + " " + nome, re.I)):
+        return "Van 12 Seats"
+    if acriss.startswith("MV") or _MINIVAN.search(nome) or _MINIVAN.search(classe):
+        return "Mini Van 8 Seats"  # minivan de 7 ou 8 lugares
+    return None
+
+
+def parse_discovercars(item, locadoras=DC_LOCADORAS):
+    """Uma busca do robô (um item do dataset) -> [{concorrente, categoria, normalizada, total, diaria, dias, tipo}].
+    Ofertas pareadas pelo modelo (categoria_por_modelo): a mais barata de cada locadora em cada categoria nossa, com
+    categoria = "Toyota Corolla (ICAR)". O resto: a mais barata por código ACRISS ("ICAR - Intermediate"), sem par."""
+    dias = int(item.get("days") or 0)
+    melhor = {}
+    for o in item.get("offers") or []:
+        conc = locadoras.get((o.get("supplier") or "").strip())
+        acriss = (o.get("acriss") or "").strip().upper()
+        total = float(o.get("total") or 0)
+        if not conc or not acriss or total <= 0 or (o.get("currency") or "USD") != "USD" or dias <= 0:
+            continue
+        nome = (o.get("car_name") or "").strip()
+        norm = categoria_por_modelo(o)
+        cat = f"{nome} ({acriss})" if norm else f"{acriss} - {(o.get('car_class') or '').strip()}".rstrip(" -")
+        chave = (conc, "=" + norm) if norm else (conc, cat)
+        if chave not in melhor or total < melhor[chave]["total"]:
+            melhor[chave] = dict(
+                concorrente=conc, categoria=cat, normalizada=norm, total=round(total, 2), diaria=round(total / dias, 2), dias=dias,
+                promo=False, tipo=f"{nome} ou similar, {o.get('seats')} lugares; pagamento: {o.get('payment') or 'n/d'}; "
+                                  f"km {o.get('mileage') or 'n/d'}")
+    return list(melhor.values())
+
+
+def coleta_discovercars(pickups, dias):
+    """Cotações do DiscoverCars via robô da Apify (uma execução com todas as datas): MCO, 10:00, 30 anos, residente no Brasil, USD.
+    Preço = total que o DiscoverCars mostra (taxas não separadas; sem seguro do balcão nem extras)."""
+    import urllib.request
+    tok = _apify_token()
+    api = "https://api.apify.com/v2"
+
+    def req(metodo, url, corpo=None):
+        r = urllib.request.Request(url, method=metodo, data=json.dumps(corpo).encode() if corpo is not None else None,
+                                   headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"})
+        with urllib.request.urlopen(r, timeout=120) as resp:
+            return json.loads(resp.read())
+
+    # O robô sempre faz a busca do topo (com datas padrão, se faltarem): a 1ª data vai no topo e as demais em customRequests.
+    entrada = {"mode": "discovercars", "locations": ["MCO"], "pickupDate": f"{pickups[0]}", "pickupTime": "10:00",
+               "dropoffDate": f"{pickups[0] + timedelta(days=dias)}", "dropoffTime": "10:00", "currency": "USD", "driver_age": 30,
+               "residence_country": "BR", "limit": 1000, "maxConcurrency": 4, "includeErrors": True,
+               "customRequests": [{"location": "MCO", "pickup": f"{d}T10:00", "dropoff": f"{d + timedelta(days=dias)}T10:00"}
+                                  for d in pickups[1:]]}
+    run = req("POST", f"{api}/acts/{DC_ACTOR}/runs", entrada)["data"]
+    for _ in range(180):  # até 30 min
+        if run["status"] not in ("READY", "RUNNING"):
+            break
+        time.sleep(10)
+        run = req("GET", f"{api}/actor-runs/{run['id']}")["data"]
+    if run["status"] != "SUCCEEDED":
+        raise RuntimeError(f"execução na Apify terminou como {run['status']}")
+    itens = req("GET", f"{api}/datasets/{run['defaultDatasetId']}/items?clean=true&format=json")
+    agora = datetime.now(timezone.utc)
+    res = []
+    for it in itens:
+        ini = date.fromisoformat(((it.get("input") or {}).get("pickup") or "")[:10] or "1900-01-01")
+        if ini.year == 1900 or not it.get("offers"):
+            print(f"DiscoverCars: busca sem ofertas ({(it.get('input') or {}).get('pickup')}): {it.get('error') or 'vazia'}")
+            continue
+        linhas = parse_discovercars(it)
+        print(f"DiscoverCars {ini}: {len(it['offers'])} ofertas, {len(linhas)} locadora x categoria gravadas")
+        for x in linhas:
+            res.append(dict(x, retirada=ini, devolucao=ini + timedelta(days=x["dias"]), coletado_em=agora, url=DC_URL, extras=None))
+    print(f"DiscoverCars: custo da execução US$ {run.get('usageTotalUsd') or 0:.3f}")
+    return res
+
+
 NOSSO_NOME = "Orlando Rent Car"
 NOSSO_FORMULARIO = "https://orlandorentcar.com/reservations/"
 _ROTULOS_NOSSO = re.compile(r"^(\d+|Datas|Veículos|Características|Cliente|Confirme|Pagamentos|Classe de Veículo Disponível|Ultimas Unidades|Excl\..*)$", re.I)
@@ -653,7 +769,7 @@ def linhas_banco(itens, mapa, concorrente, local, notas, protecoes):
             extra.append("preço promocional")
         rows.append(dict(
             _concorrente=concorrente, source="coleta automática (motor de reservas público)", source_url=it["url"], location=local,
-            source_category=it["categoria"], normalized_category=mapa.get(it["categoria"]),
+            source_category=it["categoria"], normalized_category=it.get("normalizada") or mapa.get(it["categoria"]),
             collected_at=it["coletado_em"].isoformat(), pickup_at=f"{it['retirada']}T10:00:00", return_at=f"{it['devolucao']}T10:00:00",
             total_price=it["total"], daily_price=it["diaria"], currency="USD", taxes_included=False,
             protections=protecoes, mileage=None, cancellation_policy=None, payment_conditions=None,
@@ -682,6 +798,11 @@ FONTES = {
     "enterprise": ("Enterprise", coleta_enterprise, NATIONAL_LOCAL,
                    "Tarifa base sem taxas (enterprise.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
                    "não incluídas (tarifa sem proteções)"),
+    # Uma fonte, várias locadoras: cada item traz o próprio "concorrente"; o mapa é o de DC_MAPA (por código ACRISS).
+    "discovercars": (DC_MAPA, coleta_discovercars, DC_LOCAL,
+                     "Preço total exibido no DiscoverCars (via Apify, USD, residente no Brasil, 30 anos); taxas não separadas; "
+                     "sem seguro do balcão nem extras; oferta mais barata da locadora no código ACRISS",
+                     "não informadas (seguro do balcão não incluído)"),
 }
 
 
@@ -745,11 +866,13 @@ if __name__ == "__main__":
             erros.append(nome)
             continue
         mapa = {k: v for k, v in todos_mapas.get(nome, {}).items() if v}
-        rows = linhas_banco(itens, mapa, nome, local, notas, protecoes)
+        rows = []
+        for conc in dict.fromkeys(it.get("concorrente", nome) for it in itens):  # fontes de várias locadoras (DiscoverCars)
+            rows += linhas_banco([it for it in itens if it.get("concorrente", nome) == conc], mapa, conc, local, notas, protecoes)
         sem_mapa = sorted({r["source_category"] for r in rows if not r["normalized_category"]})
         print(f"{nome}: {len(rows)} linhas; sem mapa (não entram na comparação): {sem_mapa}")
         for r in rows[:6]:
-            print(f"  {r['pickup_at'][:10]} {r['source_category']}: {r['daily_price']}/dia, total {r['total_price']} -> {r['normalized_category']}")
+            print(f"  {r['_concorrente']} {r['pickup_at'][:10]} {r['source_category']}: {r['daily_price']}/dia, total {r['total_price']} -> {r['normalized_category']}")
         if not gravar:
             continue
         if not rows:
@@ -757,9 +880,10 @@ if __name__ == "__main__":
             erros.append(nome)
             continue
         ids = {c["name"]: c["id"] for c in chamar("GET", "competitors?select=id,name")}
-        if nome not in ids:
-            ids[nome] = chamar("POST", "competitors", {"name": nome, "kind": "direto"}, {"Prefer": "return=representation"})[0]["id"]
-        novas = [{**{k: v for k, v in r.items() if k != "_concorrente"}, "competitor_id": ids[nome]} for r in rows]
+        for conc in dict.fromkeys(r["_concorrente"] for r in rows):
+            if conc not in ids:
+                ids[conc] = chamar("POST", "competitors", {"name": conc, "kind": "direto"}, {"Prefer": "return=representation"})[0]["id"]
+        novas = [{**{k: v for k, v in r.items() if k != "_concorrente"}, "competitor_id": ids[r["_concorrente"]]} for r in rows]
         for i in range(0, len(novas), 500):
             chamar("POST", "competitor_price_snapshots", novas[i:i + 500], {"Prefer": "return=minimal"})
         print(f"{nome}: gravadas {len(novas)} coletas.")
