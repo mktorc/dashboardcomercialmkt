@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { avisoMinimo, type MinimoLinha } from "@/lib/dinheiro-mesa";
+
+/** Categoria × mês que está repetindo o padrão de esgotar cedo, com o texto do aviso. */
+export type Repetindo = { category: string; mes: number; texto: string; datas: string[] };
 import {
   BASE_TXT,
   JANELA_BORDA,
@@ -490,6 +494,8 @@ function Cartao({
   tarifaEm,
   feito,
   onFeito,
+  minimos,
+  repetindo,
 }: {
   b: Bloco;
   moeda: string;
@@ -498,10 +504,20 @@ function Cartao({
   tarifaEm: string | null;
   feito: Tomada | undefined;
   onFeito: (t: Tomada) => void;
+  minimos: MinimoLinha[];
+  repetindo: Repetindo[];
 }) {
   const d = b.itens.reduce((a, x) => (x.lead < a.lead ? x : a));
   const f = frases(b, moeda);
-  const av = avisos(d);
+  const av0 = avisos(d);
+  const minimo = avisoMinimo(minimos, d.category, d.date, d.lead, d.tarifa);
+  // Só nas datas que estão acima do ritmo normal (as mesmas que recebem Subir pelo padrão).
+  const rep = repetindo.find(
+    (r) =>
+      r.category === d.category && r.mes === Number(d.date.slice(5, 7)) && r.datas.includes(d.date),
+  );
+  const extras = [...(rep ? [rep.texto] : []), ...(minimo ? [minimo.texto] : [])];
+  const av = extras.length ? { ...av0, principais: [...av0.principais, ...extras] } : av0;
   const cab = cabecalho(b);
   const acao = etiquetaAcao(b, moeda);
   const Icone = ICONE[acao.icone];
@@ -661,11 +677,15 @@ export function FilaDecisoes({
   tarifaEm,
   filtroAtivo,
   onLimparFiltro,
+  minimos = [],
+  repetindo = [],
 }: {
   blocos: Bloco[];
   moeda: string;
   onOpen: (d: Decisao) => void;
   tarifaEm: string | null;
+  minimos?: MinimoLinha[];
+  repetindo?: Repetindo[];
   filtroAtivo: string | null;
   onLimparFiltro: () => void;
 }) {
@@ -686,6 +706,8 @@ export function FilaDecisoes({
       tarifaEm={tarifaEm}
       feito={feitos[b.key]}
       onFeito={(t) => setFeitos((f) => ({ ...f, [b.key]: t }))}
+      minimos={minimos}
+      repetindo={repetindo}
     />
   );
   const compacta = (b: Bloco) => <LinhaCompacta key={b.key} b={b} onOpen={onOpen} />;

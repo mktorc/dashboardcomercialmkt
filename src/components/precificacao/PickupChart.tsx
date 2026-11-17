@@ -29,7 +29,10 @@ export function PickupChart({
   extras,
   marcas,
   hoje,
+  yMax = 100,
 }: {
+  /** Topo do eixo Y em % (padrão 100). */
+  yMax?: number;
   title: string;
   data: PickupPoint[];
   note?: string;
@@ -78,7 +81,7 @@ export function PickupChart({
             <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
+              <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, yMax]} allowDecimals={false} />
               {hoje ? (
                 <ReferenceLine
                   x={hoje}

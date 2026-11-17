@@ -11,6 +11,7 @@ import {
   DollarSign,
   FileText,
   Swords,
+  Coins,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/dashboard/SyncButton";
@@ -21,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { GestaoOcupacao } from "@/components/precificacao/GestaoOcupacao";
 import { FaixaPrecoEpoca } from "@/components/precificacao/FaixaPrecoEpoca";
+import { DinheiroNaMesa } from "@/components/precificacao/DinheiroNaMesa";
 import { Competitividade } from "@/components/precificacao/Competitividade";
 import { Prioridades } from "@/components/precificacao/Prioridades";
 import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
@@ -59,7 +61,8 @@ const SHOW_ESTUDO = false;
 // A aba "Ocupação esperada" está oculta por enquanto.
 const SHOW_OCUPACAO_ESPERADA = false;
 
-type Section = "prioridades" | "ocupacao" | "gestao" | "faixa-preco" | "competitividade" | "estudo";
+type Section =
+  "prioridades" | "ocupacao" | "gestao" | "faixa-preco" | "mesa" | "competitividade" | "estudo";
 const NAV: PricingNavItem<Section>[] = [
   { key: "prioridades", label: "Prioridades", icon: ListChecks },
   ...(SHOW_OCUPACAO_ESPERADA
@@ -67,6 +70,7 @@ const NAV: PricingNavItem<Section>[] = [
     : []),
   { key: "gestao", label: "Gestão de Ocupação", icon: CalendarDays },
   { key: "faixa-preco", label: "Faixa de preço", icon: DollarSign },
+  { key: "mesa", label: "Dinheiro na mesa", icon: Coins },
   { key: "competitividade", label: "Competitividade", icon: Swords },
   ...(SHOW_ESTUDO ? [{ key: "estudo" as const, label: "Estudo", icon: FileText }] : []),
 ];
@@ -163,6 +167,8 @@ export function PricingHubView({
   const [range, setRange] = useState<Range>(() => defaultRange(todayIso()));
   const ultimaAtualizacao = useUltimaAtualizacaoPrecificacao();
   const [secao, setSecao] = useState<Section>("prioridades");
+  // Link "Conferir já" da aba Dinheiro na mesa: abre a Prioridades nessa categoria e período.
+  const [catPrioridades, setCatPrioridades] = useState<{ cat: string; n: number } | null>(null);
 
   return (
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
@@ -181,26 +187,41 @@ export function PricingHubView({
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
                 : secao === "prioridades"
                   ? "O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado."
-                  : secao === "faixa-preco"
-                    ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
-                    : secao === "competitividade"
-                      ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
-                      : secao === "gestao"
-                        ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
-                        : "Ocupação atual e esperada por categoria, data a data."}
+                  : secao === "mesa"
+                    ? "Onde vendemos barato e cedo demais no passado, e se isso está se repetindo agora."
+                    : secao === "faixa-preco"
+                      ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
+                      : secao === "competitividade"
+                        ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
+                        : secao === "gestao"
+                          ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
+                          : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           <SyncButton fn={syncPricing} ultimaAtualizacao={ultimaAtualizacao} />
         </header>
         <div className="mx-auto w-full max-w-6xl space-y-3 px-2 py-3 sm:space-y-4 sm:p-6">
           {secao === "prioridades" ? (
-            <Prioridades range={range} onRangeChange={setRange} />
+            <Prioridades
+              key={catPrioridades?.n ?? 0}
+              range={range}
+              onRangeChange={setRange}
+              categoriaInicial={catPrioridades?.cat ?? null}
+            />
           ) : secao === "ocupacao" ? (
             <OcupacaoEsperada />
           ) : secao === "gestao" ? (
             <GestaoOcupacao range={range} onRangeChange={setRange} />
           ) : secao === "faixa-preco" ? (
             <FaixaPrecoEpoca />
+          ) : secao === "mesa" ? (
+            <DinheiroNaMesa
+              onAbrirPrioridades={(cat, r) => {
+                setRange(r);
+                setCatPrioridades((c) => ({ cat, n: (c?.n ?? 0) + 1 }));
+                setSecao("prioridades");
+              }}
+            />
           ) : secao === "competitividade" ? (
             <Competitividade range={range} onRangeChange={setRange} />
           ) : (

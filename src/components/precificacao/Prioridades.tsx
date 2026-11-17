@@ -43,6 +43,14 @@ import {
   curvaCategoria,
   type Curva,
 } from "@/lib/captura-categoria";
+import {
+  analisarMesa,
+  avisoRepetindo,
+  datasAcima,
+  padraoParaData,
+  precoMinimo,
+  previsoes,
+} from "@/lib/dinheiro-mesa";
 import { FilaDecisoes, ResumoDecisoes } from "@/components/precificacao/FilaDecisoes";
 import { ageDays } from "@/lib/competitiveness-view";
 import {
@@ -220,9 +228,12 @@ function NivelBadge({ n }: { n: Nivel }) {
 export function Prioridades({
   range,
   onRangeChange,
+  categoriaInicial,
 }: {
   range: Range;
   onRangeChange: (r: Range) => void;
+  /** Abre já filtrada nesta categoria (link "Conferir já" da aba Dinheiro na mesa). */
+  categoriaInicial?: string | null;
 }) {
   const q = usePace();
   if (q.isLoading) return <Card className="p-6 text-sm text-muted-foreground">Carregando…</Card>;
@@ -239,6 +250,7 @@ export function Prioridades({
       geradoEm={q.data.generated_at}
       range={range}
       onRangeChange={onRangeChange}
+      categoriaInicial={categoriaInicial ?? null}
     />
   );
 }
@@ -248,19 +260,22 @@ function Painel({
   geradoEm,
   range,
   onRangeChange,
+  categoriaInicial,
 }: {
   payload: NonNullable<ReturnType<typeof usePace>["data"]>["payload"];
   geradoEm: string;
   range: Range;
   onRangeChange: (r: Range) => void;
+  categoriaInicial: string | null;
 }) {
   const snaps = useCompetitorSnapshots();
   const rates = useOurRates();
   const nossaColeta = useOurRateFreshness();
-  const [cat, setCat] = useState(ALL);
+  const [cat, setCat] = useState(categoriaInicial ?? ALL);
   // Preço com 1 motorista adicional e 1 bebê conforto (alguns concorrentes cobram): desligado = só o preço do veículo.
   const [comExtras, setComExtras] = useState(false);
-  const [leadKey, setLeadKey] = useState("p60");
+  // Vindo do link "Conferir já" (categoria e período escolhidos), não troca o período pela faixa padrão.
+  const [leadKey, setLeadKey] = useState(categoriaInicial ? "all" : "p60");
   // Faixa livre: quando o período escolhido não coincide com nenhuma faixa pronta, a antecedência vira "D-x a D-y".
   const [custom, setCustom] = useState<{ min: number; max: number } | null>(null);
   const [acaoF, setAcaoF] = useState<string>(ALL);
@@ -417,6 +432,27 @@ function Painel({
       }),
     [model, modelRitmo, base, range, cat, lead, crit, priceOf],
   );
+  const mesa = useMemo(() => analisarMesa(payload), [payload]);
+  const minimos = useMemo(() => precoMinimo(mesa, payload), [mesa, payload]);
+  // Lição da aba Dinheiro na mesa por categoria × mês: entra na decisão (as duas abas não se contradizem) e vira aviso.
+  const prevMesa = useMemo(() => previsoes(mesa, payload), [mesa, payload]);
+  // Por data: Subir pelo prêmio só se a própria data está acima do ritmo normal (e o mês não desacelerou); senão, "não baixar".
+  const prevPorMes = useMemo(
+    () => new Map(prevMesa.map((x) => [`${x.licao.category}|${x.licao.mes}`, x])),
+    [prevMesa],
+  );
+  const repetindo = useMemo(
+    () =>
+      prevMesa
+        .filter((x) => x.acao.tipo === "repetindo" && x.sit)
+        .map((x) => ({
+          category: x.licao.category,
+          mes: x.licao.mes,
+          texto: avisoRepetindo(x.licao.anos.length, x.sit!.pp, x.licao.premio),
+          datas: datasAcima(x.sit),
+        })),
+    [prevMesa],
+  );
   // Decisão de cada data × categoria (ocupação da Gestão, faixa ótima da Faixa de preço, mercado da Competitividade); com cache.
   const decisaoDe = useMemo(() => {
     const cache = new Map<string, Decisao | null>();
@@ -498,6 +534,7 @@ function Painel({
             ritmoRef: q.ritmoRef,
             ritmoAno: q.ano,
             captura: cv ? capturaDecisao(cv, r.lead, base) : null,
+            padrao: padraoParaData(prevPorMes.get(`${r.category}|${mes}`), r.date),
             hist: h,
             evento: !!payload.cal[r.date]?.[1],
             mercado: {
@@ -512,7 +549,7 @@ function Painel({
       cache.set(k, out);
       return out;
     };
-  }, [model, payload, base, priceOf, now]);
+  }, [model, payload, base, priceOf, now, prevPorMes]);
   // Só para explicar um recorte vazio: quantas datas existem se a antecedência não filtrasse.
   const semFiltroAntecedencia = useMemo(
     () =>
@@ -544,7 +581,7 @@ function Painel({
       }),
     [base_rows, acaoF, urgF, mktF, decisaoDe],
   );
-  // Matriz e calendário filtram a fila.
+  // O calendário filtra a fila.
   const [filtroDia, setFiltroDia] = useState<string | null>(null);
   const filaRows = useMemo(
     () =>
@@ -552,13 +589,14 @@ function Painel({
         if (filtroDia && r.date !== filtroDia) return false;
         return true;
       }),
-    [rows, filtroDia, decisaoDe],
+    [rows, filtroDia],
   );
   const blocos = useMemo(
     () => agruparBlocos(filaRows.map(decisaoDe).filter((d): d is Decisao => d != null)),
     [filaRows, decisaoDe],
   );
   const resumoDecisoes = useMemo(() => resumoDia(blocos), [blocos]);
+
   const filtroTxt = [filtroDia ? dataBR(filtroDia) : null].filter(Boolean).join(" · ");
   const ranking = useMemo(
     () => rows.filter((r) => NIVEIS_RANKING.includes(r.nivel)).sort(byRank),
@@ -678,6 +716,8 @@ function Painel({
             moeda={moeda}
             onOpen={(d) => setSelKey(`${d.date}|${d.category}`)}
             tarifaEm={nossaColeta.data ?? null}
+            minimos={minimos}
+            repetindo={repetindo}
             filtroAtivo={filtroTxt || null}
             onLimparFiltro={() => setFiltroDia(null)}
           />

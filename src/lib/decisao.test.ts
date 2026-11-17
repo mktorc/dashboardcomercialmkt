@@ -11,6 +11,8 @@ import {
   impacto,
   receitas,
   aindaCedo,
+  TEXTO_PADRAO_SUBIR,
+  TEXTO_PADRAO_NAO_BAIXAR,
   TEXTO_MUDANCA_PEQUENA,
   grupoDe,
   ETIQUETA_BLOCO,
@@ -1108,5 +1110,55 @@ describe("cor do motivo da ação", () => {
     expect(ETIQUETA_BLOCO["motivo-alta"].cor).toContain("sky");
     expect(ETIQUETA_BLOCO["motivo-alta"].texto).toBe("motivo da ação");
     expect(COR_BARRA["motivo-alta"]).toContain("sky");
+  });
+});
+
+describe("lição do Dinheiro na mesa entra na decisão", () => {
+  const rep = (subirPct: number) => ({ tipo: "repetindo" as const, subirPct });
+  it("repetindo + Manter vira Subir o % do padrão", () => {
+    const d = decidir(ent({ occ: "dentro", tarifa: 100, padrao: rep(10) }))!;
+    expect(d.acao).toBe("subir");
+    expect(d.sugerido).toMatchObject({ min: 110, max: 110 });
+    expect(d.padraoMotivo).toBe(TEXTO_PADRAO_SUBIR);
+    expect(d.confianca.nivel).toBe("media");
+  });
+  it("repetindo + Subir usa pelo menos o % do padrão", () => {
+    const base = {
+      occ: "acima" as const,
+      gapCarros: 3,
+      lead: 5,
+      hist: { faixa: null, fonte: null },
+      mercado: { n: 4, idadeDias: 1, pct: -6, mediana: 106 },
+    };
+    expect(decidir(ent(base))!.sugerido!.min).toBe(106);
+    expect(decidir(ent({ ...base, padrao: rep(10) }))!.sugerido!.min).toBe(110);
+    expect(decidir(ent({ ...base, padrao: rep(3) }))!.sugerido!.min).toBe(106); // a regra já pedia mais
+  });
+  it("repetindo bloqueia Baixar e Revisar canais", () => {
+    const b = decidir(ent({ padrao: rep(10) }))!;
+    expect(b.acao).toBe("manter");
+    expect(b.manterMotivo).toBe(TEXTO_PADRAO_NAO_BAIXAR);
+    expect(etiquetaAcao(agruparBlocos([b])[0]!).texto).toBe(
+      "Manter · mês que já esgotou cedo: não baixar",
+    );
+    const c = decidir(
+      ent({ tarifa: 82, mercado: { n: 4, idadeDias: 1, pct: 0, mediana: 82 }, padrao: rep(10) }),
+    )!;
+    expect(c.acao).toBe("manter");
+  });
+  it("mês que já esgotou cedo (no ritmo) só bloqueia Baixar", () => {
+    expect(decidir(ent({ padrao: { tipo: "nao-baixar" } }))!.acao).toBe("manter");
+    expect(decidir(ent({ occ: "dentro", padrao: { tipo: "nao-baixar" } }))!.acao).toBe("manter");
+    const rev = decidir(
+      ent({
+        tarifa: 82,
+        mercado: { n: 4, idadeDias: 1, pct: 0, mediana: 82 },
+        padrao: { tipo: "nao-baixar" },
+      }),
+    )!;
+    expect(rev.acao).toBe("acao-comercial");
+  });
+  it("sem padrão, nada muda", () => {
+    expect(decidir(ent({ padrao: null }))!.acao).toBe("baixar");
   });
 });

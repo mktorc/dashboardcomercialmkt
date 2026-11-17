@@ -292,6 +292,12 @@ export function avisos(
 }
 
 export const TEXTO_MUDANCA_PEQUENA = "mudança sugerida pequena demais";
+export const TEXTO_PADRAO_NAO_BAIXAR = "este mês já esgotou cedo em anos anteriores: não baixar";
+export const TEXTO_PADRAO_SUBIR =
+  "este mês está repetindo o padrão de esgotar cedo: no passado, os últimos clientes pagaram mais";
+
+/** Lição da aba Dinheiro na mesa aplicada à decisão (só meses que esgotaram cedo em 2+ anos). */
+export type PadraoMesa = { tipo: "repetindo"; subirPct: number } | { tipo: "nao-baixar" };
 
 export const TEXTO_VERIFICAR_EQUIV =
   "a recomendação depende de uma cotação possivelmente não equivalente; confira antes de decidir";
@@ -456,6 +462,8 @@ export type DecisaoEntrada = {
   mercado: MercadoQualidade & { mediana: number | null };
   /** Perfil de captura da categoria na antecedência atual; null sem curva com amostra. */
   captura?: CapturaDecisao | null;
+  /** Lição da aba Dinheiro na mesa para esta categoria × mês (só quando o mês esgotou cedo em 2+ anos). */
+  padrao?: PadraoMesa | null;
 };
 
 export type Decisao = DecisaoEntrada & {
@@ -468,6 +476,8 @@ export type Decisao = DecisaoEntrada & {
   verificarMotivo: string | null;
   /** Texto quando Subir/Baixar virou Manter porque a mudança sugerida era pequena demais. */
   manterMotivo: string | null;
+  /** Texto quando a ação veio da lição do passado (mês repetindo o padrão de esgotar cedo). */
+  padraoMotivo: string | null;
   sugerido: PrecoSugerido | null;
   carros: number;
   /** Baixar/Ação comercial: carro-dias abaixo da esperada × tarifa atual. */
@@ -546,8 +556,43 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     },
     cfg,
   );
-  // Subir/Baixar sempre com preço: sem preço, ou mudança menor que minMudanca, vira Manter.
+  // Lição do passado (aba Dinheiro na mesa): as duas abas não podem se contradizer.
   let manterMotivo: string | null = null;
+  let padraoMotivo: string | null = null;
+  const gp = grupoDe(regra.acao);
+  if (e.padrao && e.tarifa != null && !verificarMotivo) {
+    const t = e.tarifa;
+    if (e.padrao.tipo === "repetindo") {
+      const alvo = Math.round(t * (1 + e.padrao.subirPct / 100));
+      if (gp === "subir" || gp === "manter") {
+        // Subir pelo menos o % do padrão (nunca menos do que a regra já pedia).
+        const v = sugerido && gp === "subir" ? Math.max(sugerido.min, alvo) : alvo;
+        regra = {
+          acao: gp === "subir" ? regra.acao : "subir",
+          forca: "media",
+          umPilar: regra.umPilar,
+        };
+        sugerido = {
+          min: v,
+          max: v,
+          alvo: { de: v, ate: v },
+          centro: v,
+          passoPct: e.padrao.subirPct,
+        };
+        padraoMotivo = TEXTO_PADRAO_SUBIR;
+      } else if (gp === "baixar" || regra.acao === "acao-comercial") {
+        regra = { acao: "manter", forca: "media", umPilar: regra.umPilar };
+        sugerido = null;
+        manterMotivo = TEXTO_PADRAO_NAO_BAIXAR;
+      }
+    } else if (gp === "baixar") {
+      // Mês que já esgotou cedo (no ritmo ou acelerado sem prêmio): não baixar.
+      regra = { acao: "manter", forca: "media", umPilar: regra.umPilar };
+      sugerido = null;
+      manterMotivo = TEXTO_PADRAO_NAO_BAIXAR;
+    }
+  }
+  // Subir/Baixar sempre com preço: sem preço, ou mudança menor que minMudanca, vira Manter.
   const g2 = grupoDe(regra.acao);
   if (
     (g2 === "baixar" || g2 === "subir") &&
@@ -557,12 +602,15 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     regra = { acao: "manter", forca: "media", umPilar: regra.umPilar };
     sugerido = null;
     manterMotivo = TEXTO_MUDANCA_PEQUENA;
+    padraoMotivo = null;
   }
   const conf: Confianca = verificarMotivo
     ? { nivel: "baixa", motivos: [verificarMotivo] }
     : manterMotivo
       ? { nivel: "media", motivos: [manterMotivo] }
-      : confianca({ acao: regra.acao, occ: e.occ, sinalHist, sinalMerc });
+      : padraoMotivo
+        ? { nivel: "media", motivos: [padraoMotivo] }
+        : confianca({ acao: regra.acao, occ: e.occ, sinalHist, sinalMerc });
   const carros = e.gapCarros ?? 0;
   const rc = receitas(regra.acao, carros, e.tarifa, sugerido);
   const receita = rc.risco + rc.potencial;
@@ -575,6 +623,7 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     confianca: conf,
     verificarMotivo,
     manterMotivo,
+    padraoMotivo,
     sugerido,
     carros,
     receitaRisco: rc.risco,
@@ -1252,7 +1301,14 @@ export function etiquetaAcao(b: Bloco, cur = "USD"): EtiquetaAcao {
   if (g === "acao-comercial") return e("Não baixar preço · revisar canais e demanda", "canais");
   if (g === "verificar") return e(`Verificar: ${motivoVerificar(b).curto}`, "verificar");
   const dm = b.itens.find((x) => x.manterMotivo);
-  return e(dm ? "Manter · mudança sugerida pequena demais" : "Manter", "manter");
+  return e(
+    dm?.manterMotivo === TEXTO_PADRAO_NAO_BAIXAR
+      ? "Manter · mês que já esgotou cedo: não baixar"
+      : dm
+        ? "Manter · mudança sugerida pequena demais"
+        : "Manter",
+    "manter",
+  );
 }
 
 export function cabecalho(b: Bloco): { titulo: string; sub: string } {
@@ -1280,9 +1336,19 @@ export function contexto(b: Bloco, cur = "USD"): string {
 
 /** Explicação da confiança, pilar a pilar, em linguagem simples (tooltip do cartão). */
 export function explicarConfianca(
-  d: Pick<Decisao, "acao" | "occ" | "sinalHist" | "sinalMerc" | "verificarMotivo" | "confianca">,
+  d: Pick<Decisao, "acao" | "occ" | "sinalHist" | "sinalMerc" | "verificarMotivo" | "confianca"> &
+    Partial<Pick<Decisao, "padraoMotivo" | "manterMotivo">>,
 ): { resumo: string; linhas: string[] } {
   const nivel = NIVEL_TXT[d.confianca.nivel].toLowerCase();
+  if (d.padraoMotivo || d.manterMotivo === TEXTO_PADRAO_NAO_BAIXAR)
+    return {
+      resumo: `Confiança ${nivel}: a ação vem da lição do passado (aba Dinheiro na mesa), não só dos três sinais de hoje.`,
+      linhas: [
+        d.padraoMotivo
+          ? "Este mês esgotou cedo em anos anteriores e hoje está vendendo acima do ritmo normal, como naqueles anos."
+          : "Este mês esgotou cedo em anos anteriores: baixar o preço repetiria o erro.",
+      ],
+    };
   if (d.acao === "verificar")
     return {
       resumo: `Confiança ${nivel}: não há sinais de preço suficientes para recomendar mexer.`,
