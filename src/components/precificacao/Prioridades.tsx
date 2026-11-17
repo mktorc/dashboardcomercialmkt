@@ -35,8 +35,33 @@ import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import { rateKey } from "@/lib/categoria";
 import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
-import { TOL_PADRAO } from "@/lib/preco-analise";
-import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
+import { TOL_PADRAO, pontosEpoca, quadranteDia, type PontoEpoca } from "@/lib/preco-analise";
+import {
+  JANELAS,
+  JANELA_TXT,
+  capturaDecisao,
+  curvaCategoria,
+  type Curva,
+} from "@/lib/captura-categoria";
+import { FilaDecisoes, ResumoDecisoes } from "@/components/precificacao/FilaDecisoes";
+import { ageDays } from "@/lib/competitiveness-view";
+import {
+  agruparBlocos,
+  calendarioAcoes,
+  COR_ACAO,
+  GRUPOS,
+  GRUPO_TXT,
+  NIVEL_TXT,
+  grupoDe,
+  type GrupoAcao,
+  type Nivel as NivelDecisao,
+  decidir,
+  faixaOtima,
+  resumoDia,
+  sinalOcc,
+  type Decisao,
+  type HistEscolha,
+} from "@/lib/decisao";
 import { Kpi, PickupChart } from "@/components/precificacao/GestaoOcupacao";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import {
@@ -67,6 +92,7 @@ import {
   dayPace,
   DEFAULT_BANDS,
   usePace,
+  windowAnalysis,
   type PaceModel,
   type PaceRow,
 } from "@/lib/occupancy-pace";
@@ -111,6 +137,30 @@ import {
 } from "@/lib/prioridades";
 
 const ALL = "__all__";
+const occB = (d: Decisao): OccBucket => (d.occ === "dentro" ? "neutro" : d.occ!);
+const mercB = (d: Decisao | null): MarketBucket =>
+  !d || d.sinalMerc === "sem-mercado" ? "sem-dados" : d.sinalMerc;
+/** Matriz ocupação (Gestão, tolerância atual) × mercado (±5%) a partir das decisões; mesma forma de `matrix`. */
+function matrizDecisoes(
+  rows: EnrichedRow[],
+  dec: (r: EnrichedRow) => Decisao | null,
+): ReturnType<typeof matrix> {
+  const cells = OCC_BUCKETS.flatMap((occ) =>
+    MARKET_BUCKETS.map((market) => ({ occ, market, count: 0, critical: 0 })),
+  );
+  let semBenchmark = 0;
+  for (const r of rows) {
+    const d = dec(r);
+    if (!d) {
+      semBenchmark++;
+      continue;
+    }
+    const c = cells.find((x) => x.occ === occB(d) && x.market === mercB(d))!;
+    c.count++;
+    if (r.nivel === "critica") c.critical++;
+  }
+  return { cells, semBenchmark };
+}
 const PAGE = 24;
 /** Faixas de antecedência em ordem crescente, só com os Ds (sem os nomes das janelas). */
 const leadBands = (c: CritConfig) => {
@@ -234,7 +284,8 @@ function Painel({
   const [leadKey, setLeadKey] = useState("p60");
   // Faixa livre: quando o período escolhido não coincide com nenhuma faixa pronta, a antecedência vira "D-x a D-y".
   const [custom, setCustom] = useState<{ min: number; max: number } | null>(null);
-  const [nivelF, setNivelF] = useState<string>(ALL);
+  const [acaoF, setAcaoF] = useState<string>(ALL);
+  const [urgF, setUrgF] = useState<string>(ALL);
   const [mktF, setMktF] = useState<string>(ALL);
   const [crit, setCrit] = useState<CritConfig>(DEFAULT_CRIT);
   // Muda a cada filtro: os grupos do ranking voltam ao tamanho inicial.
@@ -387,6 +438,102 @@ function Painel({
       }),
     [model, modelRitmo, base, range, cat, lead, crit, priceOf],
   );
+  // Decisão de cada data × categoria (ocupação da Gestão, faixa ótima da Faixa de preço, mercado da Competitividade); com cache.
+  const decisaoDe = useMemo(() => {
+    const cache = new Map<string, Decisao | null>();
+    const hist = new Map<string, HistEscolha>();
+    const pts = new Map<string, PontoEpoca[]>();
+    const curvas = new Map<string, Curva | null>();
+    const pontos = (k: string, f: Parameters<typeof pontosEpoca>[1]) => {
+      let v = pts.get(k);
+      if (!v) pts.set(k, (v = pontosEpoca(payload, f)));
+      return v;
+    };
+    return (r: EnrichedRow): Decisao | null => {
+      const k = rowKey(r);
+      if (cache.has(k)) return cache.get(k)!;
+      let out: Decisao | null = null;
+      const pr = model.byKey.get(k);
+      if (pr && r.gap != null) {
+        const p = priceOf(r.date, r.category);
+        const q = quadranteDia(
+          r,
+          [pr],
+          windowAnalysis(model, [pr], r.date, base).janela,
+          payload.de,
+          TOL_PADRAO,
+          p.ourRate,
+        );
+        if (q) {
+          const mes = Number(r.date.slice(5, 7));
+          const saz = payload.cal[r.date]?.[0] ?? null;
+          const hk = `${r.category}|${mes}|${saz}`;
+          let h = hist.get(hk);
+          if (!h) {
+            h = faixaOtima(
+              pontos(`${r.category}|m${mes}`, { categoria: r.category, mes, sazonalidade: null }),
+              saz
+                ? pontos(`${r.category}|s${saz}`, {
+                    categoria: r.category,
+                    mes: null,
+                    sazonalidade: saz,
+                  })
+                : [],
+            );
+            h = {
+              ...h,
+              rotulo:
+                h.fonte === "mes"
+                  ? new Date(2000, mes - 1, 1).toLocaleDateString("pt-BR", { month: "long" })
+                  : h.fonte === "sazonalidade" && saz
+                    ? `sazonalidade ${saz}`
+                    : undefined,
+            };
+            hist.set(hk, h);
+          }
+          let cv = curvas.get(hk);
+          if (cv === undefined) {
+            cv = curvaCategoria(
+              payload.linhas,
+              base,
+              payload.de,
+              payload.cal,
+              r.category,
+              mes,
+              saz,
+            );
+            curvas.set(hk, cv);
+          }
+          out = decidir({
+            date: r.date,
+            category: r.category,
+            lead: r.lead,
+            frota: r.capacity,
+            vagos: r.vacant,
+            tarifa: p.ourRate,
+            occ: sinalOcc(q.ocupacao),
+            gapPp: r.gap,
+            gapCarros: q.gapCarros,
+            ritmo: q.ritmo,
+            ritmoAtual: q.ritmoAtual,
+            ritmoRef: q.ritmoRef,
+            ritmoAno: q.ano,
+            captura: cv ? capturaDecisao(cv, r.lead, base) : null,
+            hist: h,
+            evento: !!payload.cal[r.date]?.[1],
+            mercado: {
+              n: p.n,
+              pct: p.pct,
+              mediana: p.median,
+              idadeDias: p.lastCollectedAt ? ageDays(p.lastCollectedAt, now) : null,
+            },
+          });
+        }
+      }
+      cache.set(k, out);
+      return out;
+    };
+  }, [model, payload, base, priceOf, now]);
   // Só para explicar um recorte vazio: quantas datas existem se a antecedência não filtrasse.
   const semFiltroAntecedencia = useMemo(
     () =>
@@ -408,17 +555,51 @@ function Painel({
   );
   const rows = useMemo(
     () =>
-      base_rows.filter(
-        (r) => (nivelF === ALL || r.nivel === nivelF) && (mktF === ALL || r.market === mktF),
-      ),
-    [base_rows, nivelF, mktF],
+      base_rows.filter((r) => {
+        const d = decisaoDe(r);
+        return (
+          (acaoF === ALL || (d != null && grupoDe(d.acao) === acaoF)) &&
+          (urgF === ALL || (d != null && (d.captura?.janela ?? null) === urgF)) &&
+          (mktF === ALL || mercB(d) === mktF)
+        );
+      }),
+    [base_rows, acaoF, urgF, mktF, decisaoDe],
   );
+  // Matriz e calendário filtram a fila.
+  const [filtroMx, setFiltroMx] = useState<{ occ: OccBucket; market: MarketBucket } | null>(null);
+  const [filtroDia, setFiltroDia] = useState<string | null>(null);
+  const filaRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if (filtroDia && r.date !== filtroDia) return false;
+        if (filtroMx) {
+          const d = decisaoDe(r);
+          if (!d || occB(d) !== filtroMx.occ || mercB(d) !== filtroMx.market) return false;
+        }
+        return true;
+      }),
+    [rows, filtroDia, filtroMx, decisaoDe],
+  );
+  const blocos = useMemo(
+    () => agruparBlocos(filaRows.map(decisaoDe).filter((d): d is Decisao => d != null)),
+    [filaRows, decisaoDe],
+  );
+  const resumoDecisoes = useMemo(() => resumoDia(blocos), [blocos]);
+  const filtroTxt = [
+    filtroMx ? `${OCC_LABEL[filtroMx.occ]} × ${MARKET_LABEL[filtroMx.market]}` : null,
+    filtroDia ? dataBR(filtroDia) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const ranking = useMemo(
     () => rows.filter((r) => NIVEIS_RANKING.includes(r.nivel)).sort(byRank),
     [rows],
   );
-  const mx = useMemo(() => matrix(rows, crit), [rows, crit]);
-  const byDate = useMemo(() => worstByDate(rows), [rows]);
+  const mx = useMemo(() => matrizDecisoes(rows, decisaoDe), [rows, decisaoDe]);
+  const byDate = useMemo(
+    () => calendarioAcoes(rows.map(decisaoDe).filter((d): d is Decisao => d != null)),
+    [rows, decisaoDe],
+  );
   const sel = selKey ? (base_rows.find((r) => rowKey(r) === selKey) ?? null) : null;
 
   // Indicadores: tudo respeita os mesmos filtros; "D-60+" = a partir do início da janela de intervenção.
@@ -444,6 +625,9 @@ function Painel({
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado.
+      </p>
       <Card className="flex flex-wrap items-end gap-x-4 gap-y-3 p-4">
         <PeriodFilter
           from={range.from}
@@ -470,13 +654,21 @@ function Painel({
             ]}
           />
           <FilterSelect
-            label="Criticidade"
-            ajuda={<AjudaCriticidade crit={crit} />}
-            value={nivelF}
-            onChange={(v) => (setNivelF(v), setShown(PAGE))}
+            label="Ação"
+            value={acaoF}
+            onChange={(v) => (setAcaoF(v), setShown(PAGE))}
             options={[
-              [ALL, "Todos os níveis"],
-              ...NIVEL_ORDEM.map((n) => [n, NIVEL_LABEL[n]] as [string, string]),
+              [ALL, "Todas as ações"],
+              ...GRUPOS.map((g) => [g, GRUPO_TXT[g]] as [string, string]),
+            ]}
+          />
+          <FilterSelect
+            label="Janela de ação"
+            value={urgF}
+            onChange={(v) => (setUrgF(v), setShown(PAGE))}
+            options={[
+              [ALL, "Todas"],
+              ...JANELAS.map((n) => [n, JANELA_TXT[n]] as [string, string]),
             ]}
           />
           <FilterSelect
@@ -514,111 +706,36 @@ function Painel({
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Kpi
-              icon={AlertTriangle}
-              label={`Críticas em D-${crit.leadInterv}+`}
-              value={String(resumo.criticas)}
-              hint={`${resumo.criticas90} em D-${crit.leadStrat}+`}
-              tone={resumo.criticas ? "text-red-600 dark:text-red-400" : undefined}
-            />
-            <Kpi
-              icon={TrendingDown}
-              label={`Abaixo do esperado em D-${crit.leadInterv}+`}
-              value={String(resumo.abaixo)}
-              hint={
-                resumo.pctNaJanela == null
-                  ? "—"
-                  : `${resumo.pctNaJanela}% dos problemas ainda na janela`
-              }
-            />
-            <Kpi
-              icon={Gauge}
-              label="Ritmo abaixo do histórico"
-              value={String(resumo.ritmo)}
-              hint="reservas novas na janela recente"
-            />
-            <Kpi
-              icon={Gauge}
-              label={`Gap médio em D-${crit.leadInterv}+`}
-              value={resumo.gapMedio == null ? "—" : gapTxt(resumo.gapMedio)}
-              hint={`${resumo.nGap} com benchmark`}
-            />
-            <Kpi
-              icon={TrendingUp}
-              label="Oportunidades"
-              value={String(resumo.oportunidades)}
-              hint="acima do esperado, tarifa abaixo do mercado"
-              tone={resumo.oportunidades ? "text-sky-600 dark:text-sky-400" : undefined}
-            />
-            <Kpi
-              icon={Tag}
-              label="Preço desfavorável"
-              value={String(resumo.precoDesfavoravel)}
-              hint="abaixo do esperado e tarifa acima do mercado"
-            />
-          </div>
+          <ResumoDecisoes r={resumoDecisoes} moeda={moeda} />
 
-          <Card className="space-y-3 p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">Prioridades de ação</h2>
-              <span className="text-xs text-muted-foreground">{ranking.length} no ranking</span>
-            </div>
-            {ranking.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma data exige atenção neste recorte (ou não há benchmark suficiente).
-              </p>
-            ) : (
-              NIVEIS_RANKING.map((n) => {
-                const grupo = ranking.filter((r) => r.nivel === n);
-                if (!grupo.length) return null;
-                return (
-                  <GrupoNivel key={n} nivel={n} itens={grupo} versao={filtroVersao}>
-                    {(r) => (
-                      <PriorityCard
-                        key={rowKey(r)}
-                        r={r}
-                        crit={crit}
-                        model={model}
-                        modelRitmo={modelRitmo}
-                        base={base}
-                        comExtras={comExtras}
-                        onOpen={() => setSelKey(rowKey(r))}
-                      />
-                    )}
-                  </GrupoNivel>
-                );
-              })
-            )}
-            <p className="text-xs text-muted-foreground">
-              Ordem: nível de criticidade e, dentro dele, prioridade de ação (gap, antecedência,
-              veículos livres, sazonalidade e evidência de mercado). Referência de baixa confiança
-              nunca gera “Crítica”. Nenhuma tarifa é alterada automaticamente.
-            </p>
-          </Card>
+          <FilaDecisoes
+            blocos={blocos}
+            moeda={moeda}
+            onOpen={(d) => setSelKey(`${d.date}|${d.category}`)}
+            tarifaEm={nossaColeta.data ?? null}
+            filtroAtivo={filtroTxt || null}
+            onLimparFiltro={() => (setFiltroMx(null), setFiltroDia(null))}
+          />
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <DiagnosticMatrix mx={mx} />
+            <DiagnosticMatrix
+              mx={mx}
+              selected={filtroMx}
+              onPick={(c) =>
+                setFiltroMx((f) => (f && f.occ === c.occ && f.market === c.market ? null : c))
+              }
+            />
             <CriticalityCalendar
               range={range}
               byDate={byDate}
               month={month}
               setMonth={setMonth}
-              onOpen={(r) => setSelKey(rowKey(r))}
+              selected={filtroDia}
+              onPick={(d) => setFiltroDia((f) => (f === d ? null : d))}
             />
           </div>
         </>
       )}
-
-      <CapturaReservas
-        rows={payload.linhas}
-        base={base}
-        historyStart={payload.de}
-        category={cat === ALL ? null : cat}
-        cal={payload.cal}
-        from={range.from}
-        to={range.to}
-      />
 
       <StatusDados
         base={base}
@@ -847,7 +964,7 @@ function AjudaMatriz() {
       <p>
         Cruza dois sinais de cada data × categoria: a <b>ocupação</b> contra o esperado (linhas) e o{" "}
         <b>preço</b> contra o mercado (colunas). Cada número é a quantidade de datas × categorias
-        naquela combinação; “crít.” é quantas delas são Críticas.
+        naquela combinação. Ocupação pela tolerância da Gestão; preço ±5% da mediana.
       </p>
       <p>Clique numa célula para ver a leitura sugerida e o que investigar:</p>
       <AjudaItem nome="Abaixo do esperado + preço acima">
@@ -878,27 +995,17 @@ function AjudaMatriz() {
 
 function AjudaCalendario() {
   return (
-    <Ajuda titulo="Calendário de criticidade">
+    <Ajuda titulo="Calendário de ações">
       <p>
-        Cada dia é uma data de retirada, colorida pelo <b>pior nível de criticidade</b> entre as
-        categorias do recorte. Clique no dia para abrir o diagnóstico completo.
+        Cada dia é uma data de retirada, colorida pela <b>ação mais urgente</b> entre as categorias
+        do recorte (Manter só quando todas mantêm). Clique no dia para filtrar a fila.
       </p>
-      <p>
-        A cor <b>não é o percentual de ocupação</b>: mostra o quanto a data está fora do padrão
-        histórico comparável, na mesma antecedência.
-      </p>
-      <AjudaItem nome="Vermelho">Crítica</AjudaItem>
-      <AjudaItem nome="Laranja">Atenção</AjudaItem>
-      <AjudaItem nome="Amarelo">Monitoramento</AjudaItem>
-      <AjudaItem nome="Azul">
-        Oportunidade (acima do esperado com tarifa abaixo do mercado)
-      </AjudaItem>
-      <AjudaItem nome="Verde claro">dentro do esperado</AjudaItem>
-      <AjudaItem nome="Cinza tracejado">sem benchmark histórico suficiente</AjudaItem>
-      <p>
-        Dias sem cor estão fora do período, dos filtros ou sem dados carregados. O calendário segue
-        os mesmos filtros do ranking e os níveis são explicados na ajuda de “Criticidade”.
-      </p>
+      <AjudaItem nome="Azul">Baixar</AjudaItem>
+      <AjudaItem nome="Verde">Subir</AjudaItem>
+      <AjudaItem nome="Âmbar">Revisar canais e demanda (não mexer no preço)</AjudaItem>
+      <AjudaItem nome="Cinza tracejado">Verificar dados (sem mercado e sem histórico)</AjudaItem>
+      <AjudaItem nome="Sem cor de fundo">Manter</AjudaItem>
+      <p>Dias sem número destacado estão fora do período, dos filtros ou sem sinal de ocupação.</p>
     </Ajuda>
   );
 }
@@ -1207,16 +1314,19 @@ const CELL_TONE: Record<OccBucket, Record<MarketBucket, string>> = {
   },
 };
 
-function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
-  const [pick, setPick] = useState<{ occ: OccBucket; market: MarketBucket } | null>(null);
+function DiagnosticMatrix({
+  mx,
+  selected,
+  onPick,
+}: {
+  mx: ReturnType<typeof matrix>;
+  selected: { occ: OccBucket; market: MarketBucket } | null;
+  onPick: (c: { occ: OccBucket; market: MarketBucket }) => void;
+}) {
+  const pick = selected;
   const cell = (o: OccBucket, m: MarketBucket) =>
     mx.cells.find((c) => c.occ === o && c.market === m)!;
-  const cur =
-    pick ??
-    mx.cells
-      .filter((c) => c.count)
-      .sort((a, b) => b.critical - a.critical || b.count - a.count)[0] ??
-    null;
+  const cur = pick ?? mx.cells.filter((c) => c.count).sort((a, b) => b.count - a.count)[0] ?? null;
   const txt = cur ? MATRIX_TEXT[cur.occ][cur.market] : null;
   return (
     <Card className="space-y-3 p-4">
@@ -1242,13 +1352,10 @@ function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
                   <button
                     key={m}
                     type="button"
-                    onClick={() => setPick({ occ: o, market: m })}
+                    onClick={() => onPick({ occ: o, market: m })}
                     className={`rounded border p-2 text-center ${CELL_TONE[o][m]} ${active ? "ring-2 ring-foreground" : ""} ${c.count ? "" : "opacity-50"}`}
                   >
                     <div className="text-xl font-semibold tabular-nums">{c.count}</div>
-                    {c.critical ? (
-                      <div className="text-red-600 dark:text-red-400">{c.critical} crít.</div>
-                    ) : null}
                   </button>
                 );
               })}
@@ -1261,7 +1368,8 @@ function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
           <p className="font-medium">{txt.leitura}</p>
           <p className="text-muted-foreground">Investigar: {txt.investigar}</p>
           <p className="text-xs text-muted-foreground">
-            Leitura sugerida a partir de dois sinais; não confirma causa.
+            Leitura sugerida a partir de dois sinais; não confirma causa. Clique numa célula para
+            filtrar a fila (clique de novo para limpar).
           </p>
         </div>
       ) : (
@@ -1269,7 +1377,7 @@ function DiagnosticMatrix({ mx }: { mx: ReturnType<typeof matrix> }) {
       )}
       {mx.semBenchmark ? (
         <p className="text-xs text-muted-foreground">
-          {mx.semBenchmark} data×categoria sem benchmark de ocupação não entram na matriz.
+          {mx.semBenchmark} data×categoria sem sinal de ocupação não entram na matriz.
         </p>
       ) : null}
     </Card>
@@ -1287,13 +1395,15 @@ function CriticalityCalendar({
   byDate,
   month,
   setMonth,
-  onOpen,
+  selected,
+  onPick,
 }: {
   range: Range;
-  byDate: ReturnType<typeof worstByDate>;
+  byDate: ReturnType<typeof calendarioAcoes>;
   month: string | null;
   setMonth: (m: string) => void;
-  onOpen: (r: EnrichedRow) => void;
+  selected: string | null;
+  onPick: (date: string) => void;
 }) {
   const first = monthOf(range.from);
   const last = monthOf(range.to);
@@ -1309,7 +1419,7 @@ function CriticalityCalendar({
     <Card className="space-y-3 p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Calendário de criticidade</h2>
+          <h2 className="text-lg font-semibold">Calendário de ações</h2>
           <AjudaCalendario />
         </div>
         <div className="flex items-center gap-1">
@@ -1359,9 +1469,9 @@ function CriticalityCalendar({
             <button
               key={iso}
               type="button"
-              onClick={() => onOpen(w.row)}
-              title={`${dataBR(iso)} · ${NIVEL_LABEL[w.nivel]}${w.count > 1 ? ` · ${w.count} categorias` : ""}`}
-              className={`rounded border py-2 text-center text-xs font-medium hover:ring-2 hover:ring-foreground ${NIVEL_STYLE[w.nivel].cell}`}
+              onClick={() => onPick(iso)}
+              title={`${dataBR(iso)} · ${GRUPO_TXT[w.grupo]} (${w.decisao.category}, urgência ${NIVEL_TXT[w.decisao.urgencia].toLowerCase()})${w.count > 1 ? ` · ${w.count} categorias` : ""}`}
+              className={`rounded border py-2 text-center text-xs font-medium hover:ring-2 hover:ring-foreground ${COR_ACAO[w.grupo]} ${selected === iso ? "ring-2 ring-foreground" : ""}`}
             >
               {i + 1}
             </button>
@@ -1369,15 +1479,16 @@ function CriticalityCalendar({
         })}
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {NIVEL_ORDEM.map((n) => (
-          <span key={n} className="flex items-center gap-1">
-            <span className={`size-3 rounded border ${NIVEL_STYLE[n].cell}`} />
-            {NIVEL_LABEL[n]}
+        {GRUPOS.map((g: GrupoAcao) => (
+          <span key={g} className="flex items-center gap-1">
+            <span className={`size-3 rounded border ${COR_ACAO[g]}`} />
+            {GRUPO_TXT[g]}
           </span>
         ))}
       </div>
       <p className="text-xs text-muted-foreground">
-        Cada dia mostra o pior nível entre as categorias do recorte; clique para o diagnóstico.
+        Cada dia mostra a ação mais urgente entre as categorias do recorte; clique para filtrar a
+        fila por esse dia.
       </p>
     </Card>
   );
@@ -1649,7 +1760,6 @@ function Detalhe({
         {row ? (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <NivelBadge n={row.nivel} />
               <span className="ml-auto">
                 <EtiquetaFrota capacity={row.capacity} />
               </span>
@@ -1755,11 +1865,6 @@ function Detalhe({
                     {cap ? ` ${cap.n} datas comparáveis (${BENCH_LEVEL_LABEL[cap.level]}).` : ""}
                   </p>
                 </Card>
-                <PickupChart
-                  title="Curva de captura (% da ocupação final)"
-                  data={capCurve}
-                  note={`A linha tracejada é a captura histórica em cada antecedência; a linha cheia é esta data, só até D-${row.lead} (hoje). Sem previsão além disso.`}
-                />
               </TabsContent>
 
               <TabsContent value="concorrencia" className="space-y-3 text-sm">

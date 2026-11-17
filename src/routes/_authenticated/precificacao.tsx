@@ -180,7 +180,7 @@ export function PricingHubView({
               {secao === "estudo" && data
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
                 : secao === "prioridades"
-                  ? "Datas abaixo do esperado, o que pode explicar e o que avaliar agora."
+                  ? "O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado."
                   : secao === "faixa-preco"
                     ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
                     : secao === "competitividade"

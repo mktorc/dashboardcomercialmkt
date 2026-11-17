@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import { rateKey } from "@/lib/categoria";
 import { PickupChart } from "@/components/precificacao/PickupChart";
+import { CapturaReservas } from "@/components/precificacao/CapturaReservas";
 import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
 import { LEVEL, dataBR, gapTxt, pct } from "@/lib/pricing-format";
 import { addMonths, monthEnd, monthStart, type Range } from "@/lib/pricing-range";
@@ -323,6 +324,16 @@ function Painel({
       />
       <Comparativo days={days} base={base} bands={bands} />
       <Pickup model={model} byDate={byDate} from={from} to={to} base={base} />
+
+      <CapturaReservas
+        rows={payload.linhas}
+        base={base}
+        historyStart={payload.de}
+        category={cat === ALL ? null : cat}
+        cal={payload.cal}
+        from={from}
+        to={to}
+      />
 
       <Detalhe
         model={model}
