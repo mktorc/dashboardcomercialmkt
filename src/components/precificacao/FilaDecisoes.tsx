@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { HelpCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Info, Megaphone, Minus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,10 +30,19 @@ import {
   grupoDe,
   proximaAbertura,
   avisos,
-  etiquetas,
+  movimentoPct,
+  explicarConfianca,
+  difFaixaPct,
+  blocosPilares,
+  cabecalho,
+  contexto,
+  etiquetaAcao,
+  COR_BARRA,
+  ETIQUETA_BLOCO,
+  type BlocoPilar,
+  type IconeAcao,
   linhaCompacta,
   separarFila,
-  COR_ETIQUETA,
   type Bloco,
   type Decisao,
   type GrupoAcao,
@@ -91,27 +100,38 @@ export function ResumoDecisoes({ r, moeda }: { r: ResumoDia; moeda: string }) {
         </Card>
         <Card className="p-3">
           <div className="text-xs text-muted-foreground">Receita em risco</div>
-          <div className="text-2xl font-semibold tabular-nums text-red-700 dark:text-red-300">
-            {dinheiro(r.receitaRisco, moeda)}
-          </div>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="w-fit cursor-help text-xs text-muted-foreground">
-                potencial de alta: {dinheiro(r.receitaPotencial, moeda)}
+              <div className="w-fit cursor-help text-2xl font-semibold tabular-nums text-red-700 dark:text-red-300">
+                {dinheiro(r.receitaRisco, moeda)}
               </div>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs">
-              Risco: carro-dias abaixo da esperada × tarifa atual (Baixar e Revisar canais).
-              Potencial: carro-dias acima × (sugerida − atual) em Subir.
-              {r.potencialLimitado
-                ? " O potencial fica pequeno porque as sugestões de subida estão limitadas pelo passo e pela antecedência."
-                : ""}
+              Quanto deixamos de faturar se os carros que faltam nesses dias não forem vendidos:
+              carros abaixo do esperado × tarifa de hoje, só nas decisões de agora (Baixar e Revisar
+              canais). Contando também as datas ainda cedo: {dinheiro(r.receitaRiscoTotal, moeda)}.
             </TooltipContent>
           </Tooltip>
-          <div className="text-[11px] text-muted-foreground">
-            incluindo ainda cedo: {dinheiro(r.receitaRiscoTotal, moeda)} em risco ·{" "}
-            {dinheiro(r.receitaPotencialTotal, moeda)} de alta
+          <div className="text-xs text-muted-foreground">
+            se os carros que faltam não forem vendidos
           </div>
+          {r.receitaPotencial > 0 ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="mt-1 w-fit cursor-help text-xs text-emerald-600 dark:text-emerald-400">
+                  + {dinheiro(r.receitaPotencial, moeda)} se aplicar as subidas sugeridas
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Ganho extra ao subir o preço nas datas que estão vendendo acima do esperado: carros
+                acima do esperado × (preço sugerido − preço de hoje). É pequeno porque cada sugestão
+                sobe só um passo de cada vez (5% a 10%, conforme a antecedência).
+                {r.receitaPotencialTotal > r.receitaPotencial
+                  ? ` Contando as datas ainda cedo: ${dinheiro(r.receitaPotencialTotal, moeda)}.`
+                  : ""}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </Card>
       </div>
     </TooltipProvider>
@@ -131,34 +151,22 @@ function detalheOcupacao(d: Decisao) {
 }
 function detalheHistorico(d: Decisao, cur: string) {
   const f = d.hist.faixa;
-  if (!f) return "Sem faixa de diária com 5 datas ou mais no mês nem na sazonalidade.";
-  return `Faixa com maior fat./veículo (${d.hist.rotulo ?? d.hist.fonte}): ${dinheiro(f.de, cur)}–${Math.round(f.ate)}, ${f.datas} datas, ${dinheiro(f.revVeic, cur)}/veículo. "Dentro" = ±5% das bordas. Compara a tarifa de tabela de hoje com a diária média efetivamente paga no passado.`;
+  if (!f)
+    return "Sem histórico suficiente: nenhuma faixa de diária com pelo menos 5 dias de amostra no mês nem na sazonalidade.";
+  const ep = d.hist.rotulo ?? "nesta época";
+  const pct = d.tarifa != null ? difFaixaPct(d.tarifa, f) : null;
+  const pos =
+    pct == null
+      ? ""
+      : pct === 0
+        ? " Sua tarifa de hoje está dentro dessa faixa: o histórico não pede para mexer."
+        : ` Sua tarifa de hoje está ${Math.abs(Math.round(pct))}% ${pct > 0 ? "acima" : "abaixo"} dessa faixa.`;
+  return `Nos dias de ${ep} de anos anteriores, quando a diária paga ficou entre ${dinheiro(f.de, cur)} e ${Math.round(f.ate)}, cada carro faturou mais no dia (${dinheiro(f.revVeic, cur)} por carro, em ${f.datas} dias).${pos} Compara a tarifa de tabela de hoje com a diária efetivamente paga no passado; "dentro" aceita 5% de folga.`;
 }
 function detalheMercado(d: Decisao, cur: string) {
   const m = d.mercado;
   if (d.sinalMerc === "sem-mercado") return "Nenhuma cotação válida de concorrente para esta data.";
   return `Mediana ${m.mediana != null ? dinheiro(m.mediana, cur) : "—"} com ${m.n} concorrente(s); coleta ${m.idadeDias == null ? "—" : m.idadeDias === 0 ? "de hoje" : `há ${m.idadeDias} dia(s)`}. Alinhado = ±5%.`;
-}
-
-/** Etiquetas dos sinais (verde a favor, cinza neutro, âmbar contra, tracejada sem dado), com o número no tooltip. */
-function Etiquetas({ d, detalhes }: { d: Decisao; detalhes: [string, string, string] }) {
-  return (
-    <>
-      {etiquetas(d).map((e, i) => (
-        <Tooltip key={e.nome}>
-          <TooltipTrigger asChild>
-            <span
-              className={`cursor-help rounded border px-1.5 py-0.5 text-[11px] leading-none ${COR_ETIQUETA[e.tom]}`}
-              onClick={(ev) => ev.stopPropagation()}
-            >
-              {e.nome}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs text-xs">{detalhes[i]}</TooltipContent>
-        </Tooltip>
-      ))}
-    </>
-  );
 }
 
 /** Curva de captura em miniatura, com a antecedência atual marcada. */
@@ -205,6 +213,13 @@ const AJUDA_CONFIANCA =
 
 /* ───────────────────────── registro ───────────────────────── */
 
+/**
+ * Liga os botões "Vou aplicar", "Outro preço" e "Não vou mexer" (gravam em pricing_decisions).
+ * Mude para true depois de rodar drizzle/migrations/0060_pricing_decisions.sql no Supabase.
+ * Desligado, os botões aparecem desabilitados com "em breve".
+ */
+export const REGISTRO_DECISOES_ATIVO = true;
+
 // pricing_decisions ainda não está nos tipos gerados do Supabase (migração 0060).
 type TabelaSolta = {
   select: (c: string, o: object) => { limit: (n: number) => Promise<{ error: unknown }> };
@@ -218,6 +233,7 @@ const tabela = {
 function useRegistroDisponivel() {
   return useQuery({
     queryKey: ["pricing-decisions-disponivel"],
+    enabled: REGISTRO_DECISOES_ATIVO,
     queryFn: async () => {
       const { error } = await tabela
         .from("pricing_decisions")
@@ -345,12 +361,14 @@ function Acoes({
       </span>
     );
   const off = !ativo || enviando;
-  const dica = (t: string) => (ativo ? `${t} ${NOTA_REGISTRO}` : "Em breve: rode a migração 0060.");
+  const dica = (t: string) =>
+    ativo ? `${t} ${NOTA_REGISTRO}` : "Em breve: o registro de decisões ainda não foi ligado.";
+  const mov = movimentoPct(b);
   const sug =
     b.sugMin != null
       ? b.sugMin === b.sugMax
         ? dinheiro(b.sugMin, moeda)
-        : `${dinheiro(b.sugMin, moeda)}–${b.sugMax}`
+        : `${mov != null && mov < 0 ? "−" : "+"}${Math.abs(Math.round(mov ?? 0))}%`
       : null;
   return (
     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -359,7 +377,7 @@ function Acoes({
         disabled={off}
         title={dica(
           aceitoPreco != null
-            ? `Registra que você vai aplicar ${dinheiro(aceitoPreco, moeda)} (ponta mais conservadora).`
+            ? `Registra que você vai aplicar ${dinheiro(aceitoPreco, moeda)} (preço sugerido).`
             : "Registra que você vai seguir a recomendação.",
         )}
         onClick={() => go("aceitou", aceitoPreco, null)}
@@ -419,11 +437,49 @@ function Acoes({
           <p className="text-[11px] text-muted-foreground">{NOTA_REGISTRO}</p>
         </PopoverContent>
       </Popover>
+      {!ativo ? <span className="text-[11px] text-muted-foreground">em breve</span> : null}
     </div>
   );
 }
 
 /* ───────────────────────── fila ───────────────────────── */
+
+const ICONE: Record<IconeAcao, typeof ArrowDown> = {
+  baixar: ArrowDown,
+  subir: ArrowUp,
+  canais: Megaphone,
+  verificar: AlertTriangle,
+  manter: Minus,
+};
+
+function BlocoSinal({ p, detalheTooltip }: { p: BlocoPilar; detalheTooltip: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div
+          className="cursor-help overflow-hidden rounded-md border border-border bg-background/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`h-1 ${COR_BARRA[p.tom]}`} />
+          <div className="space-y-0.5 p-2.5">
+            <div className="text-[11px] text-muted-foreground">{p.nome}</div>
+            <span
+              className={`inline-block rounded border px-1.5 py-px text-[10px] font-medium ${ETIQUETA_BLOCO[p.tom].cor}`}
+            >
+              {ETIQUETA_BLOCO[p.tom].texto}
+            </span>
+            <div className="text-lg font-semibold tabular-nums leading-tight">{p.valor}</div>
+            <div className="text-xs font-medium text-foreground">{p.conclusao}</div>
+            {p.detalhe ? (
+              <div className="truncate text-[11px] text-muted-foreground">{p.detalhe}</div>
+            ) : null}
+          </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">{detalheTooltip}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 function Cartao({
   b,
@@ -445,11 +501,22 @@ function Cartao({
   const d = b.itens.reduce((a, x) => (x.lead < a.lead ? x : a));
   const f = frases(b, moeda);
   const av = avisos(d);
-  const g = grupoDe(b.acao);
+  const cab = cabecalho(b);
+  const acao = etiquetaAcao(b, moeda);
+  const Icone = ICONE[acao.icone];
+  const [po, pm, ph] = blocosPilares(b, moeda);
   const borda = b.janela ? JANELA_BORDA[b.janela] : "border-border";
   const totalTxt = `Total do bloco: ${b.carros > 0 ? "+" : ""}${b.carros} carro-dias${b.receitaRisco ? ` · ${dinheiro(b.receitaRisco, moeda)} em risco` : ""}${b.receitaPotencial ? ` · ${dinheiro(b.receitaPotencial, moeda)} potencial` : ""}.`;
   const confTxt = f.confianca.split(":")[0]!;
-  const confMotivo = f.confianca.slice(confTxt.length + 1).trim();
+  const explicacao = explicarConfianca(d);
+  const etiqueta = (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-medium ${acao.cor}`}
+    >
+      <Icone className="size-4" />
+      {acao.texto}
+    </span>
+  );
   return (
     <div
       role="button"
@@ -459,20 +526,10 @@ function Cartao({
       className={`cursor-pointer rounded-lg border-2 p-4 text-sm hover:bg-muted/40 ${borda}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <h4 className="font-medium leading-snug">
-          {f.titulo}
-          {g === "acao-comercial" ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <HelpCircle
-                  className="ml-1 inline size-3.5 text-muted-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">{DICA_REVISAR}</TooltipContent>
-            </Tooltip>
-          ) : null}
-        </h4>
+        <div>
+          <span className="font-semibold">{cab.titulo}</span>{" "}
+          <span className="text-xs text-muted-foreground">{cab.sub}</span>
+        </div>
         {b.janela ? (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -487,28 +544,47 @@ function Cartao({
           </Tooltip>
         ) : null}
       </div>
-      <div className="mt-2 space-y-1">
-        <p className="text-muted-foreground" title={totalTxt}>
-          {f.sinais}
-        </p>
-        {b.captura ? (
+      <div className="mt-2">
+        {acao.icone === "canais" || d.verificarMotivo ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <p className="w-fit cursor-help text-xs" onClick={(e) => e.stopPropagation()}>
-                {f.captura}
-              </p>
+              <span className="cursor-help" onClick={(e) => e.stopPropagation()}>
+                {etiqueta}
+              </span>
             </TooltipTrigger>
-            <TooltipContent className="text-xs">
-              <MiniCurva c={b.captura} lead={b.itens[0]!.lead} />
-              <div>
-                Curva da categoria ({BASE_TXT[b.captura.base]}, {b.captura.datas} datas encerradas).
-              </div>
+            <TooltipContent className="max-w-xs text-xs">
+              {acao.icone === "canais" ? DICA_REVISAR : d.verificarMotivo}
             </TooltipContent>
           </Tooltip>
         ) : (
-          <p className="text-xs">{f.captura}</p>
+          etiqueta
         )}
       </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <BlocoSinal p={po} detalheTooltip={`${detalheOcupacao(d)} ${totalTxt}`} />
+        <BlocoSinal p={pm} detalheTooltip={detalheMercado(d, moeda)} />
+        <BlocoSinal p={ph} detalheTooltip={detalheHistorico(d, moeda)} />
+      </div>
+      {b.captura ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <p
+              className="mt-2 w-fit cursor-help text-xs text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {contexto(b, moeda)}
+            </p>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">
+            <MiniCurva c={b.captura} lead={b.itens[0]!.lead} />
+            <div>
+              Curva da categoria ({BASE_TXT[b.captura.base]}, {b.captura.datas} datas encerradas).
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">{contexto(b, moeda)}</p>
+      )}
       <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <Tooltip>
@@ -518,18 +594,16 @@ function Cartao({
               </span>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs text-xs">
-              {confMotivo ? `${confMotivo}. ` : ""}
-              {AJUDA_CONFIANCA}
+              <p className="font-medium">{explicacao.resumo}</p>
+              {explicacao.linhas.map((l) => (
+                <p key={l}>{l}</p>
+              ))}
+              <p className="mt-1 text-muted-foreground">
+                Confiança mede só se os sinais concordam; problemas de dados aparecem nos avisos em
+                âmbar.
+              </p>
             </TooltipContent>
           </Tooltip>
-          <Etiquetas
-            d={d}
-            detalhes={[
-              `${detalheOcupacao(d)} ${totalTxt}`,
-              detalheMercado(d, moeda),
-              detalheHistorico(d, moeda),
-            ]}
-          />
           {av.principais.length ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -537,7 +611,7 @@ function Cartao({
                   className="cursor-help text-amber-600 dark:text-amber-400"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  ⚠ {av.principais.join(" · ")}
+                  · ⚠ {av.principais.join(" · ")}
                 </span>
               </TooltipTrigger>
               <TooltipContent className="max-w-xs text-xs">
@@ -607,7 +681,7 @@ export function FilaDecisoes({
       b={b}
       moeda={moeda}
       onOpen={onOpen}
-      ativo={!!reg.data}
+      ativo={REGISTRO_DECISOES_ATIVO && !!reg.data}
       tarifaEm={tarifaEm}
       feito={feitos[b.key]}
       onFeito={(t) => setFeitos((f) => ({ ...f, [b.key]: t }))}
@@ -658,7 +732,37 @@ export function FilaDecisoes({
     <TooltipProvider delayDuration={150}>
       <Card className="space-y-4 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-semibold">Fila de decisões</h2>
+          <div className="flex items-center gap-1.5">
+            <h2 className="text-lg font-semibold">Fila de decisões</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info
+                  className="size-4 cursor-help text-muted-foreground"
+                  aria-label="Sobre a fila"
+                />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-md space-y-1.5 text-xs">
+                <p>
+                  Borda vermelha = janela Agora; âmbar = Última chance. Grupos de ação só com Agora
+                  e Última chance; Cedo e Tarde ficam nos grupos de baixo, sem botões.
+                </p>
+                <p>
+                  Datas consecutivas da mesma categoria com a mesma ação e a mesma janela formam um
+                  bloco. Regra {RULE_VERSION}. Nenhuma tarifa é alterada automaticamente.
+                </p>
+                {bases.size ? (
+                  <p>
+                    Base da curva de captura:{" "}
+                    {[...bases]
+                      .sort(([a], [b]) => (a < b ? -1 : 1))
+                      .map(([c, st]) => `${c}: ${[...st].join(" / ")}`)
+                      .join(" · ")}
+                    .
+                  </p>
+                ) : null}
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {filtroAtivo ? (
               <>
@@ -729,22 +833,6 @@ export function FilaDecisoes({
             {grupo("passou", "Janela passou", fila.passou, compacta, "text-muted-foreground", 40)}
           </>
         )}
-        <p className="text-xs text-muted-foreground">
-          Borda vermelha = janela Agora; âmbar = Última chance. Grupos de ação só com Agora e Última
-          chance; Cedo e Tarde ficam nos grupos de baixo, sem botões. Datas consecutivas da mesma
-          categoria com a mesma ação e a mesma janela formam um bloco. Regra {RULE_VERSION}. Nenhuma
-          tarifa é alterada automaticamente.
-        </p>
-        {bases.size ? (
-          <p className="text-xs text-muted-foreground">
-            Base da curva de captura:{" "}
-            {[...bases]
-              .sort(([a], [b]) => (a < b ? -1 : 1))
-              .map(([c, s]) => `${c}: ${[...s].join(" / ")}`)
-              .join(" · ")}
-            .
-          </p>
-        ) : null}
       </Card>
     </TooltipProvider>
   );

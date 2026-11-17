@@ -11,6 +11,15 @@ import {
   impacto,
   receitas,
   aindaCedo,
+  ETIQUETA_BLOCO,
+  matrizOcupacaoMercado,
+  movimentoPct,
+  explicarConfianca,
+  blocosPilares,
+  etiquetaAcao,
+  cabecalho,
+  contexto,
+  COR_BARRA,
   separarFila,
   linhaCompacta,
   etiquetas,
@@ -256,25 +265,24 @@ describe("preço sugerido", () => {
     expect(precoSugerido({ ...e, acao: "baixar", lead: 5 })).toMatchObject({ min: 90, max: 90 });
     expect(precoSugerido({ ...e, acao: "baixar", lead: 90 })).toMatchObject({ min: 95, max: 95 });
   });
-  it("faixa quando o alvo está dentro do passo", () => {
-    // alvo 90,25–99,75 (mediana 95): de 100, perto = 99,75 → 100 = tarifa atual → 99; longe = 90,25 → 90
+  it("um número só: vai até o centro do alvo quando cabe no passo", () => {
+    // mediana 95 → alvo 90,25–99,75, centro 95; passo cheio (10%) alcança
     expect(precoSugerido({ ...e, mediana: 95, acao: "baixar", lead: 5 })).toMatchObject({
-      min: 90,
-      max: 99,
+      min: 95,
+      max: 95,
     });
   });
-  it("a faixa nunca inclui a tarifa atual (casos reais: 97 → 98–100, 133 → 134–139)", () => {
+  it("casos reais: 97 e 133 sobem para um número, nunca o preço atual", () => {
     const sub = { ...e, acao: "subir" as const, lead: 62, faixa: null };
-    // hoje 97, mediana 100 → alvo 95–105; perto = 97 (já dentro) vira 98; longe 105 limitado a +5% (D-62 = meio passo) → 102
+    // hoje 97, mediana 100: meio passo (5% = 4,85) alcança 100
     expect(precoSugerido({ ...sub, tarifa: 97, mediana: 100 })).toMatchObject({
-      min: 98,
-      max: 102,
+      min: 100,
+      max: 100,
     });
-    expect(precoSugerido({ ...sub, tarifa: 133, mediana: 138 })).toMatchObject({ min: 134 });
-    expect(precoSugerido({ ...sub, tarifa: 133, mediana: 138 })!.min).toBeGreaterThan(133);
-    expect(precoSugerido({ ...e, mediana: 93, acao: "baixar", lead: 5 })).toMatchObject({
-      min: 90,
-      max: 98,
+    // hoje 133, mediana 145: meio passo (5% = 6,65) → 139,65 → 140
+    expect(precoSugerido({ ...sub, tarifa: 133, mediana: 145 })).toMatchObject({
+      min: 140,
+      max: 140,
     });
   });
   it("baixar até 5% nunca passa de 5%", () => {
@@ -283,9 +291,9 @@ describe("preço sugerido", () => {
       max: 95,
     });
   });
-  it("baixar até a mediana não passa da mediana", () => {
+  it("baixar até a mediana vai até a mediana", () => {
     expect(precoSugerido({ ...e, mediana: 98, acao: "baixar-mediana", lead: 5 })).toMatchObject({
-      min: 93,
+      min: 98,
       max: 98,
     });
   });
@@ -752,5 +760,235 @@ describe("etapa final: avisos e potencial limitado", () => {
     expect(resumoDia(agruparBlocos([sub(125)])).potencialLimitado).toBe(true);
     // mediana 104, D-5: alvo até ~109, alcançado com o passo cheio (10%)
     expect(resumoDia(agruparBlocos([sub(104, 5)])).potencialLimitado).toBe(false);
+  });
+});
+
+describe("cartão de leitura rápida", () => {
+  it("três blocos com dados", () => {
+    const [b] = agruparBlocos([
+      decidir(
+        ent({
+          gapCarros: -5,
+          ritmoAtual: 1,
+          ritmoRef: 1,
+          ritmoAno: "2025",
+          hist: {
+            faixa: { de: 80, ate: 85, datas: 6, revVeic: 50 },
+            fonte: "mes",
+            rotulo: "janeiro",
+          },
+          mercado: { n: 2, idadeDias: 1, pct: 15, mediana: 87 },
+        }),
+      )!,
+    ]);
+    expect(blocosPilares(b!)).toEqual([
+      {
+        nome: "Ocupação",
+        valor: "−5 carros/dia",
+        conclusao: "abaixo do esperado",
+        detalhe: "1 reserva em 14 dias (2025: 1)",
+        tom: "problema",
+      },
+      {
+        nome: "Mercado",
+        valor: "+15%",
+        conclusao: "mais caro",
+        detalhe: "mediana US$ 87 · 2 concorrentes",
+        tom: "favor",
+      },
+      {
+        nome: "Nosso histórico",
+        valor: "+18%",
+        conclusao: "acima da faixa que mais rende",
+        detalhe: "mais rendeu: US$ 80–85 (janeiro)",
+        tom: "favor",
+      },
+    ]);
+    expect(COR_BARRA.problema).toContain("red");
+    expect(COR_BARRA.favor).toContain("emerald");
+    expect(COR_BARRA.contra).toContain("amber");
+  });
+  it("sem dados e contradição", () => {
+    const [b] = agruparBlocos([
+      decidir(ent({ tarifa: null, hist: { faixa: null, fonte: null }, ritmoAtual: null }))!,
+    ]);
+    const [o, m, h] = blocosPilares(b!);
+    expect(o.tom).toBe("neutro"); // verificar: ocupação não é o "problema" de uma ação de preço
+    expect(o.detalhe).toBe("sem ritmo de referência");
+    expect([m.conclusao, m.tom]).toEqual(["sem cotação", "sem-dado"]);
+    expect([h.conclusao, h.tom]).toEqual(["sem histórico", "sem-dado"]);
+    // Revisar canais com mercado já mais barato e histórico acima (contradiz)
+    const [c] = agruparBlocos([
+      decidir(ent({ tarifa: 100, mercado: { n: 4, idadeDias: 1, pct: -8, mediana: 109 } }))!,
+    ]);
+    expect(c!.acao).toBe("acao-comercial");
+    const [, mc, hc] = blocosPilares(c!);
+    expect([mc.valor, mc.conclusao, mc.tom]).toEqual(["−8%", "já mais barato", "favor"]);
+    expect(hc.tom).toBe("contra");
+    const [dn] = agruparBlocos([decidir(ent({ occ: "dentro" }))!]);
+    expect(blocosPilares(dn!)[0]).toMatchObject({
+      valor: "0 carros/dia",
+      conclusao: "no esperado",
+    });
+  });
+  it("etiqueta de cada ação", () => {
+    const um = (o: Partial<DecisaoEntrada>) => agruparBlocos([decidir(ent(o))!])[0]!;
+    expect(etiquetaAcao(um({}))).toMatchObject({ texto: "Baixar para US$ 93", icone: "baixar" });
+    expect(
+      etiquetaAcao(
+        um({
+          lead: 5,
+          occ: "acima",
+          gapCarros: 3,
+          mercado: { n: 4, idadeDias: 1, pct: -20, mediana: 125 },
+          hist: { faixa: { de: 120, ate: 125, datas: 6, revVeic: 1 }, fonte: "mes" },
+        }),
+      ),
+    ).toMatchObject({ texto: "Subir para US$ 110", icone: "subir" });
+    expect(
+      etiquetaAcao(um({ tarifa: 82, mercado: { n: 4, idadeDias: 1, pct: 0, mediana: 82 } })),
+    ).toMatchObject({
+      texto: "Não baixar preço · revisar canais e demanda",
+      icone: "canais",
+    });
+    expect(etiquetaAcao(um({ tarifa: null })).texto).toBe("Verificar dados antes de decidir");
+    expect(etiquetaAcao(um({ occ: "dentro" })).texto).toBe("Manter");
+  });
+  it("cabeçalho e linha de contexto", () => {
+    const b = agruparBlocos([
+      decidir(ent({ date: "2026-12-10", captura: cap({ prox14: 0.11, falta: 0.38 }) }))!,
+      decidir(ent({ date: "2026-12-11", lead: 24, tarifa: 97, captura: cap() }))!,
+    ])[0]!;
+    expect(cabecalho(b)).toEqual({ titulo: "SUV · 10/12 a 11/12", sub: "2 dias · faltam 23" });
+    expect(contexto(b)).toBe(
+      "Tarifa hoje US$ 97–100 · nos próximos 14 dias entram ~11% das reservas · faltam 38%",
+    );
+    expect(contexto(agruparBlocos([decidir(ent({ captura: null }))!])[0]!)).toBe(
+      "Tarifa hoje US$ 100 · sem curva de captura",
+    );
+  });
+});
+
+describe("explicação da confiança", () => {
+  it("média: histórico não opina", () => {
+    const d = decidir(
+      ent({
+        occ: "acima",
+        gapCarros: 3,
+        tarifa: 82,
+        mercado: { n: 4, idadeDias: 1, pct: -12, mediana: 93 },
+      }),
+    )!;
+    expect(d.acao).toBe("subir-pouco");
+    expect(explicarConfianca(d)).toEqual({
+      resumo:
+        "Confiança média: dois sinais pedem subir e um não opina. A sugestão vale, mas com um apoio a menos.",
+      linhas: [
+        "✓ Ocupação: vendendo mais que o esperado → também pede subir.",
+        "✓ Mercado: estamos mais baratos que o mercado → também pede subir.",
+        "— Histórico: tarifa dentro da faixa que mais rendeu → não pede nem subir nem baixar.",
+      ],
+    });
+  });
+  it("alta, baixa e sem dado", () => {
+    expect(explicarConfianca(decidir(ent({}))!).resumo).toBe(
+      "Confiança alta: os três sinais pedem baixar.",
+    );
+    const b = explicarConfianca(
+      decidir(ent({ tarifa: 70, mercado: { n: 4, idadeDias: 1, pct: 12, mediana: 62 } }))!,
+    );
+    expect(b.linhas[2]).toBe(
+      "✗ Histórico: tarifa abaixo da faixa que mais rendeu → aponta para o lado contrário.",
+    );
+    expect(explicarConfianca(decidir(ent({ hist: { faixa: null, fonte: null } }))!).linhas[2]).toBe(
+      "— Histórico: sem dado, não opina.",
+    );
+  });
+});
+
+describe("casos do print", () => {
+  it("Baixar até 5% sem interseção dos alvos ainda dá preço (Midsize Sedan: 61 → 58)", () => {
+    const d = decidir(
+      ent({
+        tarifa: 61,
+        lead: 19,
+        hist: { faixa: { de: 65, ate: 70, datas: 6, revVeic: 50 }, fonte: "mes" },
+        mercado: { n: 2, idadeDias: 4, pct: 14, mediana: 53 },
+      }),
+    )!;
+    expect(d.acao).toBe("baixar-pouco");
+    expect(d.sugerido).toMatchObject({ min: 58, max: 58 });
+  });
+  it("sem interseção, usa o pilar que aponta no sentido da ação", () => {
+    // mercado (confiança alta) aponta para cima, mas a ação é baixar: usa o histórico
+    expect(
+      precoSugerido({
+        tarifa: 100,
+        acao: "baixar",
+        lead: 5,
+        mediana: 120,
+        faixa: { de: 80, ate: 85 },
+        confMercado: "alta",
+        confHist: "baixa",
+      }),
+    ).toMatchObject({ min: 90 });
+  });
+  it("bloco com tarifas diferentes: % e faixa conforme o dia", () => {
+    const b = agruparBlocos([
+      decidir(
+        ent({
+          date: "2026-12-13",
+          tarifa: 125,
+          mercado: { n: 3, idadeDias: 1, pct: 10, mediana: 103 },
+          hist: { faixa: { de: 100, ate: 105, datas: 6, revVeic: 50 }, fonte: "mes" },
+        }),
+      )!,
+      decidir(
+        ent({
+          date: "2026-12-14",
+          lead: 24,
+          tarifa: 112,
+          mercado: { n: 3, idadeDias: 1, pct: 10, mediana: 103 },
+          hist: { faixa: { de: 100, ate: 105, datas: 6, revVeic: 50 }, fonte: "mes" },
+        }),
+      )!,
+    ])[0]!;
+    expect(b.sugMin).not.toBe(b.sugMax);
+    expect(movimentoPct(b)).toBeLessThan(0);
+    expect(etiquetaAcao(b).texto).toMatch(/^Baixar ~\d+% \(US\$ \d+–\d+ conforme o dia\)$/);
+  });
+});
+
+describe("matriz ocupação × mercado", () => {
+  it("conta por célula e separa sem ocupação", () => {
+    const m = matrizOcupacaoMercado([
+      { occ: "abaixo", merc: "acima" },
+      { occ: "abaixo", merc: "acima" },
+      { occ: "dentro", merc: "sem-mercado" },
+      { occ: "acima", merc: "abaixo" },
+      { occ: null, merc: "acima" },
+    ]);
+    const c = (o: string, k: string) => m.cells.find((x) => x.occ === o && x.market === k)!.count;
+    expect(c("abaixo", "acima")).toBe(2);
+    expect(c("neutro", "sem-dados")).toBe(1);
+    expect(c("acima", "abaixo")).toBe(1);
+    expect(m.cells).toHaveLength(12);
+    expect(m.semBenchmark).toBe(1);
+  });
+});
+
+describe("etiquetas de sustentação dos blocos", () => {
+  it("texto e cor por papel do sinal", () => {
+    const [b] = agruparBlocos([
+      decidir(ent({ tarifa: 70, mercado: { n: 4, idadeDias: 1, pct: 12, mediana: 62 } }))!,
+    ]);
+    const [o, m, h] = blocosPilares(b!);
+    expect(ETIQUETA_BLOCO[o.tom].texto).toBe("motivo da ação");
+    expect(ETIQUETA_BLOCO[m.tom].texto).toBe("sustenta a ação");
+    expect(ETIQUETA_BLOCO[h.tom].texto).toBe("contra");
+    expect(ETIQUETA_BLOCO.problema.cor).toContain("red");
+    expect(ETIQUETA_BLOCO.favor.cor).toContain("emerald");
+    expect(ETIQUETA_BLOCO.contra.cor).toContain("amber");
+    expect(ETIQUETA_BLOCO.neutro.texto).toBe("neutro");
   });
 });

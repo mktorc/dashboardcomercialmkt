@@ -170,7 +170,7 @@ export const ACAO_TXT: Record<Acao, string> = {
 };
 
 export const DICA_REVISAR =
-  "Ocupação baixa, mas o preço já está igual ou abaixo do mercado e do melhor histórico. Baixar mais tende a só perder receita. Verifique disponibilidade e visibilidade nos canais, restrições de venda e oportunidade de campanha.";
+  "A ocupação está baixa, mas o preço já está igual ou abaixo do mercado e do nosso melhor histórico. Baixar mais tende a só perder receita. Verifique se o carro está visível e disponível nos canais (site, agências, parceiros), se há restrição travando a venda e se vale uma campanha.";
 
 export type GrupoAcao = "baixar" | "subir" | "acao-comercial" | "verificar" | "manter";
 export const GRUPOS: GrupoAcao[] = ["baixar", "subir", "acao-comercial", "verificar", "manter"];
@@ -311,7 +311,14 @@ export type PrecoEntrada = {
   confMercado: Nivel;
   confHist: Nivel;
 };
-export type PrecoSugerido = { min: number; max: number; alvo: Intervalo; passoPct: number };
+export type PrecoSugerido = {
+  min: number;
+  max: number;
+  alvo: Intervalo;
+  /** Ponto de chegada (centro do alvo, ou a mediana em "Baixar até a mediana"). */
+  centro: number;
+  passoPct: number;
+};
 
 /** Alvo = (mediana ± mercadoPct) ∩ (faixa ótima ampliada); sem interseção, o pilar de maior confiança (empate: mercado). */
 export function alvoPreco(
@@ -351,6 +358,31 @@ export function precoSugerido(
   if (e.acao === "baixar-mediana" && e.mediana != null)
     alvo = { de: Math.min(alvo.de, e.mediana), ate: Math.min(alvo.ate, e.mediana) };
   const t = e.tarifa;
+  // Ponto de chegada: centro do alvo; "Baixar até a mediana" = a mediana; "Baixar até 5%" = tarifa − 5%.
+  const lado = (c: number) => (g === "baixar" ? t - c : c - t);
+  let centro =
+    e.acao === "baixar-mediana" && e.mediana != null
+      ? e.mediana
+      : e.acao === "baixar-pouco"
+        ? t * (1 - cfg.baixarPoucoPct / 100)
+        : (alvo.de + alvo.ate) / 2;
+  if (lado(centro) <= 0) {
+    // Sem interseção, o pilar escolhido pode apontar ao contrário da ação: usa o outro, se ele aponta no sentido certo.
+    const M =
+      e.mediana != null
+        ? {
+            de: e.mediana * (1 - cfg.mercadoPct / 100),
+            ate: e.mediana * (1 + cfg.mercadoPct / 100),
+          }
+        : null;
+    const H = e.faixa ? faixaDentro(e.faixa, cfg) : null;
+    const alt = [M, H]
+      .filter((x): x is Intervalo => x != null)
+      .map((x) => (x.de + x.ate) / 2)
+      .find((c) => lado(c) > 0);
+    if (alt == null) return null;
+    centro = alt;
+  }
   // Só no sentido da ação: o que ficaria do outro lado da tarifa sai.
   if (g === "baixar") alvo = { de: Math.min(alvo.de, t), ate: Math.min(alvo.ate, t) };
   else alvo = { de: Math.max(alvo.de, t), ate: Math.max(alvo.ate, t) };
@@ -358,19 +390,10 @@ export function precoSugerido(
   if (e.acao === "baixar-pouco") passoPct = Math.min(passoPct, cfg.baixarPoucoPct);
   const passo = (t * passoPct) / 100;
   const mover = (x: number) => t + Math.max(-passo, Math.min(passo, x - t));
-  const perto = g === "baixar" ? alvo.ate : alvo.de;
-  const longe = g === "baixar" ? alvo.de : alvo.ate;
-  const tr = Math.round(t);
-  const b = Math.round(mover(longe));
-  if (b === tr) return null;
-  // A faixa nunca inclui a tarifa atual: "Subir para 97–100" estando em 97 não é sugestão. A ponta perto anda ao menos US$ 1.
-  const dir = g === "baixar" ? -1 : 1;
-  let a = Math.round(mover(perto));
-  if (a === tr) a = tr + dir;
-  if (dir * (a - b) > 0) a = b;
-  const min = Math.min(a, b);
-  const max = Math.max(a, b);
-  return { min, max, alvo, passoPct };
+  const b = Math.round(mover(centro));
+  if (b === Math.round(t)) return null;
+  // Um número só: até onde mover agora, em direção ao centro do alvo, limitado ao passo (min = max).
+  return { min: b, max: b, alvo, centro, passoPct };
 }
 
 /* ───────────────────────── urgência ───────────────────────── */
@@ -695,7 +718,7 @@ export function resumoDia(blocos: Bloco[]): ResumoDia {
     if (NA_JANELA(b.janela)) {
       if (g === "subir")
         for (const x of b.itens)
-          if (x.sugerido && x.sugerido.max < Math.round(x.sugerido.alvo.ate))
+          if (x.sugerido && x.sugerido.max < Math.round(x.sugerido.centro))
             potencialLimitado = true;
       receitaRisco += b.receitaRisco;
       receitaPotencial += b.receitaPotencial;
@@ -1048,3 +1071,294 @@ export function etiquetas(
     { nome: "Histórico", tom: d.sinalHist === "sem-historico" ? "sem-dado" : ev.historico },
   ];
 }
+
+/* ───────────────────────── cartão de leitura rápida ───────────────────────── */
+
+export type TomBloco = "favor" | "neutro" | "problema" | "contra" | "sem-dado";
+/** Barra no topo de cada bloco: verde a favor, cinza neutro, vermelho = problema que motivou a ação, âmbar = contradiz. */
+export const COR_BARRA: Record<TomBloco, string> = {
+  favor: "bg-emerald-500",
+  neutro: "bg-muted-foreground/30",
+  problema: "bg-red-500",
+  contra: "bg-amber-500",
+  "sem-dado": "bg-muted-foreground/20",
+};
+export const COR_CONCLUSAO: Record<TomBloco, string> = {
+  favor: "text-emerald-600 dark:text-emerald-400",
+  neutro: "text-muted-foreground",
+  problema: "text-red-600 dark:text-red-400",
+  contra: "text-amber-600 dark:text-amber-400",
+  "sem-dado": "text-muted-foreground",
+};
+
+export type BlocoPilar = {
+  nome: "Ocupação" | "Mercado" | "Nosso histórico";
+  valor: string;
+  conclusao: string;
+  detalhe: string;
+  tom: TomBloco;
+};
+
+const tomDe = (e: Evidencia): TomBloco =>
+  e === "favor" ? "favor" : e === "contra" ? "contra" : "neutro";
+
+/** Os três blocos do cartão (ocupação, mercado, histórico), pela média do bloco e pela data mais próxima. */
+export function blocosPilares(b: Bloco, cur = "USD"): [BlocoPilar, BlocoPilar, BlocoPilar] {
+  const d = b.itens.reduce((a, x) => (x.lead < a.lead ? x : a));
+  const ev = evidencias(d);
+  const g = grupoDe(b.acao);
+
+  let ocupacao: BlocoPilar;
+  if (d.occ == null)
+    ocupacao = {
+      nome: "Ocupação",
+      valor: "—",
+      conclusao: "sem ocupação",
+      detalhe: "",
+      tom: "sem-dado",
+    };
+  else {
+    const ritmo =
+      d.ritmoAtual != null
+        ? `${Math.round(d.ritmoAtual)} reserva${Math.round(d.ritmoAtual) === 1 ? "" : "s"} em 14 dias${d.ritmoRef != null ? ` (${d.ritmoAno ?? "ref."}: ${Math.round(d.ritmoRef)})` : ""}`
+        : "sem ritmo de referência";
+    const motivou = d.occ !== "dentro" && g !== "manter" && g !== "verificar";
+    ocupacao = {
+      nome: "Ocupação",
+      valor: d.occ === "dentro" ? "0 carros/dia" : `${sinalNum(b.carrosDia)} carros/dia`,
+      conclusao:
+        d.occ === "abaixo"
+          ? "abaixo do esperado"
+          : d.occ === "acima"
+            ? "acima do esperado"
+            : "no esperado",
+      detalhe: ritmo,
+      tom: motivou ? "problema" : tomDe(ev.ocupacao),
+    };
+  }
+
+  const m = d.mercado;
+  const mercado: BlocoPilar =
+    d.sinalMerc === "sem-mercado" || m.pct == null
+      ? { nome: "Mercado", valor: "—", conclusao: "sem cotação", detalhe: "", tom: "sem-dado" }
+      : {
+          nome: "Mercado",
+          valor: `${sinalNum(m.pct)}%`,
+          conclusao:
+            d.sinalMerc === "acima"
+              ? "mais caro"
+              : d.sinalMerc === "abaixo"
+                ? "já mais barato"
+                : "alinhado",
+          detalhe: `mediana ${m.mediana != null ? dinheiro(m.mediana, cur) : "—"} · ${m.n} concorrente${m.n === 1 ? "" : "s"}`,
+          tom: tomDe(ev.mercado),
+        };
+
+  const f = d.hist.faixa;
+  const historico: BlocoPilar =
+    d.sinalHist === "sem-historico" || !f || d.tarifa == null
+      ? {
+          nome: "Nosso histórico",
+          valor: "—",
+          conclusao: "sem histórico",
+          detalhe: "",
+          tom: "sem-dado",
+        }
+      : {
+          nome: "Nosso histórico",
+          valor: `${sinalNum(difFaixaPct(d.tarifa, f))}%`,
+          conclusao:
+            d.sinalHist === "acima"
+              ? "acima da faixa que mais rende"
+              : d.sinalHist === "abaixo"
+                ? "abaixo da faixa que mais rende"
+                : "dentro da faixa que mais rende",
+          detalhe: `mais rendeu: ${dinheiro(f.de, cur)}–${Math.round(f.ate)} (${d.hist.rotulo ?? "época"})`,
+          tom: tomDe(ev.historico),
+        };
+  return [ocupacao, mercado, historico];
+}
+
+export type IconeAcao = "baixar" | "subir" | "canais" | "verificar" | "manter";
+export type EtiquetaAcao = { texto: string; icone: IconeAcao; cor: string };
+export const COR_ACAO_ETIQUETA: Record<IconeAcao, string> = {
+  baixar: "border-sky-500/60 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  subir: "border-emerald-500/60 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  canais: "border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  verificar: "border-dashed border-muted-foreground/60 text-muted-foreground",
+  manter: "border-border bg-muted text-muted-foreground",
+};
+
+/** Variação média sugerida no bloco (% sobre a tarifa de cada dia); null sem sugestão. */
+export function movimentoPct(b: Bloco): number | null {
+  const xs = b.itens
+    .filter((x) => x.sugerido && x.tarifa)
+    .map((x) => (x.sugerido!.min / x.tarifa! - 1) * 100);
+  return xs.length ? xs.reduce((a, v) => a + v, 0) / xs.length : null;
+}
+
+/** Texto do preço sugerido: um valor; num bloco com tarifas diferentes, o % e a faixa "conforme o dia". */
+export function sugestaoTxt(b: Bloco, cur = "USD"): string | null {
+  if (b.sugMin == null) return null;
+  if (b.sugMin === b.sugMax) return dinheiro(b.sugMin, cur);
+  const p = movimentoPct(b);
+  return `${p != null ? `~${Math.abs(Math.round(p))}% · ` : ""}${dinheiro(b.sugMin, cur)}–${b.sugMax} conforme o dia`;
+}
+
+export function etiquetaAcao(b: Bloco, cur = "USD"): EtiquetaAcao {
+  const g = grupoDe(b.acao);
+  const faixa = sugestaoTxt(b, cur);
+  const e = (texto: string, icone: IconeAcao): EtiquetaAcao => ({
+    texto,
+    icone,
+    cor: COR_ACAO_ETIQUETA[icone],
+  });
+  const varia = b.sugMin != null && b.sugMin !== b.sugMax;
+  const p = movimentoPct(b);
+  const txt = (verbo: string) =>
+    !faixa
+      ? verbo
+      : varia
+        ? `${verbo} ~${Math.abs(Math.round(p ?? 0))}% (${dinheiro(b.sugMin!, cur)}–${b.sugMax} conforme o dia)`
+        : `${verbo} para ${faixa}`;
+  if (g === "baixar") return e(txt("Baixar"), "baixar");
+  if (g === "subir") return e(txt("Subir"), "subir");
+  if (g === "acao-comercial") return e("Não baixar preço · revisar canais e demanda", "canais");
+  if (g === "verificar") return e("Verificar dados antes de decidir", "verificar");
+  return e("Manter", "manter");
+}
+
+export function cabecalho(b: Bloco): { titulo: string; sub: string } {
+  return {
+    titulo: `${b.category} · ${datasBR(b)}`,
+    sub: `${b.dias} ${b.dias === 1 ? "dia" : "dias"} · faltam ${b.lead}`,
+  };
+}
+
+/** Linha de contexto: tarifa de hoje e captura. */
+export function contexto(b: Bloco, cur = "USD"): string {
+  const partes = [
+    b.tarifaMin != null
+      ? `Tarifa hoje ${faixaDin(b.tarifaMin, b.tarifaMax!, cur)}`
+      : "Sem tarifa hoje",
+  ];
+  if (b.captura)
+    partes.push(
+      `nos próximos 14 dias entram ~${pct0(b.captura.prox14)} das reservas`,
+      `faltam ${pct0(b.captura.falta)}`,
+    );
+  else partes.push("sem curva de captura");
+  return partes.join(" · ");
+}
+
+/** Explicação da confiança, pilar a pilar, em linguagem simples (tooltip do cartão). */
+export function explicarConfianca(
+  d: Pick<Decisao, "acao" | "occ" | "sinalHist" | "sinalMerc" | "verificarMotivo" | "confianca">,
+): { resumo: string; linhas: string[] } {
+  const nivel = NIVEL_TXT[d.confianca.nivel].toLowerCase();
+  if (d.acao === "verificar")
+    return {
+      resumo: `Confiança ${nivel}: não há sinais de preço suficientes para recomendar mexer.`,
+      linhas: [d.verificarMotivo ?? "Sem mercado e sem histórico para esta data."],
+    };
+  const g = grupoDe(d.acao);
+  const pede =
+    g === "baixar"
+      ? "baixar"
+      : g === "subir"
+        ? "subir"
+        : g === "acao-comercial"
+          ? "não baixar"
+          : "manter";
+  const ev = evidencias(d);
+  const occTxt =
+    d.occ === "abaixo"
+      ? "vendendo menos que o esperado"
+      : d.occ === "acima"
+        ? "vendendo mais que o esperado"
+        : "no esperado";
+  const mercTxt =
+    d.sinalMerc === "acima"
+      ? "estamos mais caros que o mercado"
+      : d.sinalMerc === "abaixo"
+        ? "estamos mais baratos que o mercado"
+        : "estamos alinhados ao mercado";
+  const histTxt =
+    d.sinalHist === "acima"
+      ? "tarifa acima da faixa que mais rendeu"
+      : d.sinalHist === "abaixo"
+        ? "tarifa abaixo da faixa que mais rendeu"
+        : "tarifa dentro da faixa que mais rendeu";
+  const linha = (nome: string, e: Evidencia, txt: string, falta: boolean) =>
+    falta
+      ? `— ${nome}: sem dado, não opina.`
+      : e === "favor"
+        ? `✓ ${nome}: ${txt} → também pede ${pede}.`
+        : e === "contra"
+          ? `✗ ${nome}: ${txt} → aponta para o lado contrário.`
+          : `— ${nome}: ${txt} → não pede nem subir nem baixar.`;
+  const linhas = [
+    linha("Ocupação", ev.ocupacao, occTxt, d.occ == null),
+    linha("Mercado", ev.mercado, mercTxt, d.sinalMerc === "sem-mercado"),
+    linha("Histórico", ev.historico, histTxt, d.sinalHist === "sem-historico"),
+  ];
+  const n = d.confianca.nivel;
+  const resumo =
+    n === "alta"
+      ? `Confiança alta: os três sinais pedem ${pede}.`
+      : n === "media"
+        ? `Confiança média: dois sinais pedem ${pede} e um não opina. A sugestão vale, mas com um apoio a menos.`
+        : `Confiança baixa: um dos sinais aponta para o lado contrário. Confira antes de seguir.`;
+  return { resumo, linhas };
+}
+
+/* ───────────────────────── matriz ocupação × mercado ───────────────────────── */
+
+export type CelulaMatriz = {
+  occ: "abaixo" | "neutro" | "acima";
+  market: "acima" | "alinhado" | "abaixo" | "sem-dados";
+  count: number;
+};
+/** Contagem de data × categoria por ocupação (tolerância da Gestão) × mercado (±5%); sem ocupação fica fora. */
+export function matrizOcupacaoMercado(itens: { occ: SinalOcc | null; merc: SinalMerc }[]): {
+  cells: CelulaMatriz[];
+  semBenchmark: number;
+} {
+  const OCC = ["abaixo", "neutro", "acima"] as const;
+  const MERC = ["acima", "alinhado", "abaixo", "sem-dados"] as const;
+  const cells: CelulaMatriz[] = OCC.flatMap((occ) =>
+    MERC.map((market) => ({ occ, market, count: 0 })),
+  );
+  let semBenchmark = 0;
+  for (const it of itens) {
+    if (it.occ == null) {
+      semBenchmark++;
+      continue;
+    }
+    const o = it.occ === "dentro" ? "neutro" : it.occ;
+    const m = it.merc === "sem-mercado" ? "sem-dados" : it.merc;
+    cells.find((c) => c.occ === o && c.market === m)!.count++;
+  }
+  return { cells, semBenchmark };
+}
+
+/** Etiqueta abaixo do nome do pilar: papel do sinal na ação. */
+export const ETIQUETA_BLOCO: Record<TomBloco, { texto: string; cor: string }> = {
+  favor: {
+    texto: "sustenta a ação",
+    cor: "border-emerald-500/60 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
+  neutro: { texto: "neutro", cor: "border-border bg-muted text-muted-foreground" },
+  contra: {
+    texto: "contra",
+    cor: "border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  },
+  problema: {
+    texto: "motivo da ação",
+    cor: "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400",
+  },
+  "sem-dado": {
+    texto: "sem dado",
+    cor: "border-dashed border-muted-foreground/50 text-muted-foreground",
+  },
+};

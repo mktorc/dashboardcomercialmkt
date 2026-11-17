@@ -50,7 +50,10 @@ import {
   type QuoteView,
   type ViewBands,
 } from "@/lib/competitiveness-view";
-import { usePace } from "@/lib/occupancy-pace";
+import { ESPERADA_ESTATISTICA, buildModel, dayPace, usePace } from "@/lib/occupancy-pace";
+import { matrizOcupacaoMercado, sinalMercado, sinalOcc } from "@/lib/decisao";
+import { sinalOcupacao } from "@/lib/preco-analise";
+import { MatrizOcupacaoPreco } from "@/components/precificacao/MatrizOcupacaoPreco";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import type { Range } from "@/lib/pricing-range";
 
@@ -192,6 +195,28 @@ export function Competitividade({
     [rows, comp, shownCats, range.from, lastNight, ours, now, moeda],
   );
   const cells = useMemo(() => buildCalendar(comps, now, bands), [comps, now, bands]);
+  // Matriz ocupação × preço (análise): ocupação contra a esperada (mesma régua da Gestão) × nossa diária contra a mediana (±5%).
+  const paceModel = useMemo(
+    () => (pace.data ? buildModel(pace.data.payload, ESPERADA_ESTATISTICA) : null),
+    [pace.data],
+  );
+  const matriz = useMemo(() => {
+    if (!paceModel || !pace.data) return null;
+    const hoje = pace.data.payload.hoje;
+    return matrizOcupacaoMercado(
+      comps.map((c) => {
+        const row = c.date >= hoje ? paceModel.byKey.get(`${c.date}|${c.category}`) : undefined;
+        const d = row ? dayPace(paceModel, [row], c.date, hoje) : null;
+        return {
+          occ:
+            d && d.gap != null
+              ? sinalOcc(sinalOcupacao(d.gap, (d.cobertura ?? 0) * d.capacity))
+              : null,
+          merc: sinalMercado(c.pct),
+        };
+      }),
+    );
+  }, [comps, paceModel, pace.data]);
   // Banner, régua e tabela: a locação inteira (total do período cheio).
   const fullNights = duration;
   const fullComps: Comp[] = useMemo(
@@ -559,6 +584,8 @@ export function Competitividade({
             )}
           </Card>
         ) : null}
+
+        {shownCats.length && matriz ? <MatrizOcupacaoPreco mx={matriz} /> : null}
 
         {/* Tabela */}
         <Card className="space-y-3 p-4">
