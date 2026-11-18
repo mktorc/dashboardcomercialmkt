@@ -281,6 +281,8 @@ export function ComercialPage({
     overdueMap.set(k, row);
   });
   const overdueRows = [...overdueMap.values()].sort((a, b) => b.noTask - a.noTask);
+  // Total = soma exata dos vendedores exibidos no gráfico.
+  const overdueTotal = overdueRows.reduce((sum, r) => sum + r.noTask, 0);
   // Sem vendedor = oportunidades sem nenhum responsável atribuído (campo vazio), de todos os períodos.
   const noSellerOpportunities = chartActiveOpps
     .filter((o) => !o.seller_name?.trim())
@@ -354,32 +356,6 @@ export function ComercialPage({
             : undefined
         }
         value={activeOppsData ? noTaskList.length.toLocaleString("pt-BR") : "—"}
-        highlight
-        footer="Leads ativos na base, sem filtro de datas"
-        compact
-        tight
-        className={firstRowOperationalCardClass}
-      />
-    </Button>
-  );
-  const overdueCard = (
-    <Button
-      variant="ghost"
-      className="block h-[160px] w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full"
-      onClick={() => setOverdueOpen(true)}
-    >
-      <KpiCard
-        icon={ClipboardX}
-        label="Oportunidades com tarefas em atraso"
-        help={
-          "Oportunidades ativas com ao menos uma tarefa não concluída e com prazo anterior a hoje.\nNão usa filtro de datas."
-        }
-        calc={
-          activeOppsData && overdueByLead
-            ? `${overdueList.length.toLocaleString("pt-BR")} de ${activeOpps.length.toLocaleString("pt-BR")} oportunidades ativas têm tarefa atrasada`
-            : undefined
-        }
-        value={activeOppsData ? overdueList.length.toLocaleString("pt-BR") : "—"}
         highlight
         footer="Leads ativos na base, sem filtro de datas"
         compact
@@ -782,9 +758,10 @@ export function ComercialPage({
                     }}
                   />
                 </div>
-                <div className="space-y-4">
-                  {overdueCard}
+                <div className="md:col-span-2 xl:col-span-3">
                   <NoTaskBySellerChart
+                    totalLabel="Oportunidades com tarefa em atraso"
+                    onTotalClick={() => setOverdueOpen(true)}
                     data={overdueRows}
                     height={operationalSellerChartHeight}
                     expandable
@@ -1055,7 +1032,7 @@ export function ComercialPage({
       <Dialog open={overdueOpen} onOpenChange={setOverdueOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Oportunidades com tarefa em atraso ({overdueList.length})</DialogTitle>
+            <DialogTitle>Oportunidades com tarefa em atraso ({overdueTotal})</DialogTitle>
           </DialogHeader>
           <table className="w-full text-sm">
             <thead className="text-xs uppercase text-muted-foreground">
@@ -1374,7 +1351,11 @@ function NoTaskBySellerChart({
   title = "Oportunidades sem tarefas por vendedor",
   metric = "Sem tarefas",
   color = "#44E500",
+  totalLabel,
+  onTotalClick,
 }: {
+  totalLabel?: string;
+  onTotalClick?: () => void;
   data: Pick<SellerRow, "name" | "noTask">[];
   height: number;
   expandable?: boolean;
@@ -1399,6 +1380,21 @@ function NoTaskBySellerChart({
       expandable={expandable}
       render={(expanded) =>
         data.length ? (
+          <>
+          {totalLabel ? (
+            <button
+              type="button"
+              onClick={onTotalClick}
+              className="mt-3 flex items-baseline gap-3 rounded-lg border border-border/60 px-4 py-2 text-left hover:bg-muted/30"
+            >
+              <span className="text-3xl font-semibold text-primary">
+                {total.toLocaleString("pt-BR")}
+              </span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                {totalLabel} · soma dos vendedores
+              </span>
+            </button>
+          ) : null}
           <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
@@ -1442,6 +1438,7 @@ function NoTaskBySellerChart({
               </BarChart>
             </ResponsiveContainer>
           </div>
+          </>
         ) : (
           <div
             className="mt-4 flex items-center justify-center text-sm text-muted-foreground"
