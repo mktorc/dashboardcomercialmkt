@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import type { Json } from "@/integrations/supabase/types";
+import { syncReservationById } from "@/lib/hq-reservation";
+import { notifyReservationsOpened } from "@/lib/push.server";
 
-// Webhook de reservas do HQ Rentals (etapa de descoberta): só registra o que chega em `webhook_logs`
-// (source = 'hq_rentals') para conhecermos o formato real antes de gravar a comissão em `reservas`.
+// Webhook de reservas do HQ Rentals (tempo real). Registra cada evento em `webhook_logs`
+// (source = 'hq_rentals') e, se autorizado, rele a reserva completa no HQ e grava em `reservations`,
+// `reservation_segments` e `reservas` (comissão). O payload do webhook não traz classe, parceiro nem
+// trechos de veículo, por isso a reserva é buscada de novo (e o sync diário segue como conferência).
 // Proteção: header Authorization: Bearer <HQ_WEBHOOK_SECRET> ou query ?token=<HQ_WEBHOOK_SECRET>
 // (o HQ pode não permitir cabeçalhos personalizados). Responde 200 e grava em segundo plano.
 
@@ -23,7 +27,7 @@ function authorized(request: Request): boolean {
   });
 }
 
-async function log(rawBody: string, ok: boolean): Promise<void> {
+async function handle(rawBody: string, ok: boolean): Promise<void> {
   let payload: Json;
   try {
     payload = JSON.parse(rawBody) as Json;
@@ -38,14 +42,42 @@ async function log(rawBody: string, ok: boolean): Promise<void> {
     (v) => typeof v === "string",
   ) as string | undefined;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { error } = await supabaseAdmin.from("webhook_logs").insert({
-    source: "hq_rentals",
-    event_type: eventType ?? null,
-    payload,
-    authorized: ok,
-    processing_status: ok ? "logged" : "unauthorized",
-  });
+  const { data: inserted, error } = await supabaseAdmin
+    .from("webhook_logs")
+    .insert({
+      source: "hq_rentals",
+      event_type: eventType ?? null,
+      payload,
+      authorized: ok,
+      processing_status: ok ? "logged" : "unauthorized",
+    })
+    .select("id")
+    .single();
   if (error) console.error("[webhook-hqrentals] audit insert error:", error.message);
+  if (!ok) return;
+
+  // Só eventos de reserva (o HQ pode mandar outros modelos para o mesmo endpoint).
+  const item = typeof obj["item"] === "string" ? obj["item"] : "";
+  const data = obj["data"];
+  const hqId =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, Json>)["id"]
+      : null;
+  if (!/Reservation$/.test(item) || (typeof hqId !== "number" && typeof hqId !== "string")) return;
+
+  let status = "processed";
+  try {
+    await syncReservationById(hqId);
+    await notifyReservationsOpened();
+  } catch (e) {
+    status = `error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500);
+    console.error("[webhook-hqrentals] processamento:", e);
+  }
+  if (inserted?.id)
+    await supabaseAdmin
+      .from("webhook_logs")
+      .update({ processing_status: status })
+      .eq("id", inserted.id);
 }
 
 const received = () => Response.json({ status: "received" }, { status: 200 });
@@ -57,7 +89,7 @@ export const Route = createFileRoute("/api/public/webhooks/hqrentals")({
         try {
           const ok = authorized(request);
           const rawBody = (await request.text()).slice(0, MAX_BODY);
-          const task = log(rawBody, ok);
+          const task = handle(rawBody, ok);
           const waitUntil = (request as unknown as { waitUntil?: (p: Promise<unknown>) => void })
             .waitUntil;
           if (typeof waitUntil === "function") waitUntil(task);

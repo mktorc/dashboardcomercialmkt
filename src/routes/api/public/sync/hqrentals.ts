@@ -2,57 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
 import { notifyReservationsOpened } from "@/lib/push.server";
-import {
-  extractAdditionalChargesPrice,
-  extractMiscellaneousPrice,
-  normalizeStatus,
-} from "@/lib/hq-charges";
+import { mapReservation, type HqReservation } from "@/lib/hq-reservation";
 import { extractFleetVehicle, extractSegments, type FleetVehicleRow } from "@/lib/hq-segments";
 
 // Sincronização HQ Rentals -> tabela `reservations`.
 // Autenticação HQ: Basic base64(`${HQ_TENANT_TOKEN}:${HQ_USER_TOKEN}`).
 // Proteção do endpoint: header Authorization: Bearer <LOVABLE_CRON_SECRET>.
-
-type HqReservation = Record<string, unknown>;
-
-function mapReservation(r: HqReservation, users: Map<string, string>) {
-  const customer = (r["customer"] ?? {}) as HqReservation;
-  const vehicleClass = (r["vehicle_class"] ?? {}) as HqReservation;
-  const campaign = (r["campaign_parameters"] ?? {}) as HqReservation;
-  return {
-    reservation_id: String(r["prefixed_id"] ?? r["id"] ?? ""),
-    customer_email: (customer["email"] as string | null) ?? null,
-    customer_phone: (customer["phone_number"] as string | null) ?? null,
-    car_category: (vehicleClass["name"] as string | null) ?? null,
-    rental_days: Number(r["total_days"]) || 1,
-    total_amount: Number(r["total_price"]) || 0,
-    // "Rack Rate" do HQ = total_rack_rate (valor da diária sem taxas/extras).
-    rack_rate:
-      r["total_rack_rate"] != null
-        ? Number(r["total_rack_rate"])
-        : r["rack_rate"] == null
-          ? null
-          : Number(r["rack_rate"]),
-    miscellaneous_price: extractMiscellaneousPrice(r),
-    additional_charges_price: extractAdditionalChargesPrice(r),
-    status: normalizeStatus(r["status"]),
-    utm_campaign: (campaign["utm_campaign"] as string | null) ?? null,
-    // "Commission Partner" do HQ = origem da reserva (Meta ADS, Google ADS, Indicação...)
-    commission_partner:
-      ((((r["commission"] ?? {}) as HqReservation)["tour_operator"] ?? {}) as HqReservation)[
-        "name"
-      ] != null
-        ? String(
-            ((r["commission"] as HqReservation)["tour_operator"] as HqReservation)["name"],
-          ).trim() || null
-        : ((r["referral"] as string | null) ?? null),
-    seller_name: users.get(String(r["created_by"] ?? "")) ?? null,
-    discount_amount: Number(r["discounts_amount"]) || 0,
-    pick_up_at: (r["pick_up_date"] as string | null) ?? null,
-    return_at: (r["return_date"] as string | null) ?? null,
-    created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
-  };
-}
 
 export const Route = createFileRoute("/api/public/sync/hqrentals")({
   server: {
