@@ -83,6 +83,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         }
         const originByLead = new Map<string, string>();
         let errors = 0;
+        const errorReasons: Record<string, number> = {}; // motivo → contagem, para diagnóstico
+        const noteError = (k: string) => (errorReasons[k] = (errorReasons[k] ?? 0) + 1);
         const notFound: string[] = []; // excluídas no ClickMassa
         // Do mais novo ao mais antigo: se o tempo acabar, o que fica sem varrer é o mais antigo
         const ids = Array.from({ length: to - from + 1 }, (_, i) => to - i);
@@ -112,6 +114,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
                   break;
                 }
                 if (!r.ok) {
+                  noteError(`HTTP ${r.status}`);
                   await new Promise((res) => setTimeout(res, 500 * 2 ** attempt));
                   continue;
                 }
@@ -123,7 +126,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
                   if (p["contactId"] && name) originByLead.set(`cm-${p["contactId"]}`, name);
                 }
                 ok = true;
-              } catch {
+              } catch (e) {
+                noteError(e instanceof Error ? e.name : "erro");
                 await new Promise((res) => setTimeout(res, 500 * 2 ** attempt));
               }
             }
@@ -131,6 +135,13 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
           }
         };
         await Promise.all(Array.from({ length: 8 }, worker));
+
+        // Nada lido e só falhas: não é sucesso (o workflow fica vermelho e o último sucesso não avança)
+        if (rows.length === 0 && errors > 0)
+          return Response.json(
+            { ok: false, from, to, found: 0, errors, skipped, errorReasons },
+            { status: 502 },
+          );
 
         for (let i = 0; i < rows.length; i += 500) {
           const { error } = await supabaseAdmin
@@ -170,6 +181,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
           removed: notFound.length,
           errors,
           skipped,
+          errorReasons,
         });
       },
     },
