@@ -136,10 +136,20 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         };
         await Promise.all(Array.from({ length: 8 }, worker));
 
-        // Nada lido e só falhas: não é sucesso (o workflow fica vermelho e o último sucesso não avança)
-        if (rows.length === 0 && errors > 0)
+        // Nada lido com sucesso: não é sucesso e NUNCA apaga (404 em tudo = URL/token errado, não
+        // "excluídas"). O workflow fica vermelho e o último sucesso não avança.
+        if (rows.length === 0 && (errors > 0 || notFound.length > 0))
           return Response.json(
-            { ok: false, from, to, found: 0, errors, skipped, errorReasons },
+            {
+              ok: false,
+              from,
+              to,
+              found: 0,
+              errors,
+              skipped,
+              notFound: notFound.length,
+              errorReasons,
+            },
             { status: 502 },
           );
 
