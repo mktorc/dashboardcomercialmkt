@@ -19,6 +19,8 @@ export type COpp = {
   status: string | null;
   seller_name: string | null;
   pending_tasks: number;
+  /** Tarefas atrasadas segundo o ClickMassa (null = ainda não ressincronizado). */
+  delayed_tasks?: number | null;
   /** Tarefas de qualquer situação no ClickMassa (null = ainda não sincronizado). */
   total_tasks: number | null;
   created_at: string;
@@ -226,7 +228,7 @@ export async function fetchActiveOpportunities(): Promise<COpp[]> {
     supabase
       .from("crm_opportunities")
       .select(
-        "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at",
+        "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, delayed_tasks, total_tasks, created_at",
       )
       .eq("pipeline_name", "Comercial")
       .eq("status", "open")
@@ -238,6 +240,28 @@ export async function fetchActiveOpportunities(): Promise<COpp[]> {
     (o) => isOperationalSeller(o.seller_name) || !o.seller_name?.trim(),
   );
 }
+
+/** lead_id → nº de tarefas atrasadas (não concluídas, prazo anterior a hoje). Independe do período. */
+export async function fetchOverdueTasksByLead(): Promise<Map<string, number>> {
+  const today = ymdLocal(new Date());
+  const { data, error } = await fetchAll((a, b) =>
+    supabase
+      .from("crm_tasks")
+      .select("task_id, lead_id")
+      .eq("completed", false)
+      .lt("due_date", today)
+      .not("lead_id", "is", null)
+      .order("task_id")
+      .range(a, b),
+  );
+  if (error) throw error;
+  const map = new Map<string, number>();
+  (data as { lead_id: string }[]).forEach((t) => map.set(t.lead_id, (map.get(t.lead_id) ?? 0) + 1));
+  return map;
+}
+
+const ymdLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export async function fetchComercial(from: string, to: string) {
   const { prevFrom, prevTo } = getPreviousPeriod(from, to);

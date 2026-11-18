@@ -29,6 +29,7 @@ function toRow(p: Obj) {
     value: num(p["value"]),
     pending_tasks:
       num(tc["countSchendule"]) + num(tc["countDelayed"]) + num(tc["countRequiredPending"]),
+    delayed_tasks: num(tc["countDelayed"]),
     total_tasks:
       num(tc["countSchendule"]) +
       num(tc["countDelayed"]) +

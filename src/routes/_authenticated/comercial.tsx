@@ -46,6 +46,7 @@ import {
   filterOperationalData,
   fetchComercial,
   fetchActiveOpportunities,
+  fetchOverdueTasksByLead,
   fetchLeadOrigins,
   filterNonAgencyData,
   keepNonAgencyOpps,
@@ -145,6 +146,7 @@ export function ComercialPage({
   const [to, setTo] = useState(ymd(now));
   const [search, setSearch] = useState("");
   const [noTaskOpen, setNoTaskOpen] = useState(false);
+  const [overdueOpen, setOverdueOpen] = useState(false);
   const [tab, setTab] = useState<"visao" | "metas">("visao");
   const showGoals = tab === "metas";
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "faturamento", dir: -1 });
@@ -156,6 +158,10 @@ export function ComercialPage({
   const { data: activeOppsData } = useQuery({
     queryKey: ["comercial", "active-opportunities"],
     queryFn: fetchActiveOpportunities,
+  });
+  const { data: overdueByLead } = useQuery({
+    queryKey: ["comercial", "overdue-tasks-by-lead"],
+    queryFn: fetchOverdueTasksByLead,
   });
   const operational = active === "comercial-operacional";
   // Aba Operacional: só oportunidades de origens que não são agência de viagem.
@@ -259,6 +265,22 @@ export function ComercialPage({
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => ({ ...o, owner: o.seller_name!.trim() }));
   const noTaskRows = [...noTaskMap.values()].sort((a, b) => b.noTask - a.noTask);
+  const overdueList = activeOpps
+    .filter((o) => o.seller_name?.trim() && o.lead_id && overdueByLead?.has(o.lead_id))
+    .map((o) => ({
+      ...o,
+      owner: o.seller_name!.trim(),
+      overdueTasks: overdueByLead!.get(o.lead_id!)!,
+    }))
+    .sort((a, b) => b.overdueTasks - a.overdueTasks || a.created_at.localeCompare(b.created_at));
+  const overdueMap = new Map<string, { name: string; noTask: number }>();
+  overdueList.forEach((o) => {
+    const k = sellerKey(o.seller_name);
+    const row = overdueMap.get(k) ?? { name: o.owner, noTask: 0 };
+    row.noTask++;
+    overdueMap.set(k, row);
+  });
+  const overdueRows = [...overdueMap.values()].sort((a, b) => b.noTask - a.noTask);
   // Sem vendedor = oportunidades sem nenhum responsável atribuído (campo vazio), de todos os períodos.
   const noSellerOpportunities = chartActiveOpps
     .filter((o) => !o.seller_name?.trim())
@@ -332,6 +354,32 @@ export function ComercialPage({
             : undefined
         }
         value={activeOppsData ? noTaskList.length.toLocaleString("pt-BR") : "—"}
+        highlight
+        footer="Leads ativos na base, sem filtro de datas"
+        compact
+        tight
+        className={firstRowOperationalCardClass}
+      />
+    </Button>
+  );
+  const overdueCard = (
+    <Button
+      variant="ghost"
+      className="block h-[160px] w-full whitespace-normal p-0 text-left hover:bg-transparent [&>div]:h-full"
+      onClick={() => setOverdueOpen(true)}
+    >
+      <KpiCard
+        icon={ClipboardX}
+        label="Oportunidades com tarefas em atraso"
+        help={
+          "Oportunidades ativas com ao menos uma tarefa não concluída e com prazo anterior a hoje.\nNão usa filtro de datas."
+        }
+        calc={
+          activeOppsData && overdueByLead
+            ? `${overdueList.length.toLocaleString("pt-BR")} de ${activeOpps.length.toLocaleString("pt-BR")} oportunidades ativas têm tarefa atrasada`
+            : undefined
+        }
+        value={activeOppsData ? overdueList.length.toLocaleString("pt-BR") : "—"}
         highlight
         footer="Leads ativos na base, sem filtro de datas"
         compact
@@ -734,6 +782,17 @@ export function ComercialPage({
                     }}
                   />
                 </div>
+                <div className="space-y-4">
+                  {overdueCard}
+                  <NoTaskBySellerChart
+                    data={overdueRows}
+                    height={operationalSellerChartHeight}
+                    expandable
+                    title="Oportunidades com tarefas em atraso por vendedor"
+                    metric="Com tarefa atrasada"
+                    color="#FF5A4D"
+                  />
+                </div>
               </section>
 
               {active === "comercial" ? (
@@ -989,6 +1048,38 @@ export function ComercialPage({
             </tbody>
           </table>
           {noTaskList.length > 500 ? (
+            <p className="text-xs text-muted-foreground">Mostrando os 500 mais recentes.</p>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={overdueOpen} onOpenChange={setOverdueOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Oportunidades com tarefa em atraso ({overdueList.length})</DialogTitle>
+          </DialogHeader>
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2 text-left">Criado em</th>
+                <th className="py-2 text-left">Contato</th>
+                <th className="py-2 text-left">Etapa</th>
+                <th className="py-2 text-left">Responsável</th>
+                <th className="py-2 text-right">Atrasadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {overdueList.slice(0, 500).map((l, i) => (
+                <tr key={(l.lead_id ?? "") + i} className="border-t border-border">
+                  <td className="py-2">{new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
+                  <td className="py-2 text-foreground">{l.name ?? "—"}</td>
+                  <td className="py-2">{l.stage_name ?? "—"}</td>
+                  <td className="py-2">{l.owner}</td>
+                  <td className="py-2 text-right">{l.overdueTasks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {overdueList.length > 500 ? (
             <p className="text-xs text-muted-foreground">Mostrando os 500 mais recentes.</p>
           ) : null}
         </DialogContent>
@@ -1280,10 +1371,16 @@ function NoTaskBySellerChart({
   data,
   height,
   expandable = true,
+  title = "Oportunidades sem tarefas por vendedor",
+  metric = "Sem tarefas",
+  color = "#44E500",
 }: {
   data: Pick<SellerRow, "name" | "noTask">[];
   height: number;
   expandable?: boolean;
+  title?: string;
+  metric?: string;
+  color?: string;
 }) {
   const total = data.reduce((sum, row) => sum + row.noTask, 0);
   const chartData = data.map((row) => ({
@@ -1297,7 +1394,7 @@ function NoTaskBySellerChart({
   return (
     <ExpandableChartPanel
       calc={calcLines.length ? calcLines.join("\n") : undefined}
-      title="Oportunidades sem tarefas por vendedor"
+      title={title}
       subtitle="Leads ativos na base (sem ganhos e perdidos), sem filtro de datas."
       expandable={expandable}
       render={(expanded) =>
@@ -1328,13 +1425,15 @@ function NoTaskBySellerChart({
                     return (
                       <div style={tooltipStyle} className="px-3 py-2 text-sm">
                         <div className="font-medium">{row.name}</div>
-                        <div>Sem tarefas: {row.noTask.toLocaleString("pt-BR")}</div>
-                        <div>% do total sem tarefas: {row.sharePct}</div>
+                        <div>
+                          {metric}: {row.noTask.toLocaleString("pt-BR")}
+                        </div>
+                        <div>% do total: {row.sharePct}</div>
                       </div>
                     );
                   }}
                 />
-                <Bar dataKey="noTask" name="Sem tarefas" fill="#44E500" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="noTask" name={metric} fill={color} radius={[0, 4, 4, 0]}>
                   <LabelList
                     dataKey="sharePct"
                     content={barSideLabel(chartData.map((r) => r.sharePct))}
@@ -1348,7 +1447,7 @@ function NoTaskBySellerChart({
             className="mt-4 flex items-center justify-center text-sm text-muted-foreground"
             style={{ height: expanded ? "70vh" : 248 }}
           >
-            Nenhuma oportunidade sem tarefas no período.
+            Nenhuma oportunidade encontrada.
           </div>
         )
       }
