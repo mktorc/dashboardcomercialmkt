@@ -306,7 +306,11 @@ def coleta_florida(pickups, dias):
                 pg.fill("input[type=tel]", fone)
                 pg.press("input[type=tel]", "Enter")
                 pg.wait_for_timeout(4000)
-            pg.click("text=Consultar carros")
+            try:  # o botão às vezes não aparece (página lenta): pula só esta data, não a coleta toda
+                pg.click("text=Consultar carros", timeout=30000)
+            except Exception as e:
+                print(f"  {d}: botão 'Consultar carros' não apareceu, data pulada ({str(e)[:60]})")
+                continue
             try:  # a lista demora a carregar em algumas datas ("Carregando os carros disponíveis…"): espera os preços, não um tempo fixo
                 pg.wait_for_selector("text=Valor da diária", timeout=60000)
                 pg.wait_for_timeout(2000)

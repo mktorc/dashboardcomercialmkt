@@ -83,9 +83,18 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         const originByLead = new Map<string, string>();
         let errors = 0;
         const notFound: string[] = []; // excluídas no ClickMassa
-        const ids = Array.from({ length: to - from + 1 }, (_, i) => from + i);
+        // Do mais novo ao mais antigo: se o tempo acabar, o que fica sem varrer é o mais antigo
+        const ids = Array.from({ length: to - from + 1 }, (_, i) => to - i);
+        // Orçamento de tempo: para antes do limite da função (300s) e ainda grava o que leu
+        const deadline = Date.now() + 200_000;
+        let skipped = 0;
         const worker = async () => {
           while (ids.length) {
+            if (Date.now() > deadline) {
+              skipped += ids.length;
+              ids.length = 0;
+              break;
+            }
             const id = ids.shift()!;
             // Retenta falhas temporárias (limite de requisições / erro do servidor)
             let ok = false;
@@ -157,6 +166,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
           originsUpdated,
           removed: notFound.length,
           errors,
+          skipped,
         });
       },
     },
