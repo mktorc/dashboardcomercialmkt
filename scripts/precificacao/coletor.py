@@ -724,23 +724,31 @@ def coleta_nosso(pickups, dias):
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
-            pg.goto(NOSSO_FORMULARIO, wait_until="networkidle", timeout=90000)
-            pg.wait_for_timeout(5000)
-            fr = next(f for f in pg.frames if "reservations/step1" in f.url)
-            _clica_dia(fr, pg, "pick_up_date", d)
-            _clica_dia(fr, pg, "return_date", fim)
-            for campo in ("pick_up_time", "return_time"):
-                fr.fill(f"#{campo}", "10:00 AM")
-                fr.press(f"#{campo}", "Tab")
-            fr.click("button[type=submit]:has-text('Próximo Passo')")
-            pg.wait_for_load_state("networkidle", timeout=60000)
-            pg.wait_for_timeout(8000)
-            texto, f2 = "", None
-            for f in pg.frames:
-                if "reservations/step2" in f.url:
-                    texto, f2 = f.inner_text("body"), f
-            itens = parse_nosso(texto)
-            extras = _extras_apos_escolher(pg, f2, "Alugar este Veículo") if itens and f2 else None
+            itens, f2, extras = [], None, None
+            for tentativa in range(2):  # o formulário às vezes não carrega: tenta de novo e, falhando, pula só esta data
+                try:
+                    pg.goto(NOSSO_FORMULARIO, wait_until="networkidle", timeout=90000)
+                    pg.wait_for_timeout(5000)
+                    fr = next(f for f in pg.frames if "reservations/step1" in f.url)
+                    _clica_dia(fr, pg, "pick_up_date", d)
+                    _clica_dia(fr, pg, "return_date", fim)
+                    for campo in ("pick_up_time", "return_time"):
+                        fr.fill(f"#{campo}", "10:00 AM")
+                        fr.press(f"#{campo}", "Tab")
+                    fr.click("button[type=submit]:has-text('Próximo Passo')")
+                    pg.wait_for_load_state("networkidle", timeout=60000)
+                    pg.wait_for_timeout(8000)
+                    texto, f2 = "", None
+                    for f in pg.frames:
+                        if "reservations/step2" in f.url:
+                            texto, f2 = f.inner_text("body"), f
+                    itens = parse_nosso(texto)
+                    extras = _extras_apos_escolher(pg, f2, "Alugar este Veículo") if itens and f2 else None
+                    break
+                except Exception as e:
+                    print(f"  {d}: tentativa {tentativa + 1} falhou ({type(e).__name__} {str(e)[:60]})")
+            else:
+                continue
             print(f"Nosso site {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
                 res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, extras=extras))
