@@ -87,7 +87,8 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         // Do mais novo ao mais antigo: se o tempo acabar, o que fica sem varrer é o mais antigo
         const ids = Array.from({ length: to - from + 1 }, (_, i) => to - i);
         // Orçamento de tempo: para antes do limite da função (300s) e ainda grava o que leu
-        const deadline = Date.now() + 200_000;
+        // 120s de leitura deixa folga para os upserts e para o limite de 300s da função
+        const deadline = Date.now() + 120_000;
         let skipped = 0;
         const worker = async () => {
           while (ids.length) {
@@ -103,6 +104,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
               try {
                 const r = await fetch(`${base}/opportunity/${id}`, {
                   headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+                  signal: AbortSignal.timeout(15_000),
                 });
                 if (r.status === 404 || r.status === 400) {
                   notFound.push(String(id));
