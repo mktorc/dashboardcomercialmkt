@@ -92,6 +92,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         // 120s de leitura deixa folga para os upserts e para o limite de 300s da função
         const deadline = Date.now() + 120_000;
         let skipped = 0;
+        let authFailed = false;
         const worker = async () => {
           while (ids.length) {
             if (Date.now() > deadline) {
@@ -111,6 +112,16 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
                 if (r.status === 404 || r.status === 400) {
                   notFound.push(String(id));
                   ok = true;
+                  break;
+                }
+                if (r.status === 401 || r.status === 403) {
+                  // Token recusado: retentar não resolve e só gasta o orçamento. Para tudo e
+                  // guarda a mensagem da API para diagnóstico.
+                  const body = (await r.text().catch(() => "")).slice(0, 200);
+                  noteError(`HTTP ${r.status}: ${body}`);
+                  authFailed = true;
+                  skipped += ids.length;
+                  ids.length = 0;
                   break;
                 }
                 if (!r.ok) {
@@ -138,10 +149,16 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
 
         // Nada lido com sucesso: não é sucesso e NUNCA apaga (404 em tudo = URL/token errado, não
         // "excluídas"). O workflow fica vermelho e o último sucesso não avança.
-        if (rows.length === 0 && (errors > 0 || notFound.length > 0))
+        if (authFailed || (rows.length === 0 && (errors > 0 || notFound.length > 0)))
           return Response.json(
             {
               ok: false,
+              ...(authFailed
+                ? {
+                    error:
+                      "ClickMassa recusou o token (401/403): confira CLICKMASSA_API_TOKEN na Vercel",
+                  }
+                : {}),
               from,
               to,
               found: 0,
