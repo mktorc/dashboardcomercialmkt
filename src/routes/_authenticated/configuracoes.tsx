@@ -2,13 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Trash2, KeyRound, ChevronDown } from "lucide-react";
+import { ArrowLeft, Trash2, KeyRound, ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
-import { guardPage, ROLE_LABELS, type AppRole } from "@/lib/roles";
+import { guardPage, MODULE_KEYS, MODULE_LABELS, type Access, type ModuleKey } from "@/lib/roles";
 import { createUser, deleteUser, listUsers, updateUser } from "@/lib/users.functions";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({
@@ -26,31 +27,121 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: SettingsPage,
 });
 
-const ROLE_OPTIONS = Object.entries(ROLE_LABELS) as [AppRole, string][];
-const selectCls = "h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground";
+const SEM_ACESSO: Access = { modules: [], admin: false, canPay: false };
+
+function resumo(a: Access | null) {
+  if (!a) return "Sem acesso";
+  if (a.admin) return "Admin (todos os módulos)";
+  const mods = a.modules.map((m) => MODULE_LABELS[m]);
+  if (a.canPay) mods.push("pode pagar comissões");
+  return mods.length ? mods.join(" · ") : "Sem acesso";
+}
+
+/** Caixas de marcar: um módulo por linha, mais Admin e "pode pagar comissões". */
+function AccessEditor({
+  id,
+  value,
+  onChange,
+  lockAdmin,
+}: {
+  id: string;
+  value: Access;
+  onChange: (a: Access) => void;
+  lockAdmin?: boolean;
+}) {
+  const toggle = (m: ModuleKey, on: boolean) =>
+    onChange({
+      ...value,
+      modules: on ? [...value.modules, m] : value.modules.filter((x) => x !== m),
+    });
+  const item = (
+    key: string,
+    label: string,
+    checked: boolean,
+    set: (v: boolean) => void,
+    disabled?: boolean,
+    hint?: string,
+  ) => (
+    <label
+      key={key}
+      htmlFor={`${id}-${key}`}
+      className="flex items-start gap-2 text-sm text-foreground"
+    >
+      <Checkbox
+        id={`${id}-${key}`}
+        className="mt-0.5"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(v) => set(v === true)}
+      />
+      <span>
+        {label}
+        {hint ? <span className="block text-xs text-muted-foreground">{hint}</span> : null}
+      </span>
+    </label>
+  );
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase text-muted-foreground">Módulos</p>
+        {MODULE_KEYS.map((m) =>
+          item(
+            m,
+            MODULE_LABELS[m],
+            value.admin || value.modules.includes(m),
+            (v) => toggle(m, v),
+            value.admin,
+          ),
+        )}
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs font-medium uppercase text-muted-foreground">Permissões extras</p>
+        {item(
+          "admin",
+          "Admin",
+          value.admin,
+          (v) => onChange({ ...value, admin: v }),
+          lockAdmin,
+          "Todos os módulos, Configurações e validar descontos",
+        )}
+        {item(
+          "pay",
+          "Pode pagar comissões",
+          value.admin || value.canPay,
+          (v) => onChange({ ...value, canPay: v }),
+          value.admin,
+          "Marcar como paga e compensar estorno",
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SettingsPage() {
   const qc = useQueryClient();
   const users = useQuery({ queryKey: ["users"], queryFn: () => listUsers() });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<AppRole>("comercial");
+  const [newAccess, setNewAccess] = useState<Access>(SEM_ACESSO);
+  const [aberto, setAberto] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState<Access>(SEM_ACESSO);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
   const onErr = (e: Error) => toast.error(e.message);
 
   const create = useMutation({
-    mutationFn: () => createUser({ data: { email, password, role } }),
+    mutationFn: () => createUser({ data: { email, password, access: newAccess } }),
     onSuccess: () => {
       toast.success("Usuário criado");
       setEmail("");
       setPassword("");
+      setNewAccess(SEM_ACESSO);
       refresh();
     },
     onError: onErr,
   });
   const update = useMutation({
-    mutationFn: (d: { id: string; role?: AppRole; password?: string }) => updateUser({ data: d }),
+    mutationFn: (d: { id: string; access?: Access; password?: string }) => updateUser({ data: d }),
     onSuccess: () => {
       toast.success("Usuário atualizado");
       refresh();
@@ -214,7 +305,7 @@ function SettingsPage() {
         <Card className="p-5">
           <h2 className="mb-4 font-semibold text-foreground">Novo usuário</h2>
           <form
-            className="grid gap-4 md:grid-cols-[1fr_1fr_200px_auto] md:items-end"
+            className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end"
             onSubmit={(e) => {
               e.preventDefault();
               create.mutate();
@@ -241,29 +332,13 @@ function SettingsPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nu-role">Perfil</Label>
-              <select
-                id="nu-role"
-                className={`${selectCls} w-full`}
-                value={role}
-                onChange={(e) => setRole(e.target.value as AppRole)}
-              >
-                {ROLE_OPTIONS.map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </select>
-            </div>
             <Button type="submit" disabled={create.isPending}>
               Cadastrar
             </Button>
+            <div className="md:col-span-3">
+              <AccessEditor id="nu" value={newAccess} onChange={setNewAccess} />
+            </div>
           </form>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Equipes (Comercial e Mkt): Marketing, Comercial e Comercial Operacional · Superadmin:
-            todas as abas, incluindo Configurações.
-          </p>
         </Card>
 
         <Card className="p-5">
@@ -273,75 +348,92 @@ function SettingsPage() {
           ) : users.error ? (
             <p className="text-sm text-destructive">{(users.error as Error).message}</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-muted-foreground">
-                  <tr>
-                    <th className="py-2">E-mail</th>
-                    <th>Perfil</th>
-                    <th>Último acesso</th>
-                    <th className="text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.data?.map((u) => (
-                    <tr key={u.id} className="border-t border-border">
-                      <td className="py-2 text-foreground">
-                        {u.email}
-                        {u.isSelf ? " (você)" : ""}
-                      </td>
-                      <td>
-                        <select
-                          className={selectCls}
-                          value={u.role ?? ""}
-                          disabled={u.isSelf}
-                          onChange={(e) =>
-                            update.mutate({ id: u.id, role: e.target.value as AppRole })
-                          }
-                        >
-                          {!u.role ? <option value="">Sem acesso</option> : null}
-                          {ROLE_OPTIONS.map(([v, l]) => (
-                            <option key={v} value={v}>
-                              {l}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="text-muted-foreground">
-                        {u.lastSignIn ? new Date(u.lastSignIn).toLocaleString("pt-BR") : "—"}
-                      </td>
-                      <td className="space-x-1 text-right">
+            <ul className="divide-y divide-border">
+              {users.data?.map((u) => {
+                const isOpen = aberto === u.id;
+                return (
+                  <li key={u.id} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted"
+                        aria-expanded={isOpen}
+                        onClick={() => {
+                          setAberto(isOpen ? null : u.id);
+                          setRascunho(u.access ?? SEM_ACESSO);
+                        }}
+                      >
+                        <ChevronRight
+                          className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`}
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm text-foreground">
+                            {u.email}
+                            {u.isSelf ? " (você)" : ""}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {resumo(u.access)} · último acesso{" "}
+                            {u.lastSignIn ? new Date(u.lastSignIn).toLocaleString("pt-BR") : "—"}
+                          </span>
+                        </span>
+                      </button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Trocar senha"
+                        onClick={() => {
+                          const p = window.prompt(
+                            `Nova senha para ${u.email} (mín. 6 caracteres):`,
+                          );
+                          if (p) update.mutate({ id: u.id, password: p });
+                        }}
+                      >
+                        <KeyRound className="size-4" />
+                      </Button>
+                      {!u.isSelf ? (
                         <Button
                           size="sm"
                           variant="ghost"
-                          title="Trocar senha"
+                          title="Excluir"
                           onClick={() => {
-                            const p = window.prompt(
-                              `Nova senha para ${u.email} (mín. 6 caracteres):`,
-                            );
-                            if (p) update.mutate({ id: u.id, password: p });
+                            if (window.confirm(`Excluir ${u.email}?`)) remove.mutate(u.id);
                           }}
                         >
-                          <KeyRound className="size-4" />
+                          <Trash2 className="size-4 text-destructive" />
                         </Button>
-                        {!u.isSelf ? (
+                      ) : null}
+                    </div>
+                    {isOpen ? (
+                      <div className="mt-3 space-y-4 rounded-md border border-border p-4">
+                        <AccessEditor
+                          id={`u-${u.id}`}
+                          value={rascunho}
+                          onChange={setRascunho}
+                          lockAdmin={u.isSelf}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setAberto(null)}>
+                            Cancelar
+                          </Button>
                           <Button
                             size="sm"
-                            variant="ghost"
-                            title="Excluir"
-                            onClick={() => {
-                              if (window.confirm(`Excluir ${u.email}?`)) remove.mutate(u.id);
-                            }}
+                            disabled={update.isPending}
+                            onClick={() =>
+                              update.mutate(
+                                { id: u.id, access: rascunho },
+                                { onSuccess: () => setAberto(null) },
+                              )
+                            }
                           >
-                            <Trash2 className="size-4 text-destructive" />
+                            Salvar acesso
                           </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </Card>
       </main>

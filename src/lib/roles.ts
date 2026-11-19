@@ -1,17 +1,6 @@
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole =
-  "superadmin" | "comercial" | "marketing" | "comercial_gerencial" | "financeiro";
-
-export const ROLE_LABELS: Record<AppRole, string> = {
-  superadmin: "Superadmin",
-  comercial: "Comercial - Equipe",
-  marketing: "Mkt - Equipe",
-  comercial_gerencial: "Comercial - Gerencial",
-  financeiro: "Financeiro",
-};
-
 export type PageKey =
   | "dashboard"
   | "comercial"
@@ -20,62 +9,78 @@ export type PageKey =
   | "configuracoes"
   | "fila-leads";
 
-const ACCESS: Record<AppRole, PageKey[]> = {
-  superadmin: [
-    "dashboard",
-    "comercial",
-    "comercial-operacional",
-    "comissoes",
-    "configuracoes",
-    "fila-leads",
-  ],
-  comercial: ["dashboard", "comercial", "comercial-operacional", "comissoes", "fila-leads"],
-  marketing: ["dashboard", "comercial", "comercial-operacional"],
-  // Menu Comercial (Gerencial e Operacional) e Comissões; sem Marketing nem Configurações.
-  comercial_gerencial: ["comercial", "comercial-operacional", "comissoes", "fila-leads"],
-  // Só Comissões, com permissão de pagar e validar descontos.
-  financeiro: ["comissoes"],
-};
+/** Módulos que dá para marcar por usuário em Configurações (Configurações em si vem do Admin). */
+export type ModuleKey = Exclude<PageKey, "configuracoes">;
 
-export function canAccess(role: AppRole | null, page: PageKey) {
-  return role ? ACCESS[role].includes(page) : false;
+export const MODULE_LABELS: Record<ModuleKey, string> = {
+  dashboard: "Marketing (Dashboard)",
+  comercial: "Comercial - Gerencial",
+  "comercial-operacional": "Comercial - Operacional",
+  comissoes: "Comissões",
+  "fila-leads": "Fila de Leads",
+};
+export const MODULE_KEYS = Object.keys(MODULE_LABELS) as ModuleKey[];
+
+/** Acesso de um usuário: módulos marcados + Admin (tudo, inclusive Configurações) + pagar comissões. */
+export type Access = { modules: ModuleKey[]; admin: boolean; canPay: boolean };
+
+export function canAccess(access: Access | null, page: PageKey) {
+  if (!access) return false;
+  if (access.admin) return true;
+  return page !== "configuracoes" && access.modules.includes(page);
 }
 
-export const HOME: Record<
-  AppRole,
-  "/app/dashboard" | "/comercial" | "/comercial-operacional" | "/app/comissoes/a-pagar"
-> = {
-  superadmin: "/app/dashboard",
-  comercial: "/comercial-operacional",
-  marketing: "/app/dashboard",
-  comercial_gerencial: "/comercial",
-  financeiro: "/app/comissoes/a-pagar",
-};
+const HOME_ORDER: [ModuleKey, HomePath][] = [
+  ["dashboard", "/app/dashboard"],
+  ["comercial", "/comercial"],
+  ["comercial-operacional", "/comercial-operacional"],
+  ["fila-leads", "/fila-leads"],
+  ["comissoes", "/app/comissoes/a-pagar"],
+];
+type HomePath =
+  | "/app/dashboard"
+  | "/comercial"
+  | "/comercial-operacional"
+  | "/fila-leads"
+  | "/app/comissoes/a-pagar";
 
-export async function getMyRole(): Promise<AppRole | null> {
+/** Página inicial: o primeiro módulo liberado; sem nenhum, o hub. */
+export function homeOf(access: Access): HomePath | "/app" {
+  if (access.admin) return "/app";
+  return HOME_ORDER.find(([m]) => access.modules.includes(m))?.[1] ?? "/app";
+}
+
+export async function getMyAccess(): Promise<Access | null> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return null;
   const { data } = await supabase
-    .from("user_roles")
-    .select("role")
+    .from("user_access")
+    .select("modules, is_admin, can_pay")
     .eq("user_id", u.user.id)
     .maybeSingle();
-  return (data?.role as AppRole | undefined) ?? null;
+  if (!data) return null;
+  return {
+    modules: (data.modules ?? []).filter((m): m is ModuleKey =>
+      (MODULE_KEYS as string[]).includes(m),
+    ),
+    admin: data.is_admin,
+    canPay: data.can_pay,
+  };
 }
 
-/** Use em beforeLoad: redireciona se o perfil não tiver acesso à página. */
+/** Use em beforeLoad: redireciona se o usuário não tiver o módulo. */
 export async function guardPage(page: PageKey) {
-  const role = await getMyRole();
-  if (!role) {
+  const access = await getMyAccess();
+  if (!access) {
     await supabase.auth.signOut();
     throw redirect({ to: "/auth", search: { next: undefined } });
   }
-  if (!canAccess(role, page)) throw redirect({ to: HOME[role] });
-  return { role };
+  if (!canAccess(access, page)) throw redirect({ to: homeOf(access) });
+  return { access };
 }
 
 /**
- * Página oculta "Precificação": acesso por e-mail, fora do mapa ACCESS (nenhum perfil, nem superadmin, a enxerga).
+ * Página oculta "Precificação": acesso por e-mail, fora dos módulos (nem o Admin a enxerga).
  * A proteção real é a RLS de pricing_study_report (migração 0042); isto só esconde menu e rota.
  */
 export const PRICING_STUDY_EMAIL = "marketing@orlandorentcar.com";
@@ -94,6 +99,6 @@ export async function guardPricingPage() {
   const { data } = await supabase.auth.getUser();
   if (!data.user) throw redirect({ to: "/auth", search: { next: undefined } });
   if (canSeePricing(data.user.email)) return;
-  const role = await getMyRole();
-  throw redirect(role ? { to: HOME[role] } : { to: "/auth", search: { next: undefined } });
+  const access = await getMyAccess();
+  throw redirect(access ? { to: homeOf(access) } : { to: "/auth", search: { next: undefined } });
 }

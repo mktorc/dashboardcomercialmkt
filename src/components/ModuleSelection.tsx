@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { canAccess, canSeePricing, getMyEmail, getMyRole, type PageKey } from "@/lib/roles";
+import { canAccess, canSeePricing, getMyEmail, getMyAccess, type PageKey } from "@/lib/roles";
 import { supabase } from "@/integrations/supabase/client";
 
 // Com login (superadmin): todos os módulos.
@@ -115,7 +115,10 @@ const CHAVE = "hub-acesso-publico";
 export function ModuleSelection() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: role = null, isLoading } = useQuery({ queryKey: ["my-role"], queryFn: getMyRole });
+  const { data: access = null, isLoading } = useQuery({
+    queryKey: ["my-access"],
+    queryFn: getMyAccess,
+  });
   const { data: email = null } = useQuery({ queryKey: ["my-email"], queryFn: getMyEmail });
   const [publico, setPublicoState] = useState(() => {
     try {
@@ -146,9 +149,9 @@ export function ModuleSelection() {
 
   if (isLoading) return <div className="min-h-screen bg-background" />;
 
-  const logado = role != null;
+  const logado = access != null;
   const base = logado
-    ? MODULES.filter((m) => canAccess(role, m.page))
+    ? MODULES.filter((m) => canAccess(access, m.page))
     : publico
       ? PUBLIC_MODULES
       : [];
@@ -184,7 +187,7 @@ export function ModuleSelection() {
         </div>
         {logado ? (
           <div className="flex items-center gap-2">
-            {canAccess(role, "configuracoes") ? (
+            {canAccess(access, "configuracoes") ? (
               <Button
                 asChild
                 variant="outline"

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMyRole } from "@/lib/roles";
+import { getMyAccess } from "@/lib/roles";
 import type { Filtros, Reserva } from "./types";
 import { listarNotasParceiros, listarParceiros } from "./service";
 
@@ -54,13 +54,13 @@ export function useParceiros() {
   return parceiros;
 }
 
-/** Permissões na tela de comissões. Pagar: superadmin e financeiro. Validar desconto: só superadmin. Editar comissão: qualquer pessoa. O banco impõe as mesmas regras. */
+/** Permissões na tela de comissões. Pagar: Admin ou "pode pagar". Validar desconto: só Admin. Editar comissão: qualquer pessoa. O banco impõe as mesmas regras. */
 export function usePerfil() {
-  const { data: role = null } = useQuery({ queryKey: ["my-role"], queryFn: getMyRole });
+  const { data: access = null } = useQuery({ queryKey: ["my-access"], queryFn: getMyAccess });
   return {
-    role,
-    podePagar: role === "superadmin" || role === "financeiro", // marcar como paga
-    podeValidar: role === "superadmin", // validar descontos
+    access,
+    podePagar: !!access && (access.admin || access.canPay), // marcar como paga
+    podeValidar: !!access?.admin, // validar descontos
     podeEditar: true, // ajustar comissão: liberado a qualquer pessoa com o link (reservas não pagas)
   };
 }

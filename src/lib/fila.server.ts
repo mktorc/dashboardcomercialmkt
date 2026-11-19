@@ -20,21 +20,20 @@ export function checkApiKey(request: Request): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-const ROLES_FILA = ["superadmin", "comercial", "comercial_gerencial"];
-
-/** Demais endpoints: login do PWA (Bearer do Supabase) com perfil que enxerga a Fila de Leads. */
+/** Demais endpoints: login do PWA (Bearer do Supabase) com o módulo Fila de Leads (ou Admin). */
 export async function requireUser(request: Request): Promise<Response | null> {
   const auth = request.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) return fail("Não autenticado", 401);
   const { data, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !data.user) return fail("Não autenticado", 401);
-  const { data: role } = await supabaseAdmin
-    .from("user_roles")
-    .select("role")
+  const { data: acc } = await supabaseAdmin
+    .from("user_access")
+    .select("modules, is_admin")
     .eq("user_id", data.user.id)
     .maybeSingle();
-  if (!role || !ROLES_FILA.includes(role.role)) return fail("Acesso negado", 403);
+  if (!acc || !(acc.is_admin || acc.modules.includes("fila-leads")))
+    return fail("Acesso negado", 403);
   return null;
 }
 

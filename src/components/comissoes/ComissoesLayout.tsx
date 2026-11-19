@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ManualSyncButton } from "@/components/ManualSyncButton";
 import { Button } from "@/components/ui/button";
 import { usePerfil } from "@/lib/comissoes/hooks";
-import { HOME } from "@/lib/roles";
+import { homeOf } from "@/lib/roles";
 
 const ABAS = [
   { to: "/app/comissoes/a-pagar", rotulo: "Comissões a Pagar" },
@@ -14,7 +14,7 @@ const ABAS = [
 ] as const;
 
 export function ComissoesLayout({ children }: { children: ReactNode }) {
-  const { role } = usePerfil();
+  const { access } = usePerfil();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   async function signOut() {
@@ -23,8 +23,8 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     navigate({ to: "/app", replace: true });
   }
-  // superadmin e visitante sem login voltam ao hub; os demais perfis (incl. financeiro), à própria página
-  const voltar = role === "superadmin" || !role ? "/app" : HOME[role];
+  // Admin, visitante sem login e quem tem mais de um módulo voltam ao hub; os demais, à própria página
+  const voltar = !access || access.admin || access.modules.length > 1 ? "/app" : homeOf(access);
   return (
     <div className="min-h-screen bg-background">
       <header
@@ -41,11 +41,11 @@ export function ComissoesLayout({ children }: { children: ReactNode }) {
             <Button asChild variant="outline" size="sm">
               <Link to={voltar}>
                 <ArrowLeft className="mr-1 size-4" />{" "}
-                {role === "superadmin" || !role ? "Voltar aos Módulos" : "Voltar"}
+                {voltar === "/app" ? "Voltar aos Módulos" : "Voltar"}
               </Link>
             </Button>
           ) : null}
-          {role ? (
+          {access ? (
             <Button variant="outline" size="sm" onClick={signOut}>
               <LogOut className="mr-1 size-4" /> Sair
             </Button>
