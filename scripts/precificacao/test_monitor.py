@@ -163,6 +163,31 @@ class Monitor(unittest.TestCase):
         M.checar_workflows()
         self.assertEqual(chamadas, [])
 
+    def test_frequente_parada_e_disparada_so_com_aviso(self):
+        self._prep()
+        chamadas = []
+        M.github = self._gh_com([], [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(5)}], chamadas)
+        M.checar_rotinas_frequentes()
+        self.assertEqual(len(chamadas), len(M.ROTINAS_FREQUENTES))
+        self.assertTrue(all(c[0].endswith("/dispatches") for c in chamadas))
+        self.assertNotIn("falha", [n for _, _, n, _ in M.resultados])  # não abre a issue de precificação
+
+    def test_frequente_em_dia_ou_rodando_nao_dispara(self):
+        self._prep()
+        chamadas = []
+        M.github = self._gh_com([], [{"status": "completed", "conclusion": "success", "event": "schedule", "created_at": iso(0.5)}], chamadas)
+        M.checar_rotinas_frequentes()
+        M.github = self._gh_com([], [{"status": "in_progress", "conclusion": None, "event": "schedule", "created_at": iso(9)}], chamadas)
+        M.checar_rotinas_frequentes()
+        self.assertEqual(chamadas, [])
+
+    def test_frequente_sem_nenhuma_execucao_e_disparada(self):
+        self._prep()
+        chamadas = []
+        M.github = self._gh_com([], [], chamadas)
+        M.checar_rotinas_frequentes()
+        self.assertEqual(len(chamadas), len(M.ROTINAS_FREQUENTES))
+
     def test_sem_github_nao_dispara_nada(self):
         M.resultados.clear()
         sys.argv = ["monitor.py", "--sem-github"]

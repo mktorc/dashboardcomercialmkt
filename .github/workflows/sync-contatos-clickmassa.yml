@@ -2,10 +2,10 @@ name: Sincronizar contatos (ClickMassa)
 
 on:
   schedule:
-    # De hora em hora (minuto 15, fora do horário do sync de oportunidades): atualiza crm_leads
-    # com as 50 primeiras páginas de contatos (os mais recentes). Antes só rodava pelo botão
-    # "Sincronizar" do dashboard.
-    - cron: '15 * * * *'
+    # De hora em hora (minuto 22, fora dos minutos mais disputados e do sync de oportunidades):
+    # atualiza crm_leads com as 50 primeiras páginas de contatos (os mais recentes). Se o GitHub
+    # pular, o Monitor dos dados de precificação dispara esta rotina quando passa de 3 h sem rodar.
+    - cron: '22 * * * *'
   workflow_dispatch:
 
 concurrency:

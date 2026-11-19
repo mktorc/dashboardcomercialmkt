@@ -4,7 +4,9 @@ on:
   schedule:
     # A cada 30 min: o webhook do ClickMassa não avisa quando uma tarefa é criada,
     # então total_tasks (usado em "Oportunidades sem tarefas") só se atualiza por esta sincronização.
-    - cron: '*/30 * * * *'
+    # Minutos 7 e 37 (não :00/:30, os mais disputados, que o GitHub mais pula). Se mesmo assim pular,
+    # o Monitor dos dados de precificação dispara esta rotina quando ela passa de 2 h sem rodar.
+    - cron: '7,37 * * * *'
   workflow_dispatch:
 
 concurrency:

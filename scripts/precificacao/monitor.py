@@ -37,6 +37,12 @@ ISSUE_TITULO = "Alerta: dados de precificação"
 # Autocorreção: se o agendamento falhou e a rotina não teve execução agendada/manual (push não conta) nesse prazo, o monitor a dispara pela API.
 # O prazo evita disparos repetidos (no máximo um por dia por rotina) e não atropela uma execução em andamento ou recente.
 LIMITE_REDISPARO = timedelta(hours=24)
+# Rotinas frequentes (fora da precificação) que o agendador do GitHub costuma pular: se a última execução (qualquer evento) for mais
+# antiga que o prazo, o monitor dispara. Só AVISO, nunca falha: não abrem a issue de precificação.
+ROTINAS_FREQUENTES = {  # arquivo -> (o que alimenta, prazo sem execução)
+    "sync-oportunidades-clickmassa.yml": ("oportunidades do ClickMassa", timedelta(hours=2)),
+    "sync-contatos-clickmassa.yml": ("contatos do ClickMassa", timedelta(hours=3)),
+}
 
 resultados = []  # (etapa, item, nivel, detalhe)  nivel: ok | aviso | falha
 
@@ -182,6 +188,32 @@ def checar_workflows():
             reg(2, f"{arquivo} (última execução)", "aviso", "nenhuma execução concluída nas últimas 5")
 
 
+def checar_rotinas_frequentes():
+    """Dispara a rotina frequente que ficou sem execução além do prazo (o agendador do GitHub pula crons curtos)."""
+    if "--sem-github" in sys.argv or not os.environ.get("GITHUB_TOKEN") or not os.environ.get("GITHUB_REPOSITORY"):
+        return
+    repo = os.environ["GITHUB_REPOSITORY"]
+    for arquivo, (alimenta, prazo) in ROTINAS_FREQUENTES.items():
+        item = f"{arquivo} (frequente)"
+        try:
+            runs = github(f"repos/{repo}/actions/workflows/{arquivo}/runs?per_page=1")["workflow_runs"]
+        except urllib.error.HTTPError as e:
+            reg(1, item, "aviso", f"não foi possível consultar o GitHub (HTTP {e.code})")
+            continue
+        u = runs[0] if runs else None
+        if u and (u["status"] != "completed" or idade(u["created_at"]) <= prazo):
+            sucesso = u["status"] != "completed" or u["conclusion"] == "success"
+            reg(1, item, "ok" if sucesso else "aviso",
+                f"{alimenta}: última execução há {txt(idade(u['created_at']))} ({u['event']}: {u['conclusion'] or u['status']})")
+            continue
+        try:
+            github(f"repos/{repo}/actions/workflows/{arquivo}/dispatches", "POST", {"ref": "main"})
+            quando = f"há {txt(idade(u['created_at']))}" if u else "nunca"
+            reg(1, item, "aviso", f"{alimenta}: última execução {quando} (prazo {txt(prazo)}); disparada pelo monitor")
+        except urllib.error.HTTPError as e:
+            reg(1, item, "aviso", f"{alimenta}: não foi possível disparar (HTTP {e.code})")
+
+
 def publicar_resumo(falhas, avisos):
     linhas = [f"## Saúde dos dados de precificação ({AGORA.strftime('%Y-%m-%d %H:%M')} UTC)", "", "| Etapa | Item | Situação | Detalhe |", "|---|---|---|---|"]
     nomes = {1: "1 Agendamento", 2: "2 Execução", 3: "3 Publicação", 4: "4 Aplicação"}
@@ -227,6 +259,7 @@ if __name__ == "__main__":
     except Exception as e:  # o banco inacessível também é um alerta
         reg(3, "Consulta ao banco", "falha", f"{type(e).__name__}: {str(e)[:160]}")
     checar_workflows()
+    checar_rotinas_frequentes()
     falhas = [r for r in resultados if r[2] == "falha"]
     avisos = [r for r in resultados if r[2] == "aviso"]
     corpo = publicar_resumo(falhas, avisos)
