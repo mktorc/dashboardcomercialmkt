@@ -8,6 +8,13 @@ on:
     # o Monitor dos dados de precificação dispara esta rotina quando ela passa de 2 h sem rodar.
     - cron: '7,37 * * * *'
   workflow_dispatch:
+    inputs:
+      from:
+        description: 'ID inicial (opcional; vazio = só as recentes)'
+        required: false
+      to:
+        description: 'ID final (opcional; no máximo 5000 IDs de faixa)'
+        required: false
 
 concurrency:
   group: sync-oportunidades-clickmassa
@@ -21,7 +28,9 @@ jobs:
       - name: Chamar a sincronização de oportunidades
         env:
           SYNC_CRON_TOKEN: ${{ secrets.SYNC_CRON_TOKEN }}
+          FROM: ${{ inputs.from }}
+          TO: ${{ inputs.to }}
         run: |
           curl --fail-with-body -sS -m 540 -X POST \
-            "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa-opportunities" \
+            "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa-opportunities?from=${FROM}&to=${TO}" \
             -H "Authorization: Bearer $SYNC_CRON_TOKEN"
