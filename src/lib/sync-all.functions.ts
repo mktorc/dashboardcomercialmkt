@@ -73,8 +73,12 @@ async function runJobs(groups: readonly (readonly Job[])[]) {
     // Diagnóstico: só presença (booleanos), nunca os valores.
     console.log("[Sync Check] CLICKMASSA_BASE_URL presente:", !!process.env["CLICKMASSA_BASE_URL"]);
     console.log(
-      "[Sync Check] CLICKMASSA_TOKEN presente:",
-      !!(process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"]),
+      "[Sync Check] CLICKMASSA login/token presente:",
+      !!(
+        (process.env["CLICKMASSA_EMAIL"] && process.env["CLICKMASSA_PASSWORD"]) ||
+        process.env["CLICKMASSA_API_TOKEN"] ||
+        process.env["CLICKMASSA_API_KEY"]
+      ),
     );
     console.log("[Sync Check] HQ_BASE_URL presente:", !!process.env["HQ_BASE_URL"]);
     console.log(

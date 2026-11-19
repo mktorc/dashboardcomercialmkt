@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
+import { clickMassaBase, getClickMassaToken } from "@/lib/clickmassa-auth.server";
 
 // Sincroniza oportunidades do ClickMassa buscando GET /opportunity/:id
 // (a API não tem listagem). Varre uma faixa de IDs e faz upsert em crm_opportunities.
@@ -46,10 +47,16 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
       POST: async ({ request }) => {
         if (!isSyncAuthorized(request))
           return Response.json({ error: "Unauthorized" }, { status: 401 });
-        const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
-        const token = process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"];
-        if (!base || !token)
-          return Response.json({ error: "ClickMassa não configurado" }, { status: 500 });
+        const base = clickMassaBase();
+        let token: string;
+        try {
+          token = await getClickMassaToken();
+        } catch (e) {
+          return Response.json(
+            { ok: false, error: e instanceof Error ? e.message : String(e) },
+            { status: 502 },
+          );
+        }
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const url = new URL(request.url);
@@ -156,7 +163,7 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
               ...(authFailed
                 ? {
                     error:
-                      "ClickMassa recusou o token (401/403): confira CLICKMASSA_API_TOKEN na Vercel",
+                      "ClickMassa recusou o token (401/403): confira CLICKMASSA_EMAIL/CLICKMASSA_PASSWORD na Vercel",
                   }
                 : {}),
               from,

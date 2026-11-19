@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
+import { clickMassaBase, getClickMassaToken } from "@/lib/clickmassa-auth.server";
 
 // Sincronização ClickMassa (API) -> tabela `crm_leads`.
 // Proteção: Authorization: Bearer <LOVABLE_CRON_SECRET>.
@@ -32,10 +33,15 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
         if (!isSyncAuthorized(request)) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
-        const base = (process.env["CLICKMASSA_BASE_URL"] ?? "").replace(/\/$/, "");
-        const token = process.env["CLICKMASSA_API_TOKEN"] || process.env["CLICKMASSA_API_KEY"];
-        if (!base || !token) {
-          return Response.json({ error: "ClickMassa não configurado" }, { status: 500 });
+        const base = clickMassaBase();
+        let token: string;
+        try {
+          token = await getClickMassaToken();
+        } catch (e) {
+          return Response.json(
+            { error: e instanceof Error ? e.message : String(e) },
+            { status: 502 },
+          );
         }
         const url = new URL(request.url);
         const startPage = Math.max(1, Number(url.searchParams.get("startPage")) || 1);
