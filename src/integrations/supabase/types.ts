@@ -151,6 +151,7 @@ export type Database = {
           completed: boolean;
           completed_at: string | null;
           created_at: string;
+          due_at: string | null;
           due_date: string | null;
           id: string;
           lead_id: string | null;
@@ -161,6 +162,7 @@ export type Database = {
           completed?: boolean;
           completed_at?: string | null;
           created_at?: string;
+          due_at?: string | null;
           due_date?: string | null;
           id?: string;
           lead_id?: string | null;
@@ -171,6 +173,7 @@ export type Database = {
           completed?: boolean;
           completed_at?: string | null;
           created_at?: string;
+          due_at?: string | null;
           due_date?: string | null;
           id?: string;
           lead_id?: string | null;
@@ -199,18 +202,36 @@ export type Database = {
       };
       fleet_vehicles: {
         Row: {
+          plate: string | null;
+          label: string | null;
+          vehicle_class_id: number | null;
+          class_label: string | null;
+          current_location_id: number | null;
+          hq_status: string | null;
           entry_date: string;
           exit_date: string | null;
           id: number;
           updated_at: string;
         };
         Insert: {
+          plate?: string | null;
+          label?: string | null;
+          vehicle_class_id?: number | null;
+          class_label?: string | null;
+          current_location_id?: number | null;
+          hq_status?: string | null;
           entry_date: string;
           exit_date?: string | null;
           id: number;
           updated_at?: string;
         };
         Update: {
+          plate?: string | null;
+          label?: string | null;
+          vehicle_class_id?: number | null;
+          class_label?: string | null;
+          current_location_id?: number | null;
+          hq_status?: string | null;
           entry_date?: string;
           exit_date?: string | null;
           id?: number;
@@ -418,6 +439,10 @@ export type Database = {
       };
       reservation_segments: {
         Row: {
+          vehicle_id: number | null;
+          vehicle_class_id: number | null;
+          pick_up_location_id: number | null;
+          return_location_id: number | null;
           pick_up_at: string;
           reservation_id: string;
           return_at: string;
@@ -425,6 +450,10 @@ export type Database = {
           status: string;
         };
         Insert: {
+          vehicle_id?: number | null;
+          vehicle_class_id?: number | null;
+          pick_up_location_id?: number | null;
+          return_location_id?: number | null;
           pick_up_at: string;
           reservation_id: string;
           return_at: string;
@@ -432,6 +461,10 @@ export type Database = {
           status: string;
         };
         Update: {
+          vehicle_id?: number | null;
+          vehicle_class_id?: number | null;
+          pick_up_location_id?: number | null;
+          return_location_id?: number | null;
           pick_up_at?: string;
           reservation_id?: string;
           return_at?: string;

@@ -20,6 +20,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedFilaLeadsRouteImport } from './routes/_authenticated/fila-leads'
+import { Route as AuthenticatedFrotaRouteImport } from './routes/_authenticated/frota'
 import { Route as AuthenticatedPrecificacaoRouteImport } from './routes/_authenticated/precificacao'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
@@ -100,6 +101,11 @@ const AuthenticatedConfiguracoesRoute =
 const AuthenticatedFilaLeadsRoute = AuthenticatedFilaLeadsRouteImport.update({
   id: '/fila-leads',
   path: '/fila-leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFrotaRoute = AuthenticatedFrotaRouteImport.update({
+  id: '/frota',
+  path: '/frota',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPrecificacaoRoute =
@@ -246,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/fila-leads': typeof AuthenticatedFilaLeadsRoute
+  '/frota': typeof AuthenticatedFrotaRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
@@ -283,6 +290,7 @@ export interface FileRoutesByTo {
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/fila-leads': typeof AuthenticatedFilaLeadsRoute
+  '/frota': typeof AuthenticatedFrotaRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app': typeof AppIndexRoute
@@ -322,6 +330,7 @@ export interface FileRoutesById {
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/fila-leads': typeof AuthenticatedFilaLeadsRoute
+  '/_authenticated/frota': typeof AuthenticatedFrotaRoute
   '/_authenticated/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
@@ -361,6 +370,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/configuracoes'
     | '/fila-leads'
+    | '/frota'
     | '/precificacao'
     | '/oauth/consent'
     | '/app/'
@@ -398,6 +408,7 @@ export interface FileRouteTypes {
     | '/comercial'
     | '/configuracoes'
     | '/fila-leads'
+    | '/frota'
     | '/precificacao'
     | '/oauth/consent'
     | '/app'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/_authenticated/comercial'
     | '/_authenticated/configuracoes'
     | '/_authenticated/fila-leads'
+    | '/_authenticated/frota'
     | '/_authenticated/precificacao'
     | '/oauth/consent'
     | '/app/'
@@ -574,6 +586,13 @@ declare module '@tanstack/react-router' {
       path: '/fila-leads'
       fullPath: '/fila-leads'
       preLoaderRoute: typeof AuthenticatedFilaLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/frota': {
+      id: '/_authenticated/frota'
+      path: '/frota'
+      fullPath: '/frota'
+      preLoaderRoute: typeof AuthenticatedFrotaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/precificacao': {
@@ -758,6 +777,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedFilaLeadsRoute: typeof AuthenticatedFilaLeadsRoute
+  AuthenticatedFrotaRoute: typeof AuthenticatedFrotaRoute
   AuthenticatedPrecificacaoRoute: typeof AuthenticatedPrecificacaoRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
 }
@@ -766,6 +786,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComercialRoute: AuthenticatedComercialRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedFilaLeadsRoute: AuthenticatedFilaLeadsRoute,
+  AuthenticatedFrotaRoute: AuthenticatedFrotaRoute,
   AuthenticatedPrecificacaoRoute: AuthenticatedPrecificacaoRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
 }

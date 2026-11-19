@@ -15,6 +15,7 @@ import {
   Search,
   Settings,
   ListOrdered,
+  Car,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -63,6 +64,15 @@ const MODULES = [
     title: "Fila de Leads",
     description: "Ordem de distribuição dos leads entre vendedores e registro de leads externos.",
     cta: "Acessar Fila de Leads",
+  },
+  {
+    page: "frota" as PageKey,
+    to: "/frota",
+    icon: Car,
+    title: "Gestão de Frota",
+    description:
+      "Carros que precisam mudar de região (Orlando, Miami, FLL, Tampa) antes da próxima reserva.",
+    cta: "Acessar Gestão de Frota",
   },
 ] as const;
 

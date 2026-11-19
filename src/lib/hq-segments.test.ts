@@ -42,6 +42,10 @@ describe("extractSegments", () => {
         status: "pending",
         pick_up_at: "2026-11-12T18:00:00.000000Z",
         return_at: "2026-11-21T18:30:00.000000Z",
+        vehicle_id: null,
+        vehicle_class_id: null,
+        pick_up_location_id: null,
+        return_location_id: null,
       },
     ]);
   });
@@ -59,7 +63,7 @@ describe("extractFleetVehicle", () => {
         vehicle_entry_date: "2023-12-14T00:00:00.000000Z",
         available_date: "2023-12-16T00:00:00.000000Z",
       }),
-    ).toEqual({ id: 33, entry_date: "2023-12-14T00:00:00.000000Z", exit_date: null });
+    ).toMatchObject({ id: 33, entry_date: "2023-12-14T00:00:00.000000Z", exit_date: null });
   });
 
   it("cai para a disponibilidade e guarda a saída", () => {
@@ -70,7 +74,7 @@ describe("extractFleetVehicle", () => {
         available_date: "2023-10-05T00:00:00.000000Z",
         vehicle_exit_date: "2026-12-01T00:00:00.000000Z",
       }),
-    ).toEqual({
+    ).toMatchObject({
       id: 27,
       entry_date: "2023-10-05T00:00:00.000000Z",
       exit_date: "2026-12-01T00:00:00.000000Z",

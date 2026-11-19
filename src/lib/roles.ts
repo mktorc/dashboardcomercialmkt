@@ -7,7 +7,8 @@ export type PageKey =
   | "comercial-operacional"
   | "comissoes"
   | "configuracoes"
-  | "fila-leads";
+  | "fila-leads"
+  | "frota";
 
 /** Módulos que dá para marcar por usuário em Configurações (Configurações em si vem do Admin). */
 export type ModuleKey = Exclude<PageKey, "configuracoes">;
@@ -18,6 +19,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   "comercial-operacional": "Comercial - Operacional",
   comissoes: "Comissões",
   "fila-leads": "Fila de Leads",
+  frota: "Gestão de Frota",
 };
 export const MODULE_KEYS = Object.keys(MODULE_LABELS) as ModuleKey[];
 
@@ -36,13 +38,15 @@ const HOME_ORDER: [ModuleKey, HomePath][] = [
   ["comercial-operacional", "/comercial-operacional"],
   ["fila-leads", "/fila-leads"],
   ["comissoes", "/app/comissoes/a-pagar"],
+  ["frota", "/frota"],
 ];
 type HomePath =
   | "/app/dashboard"
   | "/comercial"
   | "/comercial-operacional"
   | "/fila-leads"
-  | "/app/comissoes/a-pagar";
+  | "/app/comissoes/a-pagar"
+  | "/frota";
 
 /** Página inicial: o primeiro módulo liberado; sem nenhum, o hub. */
 export function homeOf(access: Access): HomePath | "/app" {
