@@ -13,6 +13,8 @@ const TABELAS = [
   "reservations",
   "reservation_segments",
   "reservas",
+  "fleet_vehicles",
+  "fleet_transfers_done",
 ] as const;
 const AGRUPAR_MS = 5_000; // espera a rajada terminar
 const INTERVALO_MIN_MS = 30_000; // no máximo uma recarga a cada 30 s

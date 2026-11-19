@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import type { Json } from "@/integrations/supabase/types";
-import { syncReservationById } from "@/lib/hq-reservation";
+import { syncReservationById, syncVehicleById } from "@/lib/hq-reservation";
 import { notifyReservationsOpened } from "@/lib/push.server";
 
 // Webhook de reservas do HQ Rentals (tempo real). Registra cada evento em `webhook_logs`
@@ -63,7 +63,23 @@ async function handle(rawBody: string, ok: boolean): Promise<void> {
     data && typeof data === "object" && !Array.isArray(data)
       ? (data as Record<string, Json>)["id"]
       : null;
-  if (!/Reservation$/.test(item) || (typeof hqId !== "number" && typeof hqId !== "string")) return;
+  if (typeof hqId !== "number" && typeof hqId !== "string") return;
+  // Evento de veículo (carro movido, status): atualiza a frota (Gestão de Frota).
+  if (/\\Vehicle$/.test(item)) {
+    let vStatus = "processed";
+    try {
+      await syncVehicleById(hqId);
+    } catch (e) {
+      vStatus = `error: ${e instanceof Error ? e.message : String(e)}`.slice(0, 500);
+    }
+    if (inserted?.id)
+      await supabaseAdmin
+        .from("webhook_logs")
+        .update({ processing_status: vStatus })
+        .eq("id", inserted.id);
+    return;
+  }
+  if (!/Reservation$/.test(item)) return;
 
   let status = "processed";
   try {

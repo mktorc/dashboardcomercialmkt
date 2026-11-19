@@ -4,7 +4,7 @@ import {
   extractMiscellaneousPrice,
   normalizeStatus,
 } from "@/lib/hq-charges";
-import { extractSegments } from "@/lib/hq-segments";
+import { extractFleetVehicle, extractSegments } from "@/lib/hq-segments";
 
 // Mapeamento de uma reserva do HQ Rentals para as tabelas do dashboard.
 // Compartilhado entre a sincronização em lote (sync/hqrentals) e o webhook em tempo real.
@@ -208,6 +208,7 @@ export async function syncReservationById(hqId: string | number) {
 
   // Veículos fora da Utilização (vendidos ou de classe removida) ficam sem trecho, como no sync em lote.
   const skip = new Set<number>();
+  const vehicles: HqReservation[] = [];
   const info = Array.isArray(detail["reservation_vehicle_information"])
     ? (detail["reservation_vehicle_information"] as HqReservation[])
     : [];
@@ -223,12 +224,15 @@ export async function syncReservationById(hqId: string | number) {
       );
       const d = v?.data;
       if (!d || d["deleted_at"]) continue;
+      vehicles.push(d);
       if (String(d["status"] ?? "").toLowerCase() === "sold") skip.add(vid);
       else if (valid.size > 0 && !valid.has(Number(d["vehicle_class_id"]))) skip.add(vid);
     }
   }
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Gestão de Frota: placa, categoria e local atual dos carros desta reserva, já no tempo real.
+  for (const d of vehicles) await updateFleetVehicle(supabaseAdmin as unknown as SupabaseClient, d);
   const { error } = await supabaseAdmin
     .from("reservations")
     .upsert(row, { onConflict: "reservation_id" });
@@ -274,4 +278,27 @@ export async function syncReservationById(hqId: string | number) {
   }
 
   return { reservation_id: row.reservation_id, status: row.status, commission: !!commission };
+}
+
+/**
+ * Atualiza na frota os dados que a Gestão de Frota usa (placa, categoria, local atual, status).
+ * Só atualiza carro que já está em `fleet_vehicles` (a entrada na frota continua com o sync em lote).
+ */
+async function updateFleetVehicle(db: SupabaseClient, v: HqReservation) {
+  const row = extractFleetVehicle(v);
+  if (!row) return;
+  const { id, plate, label, vehicle_class_id, class_label, current_location_id, hq_status } = row;
+  const { error } = await db
+    .from("fleet_vehicles")
+    .update({ plate, label, vehicle_class_id, class_label, current_location_id, hq_status })
+    .eq("id", id);
+  if (error) console.error(`[hq] fleet_vehicles ${id}:`, error.message);
+}
+
+/** Evento de veículo do webhook do HQ (ex.: carro movido de local): relê o carro e atualiza a frota. */
+export async function syncVehicleById(hqId: string | number) {
+  const v = await hqGet<{ data?: HqReservation }>(`/car-rental/fleets/vehicles/${hqId}`);
+  if (!v.data || v.data["deleted_at"]) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await updateFleetVehicle(supabaseAdmin as unknown as SupabaseClient, v.data);
 }
