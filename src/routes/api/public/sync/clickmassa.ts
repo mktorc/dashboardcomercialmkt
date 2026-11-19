@@ -170,6 +170,11 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                 completed: Boolean(t["completed"]),
                 completed_at: s(t["completedAt"]) ?? s(t["completed_at"]),
                 due_date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
+                // Vencimento com hora: o ClickMassa já conta como atrasada a tarefa de hoje cujo horário passou.
+                due_at:
+                  raw && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !isNaN(Date.parse(raw))
+                    ? new Date(raw).toISOString()
+                    : null,
                 created_at: s(t["createdAt"]) ?? new Date().toISOString(),
               };
             });

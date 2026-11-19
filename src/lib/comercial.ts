@@ -256,15 +256,17 @@ export async function fetchActiveOpportunities(): Promise<COpp[]> {
   );
 }
 
-/** lead_id → nº de tarefas atrasadas (não concluídas, prazo anterior a hoje). Independe do período. */
+/** lead_id → nº de tarefas atrasadas (não concluídas, vencimento já passou — inclusive hoje, como no
+ * ClickMassa; sem hora gravada, vale o prazo anterior a hoje). Independe do período. */
 export async function fetchOverdueTasksByLead(): Promise<Map<string, number>> {
   const today = ymdLocal(new Date());
+  const now = new Date().toISOString();
   const { data, error } = await fetchAll((a, b) =>
     supabase
       .from("crm_tasks")
       .select("task_id, lead_id")
       .eq("completed", false)
-      .lt("due_date", today)
+      .or(`due_at.lt.${now},and(due_at.is.null,due_date.lt.${today})`)
       .not("lead_id", "is", null)
       .order("task_id")
       .range(a, b),
