@@ -183,8 +183,24 @@ async function loadUsers(): Promise<Map<string, string>> {
  */
 export async function syncReservationById(hqId: string | number) {
   const id = String(hqId);
-  const { data: detail } = await hqGet<{ data: HqReservation }>(`/car-rental/reservations/${id}`);
-  if (!detail || typeof detail !== "object") throw new Error(`reserva ${id} sem dados no HQ`);
+  // A reserva vem da LISTAGEM filtrada pelo id: é o mesmo formato do sync em lote (cliente, classe, operador, comissão e
+  // veículos na própria linha). O detalhe /reservations/:id tem outro formato (tudo em data.reservation, data.customer...)
+  // e só é usado para os adicionais (manual charge), que a listagem não traz.
+  const filtro = encodeURIComponent(
+    JSON.stringify([{ type: "string", column: "id", operator: "equals", value: id }]),
+  );
+  const lista = await hqGet<{ data?: HqReservation[] }>(
+    `/car-rental/reservations?filters=${filtro}`,
+  );
+  const linha = (lista.data ?? []).find((r) => String(r["id"]) === id);
+  if (!linha) throw new Error(`reserva ${id} não encontrada no HQ`);
+  const extra = await hqGet<{ data?: { selected_additional_charges?: HqReservation[] } }>(
+    `/car-rental/reservations/${id}`,
+  ).catch(() => null);
+  const detail: HqReservation = {
+    ...linha,
+    selected_additional_charges: extra?.data?.selected_additional_charges ?? [],
+  };
 
   const users = await loadUsers();
   const row = mapReservation(detail, users);
