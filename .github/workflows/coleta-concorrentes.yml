@@ -20,6 +20,10 @@ on:
       devolucao:
         description: "Período exato (opcional): data de devolução AAAA-MM-DD"
         required: false
+      sem_discovercars:
+        description: "Pular o DiscoverCars (pago por busca na Apify)"
+        type: boolean
+        default: false
 concurrency:
   group: coleta-concorrentes
   cancel-in-progress: false
@@ -36,11 +40,12 @@ jobs:
         fonte: [nosso, up, ally, florida, national, alamo, discovercars]
     steps:
       # DiscoverCars é pago por busca (Apify): para caber nos US$ 5 grátis por mês, roda só de 3 em 3 dias no agendamento
-      # (~10 x 26 datas x US$ 0,015 ≈ US$ 3,90/mês), nunca no push, e sempre que pedido à mão (workflow_dispatch).
+      # (~10 x 26 datas x US$ 0,015 ≈ US$ 3,90/mês), nunca no push, e sempre que pedido à mão (workflow_dispatch),
+      # exceto com sem_discovercars marcado.
       - name: Decidir se esta fonte roda hoje
         run: |
           if [ "${{ matrix.fonte }}" = "discovercars" ]; then
-            if [ "${{ github.event_name }}" = "push" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ $(( $(date -u +%s) / 86400 % 3 )) -ne 0 ]; }; then
+            if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.sem_discovercars }}" = "true" ] || { [ "${{ github.event_name }}" = "schedule" ] && [ $(( $(date -u +%s) / 86400 % 3 )) -ne 0 ]; }; then
               echo "PULAR=1" >> "$GITHUB_ENV"; echo "DiscoverCars: hoje não (roda de 3 em 3 dias)."
             fi
           fi
