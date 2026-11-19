@@ -301,15 +301,31 @@ def coleta_florida(pickups, dias):
             agora = datetime.now(timezone.utc)
             pg.goto(FLORIDA_URL.format(ini=d.isoformat(), fim=fim.isoformat()), timeout=60000)
             pg.wait_for_timeout(3000)
-            if pg.query_selector("dialog[open] input[autocomplete=given-name]"):
-                pg.fill("dialog input[autocomplete=given-name]", nome)
-                pg.fill("input[type=tel]", fone)
-                pg.press("input[type=tel]", "Enter")
-                pg.wait_for_timeout(4000)
-            try:  # o botão às vezes não aparece (página lenta): pula só esta data, não a coleta toda
-                pg.click("text=Consultar carros", timeout=30000)
-            except Exception as e:
-                print(f"  {d}: botão 'Consultar carros' não apareceu, data pulada ({str(e)[:60]})")
+            # Desde 18/11/2026 o site abre com "Começar reserva →" + formulário de contato e, depois do contato, já busca os carros
+            # sozinho (sem a tela do "Consultar carros"). Reage ao que estiver na tela até a lista aparecer: contato, botão de
+            # início ou "Consultar carros" (fluxo antigo). Página lenta ou travada: pula só esta data, não a coleta toda.
+            lista, contato_enviado = False, False
+            for _ in range(45):
+                if pg.query_selector("text=Valor da diária"):
+                    lista = True
+                    break
+                dialogo = pg.query_selector("dialog[open] input[autocomplete=given-name]")
+                consultar = pg.query_selector("button:has-text('Consultar carros'):not([disabled])")
+                inicio = pg.query_selector(".intro-launcher button")
+                if dialogo and not contato_enviado:
+                    pg.fill("dialog[open] input[autocomplete=given-name]", nome)
+                    pg.fill("dialog[open] input[type=tel]", fone)
+                    pg.click("dialog[open] button[type=submit], dialog[open] button:has-text('Começar reserva')")
+                    contato_enviado = True
+                elif consultar and consultar.is_visible():
+                    consultar.click()
+                elif inicio and inicio.is_visible() and not dialogo:
+                    inicio.click()
+                pg.wait_for_timeout(2000)
+            if not lista:
+                erro = pg.query_selector("dialog[open] .form-error, [role=alert]")
+                print(f"  {d}: lista de carros não apareceu em 90 s, data pulada"
+                      + (f" (aviso do site: {erro.inner_text()[:100]!r})" if erro else f" (tela: {pg.inner_text('body')[:160]!r})"))
                 continue
             try:  # a lista demora a carregar em algumas datas ("Carregando os carros disponíveis…"): espera os preços, não um tempo fixo
                 pg.wait_for_selector("text=Valor da diária", timeout=60000)
