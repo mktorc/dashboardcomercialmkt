@@ -54,6 +54,7 @@ import {
   sellerKey,
   type SellerRow,
   type Goal,
+  type COpp,
 } from "@/lib/comercial";
 import { fetchOccupancy, occupancyMonthVariation } from "@/lib/occupancy";
 import {
@@ -262,12 +263,20 @@ export function ComercialPage({
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => ({ ...o, owner: o.seller_name!.trim() }));
   const noTaskRows = [...noTaskMap.values()].sort((a, b) => b.noTask - a.noTask);
+  // Atrasadas: o contador do próprio ClickMassa (bate com o filtro "tarefas vencidas" de lá, que conta
+  // as de hoje cujo horário já passou). Sem contador ainda, cai nas tarefas com prazo antes de hoje.
+  const overdueCount = (o: COpp) =>
+    o.delayed_tasks != null
+      ? o.delayed_tasks
+      : o.lead_id
+        ? (overdueByLead?.get(o.lead_id) ?? 0)
+        : 0;
   const overdueList = activeOpps
-    .filter((o) => o.seller_name?.trim() && o.lead_id && overdueByLead?.has(o.lead_id))
+    .filter((o) => o.seller_name?.trim() && overdueCount(o) > 0)
     .map((o) => ({
       ...o,
       owner: o.seller_name!.trim(),
-      overdueTasks: overdueByLead!.get(o.lead_id!)!,
+      overdueTasks: overdueCount(o),
     }))
     .sort((a, b) => b.overdueTasks - a.overdueTasks || a.created_at.localeCompare(b.created_at));
   const overdueMap = new Map<string, { name: string; noTask: number }>();
