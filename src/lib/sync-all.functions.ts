@@ -130,3 +130,8 @@ export const syncAll = createServerFn({ method: "POST" })
 export const syncPricing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(() => runJobs(PRICING_GROUPS));
+
+// Gestão de Frota: só as reservas e a frota do HQ.
+export const syncFrota = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(() => runJobs([[JOBS[2]]]));

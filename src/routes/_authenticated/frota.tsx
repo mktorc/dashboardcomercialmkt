@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { guardPage } from "@/lib/roles";
+import { SyncButton } from "@/components/dashboard/SyncButton";
+import { syncFrota } from "@/lib/sync-all.functions";
 import {
   computeFrota,
   fleetPosition,
@@ -177,6 +179,9 @@ function FrotaPage() {
             <ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos
           </Link>
         </Button>
+        <div className="flex justify-end">
+          <SyncButton fn={syncFrota} />
+        </div>
         <div>
           <h1 className="text-2xl font-semibold">Gestão de Frota</h1>
           <p className="text-sm text-muted-foreground">
