@@ -403,6 +403,7 @@ export function FilaAcoes({
   onTypeFilter,
   regionFilter,
   dayResolved,
+  onClearRegion,
   defaultOpen = { hoje: true, amanha: true, programado: false },
 }: {
   actions: Action[];
@@ -413,6 +414,7 @@ export function FilaAcoes({
   onTypeFilter: (t: TypeFilter) => void;
   regionFilter: Region | "todas";
   dayResolved: boolean;
+  onClearRegion?: () => void;
   defaultOpen?: Record<Bucket, boolean>;
 }) {
   const [openGroups, setOpenGroups] = useState<Record<Bucket, boolean>>(defaultOpen);
@@ -420,13 +422,28 @@ export function FilaAcoes({
 
   return (
     <div className="space-y-3">
+      {regionFilter !== "todas" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm text-amber-300">
+          Mostrando só ações de {regionFilter} ({total} de {actions.length})
+          {onClearRegion && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-xs"
+              onClick={onClearRegion}
+            >
+              Ver todas as regiões
+            </Button>
+          )}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="sm"
           variant={typeFilter === "todas" ? "default" : "outline"}
           onClick={() => onTypeFilter("todas")}
         >
-          Todas ({total})
+          {regionFilter === "todas" ? "Todas" : `Todas em ${regionFilter}`} ({total})
         </Button>
         {(Object.keys(TYPE) as ActionType[]).map((t) => {
           const X = TYPE[t];

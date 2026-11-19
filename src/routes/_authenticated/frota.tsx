@@ -30,7 +30,13 @@ import {
 import { buildTimeline, dayKeyOf, orlandoMidnight } from "@/lib/frota-timeline";
 import { LinhaDoTempo } from "@/components/frota/LinhaDoTempo";
 import { PainelFrota, type Selection } from "@/components/frota/PainelFrota";
-import { FilaAcoes, StatusBar, type ResInfo, type TypeFilter } from "@/components/frota/FilaAcoes";
+import {
+  FilaAcoes,
+  StatusBar,
+  groupActions,
+  type ResInfo,
+  type TypeFilter,
+} from "@/components/frota/FilaAcoes";
 import { EstoqueDetalhe, Semaforo } from "@/components/frota/Semaforo";
 
 // Tabelas novas (sql-para-gravar/gestao_frota.sql) ainda não estão em types.ts: cliente sem tipos.
@@ -335,7 +341,10 @@ function FrotaPage() {
 
             <Tabs defaultValue="acoes">
               <TabsList className="flex-wrap">
-                <TabsTrigger value="acoes">Ações ({pendentes.length})</TabsTrigger>
+                <TabsTrigger value="acoes">
+                  Ações ({groupActions(pendentes, "todas", regiao).total}
+                  {regiao !== "todas" ? ` em ${regiao}` : ""})
+                </TabsTrigger>
                 <TabsTrigger value="linha">Linha do tempo</TabsTrigger>
                 <TabsTrigger value="patio">Onde está a frota</TabsTrigger>
               </TabsList>
@@ -350,6 +359,7 @@ function FrotaPage() {
                   onTypeFilter={setTipo}
                   regionFilter={regiao}
                   dayResolved={dayResolved}
+                  onClearRegion={() => setRegiao("todas")}
                 />
               </TabsContent>
 
