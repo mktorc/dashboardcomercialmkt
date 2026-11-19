@@ -14,6 +14,7 @@ import {
   Globe,
   Search,
   Settings,
+  ListOrdered,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -54,6 +55,14 @@ const MODULES = [
     title: "Gerenciamento de Comissões",
     description: "Controle de repasses e comissões de parceiros: o que está a pagar e o histórico.",
     cta: "Acessar Comissões",
+  },
+  {
+    page: "fila-leads" as PageKey,
+    to: "/fila-leads",
+    icon: ListOrdered,
+    title: "Fila de Leads",
+    description: "Ordem de distribuição dos leads entre vendedores e registro de leads externos.",
+    cta: "Acessar Fila de Leads",
   },
 ] as const;
 

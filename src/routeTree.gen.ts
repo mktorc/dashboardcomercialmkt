@@ -19,13 +19,20 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedFilaLeadsRouteImport } from './routes/_authenticated/fila-leads'
 import { Route as AuthenticatedPrecificacaoRouteImport } from './routes/_authenticated/precificacao'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
+import { Route as ApiFilaExternoRouteImport } from './routes/api/fila/externo'
+import { Route as ApiFilaHistoricoRouteImport } from './routes/api/fila/historico'
+import { Route as ApiFilaProximoRouteImport } from './routes/api/fila/proximo'
+import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
+import { Route as ApiFilaVendedoresIndexRouteImport } from './routes/api/fila/vendedores/index'
+import { Route as ApiFilaVendedoresIdRouteImport } from './routes/api/fila/vendedores/$id'
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
 import { Route as ApiPublicSyncClickmassaRouteImport } from './routes/api/public/sync/clickmassa'
 import { Route as ApiPublicSyncClickmassaOpportunitiesRouteImport } from './routes/api/public/sync/clickmassa-opportunities'
@@ -90,6 +97,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFilaLeadsRoute = AuthenticatedFilaLeadsRouteImport.update({
+  id: '/fila-leads',
+  path: '/fila-leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPrecificacaoRoute =
   AuthenticatedPrecificacaoRouteImport.update({
     id: '/precificacao',
@@ -117,6 +129,26 @@ const AuthenticatedAppDashboardRoute =
     path: '/app/dashboard',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiFilaExternoRoute = ApiFilaExternoRouteImport.update({
+  id: '/api/fila/externo',
+  path: '/api/fila/externo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilaHistoricoRoute = ApiFilaHistoricoRouteImport.update({
+  id: '/api/fila/historico',
+  path: '/api/fila/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilaProximoRoute = ApiFilaProximoRouteImport.update({
+  id: '/api/fila/proximo',
+  path: '/api/fila/proximo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilaToggleRoute = ApiFilaToggleRouteImport.update({
+  id: '/api/fila/toggle',
+  path: '/api/fila/toggle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppComissoesAPagarRoute = AppComissoesAPagarRouteImport.update({
   id: '/app/comissoes/a-pagar',
   path: '/app/comissoes/a-pagar',
@@ -125,6 +157,16 @@ const AppComissoesAPagarRoute = AppComissoesAPagarRouteImport.update({
 const AppComissoesHistoricoRoute = AppComissoesHistoricoRouteImport.update({
   id: '/app/comissoes/historico',
   path: '/app/comissoes/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilaVendedoresIndexRoute = ApiFilaVendedoresIndexRouteImport.update({
+  id: '/api/fila/vendedores/',
+  path: '/api/fila/vendedores/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiFilaVendedoresIdRoute = ApiFilaVendedoresIdRouteImport.update({
+  id: '/api/fila/vendedores/$id',
+  path: '/api/fila/vendedores/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicPushSubscribeRoute = ApiPublicPushSubscribeRouteImport.update({
@@ -203,13 +245,19 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/fila-leads': typeof AuthenticatedFilaLeadsRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/api/fila/externo': typeof ApiFilaExternoRoute
+  '/api/fila/historico': typeof ApiFilaHistoricoRoute
+  '/api/fila/proximo': typeof ApiFilaProximoRoute
+  '/api/fila/toggle': typeof ApiFilaToggleRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
@@ -222,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/api/fila/vendedores/': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -233,13 +282,19 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/fila-leads': typeof AuthenticatedFilaLeadsRoute
   '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/api/fila/externo': typeof ApiFilaExternoRoute
+  '/api/fila/historico': typeof ApiFilaHistoricoRoute
+  '/api/fila/proximo': typeof ApiFilaProximoRoute
+  '/api/fila/toggle': typeof ApiFilaToggleRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
@@ -252,6 +307,7 @@ export interface FileRoutesByTo {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/api/fila/vendedores': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -265,13 +321,19 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/fila-leads': typeof AuthenticatedFilaLeadsRoute
   '/_authenticated/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/oauth/consent': typeof OauthConsentRoute
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/api/fila/externo': typeof ApiFilaExternoRoute
+  '/api/fila/historico': typeof ApiFilaHistoricoRoute
+  '/api/fila/proximo': typeof ApiFilaProximoRoute
+  '/api/fila/toggle': typeof ApiFilaToggleRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
   '/api/public/sync/clickmassa-opportunities': typeof ApiPublicSyncClickmassaOpportunitiesRoute
@@ -284,6 +346,7 @@ export interface FileRoutesById {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/api/fila/vendedores/': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -297,13 +360,19 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/configuracoes'
+    | '/fila-leads'
     | '/precificacao'
     | '/oauth/consent'
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
+    | '/api/fila/externo'
+    | '/api/fila/historico'
+    | '/api/fila/proximo'
+    | '/api/fila/toggle'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
@@ -316,6 +385,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/api/fila/vendedores/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -327,13 +397,19 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/comercial'
     | '/configuracoes'
+    | '/fila-leads'
     | '/precificacao'
     | '/oauth/consent'
     | '/app'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
+    | '/api/fila/externo'
+    | '/api/fila/historico'
+    | '/api/fila/proximo'
+    | '/api/fila/toggle'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
@@ -346,6 +422,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/api/fila/vendedores'
   id:
     | '__root__'
     | '/'
@@ -358,13 +435,19 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/comercial'
     | '/_authenticated/configuracoes'
+    | '/_authenticated/fila-leads'
     | '/_authenticated/precificacao'
     | '/oauth/consent'
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/_authenticated/app/dashboard'
+    | '/api/fila/externo'
+    | '/api/fila/historico'
+    | '/api/fila/proximo'
+    | '/api/fila/toggle'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
     | '/api/public/sync/clickmassa-opportunities'
@@ -377,6 +460,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/api/fila/vendedores/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -391,8 +475,13 @@ export interface RootRouteChildren {
   OauthConsentRoute: typeof OauthConsentRoute
   AppIndexRoute: typeof AppIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiFilaExternoRoute: typeof ApiFilaExternoRoute
+  ApiFilaHistoricoRoute: typeof ApiFilaHistoricoRoute
+  ApiFilaProximoRoute: typeof ApiFilaProximoRoute
+  ApiFilaToggleRoute: typeof ApiFilaToggleRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
+  ApiFilaVendedoresIdRoute: typeof ApiFilaVendedoresIdRoute
   ApiPublicPushSubscribeRoute: typeof ApiPublicPushSubscribeRoute
   ApiPublicSyncClickmassaRoute: typeof ApiPublicSyncClickmassaRoute
   ApiPublicSyncClickmassaOpportunitiesRoute: typeof ApiPublicSyncClickmassaOpportunitiesRoute
@@ -405,6 +494,7 @@ export interface RootRouteChildren {
   ApiPublicSyncMetaAdsRoute: typeof ApiPublicSyncMetaAdsRoute
   ApiPublicWebhooksClickmassaRoute: typeof ApiPublicWebhooksClickmassaRoute
   ApiPublicWebhooksHqrentalsRoute: typeof ApiPublicWebhooksHqrentalsRoute
+  ApiFilaVendedoresIndexRoute: typeof ApiFilaVendedoresIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -479,6 +569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/fila-leads': {
+      id: '/_authenticated/fila-leads'
+      path: '/fila-leads'
+      fullPath: '/fila-leads'
+      preLoaderRoute: typeof AuthenticatedFilaLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/precificacao': {
       id: '/_authenticated/precificacao'
       path: '/precificacao'
@@ -514,6 +611,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/fila/externo': {
+      id: '/api/fila/externo'
+      path: '/api/fila/externo'
+      fullPath: '/api/fila/externo'
+      preLoaderRoute: typeof ApiFilaExternoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fila/historico': {
+      id: '/api/fila/historico'
+      path: '/api/fila/historico'
+      fullPath: '/api/fila/historico'
+      preLoaderRoute: typeof ApiFilaHistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fila/proximo': {
+      id: '/api/fila/proximo'
+      path: '/api/fila/proximo'
+      fullPath: '/api/fila/proximo'
+      preLoaderRoute: typeof ApiFilaProximoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fila/toggle': {
+      id: '/api/fila/toggle'
+      path: '/api/fila/toggle'
+      fullPath: '/api/fila/toggle'
+      preLoaderRoute: typeof ApiFilaToggleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/comissoes/a-pagar': {
       id: '/app/comissoes/a-pagar'
       path: '/app/comissoes/a-pagar'
@@ -526,6 +651,20 @@ declare module '@tanstack/react-router' {
       path: '/app/comissoes/historico'
       fullPath: '/app/comissoes/historico'
       preLoaderRoute: typeof AppComissoesHistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fila/vendedores/': {
+      id: '/api/fila/vendedores/'
+      path: '/api/fila/vendedores'
+      fullPath: '/api/fila/vendedores/'
+      preLoaderRoute: typeof ApiFilaVendedoresIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/fila/vendedores/$id': {
+      id: '/api/fila/vendedores/$id'
+      path: '/api/fila/vendedores/$id'
+      fullPath: '/api/fila/vendedores/$id'
+      preLoaderRoute: typeof ApiFilaVendedoresIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/push/subscribe': {
@@ -618,6 +757,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedFilaLeadsRoute: typeof AuthenticatedFilaLeadsRoute
   AuthenticatedPrecificacaoRoute: typeof AuthenticatedPrecificacaoRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
 }
@@ -625,6 +765,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedComercialRoute: AuthenticatedComercialRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedFilaLeadsRoute: AuthenticatedFilaLeadsRoute,
   AuthenticatedPrecificacaoRoute: AuthenticatedPrecificacaoRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
 }
@@ -645,8 +786,13 @@ const rootRouteChildren: RootRouteChildren = {
   OauthConsentRoute: OauthConsentRoute,
   AppIndexRoute: AppIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiFilaExternoRoute: ApiFilaExternoRoute,
+  ApiFilaHistoricoRoute: ApiFilaHistoricoRoute,
+  ApiFilaProximoRoute: ApiFilaProximoRoute,
+  ApiFilaToggleRoute: ApiFilaToggleRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,
+  ApiFilaVendedoresIdRoute: ApiFilaVendedoresIdRoute,
   ApiPublicPushSubscribeRoute: ApiPublicPushSubscribeRoute,
   ApiPublicSyncClickmassaRoute: ApiPublicSyncClickmassaRoute,
   ApiPublicSyncClickmassaOpportunitiesRoute:
@@ -660,6 +806,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSyncMetaAdsRoute: ApiPublicSyncMetaAdsRoute,
   ApiPublicWebhooksClickmassaRoute: ApiPublicWebhooksClickmassaRoute,
   ApiPublicWebhooksHqrentalsRoute: ApiPublicWebhooksHqrentalsRoute,
+  ApiFilaVendedoresIndexRoute: ApiFilaVendedoresIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

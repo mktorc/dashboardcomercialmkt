@@ -13,14 +13,26 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 export type PageKey =
-  "dashboard" | "comercial" | "comercial-operacional" | "comissoes" | "configuracoes";
+  | "dashboard"
+  | "comercial"
+  | "comercial-operacional"
+  | "comissoes"
+  | "configuracoes"
+  | "fila-leads";
 
 const ACCESS: Record<AppRole, PageKey[]> = {
-  superadmin: ["dashboard", "comercial", "comercial-operacional", "comissoes", "configuracoes"],
-  comercial: ["dashboard", "comercial", "comercial-operacional", "comissoes"],
+  superadmin: [
+    "dashboard",
+    "comercial",
+    "comercial-operacional",
+    "comissoes",
+    "configuracoes",
+    "fila-leads",
+  ],
+  comercial: ["dashboard", "comercial", "comercial-operacional", "comissoes", "fila-leads"],
   marketing: ["dashboard", "comercial", "comercial-operacional"],
   // Menu Comercial (Gerencial e Operacional) e Comissões; sem Marketing nem Configurações.
-  comercial_gerencial: ["comercial", "comercial-operacional", "comissoes"],
+  comercial_gerencial: ["comercial", "comercial-operacional", "comissoes", "fila-leads"],
   // Só Comissões, com permissão de pagar e validar descontos.
   financeiro: ["comissoes"],
 };

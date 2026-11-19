@@ -767,7 +767,7 @@ export function ComercialPage({
                     expandable
                     title="Oportunidades com tarefas em atraso por vendedor"
                     metric="Com tarefa atrasada"
-                    color="#FF5A4D"
+                    color="#B91C1C"
                   />
                 </div>
               </section>
@@ -1292,7 +1292,7 @@ function OpportunitySellerChart({
                 <Bar
                   dataKey="oportunidades"
                   name="Oportunidades"
-                  fill={compare ? "#44E500" : "#2f9c5a"}
+                  fill="#44E500"
                   radius={[0, 4, 4, 0]}
                   {...(onSelect
                     ? {
@@ -1381,63 +1381,66 @@ function NoTaskBySellerChart({
       render={(expanded) =>
         data.length ? (
           <>
-          {totalLabel ? (
-            <button
-              type="button"
-              onClick={onTotalClick}
-              className="mt-3 flex items-baseline gap-3 rounded-lg border border-border/60 px-4 py-2 text-left hover:bg-muted/30"
-            >
-              <span className="text-3xl font-semibold text-primary">
-                {total.toLocaleString("pt-BR")}
-              </span>
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                {totalLabel} · soma dos vendedores
-              </span>
-            </button>
-          ) : null}
-          <div className="mt-4 w-full" style={{ height: expanded ? "70vh" : height, minHeight: 0 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 10, right: 56, left: 0, bottom: 8 }}
+            {totalLabel ? (
+              <button
+                type="button"
+                onClick={onTotalClick}
+                className="mt-3 flex items-baseline gap-3 rounded-lg border border-border/60 px-4 py-2 text-left hover:bg-muted/30"
               >
-                <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
-                <XAxis type="number" {...axis} allowDecimals={false} />
-                <YAxis
-                  type="category"
-                  dataKey="name"
-                  width={sellerAxisWidth(data)}
-                  tickFormatter={axisName}
-                  {...axis}
-                />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  content={({ active, payload }) => {
-                    const row = active
-                      ? (payload?.[0]?.payload as (typeof chartData)[number] | undefined)
-                      : undefined;
-                    if (!row) return null;
-                    return (
-                      <div style={tooltipStyle} className="px-3 py-2 text-sm">
-                        <div className="font-medium">{row.name}</div>
-                        <div>
-                          {metric}: {row.noTask.toLocaleString("pt-BR")}
-                        </div>
-                        <div>% do total: {row.sharePct}</div>
-                      </div>
-                    );
-                  }}
-                />
-                <Bar dataKey="noTask" name={metric} fill={color} radius={[0, 4, 4, 0]}>
-                  <LabelList
-                    dataKey="sharePct"
-                    content={barSideLabel(chartData.map((r) => r.sharePct))}
+                <span className="text-3xl font-semibold" style={{ color: "#44E500" }}>
+                  {total.toLocaleString("pt-BR")}
+                </span>
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  {totalLabel} · soma dos vendedores
+                </span>
+              </button>
+            ) : null}
+            <div
+              className="mt-4 w-full"
+              style={{ height: expanded ? "70vh" : height, minHeight: 0 }}
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 10, right: 56, left: 0, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.34 0.045 155)" />
+                  <XAxis type="number" {...axis} allowDecimals={false} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={sellerAxisWidth(data)}
+                    tickFormatter={axisName}
+                    {...axis}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    content={({ active, payload }) => {
+                      const row = active
+                        ? (payload?.[0]?.payload as (typeof chartData)[number] | undefined)
+                        : undefined;
+                      if (!row) return null;
+                      return (
+                        <div style={tooltipStyle} className="px-3 py-2 text-sm">
+                          <div className="font-medium">{row.name}</div>
+                          <div>
+                            {metric}: {row.noTask.toLocaleString("pt-BR")}
+                          </div>
+                          <div>% do total: {row.sharePct}</div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="noTask" name={metric} fill={color} radius={[0, 4, 4, 0]}>
+                    <LabelList
+                      dataKey="sharePct"
+                      content={barSideLabel(chartData.map((r) => r.sharePct))}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </>
         ) : (
           <div
