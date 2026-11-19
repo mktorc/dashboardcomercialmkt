@@ -163,18 +163,16 @@ export function ComercialPage({
     queryKey: ["comercial", "overdue-tasks-by-lead"],
     queryFn: fetchOverdueTasksByLead,
   });
-  const operational = active === "comercial-operacional";
-  // Aba Operacional: só oportunidades de origens que não são agência de viagem.
+  // Abas Comercial e Operacional: só oportunidades de origens que não são agência de viagem.
   const { data: leadOrigins } = useQuery({
     queryKey: ["comercial", "lead-origins"],
     queryFn: fetchLeadOrigins,
-    enabled: operational,
   });
   const teamData = useMemo(() => {
     if (!data) return null;
     const base = filterOperationalData(data);
-    return operational && leadOrigins ? filterNonAgencyData(base, leadOrigins) : base;
-  }, [data, operational, leadOrigins]);
+    return leadOrigins ? filterNonAgencyData(base, leadOrigins) : base;
+  }, [data, leadOrigins]);
   const view = useMemo(
     () =>
       teamData
@@ -249,8 +247,7 @@ export function ComercialPage({
     )
     .sort((a, b) => b.oportunidades - a.oportunidades);
   const activeOpps = activeOppsData ?? [];
-  const chartActiveOpps =
-    operational && leadOrigins ? keepNonAgencyOpps(activeOpps, leadOrigins) : activeOpps;
+  const chartActiveOpps = leadOrigins ? keepNonAgencyOpps(activeOpps, leadOrigins) : activeOpps;
   const noTaskMap = new Map<string, { name: string; noTask: number }>();
   activeOpps
     .filter((o) => o.total_tasks === 0 && o.seller_name?.trim())

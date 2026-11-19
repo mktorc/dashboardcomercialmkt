@@ -133,6 +133,21 @@ export const sellerKey = (n: string | null | undefined) => {
 const startIso = (d: string) => `${d}T00:00:00.000Z`;
 const endIso = (d: string) => `${d}T23:59:59.999Z`;
 
+// Oportunidades usam o dia no horário de Brasília (UTC-3, sem horário de verão), igual ao filtro
+// por data de criação do ClickMassa. Ex.: criada 31/10 22h (BRT) = 01/11 01h UTC fica em outubro.
+const BRT_OFFSET_MS = 3 * 3_600_000;
+const oppStartIso = (d: string) =>
+  new Date(Date.parse(`${d}T00:00:00.000Z`) + BRT_OFFSET_MS).toISOString();
+const oppEndIso = (d: string) =>
+  new Date(Date.parse(`${d}T23:59:59.999Z`) + BRT_OFFSET_MS).toISOString();
+const oppInRange = (iso: string, from: string, to: string) => {
+  const t = Date.parse(iso);
+  return t >= Date.parse(oppStartIso(from)) && t <= Date.parse(oppEndIso(to));
+};
+/** YYYY-MM da criação da oportunidade no horário de Brasília. */
+const oppMonth = (iso: string) =>
+  new Date(Date.parse(iso) - BRT_OFFSET_MS).toISOString().slice(0, 7);
+
 // Calcula o período homólogo no mês anterior mantendo a mesma janela de dias
 export function getPreviousPeriod(from: string, to: string) {
   const previousMonthDate = (value: string) => {
@@ -314,8 +329,8 @@ export async function fetchComercial(from: string, to: string) {
           "opportunity_id, lead_id, status, seller_name, pending_tasks, total_tasks, created_at",
         )
         .eq("pipeline_name", "Comercial")
-        .gte("created_at", startIso(prevFrom))
-        .lte("created_at", endIso(prevTo))
+        .gte("created_at", oppStartIso(prevFrom))
+        .lte("created_at", oppEndIso(prevTo))
         .range(a, b),
     ),
     fetchAll((a, b) =>
@@ -334,8 +349,8 @@ export async function fetchComercial(from: string, to: string) {
           "opportunity_id, lead_id, name, stage_name, status, seller_name, pending_tasks, total_tasks, created_at",
         )
         .eq("pipeline_name", "Comercial")
-        .gte("created_at", startIso(previousYearDate(from)))
-        .lte("created_at", endIso(previousYearDate(to)))
+        .gte("created_at", oppStartIso(previousYearDate(from)))
+        .lte("created_at", oppEndIso(previousYearDate(to)))
         .range(a, b),
     ),
   ]);
@@ -432,9 +447,7 @@ export async function fetchComercial(from: string, to: string) {
       })),
       opportunities: [
         ...(prevOpps.data ?? []),
-        ...kommoOpps.filter(
-          (o) => o.created_at >= startIso(prevFrom) && o.created_at <= endIso(prevTo),
-        ),
+        ...kommoOpps.filter((o) => oppInRange(o.created_at, prevFrom, prevTo)),
       ],
     },
     revenueBreakdownData,
@@ -584,7 +597,7 @@ export function computeMonthlyCommercial(
 
   opportunities.forEach((opportunity) => {
     if (seller !== "all" && sellerKey(opportunity.seller_name) !== seller) return;
-    const bucket = buckets.get(opportunity.created_at.slice(0, 7));
+    const bucket = buckets.get(oppMonth(opportunity.created_at));
     if (bucket) bucket.oportunidades++;
   });
   reservations.forEach((reservation) => {
@@ -744,7 +757,7 @@ export function computeComercial(
   const isOpen = (o: COpp) => (o.status ?? "open").toLowerCase() === "open";
   // Mesmo critério do filtro "Sem tarefas" do ClickMassa: aberta e que nunca teve tarefa (nem concluída).
   const hasNoTask = (o: COpp) => isOpen(o) && o.total_tasks === 0;
-  const opps = d.opportunities.filter((o) => inPeriod(o.created_at));
+  const opps = d.opportunities.filter((o) => oppInRange(o.created_at, from, to));
   const sellerOpps = opps.filter((o) => seller === "all" || sellerKey(o.seller_name) === seller);
 
   opps.forEach((o) => {
@@ -847,7 +860,7 @@ export function computeComercial(
   const sum = (f: (r: SellerRow) => number) => visible.reduce((s, r) => s + f(r), 0);
   // Oportunidades sem tarefas: todas as abertas sem tarefa criadas até o fim do período
   const noTaskList = d.opportunities
-    .filter((o) => o.created_at <= endIso(to))
+    .filter((o) => Date.parse(o.created_at) <= Date.parse(oppEndIso(to)))
     .filter((o) => seller === "all" || sellerKey(o.seller_name) === seller)
     // Somente o time comercial (vendedores operacionais).
     .filter((o) => isOperationalSeller(o.seller_name))
