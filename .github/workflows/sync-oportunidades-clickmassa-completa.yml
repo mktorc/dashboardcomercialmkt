@@ -25,11 +25,13 @@ jobs:
           from=2900
           while [ $from -lt 100000 ]; do
             to=$((from + 1499))
-            res=$(curl --fail-with-body -sS -m 540 -X POST \
+            # Faixa vazia (além da última oportunidade) volta HTTP 502 com found 0: é o fim da varredura.
+            res=$(curl -sS -m 540 -X POST \
               "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa-opportunities?from=${from}&to=${to}" \
-              -H "Authorization: Bearer $SYNC_CRON_TOKEN") || { echo "$from-$to falhou: $res"; exit 1; }
+              -H "Authorization: Bearer $SYNC_CRON_TOKEN")
             echo "$from-$to $res"
-            found=$(echo "$res" | jq -r '.found // 0')
+            found=$(echo "$res" | jq -r '.found // empty' 2>/dev/null)
+            [ -z "$found" ] && { echo "Resposta inválida"; exit 1; }
             [ "$found" = "0" ] && break
             from=$((to + 1))
           done
