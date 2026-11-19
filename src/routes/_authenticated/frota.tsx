@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AlertTriangle, ArrowLeft, ArrowRight, Check, Undo2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase as typedClient } from "@/integrations/supabase/client";
 import { guardPage } from "@/lib/roles";
@@ -19,9 +19,19 @@ import {
   type FrotaSegment,
   type FrotaVehicle,
   type Region,
-  type Transfer,
-  type Urgency,
 } from "@/lib/frota";
+import {
+  buildActions,
+  cityStatus,
+  isAvoidedTransferKey,
+  projectStock,
+  type Action,
+} from "@/lib/frota-acoes";
+import { buildTimeline, dayKeyOf, orlandoMidnight } from "@/lib/frota-timeline";
+import { LinhaDoTempo } from "@/components/frota/LinhaDoTempo";
+import { PainelFrota, type Selection } from "@/components/frota/PainelFrota";
+import { FilaAcoes, StatusBar, type ResInfo, type TypeFilter } from "@/components/frota/FilaAcoes";
+import { EstoqueDetalhe, Semaforo } from "@/components/frota/Semaforo";
 
 // Tabelas novas (sql-para-gravar/gestao_frota.sql) ainda não estão em types.ts: cliente sem tipos.
 const supabase = typedClient as unknown as SupabaseClient;
@@ -66,7 +76,7 @@ type Done = { key: string; done_at: string };
 
 async function loadFrota() {
   const desde = new Date(Date.now() - 120 * 86_400_000).toISOString();
-  const [locations, vehicles, segments, done] = await Promise.all([
+  const [locations, vehicles, segments, done, clientes] = await Promise.all([
     fetchAll<FrotaLocation>("fleet_locations", "id, name, region"),
     fetchAll<FrotaVehicle>(
       "fleet_vehicles",
@@ -78,102 +88,188 @@ async function loadFrota() {
       (q) => q.gte("return_at", desde).eq("status", "confirmed"),
     ),
     fetchAll<Done>("fleet_transfers_done", "key, done_at"),
+    // Só para o tooltip/painel (o HQ não grava o nome do cliente; usamos o e-mail).
+    fetchAll<{ reservation_id: string; customer_email: string | null }>(
+      "reservations",
+      "reservation_id, customer_email",
+      (q) => q.gte("return_at", desde),
+    ).catch(() => []),
   ]);
-  return { locations, vehicles, segments, done };
+  const customers = new Map<string, string>();
+  for (const c of clientes) if (c.customer_email) customers.set(c.reservation_id, c.customer_email);
+  return { locations, vehicles, segments, done, customers };
 }
 
-const fmt = (iso: string) =>
-  new Date(iso).toLocaleString("pt-BR", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-const dayKey = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-const dayLabel = (key: string) =>
-  new Date(`${key}T12:00:00`).toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  });
+/** Relógio que avança a cada minuto (contagem regressiva). */
+function useNow(stepMs = 60_000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), stepMs);
+    return () => clearInterval(id);
+  }, [stepMs]);
+  return now;
+}
 
-const URG: Record<Urgency, { label: string; cls: string }> = {
-  conflito: { label: "Menos de 12h", cls: "bg-red-600 text-white hover:bg-red-600" },
-  urgente: { label: "Urgente", cls: "bg-amber-500 text-white hover:bg-amber-500" },
-  programar: { label: "Programar", cls: "bg-sky-600 text-white hover:bg-sky-600" },
-};
-
-/** Nome do carro sem o local que o HQ põe no fim do label. */
-function carName(v: FrotaVehicle) {
-  const label = v.label ?? "";
-  const i = label.indexOf("]");
-  return (i > 0 ? label.slice(0, i + 1) : label) || v.plate || `#${v.id}`;
+/** Segunda-feira 00:00 de Orlando da semana atual. */
+function startOfWeek(now: number) {
+  const key = dayKeyOf(now);
+  const wd = new Date(`${key}T12:00:00Z`).getUTCDay(); // 0 = domingo
+  const back = (wd + 6) % 7;
+  return orlandoMidnight(dayKeyOf(Date.parse(`${key}T12:00:00Z`) - back * 86_400_000));
 }
 
 function FrotaPage() {
   const qc = useQueryClient();
   const [horizonte, setHorizonte] = useState<(typeof HORIZONTES)[number]>(30);
   const [regiao, setRegiao] = useState<Region | "todas">("todas");
-  const [verFeitas, setVerFeitas] = useState(false);
+  const [tipo, setTipo] = useState<TypeFilter>("todas");
+  const [frotaToda, setFrotaToda] = useState(false);
+  const [selecao, setSelecao] = useState<Selection>(null);
+  const clock = useNow();
   const q = useQuery({ queryKey: ["frota"], queryFn: loadFrota });
 
+  // Recalcula as ações quando os dados mudam (o relógio só mexe na contagem e nos grupos).
   const result = useMemo(() => {
     if (!q.data) return null;
     const now = new Date();
+    const { vehicles, segments, locations, customers } = q.data;
+    const frota = computeFrota(vehicles, segments, locations, now, horizonte);
+    const actions = buildActions({ vehicles, segments, locations, ...frota, now });
+    const position = fleetPosition(vehicles, segments, locations, now);
+    const timeline = buildTimeline({
+      vehicles,
+      segments,
+      locations,
+      ...frota,
+      now,
+      horizonDays: horizonte,
+    });
+    const dias = timeline.days
+      .filter((d) => d.start + 86_400_000 > now.getTime())
+      .map((d) => d.key)
+      .slice(0, horizonte);
+    const locName = new Map(locations.map((l) => [l.id, l.name]));
+    const locRegion = new Map(locations.map((l) => [l.id, l.region]));
+    const resInfo = new Map<string, ResInfo>();
+    for (const s of segments)
+      if (!resInfo.has(s.reservation_id))
+        resInfo.set(s.reservation_id, {
+          customer: customers.get(s.reservation_id) ?? null,
+          pickLocation:
+            s.pick_up_location_id == null ? null : (locName.get(s.pick_up_location_id) ?? null),
+          retLocation:
+            s.return_location_id == null ? null : (locName.get(s.return_location_id) ?? null),
+          pickRegion:
+            s.pick_up_location_id == null ? null : (locRegion.get(s.pick_up_location_id) ?? null),
+          retRegion:
+            s.return_location_id == null ? null : (locRegion.get(s.return_location_id) ?? null),
+          start: Date.parse(s.pick_up_at),
+          end: Date.parse(s.return_at),
+        });
     return {
-      ...computeFrota(q.data.vehicles, q.data.segments, q.data.locations, now, horizonte),
-      position: fleetPosition(q.data.vehicles, q.data.segments, q.data.locations, now),
+      ...frota,
+      actions,
+      position,
+      timeline,
+      dias,
+      resInfo,
+      vehicles,
+      segments,
+      locations,
+      now,
     };
   }, [q.data, horizonte]);
 
   const doneKeys = useMemo(() => new Set((q.data?.done ?? []).map((d) => d.key)), [q.data]);
-  const classNames = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const v of q.data?.vehicles ?? [])
-      if (v.vehicle_class_id && v.class_label) m.set(v.vehicle_class_id, v.class_label);
-    return m;
-  }, [q.data]);
+
+  // Pendentes (sem "Feito"), com o grupo hoje/amanhã/programado atualizado pelo relógio.
+  const pendentes = useMemo(() => {
+    if (!result) return [];
+    return result.actions.filter((a) => !doneKeys.has(a.key));
+  }, [result, doneKeys]);
+
+  // Estoque projetado considerando as ações (transferências e upgrades sugeridos).
+  const estoque = useMemo(() => {
+    if (!result) return null;
+    const projection = projectStock({
+      vehicles: result.vehicles,
+      segments: result.segments,
+      locations: result.locations,
+      position: result.position,
+      actions: result.actions,
+      days: result.dias,
+      now: result.now,
+    });
+    return { projection, status: cityStatus(projection, REGIONS, result.dias, result.position) };
+  }, [result]);
+
+  // Dia resolvido: nada pendente para hoje e ao menos uma ação de hoje marcada como feita.
+  const hojeKey = dayKeyOf(clock);
+  const feitasHoje = (q.data?.done ?? []).filter(
+    (d) => dayKeyOf(Date.parse(d.done_at)) === hojeKey,
+  );
+  const dayResolved =
+    pendentes.every((a) => a.bucket !== "hoje") &&
+    feitasHoje.some((d) => result?.actions.some((a) => a.key === d.key && a.bucket === "hoje"));
+  const semana = startOfWeek(clock);
+  const evitadas = (q.data?.done ?? []).filter(
+    (d) => Date.parse(d.done_at) >= semana && isAvoidedTransferKey(d.key),
+  ).length;
 
   const marcar = useMutation({
-    mutationFn: async ({ t, feito }: { t: Transfer; feito: boolean }) => {
+    mutationFn: async ({ a, feito }: { a: Action; feito: boolean }) => {
       const { error } = feito
         ? await supabase.from("fleet_transfers_done").insert({
-            key: t.key,
-            vehicle_id: t.vehicle.id,
-            from_region: t.fromRegion,
-            to_region: t.toRegion,
+            key: a.key,
+            vehicle_id: a.vehicle?.id ?? a.currentVehicle?.id ?? 0,
+            from_region: a.fromRegion ?? a.region ?? "—",
+            to_region: a.region ?? "—",
           })
-        : await supabase.from("fleet_transfers_done").delete().eq("key", t.key);
+        : await supabase.from("fleet_transfers_done").delete().eq("key", a.key);
       if (error) throw new Error(error.message);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["frota"] }),
-    onError: (e: Error) => toast.error(e.message),
+    // Otimista: o card some na hora e a barra de status já atualiza.
+    onMutate: async ({ a, feito }) => {
+      await qc.cancelQueries({ queryKey: ["frota"] });
+      const prev = qc.getQueryData<Awaited<ReturnType<typeof loadFrota>>>(["frota"]);
+      if (prev)
+        qc.setQueryData(["frota"], {
+          ...prev,
+          done: feito
+            ? [...prev.done, { key: a.key, done_at: new Date().toISOString() }]
+            : prev.done.filter((d) => d.key !== a.key),
+        });
+      return { prev };
+    },
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["frota"], ctx.prev);
+      toast.error(e.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["frota"] }),
   });
 
-  const filtroRegiao = (t: Transfer) =>
-    regiao === "todas" || t.fromRegion === regiao || t.toRegion === regiao;
-  const transfers = (result?.transfers ?? []).filter(filtroRegiao);
-  const pendentes = transfers.filter((t) => !doneKeys.has(t.key));
-  const feitas = transfers.filter((t) => doneKeys.has(t.key));
-  const visiveis = verFeitas ? transfers : pendentes;
-  const shortages = (result?.shortages ?? []).filter(
-    (s) => regiao === "todas" || s.region === regiao,
-  );
+  const feito = (a: Action) => {
+    marcar.mutate({ a, feito: true });
+    toast.success("Ação concluída", {
+      action: { label: "Desfazer", onClick: () => marcar.mutate({ a, feito: false }) },
+    });
+  };
 
-  const porDia = new Map<string, Transfer[]>();
-  for (const t of visiveis) {
-    const k = dayKey(t.needBy);
-    porDia.set(k, [...(porDia.get(k) ?? []), t]);
-  }
-
-  const cont = (u: Urgency) => pendentes.filter((t) => t.urgency === u).length;
+  // Linha do tempo focada: carros envolvidos nas ações pendentes.
+  const foco = useMemo(() => {
+    if (frotaToda) return null;
+    const ids = new Set<number>();
+    for (const a of pendentes) {
+      if (a.vehicle) ids.add(a.vehicle.id);
+      if (a.currentVehicle) ids.add(a.currentVehicle.id);
+      if (a.transfer) ids.add(a.transfer.vehicle.id);
+    }
+    return ids;
+  }, [pendentes, frotaToda]);
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+      <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
         <Button asChild variant="outline" size="sm">
           <Link to="/app">
             <ArrowLeft className="mr-1 size-4" /> Voltar aos Módulos
@@ -183,10 +279,10 @@ function FrotaPage() {
           <SyncButton fn={syncFrota} />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold">Gestão de Frota</h1>
+          <h1 className="text-2xl font-semibold">Gestão de Frota · Central de Ações</h1>
           <p className="text-sm text-muted-foreground">
-            Carros que precisam mudar de região (Orlando, Miami, FLL, Tampa) antes da próxima
-            reserva. Transferência entre regiões: mínimo de 12h. Horários de Orlando.
+            O que fazer, até quando, e o que está ok. Transferência entre regiões: mínimo de 12h.
+            Horários de Orlando.
           </p>
         </div>
 
@@ -222,163 +318,90 @@ function FrotaPage() {
           </Card>
         )}
 
-        {result && (
+        {result && estoque && (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Menos de 12h" value={cont("conflito")} tone="text-red-600" />
-              <Stat label="Urgentes (até 2 dias)" value={cont("urgente")} tone="text-amber-600" />
-              <Stat label="Programar" value={cont("programar")} tone="text-sky-600" />
-              <Stat label="Reservas sem carro livre" value={shortages.length} tone="text-red-600" />
-            </div>
+            <StatusBar actions={pendentes} regions={REGIONS} dayResolved={dayResolved} />
+            <Semaforo
+              status={estoque.status}
+              days={result.dias}
+              selected={regiao}
+              onSelect={setRegiao}
+            />
+            <EstoqueDetalhe
+              projection={estoque.projection}
+              regions={regiao === "todas" ? REGIONS : [regiao]}
+              days={result.dias}
+            />
 
-            <Tabs defaultValue="transferencias">
-              <TabsList>
-                <TabsTrigger value="transferencias">Transferências</TabsTrigger>
-                <TabsTrigger value="faltas">Sem carro ({shortages.length})</TabsTrigger>
+            <Tabs defaultValue="acoes">
+              <TabsList className="flex-wrap">
+                <TabsTrigger value="acoes">Ações ({pendentes.length})</TabsTrigger>
+                <TabsTrigger value="linha">Linha do tempo</TabsTrigger>
                 <TabsTrigger value="patio">Onde está a frota</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="transferencias" className="space-y-4">
-                <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={verFeitas}
-                    onChange={(e) => setVerFeitas(e.target.checked)}
-                  />
-                  Mostrar as já feitas ({feitas.length})
-                </label>
-                {porDia.size === 0 && (
-                  <Card className="p-6 text-center text-sm text-muted-foreground">
-                    Nenhuma transferência pendente nesse período.
-                  </Card>
-                )}
-                {[...porDia.entries()].map(([dia, lista]) => (
-                  <div key={dia} className="space-y-2">
-                    <h2 className="text-sm font-semibold capitalize text-muted-foreground">
-                      Chegar até {dayLabel(dia)}
-                    </h2>
-                    {lista.map((t) => (
-                      <TransferCard
-                        key={t.key}
-                        t={t}
-                        feito={doneKeys.has(t.key)}
-                        onToggle={(feito) => marcar.mutate({ t, feito })}
-                        disabled={marcar.isPending}
-                      />
-                    ))}
-                  </div>
-                ))}
+              <TabsContent value="acoes">
+                <FilaAcoes
+                  actions={pendentes}
+                  now={clock}
+                  resInfo={result.resInfo}
+                  onDone={feito}
+                  typeFilter={tipo}
+                  onTypeFilter={setTipo}
+                  regionFilter={regiao}
+                  dayResolved={dayResolved}
+                />
               </TabsContent>
 
-              <TabsContent value="faltas" className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Reservas ainda sem carro no HQ para as quais nenhum carro da categoria fica livre
-                  a tempo (considerando também as transferências sugeridas). Possível overbooking:
-                  conferir no calendário do HQ.
-                </p>
-                {shortages.length === 0 && (
-                  <Card className="p-6 text-center text-sm text-muted-foreground">
-                    Todas as reservas têm carro disponível.
-                  </Card>
-                )}
-                {shortages.map((s) => (
-                  <Card key={s.reservation_id} className="flex flex-wrap items-center gap-3 p-3">
-                    <AlertTriangle className="size-4 text-red-600" />
-                    <span className="font-medium">Reserva {s.reservation_id}</span>
-                    <Badge variant="outline">
-                      {(s.vehicle_class_id && classNames.get(s.vehicle_class_id)) ?? "Categoria ?"}
-                    </Badge>
-                    <span className="text-sm">
-                      {s.location ?? "—"} · {fmt(s.pickUpAt)} → {fmt(s.returnAt)}
+              <TabsContent value="linha" className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Switch checked={frotaToda} onCheckedChange={setFrotaToda} />
+                  Mostrar toda a frota
+                  {!frotaToda && (
+                    <span className="text-xs">
+                      (só carros com ação pendente e reservas sem carro livre)
                     </span>
-                  </Card>
-                ))}
+                  )}
+                </label>
+                <LinhaDoTempo
+                  timeline={result.timeline}
+                  horizonDays={horizonte}
+                  regionFilter={regiao}
+                  focus={foco}
+                  suggestions={new Map(pendentes.map((a) => [a.reservationId, a.suggestion]))}
+                  customers={q.data!.customers}
+                  now={clock}
+                  onSelectCar={(vehicleId) => setSelecao({ kind: "car", vehicleId })}
+                  onSelectReservation={(reservationId) =>
+                    setSelecao({ kind: "reservation", reservationId })
+                  }
+                />
               </TabsContent>
 
               <TabsContent value="patio">
                 <Patio position={result.position} />
               </TabsContent>
             </Tabs>
+
+            <p className="pt-2 text-center text-sm text-muted-foreground">
+              Esta semana: <span className="font-semibold text-emerald-400">{evitadas}</span>{" "}
+              {evitadas === 1 ? "transferência evitada" : "transferências evitadas"} com
+              troca/upgrade
+            </p>
+
+            <PainelFrota
+              selection={selecao}
+              onClose={() => setSelecao(null)}
+              timeline={result.timeline}
+              actions={pendentes}
+              resInfo={result.resInfo}
+              onDone={feito}
+              now={clock}
+            />
           </>
         )}
       </main>
     </div>
-  );
-}
-
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <Card className="p-4">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-semibold ${value > 0 ? tone : ""}`}>{value}</div>
-    </Card>
-  );
-}
-
-function TransferCard({
-  t,
-  feito,
-  onToggle,
-  disabled,
-}: {
-  t: Transfer;
-  feito: boolean;
-  onToggle: (feito: boolean) => void;
-  disabled: boolean;
-}) {
-  return (
-    <Card
-      className={`flex flex-wrap items-center gap-x-4 gap-y-2 p-3 ${feito ? "opacity-50" : ""}`}
-    >
-      <Badge className={URG[t.urgency].cls}>{URG[t.urgency].label}</Badge>
-      <div className="min-w-[180px]">
-        <div className="font-medium">{carName(t.vehicle)}</div>
-        <div className="text-xs text-muted-foreground">
-          {t.vehicle.class_label ?? "—"} · {t.vehicle.plate ?? "sem placa"}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 text-sm">
-        <div>
-          <div className="font-medium">{t.fromRegion}</div>
-          <div className="text-xs text-muted-foreground">{t.fromLocation ?? "—"}</div>
-        </div>
-        <ArrowRight className="size-4" />
-        <div>
-          <div className="font-medium">{t.toRegion}</div>
-          <div className="text-xs text-muted-foreground">{t.toLocation ?? "—"}</div>
-        </div>
-      </div>
-      <div className="text-xs">
-        <div>
-          Livre: {t.freeFrom ? fmt(t.freeFrom) : "já está parado"}
-          {t.fromReservation ? ` (devolução ${t.fromReservation})` : ""}
-        </div>
-        <div>
-          Precisa chegar: <span className="font-medium">{fmt(t.needBy)}</span> (reserva{" "}
-          {t.toReservation}) · janela {t.windowHours}h
-        </div>
-      </div>
-      <Badge variant="outline">
-        {t.kind === "escalado" ? "Carro escalado no HQ" : "Sugestão (reserva sem carro)"}
-      </Badge>
-      <Button
-        size="sm"
-        variant={feito ? "outline" : "default"}
-        className="ml-auto"
-        disabled={disabled}
-        onClick={() => onToggle(!feito)}
-      >
-        {feito ? (
-          <>
-            <Undo2 className="mr-1 size-4" /> Desfazer
-          </>
-        ) : (
-          <>
-            <Check className="mr-1 size-4" /> Feito
-          </>
-        )}
-      </Button>
-    </Card>
   );
 }
 
