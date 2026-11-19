@@ -1,0 +1,26 @@
+name: Sincronizar contatos (ClickMassa)
+
+on:
+  schedule:
+    # De hora em hora (minuto 15, fora do horário do sync de oportunidades): atualiza crm_leads
+    # com as 50 primeiras páginas de contatos (os mais recentes). Antes só rodava pelo botão
+    # "Sincronizar" do dashboard.
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: sync-contatos-clickmassa
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Chamar a sincronização de contatos
+        env:
+          SYNC_CRON_TOKEN: ${{ secrets.SYNC_CRON_TOKEN }}
+        run: |
+          curl --fail-with-body -sS -m 540 -X POST \
+            "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa?startPage=1&maxPages=50" \
+            -H "Authorization: Bearer $SYNC_CRON_TOKEN"
