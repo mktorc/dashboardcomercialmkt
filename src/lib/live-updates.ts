@@ -19,6 +19,14 @@ const TABELAS = [
 const AGRUPAR_MS = 5_000; // espera a rajada terminar
 const INTERVALO_MIN_MS = 30_000; // no máximo uma recarga a cada 30 s
 const RESERVA_MS = 5 * 60_000;
+// Gestão de Frota: recarrega só a consulta da frota, com espera bem menor.
+const TABELAS_FROTA = new Set<string>([
+  "fleet_vehicles",
+  "fleet_transfers_done",
+  "reservation_segments",
+]);
+const FROTA_AGRUPAR_MS = 1_500;
+const FROTA_INTERVALO_MIN_MS = 5_000;
 
 export function useLiveUpdates() {
   const qc = useQueryClient();
@@ -37,9 +45,24 @@ export function useLiveUpdates() {
       timer = setTimeout(recarregar, espera);
     };
 
+    let timerFrota: ReturnType<typeof setTimeout> | null = null;
+    let ultimaFrota = 0;
+    const agendarFrota = () => {
+      if (timerFrota) return;
+      const espera = Math.max(FROTA_AGRUPAR_MS, ultimaFrota + FROTA_INTERVALO_MIN_MS - Date.now());
+      timerFrota = setTimeout(() => {
+        timerFrota = null;
+        ultimaFrota = Date.now();
+        void qc.invalidateQueries({ queryKey: ["frota"] });
+      }, espera);
+    };
+
     let canal = supabase.channel("telas-ao-vivo");
     for (const table of TABELAS)
-      canal = canal.on("postgres_changes", { event: "*", schema: "public", table }, agendar);
+      canal = canal.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        if (TABELAS_FROTA.has(table)) agendarFrota();
+        agendar();
+      });
     canal.subscribe();
 
     const reserva = setInterval(() => {
@@ -48,6 +71,7 @@ export function useLiveUpdates() {
 
     return () => {
       if (timer) clearTimeout(timer);
+      if (timerFrota) clearTimeout(timerFrota);
       clearInterval(reserva);
       void supabase.removeChannel(canal);
     };
