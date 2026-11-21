@@ -241,23 +241,29 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           ).values(),
         ];
 
-        // Trechos: recria os das reservas sincronizadas (uma troca de veículo pode mudar a quantidade de trechos)
-        for (let i = 0; i < rows.length; i += 200) {
-          const { error } = await supabaseAdmin
-            .from("reservation_segments")
-            .delete()
-            .in(
-              "reservation_id",
-              rows.slice(i, i + 200).map((r) => r.reservation_id),
-            );
-          if (error) return Response.json({ error: error.message }, { status: 500 });
-        }
+        // Trechos: grava por cima (chave reservation_id + seq) e só depois apaga os que sobraram (uma troca
+        // de veículo pode reduzir a quantidade de trechos). Apagar tudo antes de reinserir deixava a Gestão
+        // de Frota, que recarrega em tempo real, vendo carros livres no meio do sync.
         for (let i = 0; i < segments.length; i += BATCH) {
           const { error } = await supabaseAdmin
             .from("reservation_segments")
-            .insert(segments.slice(i, i + BATCH));
+            .upsert(segments.slice(i, i + BATCH), { onConflict: "reservation_id,seq" });
           if (error) return Response.json({ error: error.message }, { status: 500 });
         }
+        const qtd = new Map<string, number>(rows.map((r) => [r.reservation_id, 0]));
+        for (const seg of segments)
+          qtd.set(seg.reservation_id, (qtd.get(seg.reservation_id) ?? 0) + 1);
+        const porQtd = new Map<number, string[]>();
+        for (const [id, n] of qtd) porQtd.set(n, [...(porQtd.get(n) ?? []), id]);
+        for (const [n, ids] of porQtd)
+          for (let i = 0; i < ids.length; i += 200) {
+            const { error } = await supabaseAdmin
+              .from("reservation_segments")
+              .delete()
+              .in("reservation_id", ids.slice(i, i + 200))
+              .gte("seq", n);
+            if (error) return Response.json({ error: error.message }, { status: 500 });
+          }
 
         await recordSyncRun("hqrentals");
         await notifyReservationsOpened();

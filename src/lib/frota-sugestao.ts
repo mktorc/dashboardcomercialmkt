@@ -103,7 +103,10 @@ export function suggestAlternatives(input: {
   const regionOf = (id: number | null) => (id == null ? null : (loc.get(id)?.region ?? null));
   const nameOf = (id: number | null) => (id == null ? null : (loc.get(id)?.name ?? null));
 
-  const active = vehicles.filter((v) => !v.exit_date || Date.parse(v.exit_date) > t0);
+  // Ordem fixa (por id): empates sempre escolhem o mesmo carro, venha a lista como vier.
+  const active = vehicles
+    .filter((v) => !v.exit_date || Date.parse(v.exit_date) > t0)
+    .sort((a, b) => a.id - b.id);
   const byId = new Map(active.map((v) => [v.id, v]));
   const classLabel = new Map<number, string>();
   for (const v of vehicles)
@@ -114,7 +117,11 @@ export function suggestAlternatives(input: {
     (s) => s.status === "confirmed" && !Number.isNaN(Date.parse(s.pick_up_at)),
   );
   const segOf = new Map<string, FrotaSegment>();
-  for (const s of valid) if (!segOf.has(s.reservation_id)) segOf.set(s.reservation_id, s);
+  // Primeiro trecho (menor seq) de cada reserva, independente da ordem da lista.
+  for (const s of valid) {
+    const cur = segOf.get(s.reservation_id);
+    if (!cur || s.seq < cur.seq) segOf.set(s.reservation_id, s);
+  }
   const toInterval = (s: FrotaSegment): Interval => ({
     start: Date.parse(s.pick_up_at),
     end: Date.parse(s.return_at),
@@ -166,7 +173,11 @@ export function suggestAlternatives(input: {
     const s = segOf.get(sh.reservation_id);
     if (s) cases.push({ seg: s, reason: "sem_carro", current: null, holder: null, transfer: null });
   }
-  cases.sort((a, b) => Date.parse(a.seg.pick_up_at) - Date.parse(b.seg.pick_up_at));
+  cases.sort(
+    (a, b) =>
+      Date.parse(a.seg.pick_up_at) - Date.parse(b.seg.pick_up_at) ||
+      a.seg.reservation_id.localeCompare(b.seg.reservation_id),
+  );
 
   type Fit = { v: FrotaVehicle; prev: Interval | null; transferAfter: boolean; freeAt: number };
 

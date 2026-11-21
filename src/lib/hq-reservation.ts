@@ -239,15 +239,21 @@ export async function syncReservationById(hqId: string | number) {
   if (error) throw new Error(`reservations: ${error.message}`);
 
   const segments = extractSegments(detail, row.reservation_id, row.status, skip);
+  // Grava por cima (chave reservation_id + seq) e só depois apaga os trechos que sobraram. Apagar tudo e
+  // reinserir deixava um instante sem trechos: a Gestão de Frota recarrega em tempo real e, nesse
+  // intervalo, via o carro como livre (a ação alternava entre "trocar" e "transferir").
+  if (segments.length) {
+    const up = await supabaseAdmin
+      .from("reservation_segments")
+      .upsert(segments, { onConflict: "reservation_id,seq" });
+    if (up.error) throw new Error(`reservation_segments: ${up.error.message}`);
+  }
   const del = await supabaseAdmin
     .from("reservation_segments")
     .delete()
-    .eq("reservation_id", row.reservation_id);
+    .eq("reservation_id", row.reservation_id)
+    .gte("seq", segments.length);
   if (del.error) throw new Error(`reservation_segments: ${del.error.message}`);
-  if (segments.length) {
-    const ins = await supabaseAdmin.from("reservation_segments").insert(segments);
-    if (ins.error) throw new Error(`reservation_segments: ${ins.error.message}`);
-  }
 
   // Comissão: o upsert não toca em status_repasse/paga_em, então repasses já feitos são preservados.
   const commission = mapCommission(detail, users);

@@ -185,7 +185,9 @@ export function buildActions(input: {
 }): Action[] {
   const sugs = suggestAlternatives({ ...input, scope: "all" });
   const now = input.now.getTime();
-  return sugs.map((s) => chooseAction(s, now)).sort((a, b) => a.deadline - b.deadline);
+  return sugs
+    .map((s) => chooseAction(s, now))
+    .sort((a, b) => a.deadline - b.deadline || a.key.localeCompare(b.key));
 }
 
 /** Chave "Feito" de uma ação de troca/upgrade que evitou uma transferência. */

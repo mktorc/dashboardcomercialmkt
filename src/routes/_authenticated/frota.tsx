@@ -62,6 +62,7 @@ type Query = any;
 async function fetchAll<T>(
   table: string,
   cols: string,
+  order: string[],
   filter?: (q: Query) => Query,
 ): Promise<T[]> {
   const out: T[] = [];
@@ -70,6 +71,8 @@ async function fetchAll<T>(
       .from(table)
       .select(cols)
       .range(from, from + 999);
+    // Ordem fixa: sem ela a paginação pode repetir/pular linhas e o cálculo muda a cada recarga.
+    for (const c of order) q = q.order(c, { ascending: true });
     if (filter) q = filter(q);
     const { data, error } = await q;
     if (error) throw new Error(`${table}: ${error.message}`);
@@ -83,21 +86,24 @@ type Done = { key: string; done_at: string };
 async function loadFrota() {
   const desde = new Date(Date.now() - 120 * 86_400_000).toISOString();
   const [locations, vehicles, segments, done, clientes] = await Promise.all([
-    fetchAll<FrotaLocation>("fleet_locations", "id, name, region"),
+    fetchAll<FrotaLocation>("fleet_locations", "id, name, region", ["id"]),
     fetchAll<FrotaVehicle>(
       "fleet_vehicles",
       "id, plate, label, vehicle_class_id, class_label, current_location_id, exit_date",
+      ["id"],
     ),
     fetchAll<FrotaSegment>(
       "reservation_segments",
       "reservation_id, seq, status, pick_up_at, return_at, vehicle_id, vehicle_class_id, pick_up_location_id, return_location_id",
+      ["reservation_id", "seq"],
       (q) => q.gte("return_at", desde).eq("status", "confirmed"),
     ),
-    fetchAll<Done>("fleet_transfers_done", "key, done_at"),
+    fetchAll<Done>("fleet_transfers_done", "key, done_at", ["key"]),
     // Só para o tooltip/painel (o HQ não grava o nome do cliente; usamos o e-mail).
     fetchAll<{ reservation_id: string; customer_email: string | null }>(
       "reservations",
       "reservation_id, customer_email",
+      ["reservation_id"],
       (q) => q.gte("return_at", desde),
     ).catch(() => []),
   ]);
