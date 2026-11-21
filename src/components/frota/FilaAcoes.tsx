@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Pencil,
   PhoneCall,
   Repeat,
   Truck,
@@ -197,11 +198,14 @@ export function ActionCard({
   now,
   resInfo,
   onDone,
+  onAdjust,
 }: {
   a: Action;
   now: number;
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
+  /** "Feito com ajuste": abre o formulário do que foi feito no lugar da sugestão. */
+  onAdjust?: ((a: Action) => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [alts, setAlts] = useState(false);
@@ -258,6 +262,18 @@ export function ActionCard({
                 <Copy className="mr-1 size-4" />
                 <span className="hidden sm:inline">Copiar instrução</span>
               </Button>
+              {onAdjust && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onAdjust(a)}
+                  disabled={leaving}
+                  title="Fiz diferente da sugestão: registrar o que foi feito"
+                >
+                  <Pencil className="mr-1 size-4" />
+                  <span className="hidden sm:inline">Feito com ajuste</span>
+                </Button>
+              )}
               <Button size="sm" onClick={done} disabled={leaving}>
                 <Check className="mr-1 size-4" /> Feito
               </Button>
@@ -416,6 +432,7 @@ export function FilaAcoes({
   now,
   resInfo,
   onDone,
+  onAdjust,
   typeFilter,
   onTypeFilter,
   regionFilter,
@@ -427,6 +444,7 @@ export function FilaAcoes({
   now: number;
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
+  onAdjust?: ((a: Action) => void) | undefined;
   typeFilter: TypeFilter;
   onTypeFilter: (t: TypeFilter) => void;
   regionFilter: Region | "todas";
@@ -521,7 +539,14 @@ export function FilaAcoes({
             )}
             {isOpen &&
               g.list.map((a) => (
-                <ActionCard key={a.key} a={a} now={now} resInfo={resInfo} onDone={onDone} />
+                <ActionCard
+                  key={a.key}
+                  a={a}
+                  now={now}
+                  resInfo={resInfo}
+                  onDone={onDone}
+                  onAdjust={onAdjust}
+                />
               ))}
           </section>
         );

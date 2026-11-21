@@ -60,6 +60,7 @@ export function PainelFrota({
   actions,
   resInfo,
   onDone,
+  onAdjust,
   now,
 }: {
   selection: Selection;
@@ -68,6 +69,7 @@ export function PainelFrota({
   actions: Action[];
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
+  onAdjust?: ((a: Action) => void) | undefined;
   now: number;
 }) {
   let body: React.ReactNode = null;
@@ -77,7 +79,16 @@ export function PainelFrota({
     list.length === 0 ? (
       <p className="text-xs text-muted-foreground">Nenhuma ação pendente.</p>
     ) : (
-      list.map((a) => <ActionCard key={a.key} a={a} now={now} resInfo={resInfo} onDone={onDone} />)
+      list.map((a) => (
+        <ActionCard
+          key={a.key}
+          a={a}
+          now={now}
+          resInfo={resInfo}
+          onDone={onDone}
+          onAdjust={onAdjust}
+        />
+      ))
     );
 
   if (selection?.kind === "car") {

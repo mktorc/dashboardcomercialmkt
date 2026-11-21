@@ -28,6 +28,16 @@ import {
 } from "@/lib/frota-acoes";
 import { buildTimeline, dayKeyOf, orlandoMidnight } from "@/lib/frota-timeline";
 import { planFrota } from "@/lib/frota-otimizador";
+import {
+  KIND_LABEL,
+  parseAdjustments,
+  pinsOf,
+  toRow,
+  type Adjustment,
+  type DoneRow,
+} from "@/lib/frota-ajustes";
+import { carName } from "@/lib/frota-sugestao";
+import { AjusteDialog, type AjusteInput } from "@/components/frota/AjusteDialog";
 import { LinhaDoTempo } from "@/components/frota/LinhaDoTempo";
 import { PainelFrota, type Selection } from "@/components/frota/PainelFrota";
 import {
@@ -81,7 +91,7 @@ async function fetchAll<T>(
   }
 }
 
-type Done = { key: string; done_at: string };
+type Done = DoneRow;
 
 async function loadFrota() {
   const desde = new Date(Date.now() - 120 * 86_400_000).toISOString();
@@ -89,7 +99,7 @@ async function loadFrota() {
     fetchAll<FrotaLocation>("fleet_locations", "id, name, region", ["id"]),
     fetchAll<FrotaVehicle>(
       "fleet_vehicles",
-      "id, plate, label, vehicle_class_id, class_label, current_location_id, exit_date",
+      "id, plate, label, vehicle_class_id, class_label, current_location_id, exit_date, entry_date",
       ["id"],
     ),
     fetchAll<FrotaSegment>(
@@ -98,7 +108,9 @@ async function loadFrota() {
       ["reservation_id", "seq"],
       (q) => q.gte("return_at", desde).eq("status", "confirmed"),
     ),
-    fetchAll<Done>("fleet_transfers_done", "key, done_at", ["key"]),
+    fetchAll<Done>("fleet_transfers_done", "key, done_at, vehicle_id, from_region, to_region", [
+      "key",
+    ]),
     // Só para o tooltip/painel (o HQ não grava o nome do cliente; usamos o e-mail).
     fetchAll<{ reservation_id: string; customer_email: string | null }>(
       "reservations",
@@ -144,9 +156,18 @@ function FrotaPage() {
   const result = useMemo(() => {
     if (!q.data) return null;
     const now = new Date();
-    const { vehicles, segments, locations, customers } = q.data;
+    const { vehicles, segments, locations, customers, done } = q.data;
+    // Ajustes ("Feito com ajuste") travam a reserva no que foi feito; o resto se replaneja.
+    const ajustes = parseAdjustments(done);
     // Plano global: todas as reservas da janela decididas juntas (não reserva por reserva).
-    const plano = planFrota({ vehicles, segments, locations, now, horizonDays: horizonte });
+    const plano = planFrota({
+      vehicles,
+      segments,
+      locations,
+      now,
+      horizonDays: horizonte,
+      pins: pinsOf(ajustes),
+    });
     const frota = { transfers: plano.transfers, shortages: plano.shortages };
     const actions = actionsFromPlan(plano, now);
     const position = fleetPosition(vehicles, segments, locations, now);
@@ -183,6 +204,8 @@ function FrotaPage() {
     return {
       ...frota,
       actions,
+      plano,
+      ajustes,
       position,
       timeline,
       dias,
@@ -213,6 +236,7 @@ function FrotaPage() {
       actions: result.actions,
       days: result.dias,
       now: result.now,
+      plan: result.plano,
     });
     return {
       projection,
@@ -264,6 +288,57 @@ function FrotaPage() {
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["frota"] }),
   });
+
+  // "Feito com ajuste": grava o que foi feito e o plano trava a reserva assim.
+  const [ajustando, setAjustando] = useState<Action | null>(null);
+  const ajustar = useMutation({
+    mutationFn: async (
+      v: { kind: "salvar"; row: ReturnType<typeof toRow> } | { kind: "desfazer"; key: string },
+    ) => {
+      const key = v.kind === "salvar" ? v.row.key : v.key;
+      // Sem permissão de UPDATE: troca = apaga e grava de novo.
+      const del = await supabase.from("fleet_transfers_done").delete().eq("key", key);
+      if (del.error) throw new Error(del.error.message);
+      if (v.kind === "salvar") {
+        const ins = await supabase.from("fleet_transfers_done").insert(v.row);
+        if (ins.error) throw new Error(ins.error.message);
+      }
+    },
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: ["frota"] });
+      const prev = qc.getQueryData<Awaited<ReturnType<typeof loadFrota>>>(["frota"]);
+      if (prev) {
+        const key = v.kind === "salvar" ? v.row.key : v.key;
+        const rest = prev.done.filter((d) => d.key !== key);
+        qc.setQueryData(["frota"], {
+          ...prev,
+          done:
+            v.kind === "salvar" ? [...rest, { ...v.row, done_at: new Date().toISOString() }] : rest,
+        });
+      }
+      return { prev };
+    },
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["frota"], ctx.prev);
+      toast.error(e.message);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["frota"] }),
+  });
+  const salvarAjuste = (a: Action, input: AjusteInput) => {
+    const row = toRow({ reservationId: a.reservationId, suggested: a.text, ...input });
+    ajustar.mutate({ kind: "salvar", row });
+    setAjustando(null);
+    toast.success(`Ajuste salvo na reserva ${a.reservationId}: plano refeito`, {
+      action: {
+        label: "Desfazer",
+        onClick: () => ajustar.mutate({ kind: "desfazer", key: row.key }),
+      },
+    });
+  };
+  const regiaoDoCarro = useMemo(
+    () => new Map((result?.position ?? []).map((p) => [p.vehicle.id, p.region])),
+    [result],
+  );
 
   const feito = (a: Action) => {
     marcar.mutate({ a, feito: true });
@@ -356,11 +431,17 @@ function FrotaPage() {
                   now={clock}
                   resInfo={result.resInfo}
                   onDone={feito}
+                  onAdjust={setAjustando}
                   typeFilter={tipo}
                   onTypeFilter={setTipo}
                   regionFilter={regiao}
                   dayResolved={dayResolved}
                   onClearRegion={() => setRegiao("todas")}
+                />
+                <ListaAjustes
+                  ajustes={result.ajustes}
+                  vehicles={result.vehicles}
+                  onUndo={(key) => ajustar.mutate({ kind: "desfazer", key })}
                 />
               </TabsContent>
 
@@ -407,7 +488,17 @@ function FrotaPage() {
               actions={pendentes}
               resInfo={result.resInfo}
               onDone={feito}
+              onAdjust={setAjustando}
               now={clock}
+            />
+            <AjusteDialog
+              action={ajustando}
+              vehicles={result.vehicles.filter(
+                (v) => !v.exit_date || Date.parse(v.exit_date) > clock,
+              )}
+              regionOf={regiaoDoCarro}
+              onSave={salvarAjuste}
+              onClose={() => setAjustando(null)}
             />
           </>
         )}
@@ -452,6 +543,66 @@ function Patio({ position }: { position: ReturnType<typeof fleetPosition> }) {
           ))}
         </tbody>
       </table>
+    </Card>
+  );
+}
+
+/** Ajustes registrados ("Feito com ajuste"), com desfazer. Só os de reservas ainda na janela importam. */
+function ListaAjustes({
+  ajustes,
+  vehicles,
+  onUndo,
+}: {
+  ajustes: Adjustment[];
+  vehicles: FrotaVehicle[];
+  onUndo: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (ajustes.length === 0) return null;
+  const byId = new Map(vehicles.map((v) => [v.id, v]));
+  return (
+    <Card className="mt-3 p-3">
+      <button
+        className="flex w-full items-center justify-between text-sm font-medium"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span>Ajustes feitos ({ajustes.length})</span>
+        <span className="text-xs text-muted-foreground">{open ? "ocultar" : "ver"}</span>
+      </button>
+      {open && (
+        <ul className="mt-2 divide-y text-sm">
+          {ajustes.map((a) => {
+            const v = a.vehicleId != null ? byId.get(a.vehicleId) : null;
+            return (
+              <li key={a.key} className="flex flex-wrap items-start justify-between gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <div>
+                    <span className="font-medium">Reserva {a.reservationId}</span> ·{" "}
+                    {KIND_LABEL[a.kind]}
+                    {v ? `: ${carName(v)}` : ""}
+                  </div>
+                  {a.note && <div className="text-muted-foreground">“{a.note}”</div>}
+                  {a.suggested && (
+                    <div className="text-xs text-muted-foreground">Sugestão era: {a.suggested}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(a.doneAt).toLocaleString("pt-BR", {
+                      timeZone: "America/New_York",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => onUndo(a.key)}>
+                  Desfazer
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </Card>
   );
 }

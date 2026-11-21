@@ -268,3 +268,43 @@ describe("planFrota: decisão global", () => {
     expect(s.vehicle?.id).toBe(5);
   });
 });
+
+describe("planFrota: carro sem localização", () => {
+  it("nunca oferece carro sem localização no HQ para outra reserva", () => {
+    const segs = [
+      seg("A", 1, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
+      seg("B", 1, "2026-11-20T12:00:00Z", "2026-11-30T10:00:00Z", 3, 3),
+    ];
+    // Carro 2 (mesma categoria) sem localização: não serve como troca.
+    const semLocal = { ...car(2, 1), current_location_id: null };
+    const a = actions([car(1, 2), semLocal], segs);
+    expect(a[0]!.vehicle?.id).not.toBe(2);
+    expect(a[0]!.type).toBe("sem_solucao");
+  });
+});
+
+describe("planFrota: carro que já tem conflito", () => {
+  it("não usa um carro alugado (e já em conflito) para cobrir reserva sem carro", () => {
+    const segs = [
+      seg("EmCurso", 1, "2026-11-15T10:00:00Z", "2026-11-30T10:00:00Z", 1, 1),
+      seg("Depois", 1, "2026-11-30T10:20:00Z", "2026-12-05T10:00:00Z", 1, 1), // já em conflito (20 min)
+      seg("Nova", null, "2026-11-21T10:00:00Z", "2026-11-25T10:00:00Z", 1, 1),
+    ];
+    const a = actions([car(1, 1)], segs);
+    const nova = a.find((x) => x.reservationId === "Nova")!;
+    expect(nova.type).toBe("sem_solucao");
+    expect(nova.reason).toBe("sem_carro");
+  });
+});
+
+describe("planFrota: data de entrada na frota", () => {
+  it("não oferece carro que só entra na frota depois da retirada", () => {
+    const segs = [
+      seg("A", 1, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
+      seg("B", 1, "2026-11-20T12:00:00Z", "2026-11-30T10:00:00Z", 3, 3),
+    ];
+    const novo = { ...car(2, 3), entry_date: "2026-12-01T00:00:00Z" };
+    const a = actions([car(1, 2), novo], segs);
+    expect(a[0]!.vehicle?.id).not.toBe(2);
+  });
+});

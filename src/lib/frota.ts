@@ -19,6 +19,8 @@ export type FrotaVehicle = {
   class_label: string | null;
   current_location_id: number | null;
   exit_date: string | null;
+  /** Entrada na frota (HQ): antes disso o carro não pode ser usado. */
+  entry_date?: string | null;
 };
 
 export type FrotaSegment = {

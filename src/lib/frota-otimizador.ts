@@ -39,6 +39,8 @@ export const COST = {
   transfer: 100,
   upgrade: 30,
   change: 2,
+  /** Conflito criado pelo próprio plano: nunca aceito. */
+  forbidden: 1_000_000,
 } as const;
 /** Atraso tolerado: reserva sem carro com retirada até 3h atrás ainda entra ("retirada atrasada"). */
 export const LATE_H = 3;
@@ -64,6 +66,8 @@ export type Plan = {
   shortages: Shortage[];
   /** Um caso por reserva que exige ação (transferir, trocar, upgrade, reescala ou sem solução). */
   suggestions: Suggestion[];
+  /** Carro do plano para cada reserva da janela (null = sem carro). */
+  assignment: Map<string, number | null>;
   /** Custo total do plano e da escala atual do HQ (diagnóstico). */
   cost: number;
   hqCost: number;
@@ -84,6 +88,8 @@ export function planFrota(input: {
   locations: FrotaLocation[];
   now: Date;
   horizonDays?: number;
+  /** "Feito com ajuste": reserva travada num carro (vira fixa) ou "fora" do planejamento. */
+  pins?: Map<string, number | "fora">;
   rankOf?: (classLabel: string | null) => number | null;
 }): Plan {
   const { vehicles, segments, locations, now } = input;
@@ -129,10 +135,19 @@ export function planFrota(input: {
   for (const s of sorted) {
     const start = Date.parse(s.pick_up_at);
     const end = Date.parse(s.return_at);
-    const hq = s.vehicle_id != null && byId.has(s.vehicle_id) ? s.vehicle_id : null;
+    // Trava do ajuste só vale antes da retirada; depois quem manda é o HQ.
+    const pin = start >= t0 - LATE_H * H ? input.pins?.get(s.reservation_id) : undefined;
+    if (pin === "fora") continue; // resolvida fora do plano: não segura carro nem gera ação
+    const pinned = typeof pin === "number" && byId.has(pin);
+    const hq = pinned
+      ? (pin as number)
+      : s.vehicle_id != null && byId.has(s.vehicle_id)
+        ? s.vehicle_id
+        : null;
     const isFirst = firstSeq.get(s.reservation_id) === s.seq;
     const inWindow = start <= horizon && (start >= t0 || (hq == null && start >= t0 - LATE_H * H));
-    const movable = isFirst && inWindow;
+    // Travada por ajuste: fica fixa no carro escolhido; as outras reservas se replanejam em volta.
+    const movable = isFirst && inWindow && !pinned;
     if (!movable && hq == null) continue; // sem carro fora da janela: não interessa agora
     items.push({
       idx: items.length,
@@ -154,6 +169,12 @@ export function planFrota(input: {
   /** Custo da reserva no carro (null = categoria não serve). */
   const itemCost = (i: Item, vid: number | null): number | null => {
     if (vid == null) return COST.unassigned;
+    // Fora do período em que o carro está na frota (entra depois da retirada ou sai antes da devolução).
+    if (vid !== i.hq) {
+      const v = byId.get(vid)!;
+      if (v.entry_date && Date.parse(v.entry_date) > i.start) return null;
+      if (v.exit_date && Date.parse(v.exit_date) < i.end) return null;
+    }
     const change = i.hq != null && vid !== i.hq ? COST.change : 0;
     const rr = resRank(i);
     const vr = vRank.get(vid) ?? null;
@@ -187,7 +208,10 @@ export function planFrota(input: {
     if (a && b.start < a.end) return { ...base, kind: "conflict" };
     const fr = regionOf(fromLoc);
     const tr = regionOf(b.pickLoc);
-    if (fr == null || tr == null) return { ...base, kind: "ok" };
+    // Carro sem localização no HQ: não dá para garantir que ele esteja na cidade. Só fica onde o HQ
+    // já escalou; nunca é oferecido para outra reserva.
+    if (fr == null) return { ...base, kind: b.movable && v.id !== b.hq ? "conflict" : "ok" };
+    if (tr == null) return { ...base, kind: "ok" };
     if (fr === tr) {
       if (a && a.end > t0 - TURNAROUND_HOURS * H && b.start - a.end < TURNAROUND_HOURS * H)
         return { ...base, kind: "conflict" };
@@ -235,7 +259,13 @@ export function planFrota(input: {
     for (let k = 0; k < list.length; k++) {
       const b = list[k]!;
       if (b.start < t0 - LATE_H * H && !b.movable) continue;
-      c += linkCost(link(v, k > 0 ? list[k - 1]! : null, b));
+      const a = k > 0 ? list[k - 1]! : null;
+      const l = link(v, a, b);
+      // Conflito criado pelo plano (reserva colocada num carro que não é o dela no HQ): proibido.
+      // Sem isso, um carro que já tem conflito "absorve" reservas de graça (troca conflito por conflito).
+      const moved = (x: Item | null) => x != null && x.movable && x.hq !== vid;
+      if (l.kind === "conflict" && (moved(b) || moved(a))) c += COST.forbidden;
+      else c += linkCost(l);
     }
     return c;
   };
@@ -554,5 +584,7 @@ export function planFrota(input: {
   }
 
   transfers.sort((a, b) => Date.parse(a.needBy) - Date.parse(b.needBy));
-  return { transfers, shortages, suggestions, cost: totalCost(), hqCost };
+  const assignment = new Map<string, number | null>();
+  for (const i of movables) assignment.set(i.reservation_id, assign.get(i.idx) ?? null);
+  return { transfers, shortages, suggestions, assignment, cost: totalCost(), hqCost };
 }

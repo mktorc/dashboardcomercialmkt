@@ -219,8 +219,10 @@ export function projectStock(input: {
   actions: Action[];
   days: string[];
   now: Date;
+  /** Plano global: carro de cada reserva e transferências. Com ele o estoque segue o plano. */
+  plan?: Pick<Plan, "assignment" | "transfers">;
 }): StockProjection {
-  const { vehicles, segments, locations, position, actions, days, now } = input;
+  const { vehicles, segments, locations, position, actions, days, now, plan } = input;
   const t0 = now.getTime();
   const loc = new Map(locations.map((l) => [l.id, l.region]));
   const regionOf = (id: number | null) => (id == null ? null : (loc.get(id) ?? null));
@@ -266,14 +268,23 @@ export function projectStock(input: {
       (s.vehicle_id != null ? vClass.get(s.vehicle_id) : undefined) ??
       (s.vehicle_class_id != null ? idClass.get(s.vehicle_class_id) : undefined) ??
       "—";
-    const cls = upgradeTo.get(s.reservation_id) ?? base;
+    const planned = plan?.assignment.get(s.reservation_id);
+    const cls =
+      planned != null
+        ? (vClass.get(planned) ?? base)
+        : plan?.assignment.has(s.reservation_id)
+          ? ((s.vehicle_class_id != null ? idClass.get(s.vehicle_class_id) : undefined) ?? base)
+          : (upgradeTo.get(s.reservation_id) ?? base);
     if (a > t0) bump(regionOf(s.pick_up_location_id), cls, a, -1);
     bump(regionOf(s.return_location_id), cls, b, +1);
   }
 
-  for (const a of actions) {
-    const t = a.transfer;
-    if (!t || a.type === "trocar" || a.type === "upgrade") continue; // troca/upgrade evita a viagem
+  const moves = plan
+    ? plan.transfers.filter((t) => t.urgency !== "conflito" && t.fromRegion !== t.toRegion)
+    : actions
+        .filter((a) => a.transfer && a.type !== "trocar" && a.type !== "upgrade") // troca/upgrade evita a viagem
+        .map((a) => a.transfer!);
+  for (const t of moves) {
     const cls = t.vehicle.class_label ?? "—";
     const when = Date.parse(t.needBy) - TRANSFER_HOURS * H;
     bump(t.fromRegion, cls, when, -1);
