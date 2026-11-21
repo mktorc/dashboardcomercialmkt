@@ -90,18 +90,17 @@ describe("buildActions: prioridade", () => {
     expect(a[0]!.vehicle?.id).toBe(2);
   });
 
-  it("upgrade de 1 nível vence o de 2 níveis e a transferência", () => {
+  it("upgrade de 1 nível vence a transferência; 2 níveis não é opção", () => {
     const a = actions([car(1, 2), car(5, 3, 5), car(4, 3, 4)], ate("2026-11-25T10:00:00Z"));
     expect(a[0]!.type).toBe("upgrade");
     expect(a[0]!.vehicle?.id).toBe(5);
     expect(a[0]!.levels).toBe(1);
-    expect(a[0]!.alternatives.map((x) => x.type)).toEqual(["upgrade", "transferir"]);
+    expect(a[0]!.alternatives.map((x) => x.type)).toEqual(["transferir"]);
   });
 
-  it("upgrade de 2 níveis quando não há o de 1", () => {
+  it("sem o de 1 nível, não sugere upgrade de 2: cai na transferência", () => {
     const a = actions([car(1, 2), car(4, 3, 4)], ate("2026-11-25T10:00:00Z"));
-    expect(a[0]!.type).toBe("upgrade");
-    expect(a[0]!.levels).toBe(2);
+    expect(a[0]!.type).toBe("transferir");
   });
 
   it("transferência quando não há troca nem upgrade e a janela ≥ 5h; prazo = retirada − 5h", () => {

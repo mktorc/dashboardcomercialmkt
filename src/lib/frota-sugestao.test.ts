@@ -82,12 +82,9 @@ describe("suggestAlternatives", () => {
     expect(s[0]!.text).toContain("Midsize Suv → Fullsize Suv");
   });
 
-  it("upgrade de 2 níveis quando o nível de cima não tem carro", () => {
+  it("nunca sugere upgrade de 2 níveis", () => {
     const s = run([car(1, 2), car(4, 3, 4)], CONFLITO);
-    expect(s[0]!.kind).toBe("upgrade");
-    expect(s[0]!.vehicle?.id).toBe(4);
-    expect(s[0]!.levels).toBe(2);
-    expect(s[0]!.text).toContain("de 2 níveis");
+    expect(s[0]!.kind).toBe("nenhuma");
   });
 
   it("nunca sugere downgrade", () => {

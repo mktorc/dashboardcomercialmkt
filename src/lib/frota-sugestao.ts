@@ -3,7 +3,7 @@
 // Para cada caso crítico — reserva cuja transferência tem janela < 5h ou reserva sem carro livre —
 // procura uma alternativa nesta ordem:
 //   a) Troca: carro da MESMA categoria, já livre na cidade de retirada no horário da reserva.
-//   b) Upgrade grátis: carro da categoria imediatamente acima (depois 2 níveis acima, ...).
+//   b) Upgrade grátis: só para a categoria imediatamente acima (nunca 2+ níveis).
 //   c) Sem solução: transferir com urgência ou renegociar o horário.
 // Toda sugestão valida a cadeia de reservas do carro sugerido: não pode criar outro conflito (ficar
 // sem tempo de transferência para a reserva seguinte dele). Os casos são resolvidos por ordem de
@@ -236,12 +236,12 @@ export function suggestAlternatives(input: {
               : v.class_label === fromClass,
           );
 
-    // Melhor carro por nível: troca, upgrade 1, upgrade 2...
+    // Melhor carro por nível: troca e upgrade de 1 nível (nunca 2+).
     const found: { fit: Fit; lvl: number }[] = [];
     const f0 = pick(sameClass, r, exclude);
     if (f0) found.push({ fit: f0, lvl: 0 });
     if (rank != null)
-      for (let up = rank + 1; up < levels.length; up++) {
+      for (let up = rank + 1; up <= rank + 1 && up < levels.length; up++) {
         const f = pick(inLevel(up), r, exclude);
         if (f) found.push({ fit: f, lvl: up - rank });
       }
