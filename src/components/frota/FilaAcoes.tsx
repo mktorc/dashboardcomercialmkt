@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Copy,
   Pencil,
+  MessageCircle,
   PhoneCall,
   Repeat,
   Truck,
@@ -29,6 +30,7 @@ import {
   type ResInfo,
 } from "@/lib/frota-texto";
 import { URG } from "@/components/frota/shared";
+import { whatsappText, type PlanChange } from "@/lib/frota-extras";
 
 export type { ResInfo };
 
@@ -199,11 +201,17 @@ export function ActionCard({
   resInfo,
   onDone,
   onAdjust,
+  change,
+  chain,
 }: {
   a: Action;
   now: number;
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
+  /** Plano mudou desde a última visita: selo "Novo"/"Alterado". */
+  change?: PlanChange | undefined;
+  /** Cadeia de reescalas da qual a ação faz parte (uma linha por elo). */
+  chain?: string[] | undefined;
   /** "Feito com ajuste": abre o formulário do que foi feito no lugar da sugestão. */
   onAdjust?: ((a: Action) => void) | undefined;
 }) {
@@ -215,6 +223,7 @@ export function ActionCard({
   const cd = countdown(a.deadline, now);
   const tx = describeAction(a, resInfo, now);
   const res = resInfo.get(a.reservationId);
+  const wpp = whatsappText(a);
 
   const done = () => {
     setLeaving(true);
@@ -241,6 +250,17 @@ export function ActionCard({
             <Badge className={`${T.cls} gap-1`}>
               <T.icon className="size-3.5" /> {T.verb}
             </Badge>
+            {change && (
+              <Badge
+                className={
+                  change === "novo"
+                    ? "border-sky-500/50 bg-sky-500/15 text-sky-300"
+                    : "border-violet-500/50 bg-violet-500/15 text-violet-300"
+                }
+              >
+                {change === "novo" ? "Novo" : "Alterado"}
+              </Badge>
+            )}
             {isLatePickup(a, now) && (
               <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-300">
                 Retirada atrasada
@@ -262,6 +282,17 @@ export function ActionCard({
                 <Copy className="mr-1 size-4" />
                 <span className="hidden sm:inline">Copiar instrução</span>
               </Button>
+              {wpp && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copy(wpp)}
+                  title="Copiar mensagem pronta para o motorista"
+                >
+                  <MessageCircle className="mr-1 size-4" />
+                  <span className="hidden lg:inline">WhatsApp</span>
+                </Button>
+              )}
               {onAdjust && (
                 <Button
                   size="sm"
@@ -298,6 +329,19 @@ export function ActionCard({
                   ))}
                 </ol>
               </Bloco>
+              {chain && chain.length > 1 && (
+                <Bloco title="🔗 Por que este arranjo">
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    Esta ação faz parte de uma cadeia: olhando todas as reservas, um carro liberado
+                    por uma resolve a seguinte.
+                  </p>
+                  <ol className="list-decimal space-y-0.5 pl-5">
+                    {chain.map((c, i) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ol>
+                </Bloco>
+              )}
               <MiniLinhaTempo m={tx.mini} />
 
               {a.alternatives.length > 0 && (
@@ -433,6 +477,8 @@ export function FilaAcoes({
   resInfo,
   onDone,
   onAdjust,
+  changes,
+  chainFor,
   typeFilter,
   onTypeFilter,
   regionFilter,
@@ -445,6 +491,8 @@ export function FilaAcoes({
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
   onAdjust?: ((a: Action) => void) | undefined;
+  changes?: Map<string, PlanChange> | undefined;
+  chainFor?: ((a: Action) => string[]) | undefined;
   typeFilter: TypeFilter;
   onTypeFilter: (t: TypeFilter) => void;
   regionFilter: Region | "todas";
@@ -546,6 +594,8 @@ export function FilaAcoes({
                   resInfo={resInfo}
                   onDone={onDone}
                   onAdjust={onAdjust}
+                  change={changes?.get(a.reservationId)}
+                  chain={chainFor?.(a)}
                 />
               ))}
           </section>

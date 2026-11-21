@@ -38,6 +38,20 @@ import {
 } from "@/lib/frota-ajustes";
 import { carName } from "@/lib/frota-sugestao";
 import { AjusteDialog, type AjusteInput } from "@/components/frota/AjusteDialog";
+import {
+  ISSUE_LABEL,
+  chainOf,
+  chainText,
+  diffEffects,
+  diffPlan,
+  hqIssues,
+  snapshot,
+  weekStats,
+  type HqIssue,
+  type Seen,
+} from "@/lib/frota-extras";
+
+const SEEN_KEY = "frota:plano-visto";
 import { LinhaDoTempo } from "@/components/frota/LinhaDoTempo";
 import { PainelFrota, type Selection } from "@/components/frota/PainelFrota";
 import {
@@ -335,6 +349,73 @@ function FrotaPage() {
       },
     });
   };
+  // 7) Simulação do ajuste: o que muda nas outras reservas se eu salvar isto.
+  const simular = (a: Action, input: AjusteInput): string[] => {
+    if (!result || !q.data) return [];
+    const pins = pinsOf(result.ajustes);
+    if (input.kind === "fora") pins.set(a.reservationId, "fora");
+    else if (input.vehicleId != null) pins.set(a.reservationId, input.vehicleId);
+    else return [];
+    const now = new Date();
+    const plano = planFrota({
+      vehicles: result.vehicles,
+      segments: result.segments,
+      locations: result.locations,
+      now,
+      horizonDays: horizonte,
+      pins,
+    });
+    const depois = actionsFromPlan(plano, now).filter((x) => !doneKeys.has(x.key));
+    return diffEffects(pendentes, depois, a.reservationId);
+  };
+
+  // 1) Plano alterado desde a última visita (por navegador).
+  const [visto, setVisto] = useState<Seen | null>(() => {
+    try {
+      const raw = localStorage.getItem(SEEN_KEY);
+      return raw ? (JSON.parse(raw) as Seen) : null;
+    } catch {
+      return null;
+    }
+  });
+  const marcarVisto = () => {
+    const snap = snapshot(pendentes);
+    setVisto(snap);
+    try {
+      localStorage.setItem(SEEN_KEY, JSON.stringify(snap));
+    } catch {
+      /* sem armazenamento: só nesta sessão */
+    }
+  };
+  useEffect(() => {
+    if (result && visto == null && pendentes.length > 0) marcarVisto(); // 1ª visita: base silenciosa
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, visto]);
+  const mudancas = useMemo(() => diffPlan(pendentes, visto), [pendentes, visto]);
+
+  // 2/3) Pendências para corrigir no HQ.
+  const pendenciasHq = useMemo(
+    () =>
+      q.data
+        ? hqIssues({
+            vehicles: q.data.vehicles,
+            segments: q.data.segments,
+            locations: q.data.locations,
+            done: q.data.done,
+            now: new Date(clock),
+            horizonDays: horizonte,
+          })
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [q.data, Math.floor(clock / 600_000), horizonte],
+  );
+
+  // 5) Cadeia de reescalas de cada ação.
+  const chainFor = (a: Action) => chainText(chainOf(a, pendentes));
+
+  // 6) Números da semana.
+  const semanaStats = weekStats(q.data?.done ?? [], semana);
+
   const regiaoDoCarro = useMemo(
     () => new Map((result?.position ?? []).map((p) => [p.vehicle.id, p.region])),
     [result],
@@ -403,6 +484,19 @@ function FrotaPage() {
         {result && estoque && (
           <>
             <StatusBar actions={pendentes} regions={REGIONS} dayResolved={dayResolved} />
+            {mudancas.added + mudancas.changed + mudancas.removed > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-200">
+                <span className="font-medium">O plano mudou desde a sua última visita:</span>
+                {mudancas.added > 0 && <span>{mudancas.added} ação(ões) nova(s)</span>}
+                {mudancas.changed > 0 && <span>· {mudancas.changed} alterada(s)</span>}
+                {mudancas.removed > 0 && <span>· {mudancas.removed} não precisa(m) mais</span>}
+                <span className="text-xs text-sky-300/80">(destacadas na fila)</span>
+                <Button size="sm" variant="outline" className="ml-auto h-7" onClick={marcarVisto}>
+                  Ok, vi
+                </Button>
+              </div>
+            )}
+            <PendenciasHq issues={pendenciasHq} />
             <Semaforo
               status={estoque.status}
               days={result.dias}
@@ -432,6 +526,8 @@ function FrotaPage() {
                   resInfo={result.resInfo}
                   onDone={feito}
                   onAdjust={setAjustando}
+                  changes={mudancas.change}
+                  chainFor={chainFor}
                   typeFilter={tipo}
                   onTypeFilter={setTipo}
                   regionFilter={regiao}
@@ -476,7 +572,14 @@ function FrotaPage() {
             </Tabs>
 
             <p className="pt-2 text-center text-sm text-muted-foreground">
-              Esta semana: <span className="font-semibold text-emerald-400">{evitadas}</span>{" "}
+              Esta semana:{" "}
+              <span className="font-semibold text-foreground">{semanaStats.asSuggested}</span>{" "}
+              feitas como sugerido ·{" "}
+              <span className="font-semibold text-foreground">{semanaStats.adjusted}</span> com
+              ajuste
+              {semanaStats.adjusted > 0 &&
+                ` (${semanaStats.byKind.outro_carro} outro carro, ${semanaStats.byKind.mantido} manteve o atual, ${semanaStats.byKind.fora} fora do plano)`}{" "}
+              · <span className="font-semibold text-emerald-400">{evitadas}</span>{" "}
               {evitadas === 1 ? "transferência evitada" : "transferências evitadas"} com
               troca/upgrade
             </p>
@@ -498,6 +601,7 @@ function FrotaPage() {
               )}
               regionOf={regiaoDoCarro}
               onSave={salvarAjuste}
+              simulate={simular}
               onClose={() => setAjustando(null)}
             />
           </>
@@ -602,6 +706,46 @@ function ListaAjustes({
             );
           })}
         </ul>
+      )}
+    </Card>
+  );
+}
+
+/** Quadro "Corrigir no HQ": dados que atrapalham o plano e "Feito" que o HQ ainda não mostra. */
+function PendenciasHq({ issues }: { issues: HqIssue[] }) {
+  const [open, setOpen] = useState(false);
+  if (issues.length === 0) return null;
+  const kinds = [...new Set(issues.map((i) => i.kind))];
+  return (
+    <Card className="border-amber-500/40 bg-amber-500/5 p-3">
+      <button
+        className="flex w-full items-center justify-between gap-2 text-left text-sm"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="font-medium text-amber-300">⚠️ Corrigir no HQ ({issues.length})</span>
+        <span className="text-xs text-muted-foreground">
+          {kinds
+            .map(
+              (k) => `${issues.filter((i) => i.kind === k).length} ${ISSUE_LABEL[k].toLowerCase()}`,
+            )
+            .join(" · ")}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 space-y-3 text-sm">
+          {kinds.map((k) => (
+            <div key={k}>
+              <div className="mb-1 font-medium">{ISSUE_LABEL[k]}</div>
+              <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+                {issues
+                  .filter((i) => i.kind === k)
+                  .map((i, n) => (
+                    <li key={n}>{i.text}</li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       )}
     </Card>
   );

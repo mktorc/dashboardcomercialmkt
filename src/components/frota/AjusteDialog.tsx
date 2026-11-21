@@ -36,6 +36,7 @@ export function AjusteDialog({
   regionOf,
   onSave,
   onClose,
+  simulate,
 }: {
   action: Action | null;
   vehicles: FrotaVehicle[];
@@ -43,6 +44,8 @@ export function AjusteDialog({
   regionOf: Map<number, Region | null>;
   onSave: (a: Action, input: AjusteInput) => void;
   onClose: () => void;
+  /** Efeito do ajuste nas outras reservas (antes de salvar). */
+  simulate?: ((a: Action, input: AjusteInput) => string[]) | undefined;
 }) {
   const [kind, setKind] = useState<AdjustmentKind>("outro_carro");
   const [vehicleId, setVehicleId] = useState<number | null>(null);
@@ -79,6 +82,14 @@ export function AjusteDialog({
       .sort((a, b) => score(a) - score(b) || a.id - b.id)
       .slice(0, 40);
   }, [action, vehicles, regionOf, busca]);
+
+  // Simula o plano com este ajuste e mostra o que muda nas outras reservas.
+  const efeitos = useMemo(() => {
+    if (!action || !simulate) return null;
+    const vid = kind === "mantido" ? (action.currentVehicle?.id ?? null) : vehicleId;
+    if (kind !== "fora" && vid == null) return null;
+    return simulate(action, { kind, vehicleId: vid, note: "" });
+  }, [action, simulate, kind, vehicleId]);
 
   if (!action) return null;
   const precisaCarro = kind === "outro_carro";
@@ -155,6 +166,30 @@ export function AjusteDialog({
                 <p className="p-2 text-sm text-muted-foreground">Nenhum carro encontrado.</p>
               )}
             </div>
+          </div>
+        )}
+
+        {efeitos && (
+          <div
+            className={`rounded-md border px-3 py-2 text-sm ${
+              efeitos.length
+                ? "border-amber-500/40 bg-amber-500/10"
+                : "border-emerald-500/40 bg-emerald-500/10"
+            }`}
+          >
+            <div className="mb-1 font-medium">
+              {efeitos.length
+                ? `Efeito nas outras reservas (${efeitos.length})`
+                : "Não muda nenhuma outra reserva"}
+            </div>
+            {efeitos.length > 0 && (
+              <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
+                {efeitos.slice(0, 8).map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+                {efeitos.length > 8 && <li>… e mais {efeitos.length - 8}</li>}
+              </ul>
+            )}
           </div>
         )}
 
