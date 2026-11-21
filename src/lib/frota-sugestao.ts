@@ -29,7 +29,9 @@ export type Suggestion = {
   /** Reserva em risco. */
   reservationId: string;
   /** Por que é um caso: janela < 5h, reserva sem carro ou transferência programável (scope "all"). */
-  reason: "conflito" | "sem_carro" | "transferencia";
+  reason: "conflito" | "sem_carro" | "transferencia" | "reescala";
+  /** Reescala: reserva que passa a usar o carro que esta reserva libera. */
+  freesFor?: string | null;
   /** Retirada da reserva. */
   pickUpAt: string;
   /** Transferência de computeFrota que originou o caso (null = reserva sem carro). */
@@ -228,6 +230,9 @@ export function suggestAlternatives(input: {
   };
 
   const out: Suggestion[] = [];
+  // Casos resolvidos com troca/upgrade que tinham transferência viável: podem devolver o carro da
+  // cidade (e voltar para a transferência) se um caso seguinte ficar sem nenhuma solução.
+  const yieldable: { idx: number; r: Interval; vid: number; holder: number | null }[] = [];
   for (const c of cases) {
     const r = toInterval(c.seg);
     const fromClass =
@@ -306,6 +311,59 @@ export function suggestAlternatives(input: {
     };
 
     if (found.length === 0) {
+      // Reparo: um caso anterior pegou um carro desta cidade mas podia ser atendido por transferência?
+      // Ele volta para a transferência e o carro fica para este caso (senão este ficaria sem solução).
+      const okIds = new Set(
+        [...sameClass, ...(rank != null && rank + 1 < levels.length ? inLevel(rank + 1) : [])].map(
+          (v) => v.id,
+        ),
+      );
+      // Só quando este caso não tem transferência viável (senão ele mesmo se resolve transferindo).
+      const hasTransfer = c.transfer != null && c.transfer.urgency !== "conflito";
+      let repaired = false;
+      for (let k = 0; k < yieldable.length && !repaired && !hasTransfer; k++) {
+        const p = yieldable[k]!;
+        const v = byId.get(p.vid);
+        if (!v || !okIds.has(v.id) || v.id === exclude) continue;
+        const own = schedule.get(p.vid) ?? [];
+        schedule.set(
+          p.vid,
+          own.filter((x) => x.reservation_id !== p.r.reservation_id),
+        );
+        const fit = fits(v, r);
+        if (!fit) {
+          schedule.set(p.vid, own);
+          continue;
+        }
+        if (p.holder != null) add(p.holder, p.r);
+        const prevSug = out[p.idx]!;
+        out[p.idx] = {
+          ...prevSug,
+          kind: "nenhuma",
+          vehicle: null,
+          toClass: null,
+          levels: 0,
+          freeSince: null,
+          freeSinceReservation: null,
+          transferAfter: false,
+          alternatives: [],
+          text: `Transferir — ${carName(v)} fica para a reserva ${c.seg.reservation_id}`,
+          instruction: `Reserva ${prevSug.reservationId}: manter a transferência; ${carName(v)} fica livre na cidade para a reserva ${c.seg.reservation_id}, que não tem outro carro.`,
+        };
+        yieldable.splice(k, 1);
+        const lvl = rank != null && !sameClass.some((x) => x.id === v.id) ? 1 : 0;
+        out.push(build({ fit, lvl }));
+        if (exclude != null) {
+          const list = schedule.get(exclude) ?? [];
+          schedule.set(
+            exclude,
+            list.filter((x) => x.reservation_id !== r.reservation_id),
+          );
+        }
+        add(v.id, r);
+        repaired = true;
+      }
+      if (repaired) continue;
       out.push({
         ...base,
         kind: "nenhuma",
@@ -334,6 +392,8 @@ export function suggestAlternatives(input: {
       );
     }
     add(found[0]!.fit.v.id, r);
+    if (c.transfer && c.transfer.urgency !== "conflito")
+      yieldable.push({ idx: out.length - 1, r, vid: found[0]!.fit.v.id, holder: exclude });
   }
   return out;
 }

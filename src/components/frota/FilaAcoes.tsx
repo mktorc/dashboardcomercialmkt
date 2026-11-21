@@ -14,6 +14,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { TRANSFER_HOURS, type FrotaVehicle, type Region } from "@/lib/frota";
 import { REGION_COLOR } from "@/lib/frota-config";
 import { carName } from "@/lib/frota-sugestao";
@@ -21,6 +22,7 @@ import type { Action, ActionOption, ActionType, Bucket } from "@/lib/frota-acoes
 import {
   countdown,
   describeAction,
+  isLatePickup,
   fmtDia,
   type MiniTimeline,
   type ResInfo,
@@ -235,6 +237,11 @@ export function ActionCard({
             <Badge className={`${T.cls} gap-1`}>
               <T.icon className="size-3.5" /> {T.verb}
             </Badge>
+            {isLatePickup(a, now) && (
+              <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-300">
+                Retirada atrasada
+              </Badge>
+            )}
             <div className="min-w-[220px] flex-1 leading-snug">
               <button className="text-left text-sm" onClick={() => setOpen((o) => !o)}>
                 {tx.headline}{" "}
@@ -378,9 +385,17 @@ export function groupActions(
   actions: Action[],
   typeFilter: TypeFilter,
   regionFilter: Region | "todas",
+  search = "",
 ) {
+  const q = search.trim().toLowerCase().replace(/^#/, "");
+  const matches = (a: Action) =>
+    !q ||
+    a.reservationId.toLowerCase().includes(q) ||
+    [a.vehicle, a.currentVehicle].some((v) => v?.plate?.toLowerCase().includes(q));
   const byRegion = actions.filter(
-    (a) => regionFilter === "todas" || a.region === regionFilter || a.fromRegion === regionFilter,
+    (a) =>
+      (regionFilter === "todas" || a.region === regionFilter || a.fromRegion === regionFilter) &&
+      matches(a),
   );
   const filtered = byRegion.filter((a) => typeFilter === "todas" || a.type === typeFilter);
   const counts = Object.fromEntries(
@@ -392,7 +407,7 @@ export function groupActions(
   const groups = GROUPS.map((g) => ({
     ...g,
     list: filtered.filter((a) => a.bucket === g.id),
-  })).filter((g) => g.list.length > 0 || (typeFilter === "todas" && g.id === "hoje"));
+  })).filter((g) => g.list.length > 0 || (typeFilter === "todas" && !q && g.id === "hoje"));
   return { total: byRegion.length, counts, groups };
 }
 
@@ -420,7 +435,9 @@ export function FilaAcoes({
   defaultOpen?: Record<Bucket, boolean>;
 }) {
   const [openGroups, setOpenGroups] = useState<Record<Bucket, boolean>>(defaultOpen);
-  const { total, counts, groups } = groupActions(actions, typeFilter, regionFilter);
+  const [search, setSearch] = useState("");
+  const searching = search.trim() !== "";
+  const { total, counts, groups } = groupActions(actions, typeFilter, regionFilter, search);
 
   return (
     <div className="space-y-3">
@@ -439,6 +456,21 @@ export function FilaAcoes({
           )}
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar reserva ou placa…"
+          aria-label="Buscar reserva ou placa"
+          className="h-8 w-full sm:w-64"
+        />
+        {searching && (
+          <span className="text-sm text-muted-foreground">
+            {total} {total === 1 ? "ação encontrada" : "ações encontradas"}
+          </span>
+        )}
+      </div>
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="sm"
@@ -464,12 +496,14 @@ export function FilaAcoes({
 
       {groups.length === 0 && (
         <Card className="p-4 text-center text-sm text-muted-foreground">
-          Nenhuma ação deste tipo.
+          {searching
+            ? `Nenhuma ação pendente para "${search.trim()}".`
+            : "Nenhuma ação deste tipo."}
         </Card>
       )}
 
       {groups.map((g) => {
-        const isOpen = openGroups[g.id];
+        const isOpen = searching || openGroups[g.id];
         return (
           <section key={`${typeFilter}|${g.id}`}>
             <button

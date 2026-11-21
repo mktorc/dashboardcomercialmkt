@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Action } from "./frota-acoes";
 import {
   computeFrota,
   fleetPosition,
@@ -76,8 +77,8 @@ describe("buildActions: prioridade", () => {
     expect(a[0]!.vehicle?.id).toBe(2);
     expect(a[0]!.avoidsTransfer).toBe(true);
     expect(isAvoidedTransferKey(a[0]!.key)).toBe(true);
-    // Outras opções: upgrade e a transferência original.
-    expect(a[0]!.alternatives.map((x) => x.type)).toEqual(["upgrade", "transferir"]);
+    // Outra opção: a transferência original.
+    expect(a[0]!.alternatives.map((x) => x.type)).toEqual(["transferir"]);
   });
 
   it("mesmo nível da hierarquia (Exec 7 ↔ Exec 8) conta como troca", () => {
@@ -111,8 +112,14 @@ describe("buildActions: prioridade", () => {
     expect(a[0]!.bucket).toBe("programado");
   });
 
-  it("sem solução quando a janela é < 5h e não há carro na cidade", () => {
+  it("visão global: carro parado na outra cidade com tempo de sobra é transferido", () => {
     const a = actions([car(1, 2), car(2, 2)], ate("2026-11-20T13:00:00Z"));
+    expect(a[0]!.type).toBe("transferir");
+    expect(a[0]!.vehicle?.id).toBe(2);
+  });
+
+  it("sem solução quando a janela é < 5h e não há outro carro", () => {
+    const a = actions([car(1, 2)], ate("2026-11-20T13:00:00Z"));
     expect(a[0]!.type).toBe("sem_solucao");
     expect(a[0]!.alternatives).toHaveLength(0);
     expect(a[0]!.text).toContain("renegociar");
@@ -212,5 +219,52 @@ describe("projectStock", () => {
     const { p } = project([car(1, 2), car(5, 2, 5)], segs);
     expect(p.get("Miami")!.get("Fullsize Suv")).toEqual([1, 1, 0, 0]);
     expect(p.get("Miami")!.get("Midsize Suv") ?? [0, 0, 0, 0]).toEqual([0, 0, 0, 0]);
+  });
+});
+
+describe("cityStatus com sem solução", () => {
+  it("acende a cidade quando há reserva sem solução, mesmo com saldo projetado ok", () => {
+    const days = ["2026-11-27", "2026-11-28"];
+    const acao = {
+      type: "sem_solucao",
+      region: "Orlando",
+      fromClass: "Midsize Suv",
+      pickUpAt: Date.parse("2026-11-28T16:30:00Z"),
+    } as unknown as Action;
+    const st = cityStatus(new Map(), ["Orlando", "Miami"], days, [], [acao]);
+    expect(st[0]!.shortage).toEqual({ classLabel: "Midsize Suv", missing: 1, day: "2026-11-28" });
+    expect(st[1]!.shortage).toBeNull();
+  });
+});
+
+describe("planFrota: decisão global", () => {
+  it("não gasta o carro da cidade numa reserva que podia ser atendida por transferência", () => {
+    // P (Miami) escalada com o carro 1, em Orlando. Q (Miami, 14h depois) sem carro. Fullsize 5 em Miami.
+    const segs = [
+      seg("P", 1, "2026-11-23T10:00:00Z", "2026-11-26T10:00:00Z", 2, 2),
+      seg("Q", null, "2026-11-24T00:00:00Z", "2026-11-27T10:00:00Z", 2, 2),
+    ];
+    const a = actions([car(1, 1), car(5, 2, 5)], segs);
+    const p = a.find((x) => x.reservationId === "P")!;
+    const q = a.find((x) => x.reservationId === "Q")!;
+    expect(p.type).toBe("transferir");
+    expect(q.type).toBe("upgrade");
+    expect(q.vehicle?.id).toBe(5);
+  });
+
+  it("reescala uma reserva sem problema para liberar o carro a quem precisa", () => {
+    // R (Midsize) está com o Fullsize 5 no HQ; S (Fullsize, mesmo período) não tem carro; o Midsize 1
+    // está livre. Melhor geral: R vai para o 1 e o 5 fica para S.
+    const segs = [
+      seg("R", 5, "2026-11-23T10:00:00Z", "2026-11-26T10:00:00Z", 2, 2, 2),
+      seg("S", null, "2026-11-23T12:00:00Z", "2026-11-26T10:00:00Z", 2, 2, 5),
+    ];
+    const a = actions([car(1, 2), car(5, 2, 5)], segs);
+    const r = a.find((x) => x.reservationId === "R")!;
+    const s = a.find((x) => x.reservationId === "S")!;
+    expect(r.type).toBe("trocar");
+    expect(r.vehicle?.id).toBe(1);
+    expect(r.reason).toBe("reescala");
+    expect(s.vehicle?.id).toBe(5);
   });
 });

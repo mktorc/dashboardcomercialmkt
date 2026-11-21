@@ -11,6 +11,7 @@ import {
   type Urgency,
 } from "@/lib/frota";
 import { carName } from "@/lib/frota-sugestao";
+import { categoryRank } from "@/lib/frota-config";
 import type { Action } from "@/lib/frota-acoes";
 
 const H = 3_600_000;
@@ -96,7 +97,31 @@ export type ActionText = {
   mini: MiniTimeline;
 };
 
+/** O carro é de categoria acima da reservada (upgrade grátis)? */
+function isUpgrade(fromClass: string | null, toClass: string | null) {
+  const a = categoryRank(fromClass);
+  const b = categoryRank(toClass);
+  return a != null && b != null && b > a;
+}
+
+/** Retirada já passou e a reserva continua sem carro no HQ. */
+export const isLatePickup = (a: Action, now: number) =>
+  a.currentVehicle == null && a.pickUpAt < now;
+
 export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: number): ActionText {
+  const tx = describeBase(a, resInfo, now);
+  if (!isLatePickup(a, now)) return tx;
+  return finish({
+    ...tx,
+    problem: `Retirada atrasada: o horário (${fmtDia(a.pickUpAt)}) já passou e a reserva continua sem carro no HQ. ${tx.problem}`,
+    steps: [
+      `Conferir no HQ se o cliente da reserva ${a.reservationId} já retirou o carro; se sim, só atribuir o veículo entregue e encerrar aqui`,
+      ...tx.steps,
+    ],
+  });
+}
+
+function describeBase(a: Action, resInfo: Map<string, ResInfo>, now: number): ActionText {
   const t = a.transfer;
   const res = resInfo.get(a.reservationId);
   const city = a.region;
@@ -128,8 +153,13 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
     const steps = [
       `Combinar a viagem do ${car(v)} de ${t.fromLocation ?? t.fromRegion} para ${t.toLocation ?? t.toRegion}, saindo até ${fmtDia(a.deadline)}`,
       t.kind === "sugerido"
-        ? `Abrir a reserva ${a.reservationId} e atribuir o veículo ${plate(v)}`
+        ? a.currentVehicle && a.currentVehicle.id !== v.id
+          ? `Abrir a reserva ${a.reservationId} e trocar o veículo de ${plate(a.currentVehicle)} para ${plate(v)}`
+          : `Abrir a reserva ${a.reservationId} e atribuir o veículo ${plate(v)}`
         : `Abrir a reserva ${a.reservationId} e conferir que o veículo é ${plate(v)}`,
+      ...(isUpgrade(a.fromClass, v.class_label)
+        ? [`Registrar como upgrade grátis (manter o preço de ${a.fromClass})`]
+        : []),
       `Quando o carro chegar, atualizar a localização dele para ${t.toLocation ?? t.toRegion}`,
     ];
     return finish({
@@ -155,18 +185,24 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
     const orig = a.currentVehicle;
     const s = a.suggestion;
     const desde = s.freeSince ? ` desde ${fmtCurto(s.freeSince)}` : "";
-    const problem = t
-      ? isSameCity(t)
-        ? `O ${car(t.vehicle)} é devolvido em ${t.fromRegion} só ${gapText(t)} antes da reserva ${a.reservationId} (${fmtDia(pick)}): o mínimo entre reservas é ${TURNAROUND_HOURS}h.`
-        : t.urgency === "conflito"
-          ? `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
-          : `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}.`
-      : `A reserva ${a.reservationId} (${a.fromClass ?? "categoria ?"}) começa em ${cityTxt} ${fmtDia(pick)} e não há carro da categoria livre a tempo.`;
-    const evita = t
-      ? isSameCity(t)
-        ? "garante o intervalo mínimo entre as reservas"
-        : `evita uma transferência de ${t.fromRegion}`
-      : "resolve a reserva sem carro";
+    const problem =
+      a.reason === "reescala" && orig
+        ? `A reserva ${a.reservationId} não tem problema hoje, mas o ${car(orig)} faz falta para a reserva ${s.freesFor ?? "seguinte"}. Olhando todas as reservas, este arranjo é melhor.`
+        : t
+          ? isSameCity(t)
+            ? `O ${car(t.vehicle)} é devolvido em ${t.fromRegion} só ${gapText(t)} antes da reserva ${a.reservationId} (${fmtDia(pick)}): o mínimo entre reservas é ${TURNAROUND_HOURS}h.`
+            : t.urgency === "conflito"
+              ? `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
+              : `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}.`
+          : `A reserva ${a.reservationId} (${a.fromClass ?? "categoria ?"}) começa em ${cityTxt} ${fmtDia(pick)} e não há carro da categoria livre a tempo.`;
+    const evita =
+      a.reason === "reescala" && orig
+        ? `libera o ${car(orig)} para a reserva ${s.freesFor ?? "seguinte"}`
+        : t
+          ? isSameCity(t)
+            ? "garante o intervalo mínimo entre as reservas"
+            : `evita uma transferência de ${t.fromRegion}`
+          : "resolve a reserva sem carro";
     const depois = s.transferAfter
       ? ` Depois desta reserva ele precisará viajar para a próxima (há tempo, mais de ${TRANSFER_HOURS}h).`
       : "";
@@ -242,6 +278,6 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
   });
 }
 
-function finish(x: Omit<ActionText, "instruction">): ActionText {
+function finish(x: Omit<ActionText, "instruction"> & { instruction?: string }): ActionText {
   return { ...x, instruction: x.steps.map((s, i) => `${i + 1}. ${s}`).join("\n") };
 }

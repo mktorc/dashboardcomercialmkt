@@ -13,7 +13,6 @@ import { guardPage } from "@/lib/roles";
 import { SyncButton } from "@/components/dashboard/SyncButton";
 import { syncFrota } from "@/lib/sync-all.functions";
 import {
-  computeFrota,
   fleetPosition,
   type FrotaLocation,
   type FrotaSegment,
@@ -21,13 +20,14 @@ import {
   type Region,
 } from "@/lib/frota";
 import {
-  buildActions,
+  actionsFromPlan,
   cityStatus,
   isAvoidedTransferKey,
   projectStock,
   type Action,
 } from "@/lib/frota-acoes";
 import { buildTimeline, dayKeyOf, orlandoMidnight } from "@/lib/frota-timeline";
+import { planFrota } from "@/lib/frota-otimizador";
 import { LinhaDoTempo } from "@/components/frota/LinhaDoTempo";
 import { PainelFrota, type Selection } from "@/components/frota/PainelFrota";
 import {
@@ -145,8 +145,10 @@ function FrotaPage() {
     if (!q.data) return null;
     const now = new Date();
     const { vehicles, segments, locations, customers } = q.data;
-    const frota = computeFrota(vehicles, segments, locations, now, horizonte);
-    const actions = buildActions({ vehicles, segments, locations, ...frota, now });
+    // Plano global: todas as reservas da janela decididas juntas (não reserva por reserva).
+    const plano = planFrota({ vehicles, segments, locations, now, horizonDays: horizonte });
+    const frota = { transfers: plano.transfers, shortages: plano.shortages };
+    const actions = actionsFromPlan(plano, now);
     const position = fleetPosition(vehicles, segments, locations, now);
     const timeline = buildTimeline({
       vehicles,
@@ -212,8 +214,11 @@ function FrotaPage() {
       days: result.dias,
       now: result.now,
     });
-    return { projection, status: cityStatus(projection, REGIONS, result.dias, result.position) };
-  }, [result]);
+    return {
+      projection,
+      status: cityStatus(projection, REGIONS, result.dias, result.position, pendentes),
+    };
+  }, [result, pendentes]);
 
   // Dia resolvido: nada pendente para hoje e ao menos uma ação de hoje marcada como feita.
   const hojeKey = dayKeyOf(clock);

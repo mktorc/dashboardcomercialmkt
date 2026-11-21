@@ -143,4 +143,30 @@ describe("suggestAlternatives", () => {
     const s = run([car(1, 2), car(5, 2, 5)], segs);
     expect(s.map((x) => x.kind)).toEqual(["upgrade", "nenhuma"]);
   });
+
+  it("caso anterior devolve o carro da cidade e volta para a transferência quando o seguinte ficaria sem solução", () => {
+    // P (Miami) está escalada com o carro 1, em Orlando: dá para transferir. Q (Miami, 14h depois) não tem carro.
+    // O Fullsize 5, em Miami, deve ir para Q como upgrade; P fica com a transferência.
+    const segs = [
+      seg("P", 1, "2026-11-23T10:00:00Z", "2026-11-26T10:00:00Z", 2, 2),
+      seg("Q", null, "2026-11-24T00:00:00Z", "2026-11-27T10:00:00Z", 2, 2),
+    ];
+    const vehicles = [car(1, 1), car(5, 2, 5)];
+    const { transfers, shortages } = computeFrota(vehicles, segs, LOCS, NOW, 60);
+    const s = suggestAlternatives({
+      vehicles,
+      segments: segs,
+      locations: LOCS,
+      transfers,
+      shortages,
+      now: NOW,
+      scope: "all",
+    });
+    const p = s.find((x) => x.reservationId === "P")!;
+    const q = s.find((x) => x.reservationId === "Q")!;
+    expect(p.kind).toBe("nenhuma");
+    expect(p.transfer?.urgency).not.toBe("conflito");
+    expect(q.kind).toBe("upgrade");
+    expect(q.vehicle?.id).toBe(5);
+  });
 });

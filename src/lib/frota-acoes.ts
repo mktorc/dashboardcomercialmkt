@@ -18,7 +18,8 @@ import {
   type Shortage,
   type Transfer,
 } from "@/lib/frota";
-import { carName, suggestAlternatives, type Suggestion } from "@/lib/frota-sugestao";
+import { carName, type Suggestion } from "@/lib/frota-sugestao";
+import { planFrota, type Plan } from "@/lib/frota-otimizador";
 import { dayKeyOf } from "@/lib/frota-timeline";
 
 const H = 3_600_000;
@@ -175,19 +176,25 @@ export function chooseAction(s: Suggestion, now: number): Action {
   };
 }
 
+/** Ações a partir do plano global (frota-otimizador). */
+export function actionsFromPlan(plan: Plan, now: Date): Action[] {
+  const t = now.getTime();
+  return plan.suggestions
+    .map((s) => chooseAction(s, t))
+    .sort((a, b) => a.deadline - b.deadline || a.key.localeCompare(b.key));
+}
+
+/** Plano global de toda a janela + ações. `transfers`/`shortages` são ignorados (legado). */
 export function buildActions(input: {
   vehicles: FrotaVehicle[];
   segments: FrotaSegment[];
   locations: FrotaLocation[];
-  transfers: Transfer[];
-  shortages: Shortage[];
+  transfers?: Transfer[];
+  shortages?: Shortage[];
   now: Date;
+  horizonDays?: number;
 }): Action[] {
-  const sugs = suggestAlternatives({ ...input, scope: "all" });
-  const now = input.now.getTime();
-  return sugs
-    .map((s) => chooseAction(s, now))
-    .sort((a, b) => a.deadline - b.deadline || a.key.localeCompare(b.key));
+  return actionsFromPlan(planFrota(input), input.now);
 }
 
 /** Chave "Feito" de uma ação de troca/upgrade que evitou uma transferência. */
@@ -291,6 +298,8 @@ export function cityStatus(
   regions: Region[],
   days: string[],
   position: { vehicle: FrotaVehicle; region: Region | null; rented: boolean }[],
+  /** Ações pendentes: "sem solução" também acende a cidade (o saldo do fim do dia pode mascarar). */
+  actions: Action[] = [],
 ): CityStatus[] {
   return regions.map((r) => {
     let shortage: CityStatus["shortage"] = null;
@@ -301,6 +310,24 @@ export function cityStatus(
         if (v < 0 && (!worst || v < worst.v)) worst = { cls, v };
       }
       if (worst) shortage = { classLabel: worst.cls, missing: -worst.v, day: days[i]! };
+    }
+    // Reserva sem solução na cidade: vale a mais cedo entre ela e a falta do saldo projetado.
+    const unsolved = actions
+      .filter((a) => a.type === "sem_solucao" && a.region === r)
+      .sort((a, b) => a.pickUpAt - b.pickUpAt);
+    if (unsolved.length > 0) {
+      const first = unsolved[0]!;
+      const day = dayKeyOf(first.pickUpAt);
+      if (!shortage || day < shortage.day) {
+        const cls = first.fromClass ?? "carro";
+        shortage = {
+          classLabel: cls,
+          missing: unsolved.filter(
+            (a) => dayKeyOf(a.pickUpAt) === day && (a.fromClass ?? "carro") === cls,
+          ).length,
+          day,
+        };
+      }
     }
     return {
       region: r,
