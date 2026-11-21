@@ -315,6 +315,10 @@ def coleta_florida(pickups, dias):
                 if dialogo and not contato_enviado:
                     pg.fill("dialog[open] input[autocomplete=given-name]", nome)
                     pg.fill("dialog[open] input[type=tel]", fone)
+                    # Desde 21/11/2026: checkbox obrigatório de consentimento; sem ele o botão fica desabilitado.
+                    for cb in pg.query_selector_all("dialog[open] input[type=checkbox][required]"):
+                        if not cb.is_checked():
+                            cb.check()
                     pg.click("dialog[open] button[type=submit], dialog[open] button:has-text('Começar reserva')")
                     contato_enviado = True
                 elif consultar and consultar.is_visible():
