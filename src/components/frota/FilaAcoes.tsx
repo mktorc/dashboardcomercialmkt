@@ -14,7 +14,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { FrotaVehicle, Region } from "@/lib/frota";
+import { TRANSFER_HOURS, type FrotaVehicle, type Region } from "@/lib/frota";
 import { REGION_COLOR } from "@/lib/frota-config";
 import { carName } from "@/lib/frota-sugestao";
 import type { Action, ActionOption, ActionType, Bucket } from "@/lib/frota-acoes";
@@ -59,7 +59,7 @@ async function copy(text: string) {
 
 const colorOf = (r: Region | null) => (r ? REGION_COLOR[r] : "#64748b");
 
-/** "de Miami → para FLL" — sempre de onde o carro está para onde precisa estar. */
+/** "de Miami → para Orlando" — sempre de onde o carro está para onde precisa estar. */
 function Rota({ from, to }: { from: Region | null; to: Region | null }) {
   return (
     <span className="flex items-center gap-1 whitespace-nowrap text-xs">
@@ -139,7 +139,9 @@ export function MiniLinhaTempo({ m }: { m: MiniTimeline }) {
           <div className="flex items-center gap-1">
             {m.travel.from} <ArrowRight className="size-3" /> {m.travel.to}
           </div>
-          <div className="font-normal">viagem 12h · tempo disponível: {m.travel.hours}h</div>
+          <div className="font-normal">
+            viagem {TRANSFER_HOURS}h · tempo disponível: {m.travel.hours}h
+          </div>
         </div>
       ) : (
         <div className="flex items-center px-1 text-muted-foreground">

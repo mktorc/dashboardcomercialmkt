@@ -17,7 +17,7 @@ import {
 const LOCS: FrotaLocation[] = [
   { id: 1, name: "MCO", region: "Orlando" },
   { id: 2, name: "MIA", region: "Miami" },
-  { id: 3, name: "FLL", region: "FLL" },
+  { id: 3, name: "Hotel Orlando", region: "Orlando" },
 ];
 const NOW = new Date("2026-11-19T12:00:00Z"); // 07:00 em Orlando
 const CLS: Record<number, string> = {
@@ -62,7 +62,7 @@ function actions(vehicles: FrotaVehicle[], segments: FrotaSegment[]) {
   return buildActions({ vehicles, segments, locations: LOCS, ...frota, now: NOW });
 }
 
-// Carro 1 devolve em MIA dia 20 às 10h; próxima retirada em FLL.
+// Carro 1 devolve em MIA dia 20 às 10h; próxima retirada no Hotel Orlando.
 const ate = (pickFll: string) => [
   seg("A", 1, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
   seg("B", 1, pickFll, "2026-11-30T10:00:00Z", 3, 3),
@@ -104,22 +104,38 @@ describe("buildActions: prioridade", () => {
     expect(a[0]!.levels).toBe(2);
   });
 
-  it("transferência quando não há troca nem upgrade e a janela ≥ 12h; prazo = retirada − 12h", () => {
+  it("transferência quando não há troca nem upgrade e a janela ≥ 5h; prazo = retirada − 5h", () => {
     const a = actions([car(1, 2)], ate("2026-11-25T10:00:00Z"));
     expect(a[0]!.type).toBe("transferir");
     expect(a[0]!.key).toBe("1|B"); // mesma chave das transferências antigas
-    expect(new Date(a[0]!.deadline).toISOString()).toBe("2026-11-24T22:00:00.000Z");
+    expect(new Date(a[0]!.deadline).toISOString()).toBe("2026-11-25T05:00:00.000Z");
     expect(a[0]!.bucket).toBe("programado");
   });
 
-  it("sem solução quando a janela é < 12h e não há carro na cidade", () => {
-    const a = actions([car(1, 2), car(2, 1)], ate("2026-11-20T18:00:00Z"));
+  it("sem solução quando a janela é < 5h e não há carro na cidade", () => {
+    const a = actions([car(1, 2), car(2, 2)], ate("2026-11-20T13:00:00Z"));
     expect(a[0]!.type).toBe("sem_solucao");
     expect(a[0]!.alternatives).toHaveLength(0);
     expect(a[0]!.text).toContain("renegociar");
-    // Prazo para agir = quando o carro teria que sair (retirada − 12h), não a retirada.
-    expect(new Date(a[0]!.deadline).toISOString()).toBe("2026-11-20T06:00:00.000Z");
+    // Prazo para agir = quando o carro teria que sair (retirada − 5h), não a retirada.
+    expect(new Date(a[0]!.deadline).toISOString()).toBe("2026-11-20T08:00:00.000Z");
     expect(a[0]!.bucket).toBe("hoje");
+  });
+
+  it("mesma cidade com menos de 1h: troca por carro livre ou sem solução", () => {
+    const segs = [
+      seg("A", 1, "2026-11-15T10:00:00Z", "2026-11-22T10:00:00Z", 1, 1),
+      seg("B", 1, "2026-11-22T10:30:00Z", "2026-11-28T10:00:00Z", 3, 3),
+    ];
+    const troca = actions([car(1, 1), car(2, 1)], segs);
+    expect(troca.map((x) => [x.reservationId, x.type, x.vehicle?.id])).toEqual([
+      ["B", "trocar", 2],
+    ]);
+
+    const sem = actions([car(1, 1)], segs);
+    expect(sem[0]!.type).toBe("sem_solucao");
+    expect(sem[0]!.text).toContain("30 min");
+    expect(new Date(sem[0]!.deadline).toISOString()).toBe("2026-11-22T10:30:00.000Z");
   });
 
   it("reserva sem carro nenhum: sem solução", () => {
@@ -163,7 +179,7 @@ describe("projectStock", () => {
       days,
       now: NOW,
     });
-    return { p, st: cityStatus(p, ["Orlando", "Miami", "FLL"], days, position) };
+    return { p, st: cityStatus(p, ["Orlando", "Miami"], days, position) };
   }
 
   it("acumula pátio + devoluções − retiradas e aponta a primeira falta", () => {
@@ -181,12 +197,12 @@ describe("projectStock", () => {
   });
 
   it("considera a transferência a fazer (sai da origem, entra no destino)", () => {
-    // Carro 1 parado em MIA, reserva em FLL dia 22 às 10h (Orlando): transferência sai dia 21.
-    const segs = [seg("B", 1, "2026-11-22T15:00:00Z", "2026-11-28T15:00:00Z", 3, 3)];
+    // Carro 1 parado em MIA, reserva em Orlando dia 22 às 04h (Orlando): transferência sai dia 21.
+    const segs = [seg("B", 1, "2026-11-22T09:00:00Z", "2026-11-28T15:00:00Z", 3, 3)];
     const { p } = project([car(1, 2)], segs);
-    expect(p.get("Miami")!.get("Midsize Suv")).toEqual([1, 1, 0, 0]); // sai 21/11 22h Orlando (retirada − 12h)
-    // Entra em FLL no dia 21 (prazo de saída) e sai na retirada do dia 22.
-    expect(p.get("FLL")!.get("Midsize Suv")).toEqual([0, 0, 1, 0]);
+    expect(p.get("Miami")!.get("Midsize Suv")).toEqual([1, 1, 0, 0]); // sai 21/11 23h Orlando (retirada − 5h)
+    // Entra em Orlando no dia 21 (prazo de saída) e sai na retirada do dia 22.
+    expect(p.get("Orlando")!.get("Midsize Suv")).toEqual([0, 0, 1, 0]);
   });
 
   it("upgrade sugerido consome a categoria superior", () => {

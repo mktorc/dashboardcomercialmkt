@@ -5,7 +5,6 @@ const LOCS: FrotaLocation[] = [
   { id: 1, name: "MCO", region: "Orlando" },
   { id: 7, name: "Hotel Orlando", region: "Orlando" },
   { id: 2, name: "MIA", region: "Miami" },
-  { id: 3, name: "FLL", region: "FLL" },
 ];
 const NOW = new Date("2026-11-19T12:00:00Z");
 const car = (id: number, loc: number, cls = 2): FrotaVehicle => ({
@@ -72,17 +71,30 @@ describe("computeFrota", () => {
     expect(r.transfers).toEqual([]);
   });
 
-  it("janela menor que 12h é conflito", () => {
+  it("janela menor que 5h é conflito", () => {
     const r = computeFrota(
       [car(1, 1)],
       [
         seg("A", 1, "2026-11-15T12:00:00Z", "2026-11-21T12:00:00Z", 1, 2),
-        seg("B", 1, "2026-11-21T20:00:00Z", "2026-11-25T12:00:00Z", 1, 1),
+        seg("B", 1, "2026-11-21T15:00:00Z", "2026-11-25T12:00:00Z", 1, 1),
       ],
       LOCS,
       NOW,
     );
     expect(r.transfers[0]?.urgency).toBe("conflito");
+  });
+
+  it("janela de 5h ou mais não é conflito", () => {
+    const r = computeFrota(
+      [car(1, 1)],
+      [
+        seg("A", 1, "2026-11-15T12:00:00Z", "2026-11-21T12:00:00Z", 1, 2),
+        seg("B", 1, "2026-11-21T17:00:00Z", "2026-11-25T12:00:00Z", 1, 1),
+      ],
+      LOCS,
+      NOW,
+    );
+    expect(r.transfers[0]?.urgency).not.toBe("conflito");
   });
 
   it("carro parado já devolvido usa o local atual do HQ", () => {
@@ -137,6 +149,52 @@ describe("computeFrota", () => {
       NOW,
     );
     expect(r.shortages.map((s) => s.reservation_id)).toEqual(["X", "Y"]);
+  });
+
+  it("mesma cidade: o carro só serve para a próxima reserva com 1h de folga", () => {
+    // Carro 1 devolve em MCO às 12h. Reserva sem carro em Orlando às 12h30: não dá tempo.
+    const r = computeFrota(
+      [car(1, 1)],
+      [
+        seg("A", 1, "2026-11-20T12:00:00Z", "2026-11-25T12:00:00Z", 1, 1),
+        seg("X", null, "2026-11-25T12:30:00Z", "2026-11-28T12:00:00Z", 1, 1),
+      ],
+      LOCS,
+      NOW,
+    );
+    expect(r.shortages.map((s) => s.reservation_id)).toEqual(["X"]);
+
+    // Com exatamente 1h de intervalo, serve.
+    const ok = computeFrota(
+      [car(1, 1)],
+      [
+        seg("A", 1, "2026-11-20T12:00:00Z", "2026-11-25T12:00:00Z", 1, 1),
+        seg("X", null, "2026-11-25T13:00:00Z", "2026-11-28T12:00:00Z", 1, 1),
+      ],
+      LOCS,
+      NOW,
+    );
+    expect(ok.shortages).toEqual([]);
+  });
+
+  it("carro escalado com menos de 1h entre reservas na mesma cidade é conflito", () => {
+    const r = computeFrota(
+      [car(1, 1)],
+      [
+        seg("A", 1, "2026-11-15T12:00:00Z", "2026-11-21T12:00:00Z", 1, 7),
+        seg("B", 1, "2026-11-21T12:30:00Z", "2026-11-25T12:00:00Z", 1, 1),
+      ],
+      LOCS,
+      NOW,
+    );
+    expect(r.transfers).toHaveLength(1);
+    expect(r.transfers[0]).toMatchObject({
+      kind: "escalado",
+      fromRegion: "Orlando",
+      toRegion: "Orlando",
+      urgency: "conflito",
+      toReservation: "B",
+    });
   });
 
   it("ignora reservas não confirmadas", () => {

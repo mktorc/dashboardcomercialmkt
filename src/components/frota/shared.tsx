@@ -2,7 +2,7 @@ import type { Urgency } from "@/lib/frota";
 
 export const URG: Record<Urgency, { label: string; cls: string; color: string }> = {
   conflito: {
-    label: "Menos de 12h",
+    label: "Menos de 5h",
     cls: "bg-red-600 text-white hover:bg-red-600",
     color: "#dc2626",
   },

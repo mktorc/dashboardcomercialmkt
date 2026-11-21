@@ -1,6 +1,6 @@
 // Motor de sugestão da Gestão de Frota.
 //
-// Para cada caso crítico — reserva cuja transferência tem janela < 12h ou reserva sem carro livre —
+// Para cada caso crítico — reserva cuja transferência tem janela < 5h ou reserva sem carro livre —
 // procura uma alternativa nesta ordem:
 //   a) Troca: carro da MESMA categoria, já livre na cidade de retirada no horário da reserva.
 //   b) Upgrade grátis: carro da categoria imediatamente acima (depois 2 níveis acima, ...).
@@ -11,6 +11,7 @@
 
 import {
   TRANSFER_HOURS,
+  TURNAROUND_HOURS,
   type FrotaLocation,
   type FrotaSegment,
   type FrotaVehicle,
@@ -27,7 +28,7 @@ export type SuggestionKind = "troca" | "upgrade" | "nenhuma";
 export type Suggestion = {
   /** Reserva em risco. */
   reservationId: string;
-  /** Por que é um caso: janela < 12h, reserva sem carro ou transferência programável (scope "all"). */
+  /** Por que é um caso: janela < 5h, reserva sem carro ou transferência programável (scope "all"). */
   reason: "conflito" | "sem_carro" | "transferencia";
   /** Retirada da reserva. */
   pickUpAt: string;
@@ -90,7 +91,7 @@ export function suggestAlternatives(input: {
   rankOf?: (classLabel: string | null) => number | null;
   /** Nomes das categorias por nível; padrão: frota-config. */
   levels?: string[][];
-  /** "critical" (padrão): só janela < 12h e sem carro. "all": também transferências programáveis. */
+  /** "critical" (padrão): só janela < 5h e sem carro. "all": também transferências programáveis. */
   scope?: "critical" | "all";
 }): Suggestion[] {
   const scope = input.scope ?? "critical";
@@ -172,15 +173,16 @@ export function suggestAlternatives(input: {
   /** O carro pode assumir a reserva sem transferência antes e sem criar conflito depois? */
   const fits = (v: FrotaVehicle, r: Interval): Fit | null => {
     const list = (schedule.get(v.id) ?? []).filter((x) => x.reservation_id !== r.reservation_id);
-    if (list.some((x) => x.start < r.end && x.end > r.start)) return null;
-    const prev = [...list].reverse().find((x) => x.end <= r.start) ?? null;
-    const after = list.find((x) => x.start >= r.end) ?? null;
+    const gap = TURNAROUND_HOURS * H; // folga mínima de 1h entre reservas
+    if (list.some((x) => x.start < r.end + gap && x.end + gap > r.start)) return null;
+    const prev = [...list].reverse().find((x) => x.end + gap <= r.start) ?? null;
+    const after = list.find((x) => x.start >= r.end + gap) ?? null;
     // Onde estará na retirada: devolução futura = local da devolução; senão local atual no HQ.
     const at =
       prev && prev.end > t0 ? prev.retLoc : (v.current_location_id ?? prev?.retLoc ?? null);
     const want = regionOf(r.pickLoc);
     if (want == null || regionOf(at) !== want) return null;
-    // Cadeia: se a próxima reserva dele começa em outra cidade, precisa de 12h para transferir.
+    // Cadeia: se a próxima reserva dele começa em outra cidade, precisa de 5h para transferir.
     let transferAfter = false;
     if (after) {
       const a = regionOf(r.retLoc);
@@ -267,7 +269,7 @@ export function suggestAlternatives(input: {
         : `parado em ${short}`;
       const novo = `${carName(v)} (${v.plate ?? "sem placa"})`;
       const depois = fit.transferAfter
-        ? " Atenção: depois desta reserva ele precisa ser transferido para a próxima (folga ≥ 12h)."
+        ? " Atenção: depois desta reserva ele precisa ser transferido para a próxima (folga ≥ 5h)."
         : "";
       const text =
         lvl === 0

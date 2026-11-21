@@ -70,8 +70,7 @@ const MODULES = [
     to: "/frota",
     icon: Car,
     title: "Gestão de Frota",
-    description:
-      "Carros que precisam mudar de região (Orlando, Miami, FLL, Tampa) antes da próxima reserva.",
+    description: "Carros que precisam mudar de região (Orlando e Miami) antes da próxima reserva.",
     cta: "Acessar Gestão de Frota",
   },
 ] as const;

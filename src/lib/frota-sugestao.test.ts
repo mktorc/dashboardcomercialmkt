@@ -5,7 +5,7 @@ import { suggestAlternatives } from "./frota-sugestao";
 const LOCS: FrotaLocation[] = [
   { id: 1, name: "MCO", region: "Orlando" },
   { id: 2, name: "MIA", region: "Miami" },
-  { id: 3, name: "FLL", region: "FLL" },
+  { id: 3, name: "Hotel Orlando", region: "Orlando" },
 ];
 const NOW = new Date("2026-11-19T12:00:00Z");
 const CLS: Record<number, string> = {
@@ -55,10 +55,10 @@ function run(vehicles: FrotaVehicle[], segments: FrotaSegment[]) {
   });
 }
 
-// Caso base: carro 1 devolve em MIA dia 20 às 10h e tem retirada em FLL dia 20 às 18h (8h: conflito).
+// Caso base: carro 1 devolve em MIA dia 20 às 10h e tem retirada no Hotel Orlando dia 20 às 13h (3h < 5h: conflito).
 const CONFLITO = [
   seg("A", 1, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
-  seg("B", 1, "2026-11-20T18:00:00Z", "2026-11-25T10:00:00Z", 3, 3),
+  seg("B", 1, "2026-11-20T13:00:00Z", "2026-11-25T10:00:00Z", 3, 3),
 ];
 
 describe("suggestAlternatives", () => {
@@ -74,7 +74,7 @@ describe("suggestAlternatives", () => {
   });
 
   it("upgrade: sem carro da categoria, sugere o nível imediatamente acima", () => {
-    // Fullsize (1 nível) e Minivan (2 níveis) livres em FLL: deve escolher o Fullsize.
+    // Fullsize (1 nível) e Minivan (2 níveis) livres em Orlando: deve escolher o Fullsize.
     const s = run([car(1, 2), car(5, 3, 5), car(4, 3, 4)], CONFLITO);
     expect(s[0]!.kind).toBe("upgrade");
     expect(s[0]!.vehicle?.id).toBe(5);
@@ -96,13 +96,13 @@ describe("suggestAlternatives", () => {
   });
 
   it("sem solução: nenhum carro livre na cidade", () => {
-    const s = run([car(1, 2), car(2, 1)], CONFLITO); // o outro está em Orlando
+    const s = run([car(1, 2), car(2, 2)], CONFLITO); // o outro também está em Miami
     expect(s[0]!.kind).toBe("nenhuma");
     expect(s[0]!.text).toContain("Sem alternativa");
   });
 
   it("descarta sugestão que criaria outro conflito na cadeia do carro sugerido", () => {
-    // Carro 2 está em FLL, mas tem retirada em MIA 4h depois da devolução de B: geraria conflito.
+    // Carro 2 está em Orlando, mas tem retirada em MIA 4h depois da devolução de B: geraria conflito.
     // Carro 3 (mesma situação, porém com folga) deve ser o escolhido.
     const segs = [
       ...CONFLITO,

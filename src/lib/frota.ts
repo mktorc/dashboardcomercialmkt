@@ -1,5 +1,5 @@
 // Gestão de Frota: a partir das reservas (trechos) e da frota, calcula quais carros precisam mudar de
-// região (Orlando, Miami, FLL, Tampa) e até quando.
+// região (Orlando ou Miami) e até quando.
 //
 // 1) Carros já escalados: para cada carro, compara onde termina um trecho com onde começa o seguinte.
 //    Regiões diferentes = transferência, com janela [devolução, próxima retirada].
@@ -7,7 +7,7 @@
 //    ordem de retirada. Prefere um carro livre que já estará na região; senão, um livre em outra região
 //    (sugere a transferência); sem nenhum livre, a reserva fica "sem carro".
 
-export type Region = "Orlando" | "Miami" | "FLL" | "Tampa";
+export type Region = "Orlando" | "Miami";
 
 export type FrotaLocation = { id: number; name: string; region: Region };
 
@@ -64,10 +64,22 @@ export type Shortage = {
   location: string | null;
 };
 
+/** Caso de mesma cidade: carro escalado sem a folga mínima de 1h entre devolução e próxima retirada. */
+export const isSameCity = (t: Transfer) => t.fromRegion === t.toRegion;
+
+/** Intervalo entre a devolução e a retirada, em texto ("30 min", "0 min" se sobrepõe). */
+export function gapText(t: Transfer): string {
+  const free = t.freeFrom ? Date.parse(t.freeFrom) : Date.now();
+  const min = Math.max(0, Math.round((Date.parse(t.needBy) - free) / 60_000));
+  return `${min} min`;
+}
+
 export type FrotaResult = { transfers: Transfer[]; shortages: Shortage[] };
 
-/** Transferência entre regiões: mínimo de 12h. */
-export const TRANSFER_HOURS = 12;
+/** Deslocamento Orlando ↔ Miami: 5h. */
+export const TRANSFER_HOURS = 5;
+/** Intervalo mínimo entre duas reservas do mesmo carro na mesma cidade (devolução → próxima retirada). */
+export const TURNAROUND_HOURS = 1;
 /** Precisa chegar em até 2 dias: urgente. */
 const URGENT_HOURS = 48;
 const H = 3_600_000;
@@ -143,8 +155,12 @@ export function computeFrota(
   ) => {
     const fromRegion = regionOf(fromLoc);
     const toRegion = regionOf(next.pickLoc);
-    if (!fromRegion || !toRegion || fromRegion === toRegion) return;
+    if (!fromRegion || !toRegion) return;
     const freeAt = prev ? prev.end : t0;
+    // Mesma cidade: só vira caso se o carro escalado não tem a folga mínima de 1h entre as reservas.
+    const sameCity = fromRegion === toRegion;
+    if (sameCity && !(kind === "escalado" && prev && next.start - prev.end < TURNAROUND_HOURS * H))
+      return;
     transfers.push({
       key: `${v.id}|${next.reservation_id}`,
       kind,
@@ -157,7 +173,7 @@ export function computeFrota(
       needBy: new Date(next.start).toISOString(),
       fromReservation: prev?.reservation_id ?? null,
       toReservation: next.reservation_id,
-      urgency: urgencyOf(freeAt, next.start),
+      urgency: sameCity ? "conflito" : urgencyOf(freeAt, next.start),
       windowHours: Math.round((next.start - Math.max(freeAt, t0)) / H),
     });
   };
@@ -193,9 +209,11 @@ export function computeFrota(
     for (const v of candidates) {
       const list = schedule.get(v.id) ?? [];
       // Livre no período da reserva?
-      if (list.some((x) => x.start < end && x.end > start)) continue;
-      const prev = [...list].reverse().find((x) => x.end <= start) ?? null;
-      const after = list.find((x) => x.start >= end) ?? null;
+      // Livre no período da reserva, com a folga mínima de 1h antes e depois?
+      const gap = TURNAROUND_HOURS * H;
+      if (list.some((x) => x.start < end + gap && x.end + gap > start)) continue;
+      const prev = [...list].reverse().find((x) => x.end + gap <= start) ?? null;
+      const after = list.find((x) => x.start >= end + gap) ?? null;
       const fromLoc = originOf(v, prev);
       const fromRegion = regionOf(fromLoc);
       const moveBefore = fromRegion != null && wantRegion != null && fromRegion !== wantRegion;

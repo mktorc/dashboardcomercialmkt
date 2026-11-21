@@ -53,8 +53,8 @@ export const Route = createFileRoute("/_authenticated/frota")({
   component: FrotaPage,
 });
 
-const REGIONS: Region[] = ["Orlando", "Miami", "FLL", "Tampa"];
-const HORIZONTES = [14, 30, 60] as const;
+const REGIONS: Region[] = ["Orlando", "Miami"];
+const HORIZONTE = 7;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- builder do Supabase sem tipos
 type Query = any;
@@ -126,7 +126,7 @@ function startOfWeek(now: number) {
 
 function FrotaPage() {
   const qc = useQueryClient();
-  const [horizonte, setHorizonte] = useState<(typeof HORIZONTES)[number]>(30);
+  const horizonte = HORIZONTE;
   const [regiao, setRegiao] = useState<Region | "todas">("todas");
   const [tipo, setTipo] = useState<TypeFilter>("todas");
   const [frotaToda, setFrotaToda] = useState(false);
@@ -287,23 +287,13 @@ function FrotaPage() {
         <div>
           <h1 className="text-2xl font-semibold">Gestão de Frota · Central de Ações</h1>
           <p className="text-sm text-muted-foreground">
-            O que fazer, até quando, e o que está ok. Transferência entre regiões: mínimo de 12h.
-            Horários de Orlando.
+            O que fazer, até quando, e o que está ok. Viagem Orlando ↔ Miami: 5h. Mesma cidade: 1h
+            entre reservas. Horários de Orlando.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-muted-foreground">Próximos</span>
-          {HORIZONTES.map((h) => (
-            <Button
-              key={h}
-              size="sm"
-              variant={horizonte === h ? "default" : "outline"}
-              onClick={() => setHorizonte(h)}
-            >
-              {h} dias
-            </Button>
-          ))}
+          <span className="text-sm text-muted-foreground">Próximos {HORIZONTE} dias</span>
           <span className="ml-2 text-sm text-muted-foreground">Região</span>
           {(["todas", ...REGIONS] as const).map((r) => (
             <Button

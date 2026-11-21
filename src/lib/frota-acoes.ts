@@ -1,13 +1,16 @@
-// Central de Ações da Gestão de Frota: transforma transferências, reservas sem carro e casos < 12h numa
+// Central de Ações da Gestão de Frota: transforma transferências, reservas sem carro e casos < 5h numa
 // fila única de ações priorizadas, e projeta o estoque por cidade + categoria.
 //
 // Prioridade da ação escolhida para cada caso:
 //   troca na mesma categoria (carro já na cidade) > upgrade 1 nível > upgrade 2+ níveis
-//   > transferência (se a janela ≥ 12h) > sem solução.
+//   > transferência (se a janela ≥ 5h) > sem solução.
 // As demais opções válidas ficam em `alternatives`.
 
 import {
   TRANSFER_HOURS,
+  TURNAROUND_HOURS,
+  gapText,
+  isSameCity,
   type FrotaLocation,
   type FrotaSegment,
   type FrotaVehicle,
@@ -28,7 +31,7 @@ export type ActionOption = {
   text: string;
   instruction: string;
   vehicle: FrotaVehicle | null;
-  /** Prazo de saída/ação (ms): retirada − 12h para transferir; retirada para troca/upgrade. */
+  /** Prazo de saída/ação (ms): retirada − 5h para transferir; retirada para troca/upgrade. */
   deadline: number;
 };
 
@@ -115,19 +118,29 @@ export function chooseAction(s: Suggestion, now: number): Action {
   }
   if (t && transferValid) options.push(transferOption(t));
   if (options.length === 0) {
-    // Sem solução: o prazo para agir é quando o carro teria que sair (retirada − 12h), não a retirada.
-    const base = { ...suggestionOption(s), deadline: pick - (t ? TRANSFER_HOURS * H : 0) };
+    // Sem solução: o prazo para agir é quando o carro teria que sair (retirada − 5h), não a retirada.
+    const same = t != null && isSameCity(t);
+    const base = {
+      ...suggestionOption(s),
+      deadline: pick - (t && !same ? TRANSFER_HOURS * H : 0),
+    };
     options.push(
-      t
+      t && same
         ? {
             ...base,
-            text: `Sem solução — tempo disponível de ${t.windowHours}h (< 12h) para ${t.fromRegion} → ${t.toRegion}: renegociar o horário ou ligar para o cliente`,
-            instruction: `Reserva ${s.reservationId}: o carro ${carName(t.vehicle)} (${t.vehicle.plate ?? "sem placa"}) só fica livre em ${t.fromLocation ?? t.fromRegion} com ${t.windowHours}h até a retirada em ${t.toLocation ?? t.toRegion} (${fmtTime(pick)}), e não há carro livre na cidade para trocar ou dar upgrade. Ligar para o cliente e renegociar o horário, ou transferir com urgência.`,
+            text: `Sem solução — só ${gapText(t)} entre a devolução e a retirada em ${t.toRegion} (mínimo ${TURNAROUND_HOURS}h): renegociar o horário ou ligar para o cliente`,
+            instruction: `Reserva ${s.reservationId}: o carro ${carName(t.vehicle)} (${t.vehicle.plate ?? "sem placa"}) é devolvido ${gapText(t)} antes da retirada em ${t.toLocation ?? t.toRegion} (${fmtTime(pick)}), menos que o intervalo mínimo de ${TURNAROUND_HOURS}h, e não há outro carro livre na cidade. Ligar para o cliente e renegociar o horário.`,
           }
-        : {
-            ...base,
-            text: "Sem solução — nenhum carro livre: renegociar o horário ou ligar para o cliente",
-          },
+        : t
+          ? {
+              ...base,
+              text: `Sem solução — tempo disponível de ${t.windowHours}h (< ${TRANSFER_HOURS}h) para ${t.fromRegion} → ${t.toRegion}: renegociar o horário ou ligar para o cliente`,
+              instruction: `Reserva ${s.reservationId}: o carro ${carName(t.vehicle)} (${t.vehicle.plate ?? "sem placa"}) só fica livre em ${t.fromLocation ?? t.fromRegion} com ${t.windowHours}h até a retirada em ${t.toLocation ?? t.toRegion} (${fmtTime(pick)}), e não há carro livre na cidade para trocar ou dar upgrade. Ligar para o cliente e renegociar o horário, ou transferir com urgência.`,
+            }
+          : {
+              ...base,
+              text: "Sem solução — nenhum carro livre: renegociar o horário ou ligar para o cliente",
+            },
     );
   }
   const [best, ...alternatives] = options;

@@ -126,7 +126,7 @@ export function LinhaDoTempo({
     }
     const c = URG[g.urgency].color;
     const label = `${REGION_SHORT[g.from]} → ${REGION_SHORT[g.to]} · ${g.transfer.windowHours}h disponíveis`;
-    // Prazo de saída: retirada − 12h.
+    // Prazo de saída: retirada − 5h.
     const saida = Date.parse(g.transfer.needBy) - 12 * 3_600_000;
     return (
       <>

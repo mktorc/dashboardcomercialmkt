@@ -12,13 +12,13 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.fleet_locations (
   id integer PRIMARY KEY,
   name text NOT NULL,
-  region text NOT NULL CHECK (region IN ('Orlando', 'Miami', 'FLL', 'Tampa'))
+  region text NOT NULL CHECK (region IN ('Orlando', 'Miami'))
 );
 INSERT INTO public.fleet_locations (id, name, region) VALUES
   (1,  'MCO - Orlando International Airport', 'Orlando'),
   (2,  'MIA - Miami International Airport', 'Miami'),
-  (3,  'FLL - Fort Lauderdale-Hollywood International Airport', 'FLL'),
-  (4,  'TPA - Tampa International Airport', 'Tampa'),
+  (3,  'FLL - Fort Lauderdale-Hollywood International Airport', 'Miami'),
+  (4,  'TPA - Tampa International Airport', 'Orlando'),
   (5,  'Port Canaveral', 'Orlando'),
   (7,  'Hotel Orlando', 'Orlando'),
   (8,  'Casa de Ferias - Orlando', 'Orlando'),
@@ -26,8 +26,8 @@ INSERT INTO public.fleet_locations (id, name, region) VALUES
   (10, 'Trem Brightline Miami', 'Miami'),
   (11, 'Trem Brightline Orlando', 'Orlando'),
   (12, 'SFA - Aeroporto de Sanford', 'Orlando'),
-  (13, 'Hotel FLL', 'FLL'),
-  (14, 'Porto FLL', 'FLL'),
+  (13, 'Hotel FLL', 'Miami'),
+  (14, 'Porto FLL', 'Miami'),
   (15, 'Hotel Miami', 'Miami'),
   (16, 'Porto Miami', 'Miami')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, region = EXCLUDED.region;

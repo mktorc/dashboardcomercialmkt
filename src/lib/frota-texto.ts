@@ -1,7 +1,15 @@
 // Textos em linguagem simples para os cards da Central de Ações:
 // frase da linha fechada, "Problema", "Solução", passo a passo "No HQ" e a mini linha do tempo.
 
-import { TRANSFER_HOURS, type FrotaVehicle, type Region, type Urgency } from "@/lib/frota";
+import {
+  TRANSFER_HOURS,
+  TURNAROUND_HOURS,
+  gapText,
+  isSameCity,
+  type FrotaVehicle,
+  type Region,
+  type Urgency,
+} from "@/lib/frota";
 import { carName } from "@/lib/frota-sugestao";
 import type { Action } from "@/lib/frota-acoes";
 
@@ -148,11 +156,17 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
     const s = a.suggestion;
     const desde = s.freeSince ? ` desde ${fmtCurto(s.freeSince)}` : "";
     const problem = t
-      ? t.urgency === "conflito"
-        ? `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
-        : `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}.`
+      ? isSameCity(t)
+        ? `O ${car(t.vehicle)} é devolvido em ${t.fromRegion} só ${gapText(t)} antes da reserva ${a.reservationId} (${fmtDia(pick)}): o mínimo entre reservas é ${TURNAROUND_HOURS}h.`
+        : t.urgency === "conflito"
+          ? `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
+          : `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}.`
       : `A reserva ${a.reservationId} (${a.fromClass ?? "categoria ?"}) começa em ${cityTxt} ${fmtDia(pick)} e não há carro da categoria livre a tempo.`;
-    const evita = t ? `evita uma transferência de ${t.fromRegion}` : "resolve a reserva sem carro";
+    const evita = t
+      ? isSameCity(t)
+        ? "garante o intervalo mínimo entre as reservas"
+        : `evita uma transferência de ${t.fromRegion}`
+      : "resolve a reserva sem carro";
     const depois = s.transferAfter
       ? ` Depois desta reserva ele precisará viajar para a próxima (há tempo, mais de ${TRANSFER_HOURS}h).`
       : "";
@@ -192,17 +206,21 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
 
   // Sem solução.
   const ligar = res?.customer ? ` (${res.customer})` : "";
+  const same = t != null && isSameCity(t);
   const problem = t
-    ? `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
+    ? same
+      ? `O ${car(t.vehicle)} é devolvido em ${t.fromRegion} só ${gapText(t)} antes da reserva ${a.reservationId} (${fmtDia(pick)}): o mínimo entre reservas é ${TURNAROUND_HOURS}h.`
+      : `O ${car(t.vehicle)} está em ${t.fromRegion}, mas a reserva ${a.reservationId} começa em ${t.toRegion} ${fmtDia(pick)}: só sobram ${hours}h, menos que as ${TRANSFER_HOURS}h da viagem.`
     : `A reserva ${a.reservationId} (${a.fromClass ?? "categoria ?"}) começa em ${cityTxt} ${fmtDia(pick)} e nenhum carro da categoria fica livre a tempo.`;
   const chegaria = t
-    ? Math.max(t.freeFrom ? Date.parse(t.freeFrom) : 0, now) + TRANSFER_HOURS * H
+    ? Math.max(t.freeFrom ? Date.parse(t.freeFrom) : 0, now) +
+      (same ? TURNAROUND_HOURS : TRANSFER_HOURS) * H
     : null;
-  const solution = `Nenhum carro da mesma categoria ou superior está livre em ${cityTxt} a tempo. Ligar para o cliente e renegociar o horário${t ? `, ou mandar o ${car(t.vehicle)} com urgência` : ""}.`;
+  const solution = `Nenhum carro da mesma categoria ou superior está livre em ${cityTxt} a tempo. Ligar para o cliente e renegociar o horário${t && !same ? `, ou mandar o ${car(t.vehicle)} com urgência` : ""}.`;
   const steps = [
     `Abrir a reserva ${a.reservationId} e ligar para o cliente${ligar}`,
     chegaria
-      ? `Renegociar a retirada para depois de ${fmtDia(chegaria)} (quando o ${car(t!.vehicle)} consegue chegar em ${t!.toRegion})`
+      ? `Renegociar a retirada para depois de ${fmtDia(chegaria)} (${same ? `${TURNAROUND_HOURS}h depois da devolução do ${car(t!.vehicle)}` : `quando o ${car(t!.vehicle)} consegue chegar em ${t!.toRegion}`})`
       : "Renegociar o horário ou oferecer outra data",
     "Atualizar o horário de retirada na reserva",
   ];
@@ -218,7 +236,7 @@ export function describeAction(a: Action, resInfo: Map<string, ResInfo>, now: nu
     mini: {
       prev: prevOf(t?.fromReservation ?? null),
       parkedAt: t?.fromRegion ?? null,
-      travel: t ? { from: t.fromRegion, to: t.toRegion, hours, urgency: t.urgency } : null,
+      travel: t && !same ? { from: t.fromRegion, to: t.toRegion, hours, urgency: t.urgency } : null,
       next,
     },
   });

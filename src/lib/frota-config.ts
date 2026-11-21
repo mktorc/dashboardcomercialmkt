@@ -28,14 +28,10 @@ export function categoryRank(classLabel: string | null | undefined): number | nu
 export const REGION_COLOR: Record<Region, string> = {
   Orlando: "#8b5cf6", // violeta
   Miami: "#ec4899", // rosa
-  FLL: "#14b8a6", // verde-água
-  Tampa: "#eab308", // amarelo
 };
 
-/** Sigla curta usada nas setas ("MIA → FLL"). */
+/** Sigla curta usada nas setas ("MIA → MCO"). */
 export const REGION_SHORT: Record<Region, string> = {
   Orlando: "MCO",
   Miami: "MIA",
-  FLL: "FLL",
-  Tampa: "TPA",
 };

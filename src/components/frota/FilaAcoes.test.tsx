@@ -13,8 +13,7 @@ import { FilaAcoes, groupActions } from "./FilaAcoes";
 const LOCS: FrotaLocation[] = [
   { id: 1, name: "MCO", region: "Orlando" },
   { id: 2, name: "MIA", region: "Miami" },
-  { id: 3, name: "FLL", region: "FLL" },
-  { id: 4, name: "TPA", region: "Tampa" },
+  { id: 3, name: "Hotel Orlando", region: "Orlando" },
 ];
 const NOW = new Date("2026-11-19T12:00:00Z");
 const CLS: Record<number, string> = { 2: "Midsize Suv", 5: "Fullsize Suv" };
@@ -49,9 +48,9 @@ const seg = (
 
 // Um cenário com os 4 tipos de ação, em hoje, amanhã e programado.
 const vehicles = [
-  car(1, 2), // transferir MIA → FLL (programado)
-  car(2, 2), // sem solução (< 12h, ninguém em Tampa)
-  car(3, 2), // troca: carro 4 já está em FLL
+  car(1, 2), // transferir MIA → Orlando (programado)
+  car(2, 2), // sem solução (< 5h, ninguém livre em Orlando)
+  car(3, 2), // troca: carro 4 já está em Orlando
   car(4, 3),
   car(5, 1, 5), // upgrade: Fullsize em Orlando
   car(6, 2),
@@ -60,11 +59,14 @@ const segments = [
   seg("T1", 1, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
   seg("T2", 1, "2026-11-24T10:00:00Z", "2026-11-30T10:00:00Z", 3, 3),
   seg("S1", 2, "2026-11-15T10:00:00Z", "2026-11-19T20:00:00Z", 2, 2),
-  seg("S2", 2, "2026-11-20T02:00:00Z", "2026-11-23T10:00:00Z", 4, 4),
+  seg("S2", 2, "2026-11-19T23:00:00Z", "2026-11-24T12:00:00Z", 1, 1),
   seg("X1", 3, "2026-11-15T10:00:00Z", "2026-11-20T10:00:00Z", 2, 2),
   seg("X2", 3, "2026-11-20T20:00:00Z", "2026-11-25T10:00:00Z", 3, 3),
   seg("U1", 6, "2026-11-15T10:00:00Z", "2026-11-21T10:00:00Z", 2, 2),
   seg("U2", 6, "2026-11-21T14:00:00Z", "2026-11-25T10:00:00Z", 1, 1),
+  // Carros 4 e 5 ocupados em Orlando na hora da S2 (sem carro livre para ela); voltam a tempo de X2/U2.
+  seg("W4", 4, "2026-11-19T13:00:00Z", "2026-11-20T18:00:00Z", 3, 3),
+  seg("W5", 5, "2026-11-19T20:00:00Z", "2026-11-21T12:00:00Z", 1, 1, 5),
 ];
 const frota = computeFrota(vehicles, segments, LOCS, NOW, 60);
 const actions: Action[] = buildActions({ vehicles, segments, locations: LOCS, ...frota, now: NOW });
@@ -137,14 +139,14 @@ describe("textos do card", () => {
 
   it("transferir: frase simples, de → para e sem jargão", () => {
     const x = get("transferir");
-    expect(x.headline).toMatch(/^Levar Carro 1 de Miami para FLL — sair até /);
-    expect([x.from, x.to]).toEqual(["Miami", "FLL"]);
-    expect(x.mini.travel).toMatchObject({ from: "Miami", to: "FLL" });
+    expect(x.headline).toMatch(/^Levar Carro 1 de Miami para Orlando — sair até /);
+    expect([x.from, x.to]).toEqual(["Miami", "Orlando"]);
+    expect(x.mini.travel).toMatchObject({ from: "Miami", to: "Orlando" });
   });
 
   it("trocar: carro original e novo; localização do carro novo", () => {
     const x = get("trocar");
-    expect(x.headline).toBe("Reserva X2: trocar Carro 3 por Carro 4, que já está em FLL");
+    expect(x.headline).toBe("Reserva X2: trocar Carro 3 por Carro 4, que já está em Orlando");
     expect(x.originalCar?.id).toBe(3);
     expect(x.newCar?.id).toBe(4);
     expect(x.steps[1]).toBe("Trocar o veículo de P3 para P4");
@@ -161,9 +163,9 @@ describe("textos do card", () => {
   it("sem solução: de onde o carro está para onde precisa estar (nunca só o destino)", () => {
     const x = get("sem_solucao");
     expect(x.headline).toMatch(
-      /^Reserva S2: nenhum carro chega a tempo em Tampa — ligar para o cliente até /,
+      /^Reserva S2: nenhum carro chega a tempo em Orlando — ligar para o cliente até /,
     );
-    expect([x.from, x.to]).toEqual(["Miami", "Tampa"]);
+    expect([x.from, x.to]).toEqual(["Miami", "Orlando"]);
     expect(x.steps[0]).toContain("s2@x.com");
   });
 
