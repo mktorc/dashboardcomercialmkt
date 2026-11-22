@@ -136,6 +136,8 @@ const FIXED_COLORS: Record<string, string> = {
   budget: "#fb7185",
   enterprise: "#94a3b8",
   hertz: "#facc15",
+  thrifty: "#14b8a6",
+  dollar: "#d4a373",
 };
 const POS_TEXT: Record<Position, string> = {
   acima: "text-red-400",

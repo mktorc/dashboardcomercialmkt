@@ -10,8 +10,8 @@ Fora, de propósito: rentcars.com, sixt.com.br (Cloudflare), hertz.com.br (Imper
 não se contorna.
 
 Uso:
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|discovercars|nosso|todos            # só mostra o que seria coletado (nada é gravado)
-  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|national|alamo|enterprise|discovercars|nosso|todos --gravar   # grava no Supabase
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|thrifty|dollar|national|alamo|enterprise|discovercars|nosso|todos            # só mostra o que seria coletado (nada é gravado)
+  python3 scripts/precificacao/coletor.py up|ally|florida|avis|budget|thrifty|dollar|national|alamo|enterprise|discovercars|nosso|todos --gravar   # grava no Supabase
   "nosso" = cotação do nosso próprio site (orlandorentcar.com), gravada em our_rate_snapshots com source "site_cotacao".
   Opções: --retirada 2027-01-13 --devolucao 2027-01-17 (período exato: uma cotação com essas diárias)
           --datas 2027-03-10,2027-03-17   --dias 7   --semanas 18 (retiradas a cada 7 dias a partir de --inicio; padrão: hoje + 3 dias)
@@ -456,6 +456,103 @@ def coleta_budget(pickups, dias):
     return _coleta_lac("Budget", BUDGET_HOME, BUDGET_SITE, pickups, dias)
 
 
+# Hertz, Thrifty e Dollar (Hertz Group América Latina: lac.hertz.com, lac.thrifty.com, lac.dollar.com) usam a mesma plataforma do
+# avislac.com: mesma chamada de busca (_AVIS_JS), em USD e como cliente do Brasil (country BR). Diferenças: cada carro traz a
+# tarifa só do carro (sem seguros) com o preço SEM taxas separado (basePriceWithoutTaxes / totalTax) e uma tarifa pacote (seguros,
+# motorista adicional e taxas inclusos), que ignoramos. O código ACRISS vem no fim do link de detalhe (".../ZT/MVAR").
+# Motorista adicional: lido na página de detalhe (USD por dia). Cadeirinha: o site não oferece online (fica sem preço).
+# lac.hertz.com fica de fora: só vende pacote com seguro e taxas embutidos (sem tarifa só do carro), não dá para tirar as taxas.
+HLAC = {
+    "thrifty": ("Thrifty", "https://lac.thrifty.com/pt/", "35adb5c7-47ce-6899-af32-b08d7c2fe45b"),
+    "dollar": ("Dollar", "https://lac.dollar.com/pt/", "0b9c2479-24c3-9856-c8a5-05d9e8c59efe"),
+}
+
+
+def parse_hertzlac(j):
+    """SearchAvailabilityQuery do Hertz Group LAC -> [{categoria, normalizada, total, diaria, dias, promo, tipo, detalhe}].
+    Tarifa sem seguro (sem códigos cdw/lis), preço sem taxas; pareamento pelo modelo (categoria_por_modelo); só USD."""
+    resp = (((j or {}).get("objectResponse") or {}).get("search") or {}).get("availabilityResponse") or {}
+    dias = (resp.get("itineraryDate") or {}).get("rentalDuration")
+    out = []
+    for v in resp.get("vehicles") or []:
+        vi = v.get("vehicleInfo") or {}
+        if vi.get("isSoldOut") or not dias:
+            continue
+        so_carro = [f for f in v.get("fareGroup") or [] if f.get("transactionCurrency") == "USD"
+                    and not any(k.lower().startswith(("cdw", "lis", "ldw")) for k in (f.get("inclusionCodes") or {}))]
+        if not so_carro:
+            continue
+        f = min(so_carro, key=lambda x: (x.get("price") or {}).get("basePriceWithoutTaxes") or 1e9)
+        preco = f.get("price") or {}
+        total = preco.get("basePriceWithoutTaxes") or 0
+        if total <= 0:
+            continue
+        nome = (vi.get("name") or "").strip()
+        acriss = ((f.get("detailUrl") or "").rstrip("/").split("/")[-1] or "").upper()
+        classe = ((vi.get("vehicleType") or {}).get("class") or {}).get("name", "").strip()
+        seats = (vi.get("characteristics") or {}).get("passenger")
+        norm = categoria_por_modelo({"car_name": nome, "seats": seats, "acriss": acriss, "car_class": classe})
+        out.append(dict(categoria=f"{nome} ({acriss})", normalizada=norm, total=round(total, 2), diaria=round(total / dias, 2),
+                        dias=dias, promo=bool(preco.get("discountPercentage")), detalhe=f.get("detailUrl"),
+                        tipo=f"{nome} ou similar, {seats} lugares; taxas à parte: US$ {preco.get('totalTax') or 0:.2f}"))
+    # Uma oferta por categoria nossa (a mais barata); as sem par ficam (sem normalizada), uma por modelo.
+    melhor = {}
+    for x in out:
+        k = x["normalizada"] or x["categoria"]
+        if k not in melhor or x["total"] < melhor[k]["total"]:
+            melhor[k] = x
+    return list(melhor.values())
+
+
+def parse_motorista_hlac(texto):
+    """'Motorista adicional ... USD 7.91 | DIA' na página de detalhe -> 7.91 (None se não achar)."""
+    m = re.search(r"Motorista adicional.*?USD\s*([\d.,]+)\s*\|\s*DIA", texto.replace("\xa0", " "), re.S | re.I)
+    return num(m.group(1)) if m else None
+
+
+def _coleta_hlac(chave, pickups, dias):
+    from playwright.sync_api import sync_playwright
+    from urllib.parse import urlparse
+    nome, home, site = HLAC[chave]
+    res = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        ctx = b.new_context(user_agent=UA, locale="pt-BR")
+        ctx.add_cookies([{"name": "currency", "value": "USD", "domain": urlparse(home).hostname, "path": "/"}])
+        pg = ctx.new_page()
+        for d in pickups:
+            fim = d + timedelta(days=dias)
+            agora = datetime.now(timezone.utc)
+            pg.goto(home, wait_until="domcontentloaded", timeout=90000)
+            pg.wait_for_timeout(3000)
+            itens = parse_hertzlac(pg.evaluate(_AVIS_JS, [d.isoformat(), fim.isoformat(), site]))
+            motorista = None
+            if itens and itens[0]["detalhe"]:
+                try:
+                    pg.goto(itens[0]["detalhe"], wait_until="domcontentloaded", timeout=90000)
+                    pg.wait_for_selector("text=Motorista adicional", timeout=60000)
+                    pg.wait_for_timeout(1500)
+                    motorista = parse_motorista_hlac(pg.inner_text("body"))
+                except Exception as e:
+                    print(f"  motorista adicional não lido ({str(e)[:80]})")
+            obs = (f"motorista adicional US$ {motorista:.2f}/dia (lido no site)" if motorista is not None
+                   else "motorista adicional não lido") + "; cadeirinha não oferecida online"
+            print(f"{nome} {d}: {len(itens)} categorias com preço; {obs}")
+            for it in itens:
+                res.append(dict(it, tipo=f"{it['tipo']}; {obs}", retirada=d, devolucao=fim, coletado_em=agora, url=home, extras=None))
+            time.sleep(PAUSA)
+        b.close()
+    return res
+
+
+def coleta_thrifty(pickups, dias):
+    return _coleta_hlac("thrifty", pickups, dias)
+
+
+def coleta_dollar(pickups, dias):
+    return _coleta_hlac("dollar", pickups, dias)
+
+
 NATIONAL_HOME = "https://www.nationalcar.com/pt/pagina-inicial.html"
 NATIONAL_API = "https://prd-east.webapi.nationalcar.com/gma-national"
 NATIONAL_MCO = "1019103"  # Orlando International Airport (MCO), agência MCOT01
@@ -575,7 +672,8 @@ DC_LOCAL = "Orlando (Aeroporto MCO)"
 DC_MAPA = "DiscoverCars"  # pareamento pelo modelo (categoria_por_modelo); o mapa_categorias.json não tem esta chave
 # Locadoras do DiscoverCars gravadas (nome no site -> nome do concorrente). Alamo, National e Enterprise ficam de fora: já vêm
 # direto dos sites delas. Avis e Budget levam o sufixo porque a coleta direta delas usa outra base (Seguro Essencial).
-DC_LOCADORAS = {"Hertz": "Hertz", "SIXT": "Sixt", "Thrifty": "Thrifty", "Dollar": "Dollar", "Europcar": "Europcar",
+# Thrifty e Dollar saíram (2026-11-22): vêm direto dos sites LAC delas, sem taxas.
+DC_LOCADORAS = {"Hertz": "Hertz", "SIXT": "Sixt", "Europcar": "Europcar",
                 "Avis": "Avis (DiscoverCars)", "Budget": "Budget (DiscoverCars)"}
 
 
@@ -850,6 +948,8 @@ FONTES = {
     "enterprise": ("Enterprise", coleta_enterprise, NATIONAL_LOCAL,
                    "Tarifa base sem taxas (enterprise.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
                    "não incluídas (tarifa sem proteções)"),
+    "thrifty": ("Thrifty", coleta_thrifty, "Orlando (Aeroporto MCO)", "Preço sem taxas e sem seguros (lac.thrifty.com, USD, cliente do Brasil, tarifa só do carro); km livre", "não incluídas (tarifa sem proteções)"),
+    "dollar": ("Dollar", coleta_dollar, "Orlando (Aeroporto MCO)", "Preço sem taxas e sem seguros (lac.dollar.com, USD, cliente do Brasil, tarifa só do carro); km livre", "não incluídas (tarifa sem proteções)"),
     # Uma fonte, várias locadoras: cada item traz o próprio "concorrente"; o mapa é o de DC_MAPA (por código ACRISS).
     "discovercars": (DC_MAPA, coleta_discovercars, DC_LOCAL,
                      "Preço total exibido no DiscoverCars (via Apify, USD, residente no Brasil, 30 anos); taxas não separadas; "

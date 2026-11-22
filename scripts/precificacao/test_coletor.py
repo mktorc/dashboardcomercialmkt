@@ -412,3 +412,28 @@ class DiscoverCars(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _hv(nome, seats, classe, acriss, base, tax, pacote=False):
+    cods = {"cdw_ZT_LAT_US": True, "tax": True} if pacote else {"cfc": True}
+    return {"vehicleInfo": {"name": nome, "characteristics": {"passenger": seats}, "vehicleType": {"class": {"name": classe}}},
+            "fareGroup": [{"transactionCurrency": "USD", "inclusionCodes": cods, "detailUrl": f"https://x/detail/ZT/{acriss}",
+                           "price": {"basePriceWithoutTaxes": base, "totalTax": tax}}]}
+
+
+class HertzGroupLAC(unittest.TestCase):
+    def test_preco_sem_taxas_e_sem_seguro(self):
+        j = {"objectResponse": {"search": {"availabilityResponse": {"itineraryDate": {"rentalDuration": 7}, "vehicles": [
+            _hv("DODGE Grand Caravan", 7, "MINIVAN", "MVAR", 416.87, 152.82),
+            _hv("TOYOTA Sienna", 8, "VAN", "MVAR", 437.72, 157.46),
+            _hv("TOYOTA Corolla", 5, "INTERMEDIÁRIO", "ICAR", 336.95, 135),
+            _hv("NISSAN Rogue", 5, "SUV", "IFAR", 400, 0, pacote=True)]}}}}
+        r = {x["normalizada"]: x for x in C.parse_hertzlac(j)}
+        self.assertEqual(set(r), {"Mini Van 8 Seats", "Midsize Sedan"})
+        self.assertEqual(r["Mini Van 8 Seats"]["total"], 416.87)
+        self.assertEqual(r["Mini Van 8 Seats"]["categoria"], "DODGE Grand Caravan (MVAR)")
+        self.assertEqual(r["Midsize Sedan"]["diaria"], 48.14)
+
+    def test_motorista(self):
+        self.assertEqual(C.parse_motorista_hlac("Motorista adicional Maior de 25 anos\nAdicionar por Apenas\nUSD 1.33 | DIA"), 1.33)
+        self.assertIsNone(C.parse_motorista_hlac("nada"))
