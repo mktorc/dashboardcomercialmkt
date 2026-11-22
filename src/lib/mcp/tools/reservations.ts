@@ -112,7 +112,7 @@ export const reservationsReport = defineTool({
   name: "reservations_report",
   title: "Relatório de reservas",
   description:
-    "Reservas filtradas por período (criação, retirada ou devolução), categoria, vendedor, status, campanha e parceiro. Sem group_by: lista paginada + totais. Com group_by: receita, diárias, ticket médio, diária média e desconto por grupo. Horários (created_at, pick_up_at, return_at) são a hora LOCAL de Orlando, mesmo com sufixo Z/+00: não converter fuso.",
+    "Reservas filtradas por período (criação, retirada ou devolução), categoria, vendedor, status, campanha e parceiro. Sem group_by: lista paginada + totais. Com group_by: receita, diárias, ticket médio, diária média e desconto por grupo. pick_up_at e return_at são a hora LOCAL de Orlando gravada com sufixo Z/+00 (não converter fuso); created_at é UTC real.",
   inputSchema: {
     ...reservationArgs,
     group_by: z
