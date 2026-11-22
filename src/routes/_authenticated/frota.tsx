@@ -38,12 +38,15 @@ import {
 } from "@/lib/frota-ajustes";
 import { carName } from "@/lib/frota-sugestao";
 import { AjusteDialog, type AjusteInput } from "@/components/frota/AjusteDialog";
+import { aplicarNoHq } from "@/lib/hq-frota.functions";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ISSUE_LABEL,
   chainOf,
   chainText,
   diffEffects,
   diffPlan,
+  isUpgradeAction,
   hqIssues,
   snapshot,
   weekStats,
@@ -344,7 +347,47 @@ function FrotaPage() {
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["frota"] }),
   });
+  // "Aplicar no HQ": troca o carro da reserva direto no HQ (servidor) e recarrega.
+  const aplicarFn = useServerFn(aplicarNoHq);
+  const aplicarNoHqDe = async (
+    reservationId: string,
+    vehicle: FrotaVehicle,
+    upgrade: boolean,
+  ): Promise<boolean> => {
+    const id = toast.loading(`Aplicando no HQ: reserva ${reservationId}…`);
+    try {
+      const r = await aplicarFn({
+        data: {
+          reservationId,
+          vehicleId: vehicle.id,
+          upgradeClassId: upgrade ? vehicle.vehicle_class_id : null,
+        },
+      });
+      if (r.ok) toast.success(r.message, { id });
+      else toast.error(r.message, { id, duration: r.partial ? 20_000 : 8_000 });
+      return r.ok;
+    } catch (e) {
+      toast.error(`Falha ao falar com o HQ: ${(e as Error).message}`, { id });
+      return false;
+    } finally {
+      void qc.invalidateQueries({ queryKey: ["frota"] });
+    }
+  };
+  const aplicarAcao = (a: Action) =>
+    a.vehicle
+      ? aplicarNoHqDe(a.reservationId, a.vehicle, isUpgradeAction(a))
+      : Promise.resolve(false);
+
   const salvarAjuste = (a: Action, input: AjusteInput) => {
+    if (input.applyHq && input.vehicleId != null) {
+      const v = result?.vehicles.find((x) => x.id === input.vehicleId);
+      if (v && v.id !== a.currentVehicle?.id)
+        void aplicarNoHqDe(
+          a.reservationId,
+          v,
+          isUpgradeAction({ fromClass: a.fromClass, vehicle: v }),
+        );
+    }
     const row = toRow({ reservationId: a.reservationId, suggested: a.text, ...input });
     ajustar.mutate({ kind: "salvar", row });
     setAjustando(null);
@@ -534,6 +577,7 @@ function FrotaPage() {
                   onAdjust={setAjustando}
                   changes={mudancas.change}
                   chainFor={chainFor}
+                  onApply={aplicarAcao}
                   typeFilter={tipo}
                   onTypeFilter={setTipo}
                   regionFilter={regiao}
@@ -598,6 +642,7 @@ function FrotaPage() {
               resInfo={result.resInfo}
               onDone={feito}
               onAdjust={setAjustando}
+              onApply={aplicarAcao}
               now={clock}
             />
             <AjusteDialog

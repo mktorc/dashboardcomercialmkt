@@ -61,6 +61,7 @@ export function PainelFrota({
   resInfo,
   onDone,
   onAdjust,
+  onApply,
   now,
 }: {
   selection: Selection;
@@ -70,6 +71,7 @@ export function PainelFrota({
   resInfo: Map<string, ResInfo>;
   onDone: (a: Action) => void;
   onAdjust?: ((a: Action) => void) | undefined;
+  onApply?: ((a: Action) => Promise<boolean>) | undefined;
   now: number;
 }) {
   let body: React.ReactNode = null;
@@ -87,6 +89,7 @@ export function PainelFrota({
           resInfo={resInfo}
           onDone={onDone}
           onAdjust={onAdjust}
+          onApply={onApply}
         />
       ))
     );

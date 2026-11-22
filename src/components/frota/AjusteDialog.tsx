@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { FrotaVehicle, Region } from "@/lib/frota";
 import { categoryRank } from "@/lib/frota-config";
 import type { Action } from "@/lib/frota-acoes";
@@ -28,6 +29,8 @@ export type AjusteInput = {
   kind: AdjustmentKind;
   vehicleId: number | null;
   note: string;
+  /** Também trocar o carro direto no HQ. */
+  applyHq?: boolean;
 };
 
 export function AjusteDialog({
@@ -51,6 +54,7 @@ export function AjusteDialog({
   const [vehicleId, setVehicleId] = useState<number | null>(null);
   const [busca, setBusca] = useState("");
   const [note, setNote] = useState("");
+  const [applyHq, setApplyHq] = useState(false);
 
   useEffect(() => {
     if (!action) return;
@@ -58,6 +62,7 @@ export function AjusteDialog({
     setVehicleId(null);
     setBusca("");
     setNote("");
+    setApplyHq(false);
   }, [action]);
 
   // Carros sugeridos primeiro: mesma categoria/1 acima e já na cidade da retirada.
@@ -204,6 +209,22 @@ export function AjusteDialog({
           />
         </div>
 
+        {kind === "outro_carro" && (
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <Checkbox
+              checked={applyHq}
+              onCheckedChange={(c) => setApplyHq(c === true)}
+              className="mt-0.5"
+            />
+            <span>
+              Aplicar também no HQ
+              <span className="block text-xs text-muted-foreground">
+                Troca o carro da reserva no HQ (com upgrade grátis se a categoria for maior).
+              </span>
+            </span>
+          </label>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancelar
@@ -215,6 +236,7 @@ export function AjusteDialog({
                 kind,
                 vehicleId: kind === "mantido" ? (action.currentVehicle?.id ?? null) : vehicleId,
                 note,
+                applyHq: kind === "outro_carro" && applyHq,
               })
             }
           >

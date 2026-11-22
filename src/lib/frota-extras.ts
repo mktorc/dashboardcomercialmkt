@@ -11,6 +11,7 @@ import {
 import type { Action } from "@/lib/frota-acoes";
 import { isAdjustmentKey, parseAdjustments, type DoneRow } from "@/lib/frota-ajustes";
 import { carName } from "@/lib/frota-sugestao";
+import { categoryRank } from "@/lib/frota-config";
 
 const H = 3_600_000;
 const fmt = (ms: number) =>
@@ -291,4 +292,13 @@ export function diffEffects(before: Action[], after: Action[], skip: string): st
     if (r !== skip && !a2.has(r))
       out.push(`Reserva ${r} deixa de precisar de ação (antes: ${desc(y)})`);
   return out;
+}
+
+// ---- Aplicar no HQ -------------------------------------------------------------------------------
+
+/** O carro da ação é de categoria acima da reservada (precisa registrar upgrade grátis no HQ)? */
+export function isUpgradeAction(a: Pick<Action, "fromClass" | "vehicle">): boolean {
+  const from = categoryRank(a.fromClass);
+  const to = categoryRank(a.vehicle?.class_label ?? null);
+  return from != null && to != null && to > from;
 }

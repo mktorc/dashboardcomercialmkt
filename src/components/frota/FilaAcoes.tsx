@@ -12,6 +12,7 @@ import {
   PhoneCall,
   Repeat,
   Truck,
+  Upload,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,7 @@ import {
   type ResInfo,
 } from "@/lib/frota-texto";
 import { URG } from "@/components/frota/shared";
-import { whatsappText, type PlanChange } from "@/lib/frota-extras";
+import { isUpgradeAction, whatsappText, type PlanChange } from "@/lib/frota-extras";
 
 export type { ResInfo };
 
@@ -203,6 +204,7 @@ export function ActionCard({
   onAdjust,
   change,
   chain,
+  onApply,
 }: {
   a: Action;
   now: number;
@@ -214,6 +216,8 @@ export function ActionCard({
   chain?: string[] | undefined;
   /** "Feito com ajuste": abre o formulário do que foi feito no lugar da sugestão. */
   onAdjust?: ((a: Action) => void) | undefined;
+  /** "Aplicar no HQ": troca o carro da reserva direto no HQ. */
+  onApply?: ((a: Action) => Promise<boolean>) | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const [alts, setAlts] = useState(false);
@@ -224,6 +228,22 @@ export function ActionCard({
   const tx = describeAction(a, resInfo, now);
   const res = resInfo.get(a.reservationId);
   const wpp = whatsappText(a);
+  // Dá para aplicar no HQ quando a ação muda o carro da reserva.
+  const podeAplicar =
+    onApply != null &&
+    a.vehicle != null &&
+    a.vehicle.id !== a.currentVehicle?.id &&
+    (a.type === "trocar" || a.type === "upgrade" || a.type === "transferir");
+  const [confirmar, setConfirmar] = useState(false);
+  const [aplicando, setAplicando] = useState(false);
+  const aplicar = async () => {
+    if (!onApply) return;
+    setAplicando(true);
+    const ok = await onApply(a).catch(() => false);
+    setAplicando(false);
+    setConfirmar(false);
+    if (ok) done();
+  };
 
   const done = () => {
     setLeaving(true);
@@ -293,6 +313,19 @@ export function ActionCard({
                   <span className="hidden lg:inline">WhatsApp</span>
                 </Button>
               )}
+              {podeAplicar && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-emerald-600/60 text-emerald-300"
+                  onClick={() => setConfirmar(true)}
+                  disabled={leaving || aplicando}
+                  title="Trocar o carro desta reserva direto no HQ"
+                >
+                  <Upload className="mr-1 size-4" />
+                  <span className="hidden lg:inline">Aplicar no HQ</span>
+                </Button>
+              )}
               {onAdjust && (
                 <Button
                   size="sm"
@@ -310,6 +343,30 @@ export function ActionCard({
               </Button>
             </div>
           </div>
+
+          {confirmar && a.vehicle && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-emerald-600/50 bg-emerald-600/10 px-3 py-2 text-sm">
+              <span className="flex-1">
+                Trocar no HQ: reserva <b>{a.reservationId}</b> → <b>{carName(a.vehicle)}</b>
+                {a.currentVehicle ? ` (sai ${carName(a.currentVehicle)})` : ""}
+                {isUpgradeAction(a)
+                  ? ` · registra upgrade grátis de ${a.fromClass} para ${a.vehicle.class_label}, mantendo o preço`
+                  : ""}
+                {a.type === "transferir" ? " · a viagem continua sendo feita por vocês" : ""}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmar(false)}
+                disabled={aplicando}
+              >
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={aplicar} disabled={aplicando}>
+                {aplicando ? "Aplicando…" : "Confirmar no HQ"}
+              </Button>
+            </div>
+          )}
 
           {open && (
             <div className="mt-2 space-y-3 border-t pt-3">
@@ -479,6 +536,7 @@ export function FilaAcoes({
   onAdjust,
   changes,
   chainFor,
+  onApply,
   typeFilter,
   onTypeFilter,
   regionFilter,
@@ -493,6 +551,7 @@ export function FilaAcoes({
   onAdjust?: ((a: Action) => void) | undefined;
   changes?: Map<string, PlanChange> | undefined;
   chainFor?: ((a: Action) => string[]) | undefined;
+  onApply?: ((a: Action) => Promise<boolean>) | undefined;
   typeFilter: TypeFilter;
   onTypeFilter: (t: TypeFilter) => void;
   regionFilter: Region | "todas";
@@ -596,6 +655,7 @@ export function FilaAcoes({
                   onAdjust={onAdjust}
                   change={changes?.get(a.reservationId)}
                   chain={chainFor?.(a)}
+                  onApply={onApply}
                 />
               ))}
           </section>
