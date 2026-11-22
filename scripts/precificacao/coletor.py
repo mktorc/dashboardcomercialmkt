@@ -536,10 +536,13 @@ def _coleta_hlac(chave, pickups, dias):
                 except Exception as e:
                     print(f"  motorista adicional não lido ({str(e)[:80]})")
             obs = (f"motorista adicional US$ {motorista:.2f}/dia (lido no site)" if motorista is not None
-                   else "motorista adicional não lido") + "; cadeirinha não oferecida online"
+                   else "motorista adicional não lido") + "; cadeirinha não oferecida online (não somada)"
+            # Decisão do usuário (2026-11-22): soma só o motorista; cadeirinha entra como 0 e "não informada" (não é grátis).
+            extras = ({"motorista": (motorista, "dia"), "bebe": (0.0, "dia"), "bebe_nome": "cadeirinha não informada"}
+                      if motorista is not None else None)
             print(f"{nome} {d}: {len(itens)} categorias com preço; {obs}")
             for it in itens:
-                res.append(dict(it, tipo=f"{it['tipo']}; {obs}", retirada=d, devolucao=fim, coletado_em=agora, url=home, extras=None))
+                res.append(dict(it, tipo=f"{it['tipo']}; {obs}", retirada=d, devolucao=fim, coletado_em=agora, url=home, extras=extras))
             time.sleep(PAUSA)
         b.close()
     return res
