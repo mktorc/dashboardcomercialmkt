@@ -168,7 +168,8 @@ export function planFrota(input: {
     rankOf(i.classId != null ? (classLabel.get(i.classId) ?? null) : null);
   /** Custo da reserva no carro (null = categoria não serve). */
   const itemCost = (i: Item, vid: number | null): number | null => {
-    if (vid == null) return COST.unassigned;
+    // Sem carro: quanto mais cedo a retirada, pior (no empate, fica sem carro a mais tardia).
+    if (vid == null) return COST.unassigned + Math.max(0, horizon - i.start) / H / 100;
     // Fora do período em que o carro está na frota (entra depois da retirada ou sai antes da devolução).
     if (vid !== i.hq) {
       const v = byId.get(vid)!;
@@ -265,6 +266,17 @@ export function planFrota(input: {
       // Sem isso, um carro que já tem conflito "absorve" reservas de graça (troca conflito por conflito).
       const moved = (x: Item | null) => x != null && x.movable && x.hq !== vid;
       if (l.kind === "conflict" && (moved(b) || moved(a))) c += COST.forbidden;
+      // Conflito do HQ com uma reserva SEGUINTE que o plano não pode mexer (fora da janela): a culpa
+      // é dela, não da anterior. Não pune (senão o plano tira o carro de quem está certo); o
+      // conflito aparece em "Corrigir no HQ" e entra na fila quando ela chegar na janela.
+      else if (
+        l.kind === "conflict" &&
+        !b.movable &&
+        b.start > horizon &&
+        a != null &&
+        a.hq === vid
+      )
+        c += 0;
       else c += linkCost(l);
     }
     return c;

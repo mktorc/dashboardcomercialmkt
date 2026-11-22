@@ -26,7 +26,7 @@ import {
   projectStock,
   type Action,
 } from "@/lib/frota-acoes";
-import { buildTimeline, dayKeyOf, orlandoMidnight } from "@/lib/frota-timeline";
+import { buildTimeline, dayKeyOf, hqWallToInstant, orlandoMidnight } from "@/lib/frota-timeline";
 import { planFrota } from "@/lib/frota-otimizador";
 import {
   KIND_LABEL,
@@ -133,9 +133,15 @@ async function loadFrota() {
       (q) => q.gte("return_at", desde),
     ).catch(() => []),
   ]);
+  // Horários do HQ são de Orlando sem fuso (gravados como UTC): converte para o instante real.
+  const segmentsReal = segments.map((s) => ({
+    ...s,
+    pick_up_at: hqWallToInstant(s.pick_up_at),
+    return_at: hqWallToInstant(s.return_at),
+  }));
   const customers = new Map<string, string>();
   for (const c of clientes) if (c.customer_email) customers.set(c.reservation_id, c.customer_email);
-  return { locations, vehicles, segments, done, customers };
+  return { locations, vehicles, segments: segmentsReal, done, customers };
 }
 
 /** Relógio que avança a cada minuto (contagem regressiva). */

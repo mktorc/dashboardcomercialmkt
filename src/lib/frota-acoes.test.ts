@@ -308,3 +308,16 @@ describe("planFrota: data de entrada na frota", () => {
     expect(a[0]!.vehicle?.id).not.toBe(2);
   });
 });
+
+describe("planFrota: conflito com a reserva seguinte", () => {
+  it("não tira o carro da reserva anterior quando o problema é a seguinte (fora da janela)", () => {
+    // P (Orlando → devolve em Miami dia 25) está certa. Q usa o mesmo carro em Orlando 2h depois
+    // da devolução em Miami, mas fica fora da janela de 7 dias: o conflito é de Q, não de P.
+    const segs = [
+      seg("P", 1, "2026-11-21T10:00:00Z", "2026-11-26T10:00:00Z", 1, 2),
+      seg("Q", 1, "2026-11-26T12:00:00Z", "2026-12-05T10:00:00Z", 1, 1),
+    ];
+    const a = actions([car(1, 1)], segs);
+    expect(a.find((x) => x.reservationId === "P")).toBeUndefined(); // P sem ação: segue com o carro 1
+  });
+});

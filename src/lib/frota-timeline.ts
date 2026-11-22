@@ -27,6 +27,24 @@ export function orlandoMidnight(key: string): number {
   return utc + offset;
 }
 
+/**
+ * O HQ manda data/hora LOCAL de Orlando sem fuso ("2026-11-23 23:30") e o banco grava como UTC
+ * ("23:30+00"). Converte esse "horário de parede" no instante real (23:30 em Orlando = 04:30Z),
+ * já com horário de verão. Devolve ISO em UTC.
+ */
+export function hqWallToInstant(ts: string): string {
+  const wall = Date.parse(ts);
+  if (Number.isNaN(wall)) return ts;
+  // Offset de Orlando perto desse horário (4h ou 5h); recalcula uma vez para virar o dia certo.
+  const offsetAt = (ms: number) => {
+    const asNy = Date.parse(new Date(ms).toLocaleString("en-US", { timeZone: TZ }) + " UTC");
+    return ms - asNy;
+  };
+  let real = wall + offsetAt(wall);
+  real = wall + offsetAt(real);
+  return new Date(real).toISOString();
+}
+
 export type Bar = {
   reservationId: string;
   start: number;

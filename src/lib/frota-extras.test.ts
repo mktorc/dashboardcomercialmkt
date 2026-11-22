@@ -130,3 +130,11 @@ describe("extras", () => {
     ]);
   });
 });
+
+describe("hqWallToInstant", () => {
+  it("lê o horário do HQ como Orlando (inverno -5h, verão -4h)", async () => {
+    const { hqWallToInstant } = await import("./frota-timeline");
+    expect(hqWallToInstant("2026-11-23T23:30:00+00:00")).toBe("2026-11-24T04:30:00.000Z");
+    expect(hqWallToInstant("2026-07-10T10:00:00+00:00")).toBe("2026-07-10T14:00:00.000Z");
+  });
+});
