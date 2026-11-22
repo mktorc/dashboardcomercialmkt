@@ -123,6 +123,20 @@ const COMP_COLORS = [
   "#d4a373",
   "#fb7185",
 ];
+/** Cor fixa por locadora (pelo início do nome), para não mudar entre telas nem ficarem parecidas. */
+const FIXED_COLORS: Record<string, string> = {
+  alamo: "#60a5fa",
+  allycar: "#f59e0b",
+  avis: "#a78bfa",
+  europcar: "#34d399",
+  florida: "#f472b6",
+  national: "#22d3ee",
+  sixt: "#a3e635",
+  up: "#e879f9",
+  budget: "#fb7185",
+  enterprise: "#94a3b8",
+  hertz: "#facc15",
+};
 const POS_TEXT: Record<Position, string> = {
   acima: "text-red-400",
   alinhado: "text-muted-foreground",
@@ -256,7 +270,13 @@ export function Competitividade({
     );
 
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
-  const colorOf = (c: string) => COMP_COLORS[concorrentes.indexOf(c) % COMP_COLORS.length]!;
+  const colorOf = (c: string) => {
+    const k = Object.keys(FIXED_COLORS).find((n) => c.toLowerCase().startsWith(n));
+    if (k) return FIXED_COLORS[k]!;
+    const livres = COMP_COLORS.filter((x) => !Object.values(FIXED_COLORS).includes(x));
+    const outros = concorrentes.filter((n) => !Object.keys(FIXED_COLORS).some((k) => n.toLowerCase().startsWith(k)));
+    return livres[outros.indexOf(c) % livres.length]!;
+  };
   const dates = pickupDates(range.from, lastNight);
   // Seleção (clique no calendário) só vale se ainda está no intervalo e nas categorias exibidas.
   const sel: Sel = selRaw && cells.has(cellKey(selRaw.date, selRaw.category)) ? selRaw : null;
