@@ -37,7 +37,7 @@ jobs:
       # Avis e Budget (avislac/budgetlac) ficam de fora: bloqueiam os IPs do GitHub e voltam 0 categorias.
       fail-fast: false
       matrix:
-        fonte: [nosso, up, ally, florida, national, alamo, discovercars]
+        fonte: [nosso, up, ally, florida, national, alamo, thrifty, dollar, discovercars]
     steps:
       # DiscoverCars é pago por busca (Apify): para caber nos US$ 5 grátis por mês, roda só de 3 em 3 dias no agendamento
       # (~10 x 26 datas x US$ 0,015 ≈ US$ 3,90/mês), nunca no push, e sempre que pedido à mão (workflow_dispatch),
