@@ -352,7 +352,7 @@ export const salesGoalsProgress = defineTool({
     return ok({
       goals: rows,
       occupancy_goals_raw: occupancy,
-      note: "Mês da reserva = YYYY-MM de created_at (UTC).",
+      note: "Mês da reserva = YYYY-MM de created_at (hora local de Orlando gravada como UTC: não converter fuso).",
     });
   },
 });
