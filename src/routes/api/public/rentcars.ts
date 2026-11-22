@@ -186,9 +186,12 @@ export const Route = createFileRoute("/api/public/rentcars")({
         } catch {
           return resp(request, { ok: false, erro: "corpo inválido" }, 400);
         }
-        const segredo = process.env["SYNC_CRON_TOKEN"];
-        if (!segredo || body.token !== segredo)
-          return resp(request, { ok: false, erro: "não autorizado" }, 401);
+        // Mesmos segredos aceitos pelas rotas de sincronização (sync-auth), sem espaços nas pontas.
+        const tok = (body.token ?? "").trim();
+        const ok = ["SYNC_CRON_TOKEN", "CRON_SECRET", "LOVABLE_CRON_SECRET"]
+          .map((k) => (process.env[k] ?? "").trim())
+          .some((s) => !!s && s === tok);
+        if (!tok || !ok) return resp(request, { ok: false, erro: "não autorizado" }, 401);
         const url = body.url ?? "";
         const text = (body.text ?? "").slice(0, 2_000_000);
         const tipo = pageKind(url);
