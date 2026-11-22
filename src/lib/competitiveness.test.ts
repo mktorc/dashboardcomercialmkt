@@ -80,9 +80,32 @@ describe("competitividade", () => {
   });
   it("site direto primeiro: a cotação do DiscoverCars da mesma locadora/categoria/período sai", () => {
     const dc = { notes: "Preço total exibido no DiscoverCars" };
-    const rows = [snap("Thrifty", 60), snap("Thrifty", 80, dc), snap("Sixt", 70, dc), snap("Avis (DiscoverCars)", 75, dc)];
+    const rows = [
+      snap("Thrifty", 60),
+      snap("Thrifty", 80, dc),
+      snap("Sixt", 70, dc),
+      snap("Avis (DiscoverCars)", 75, dc),
+    ];
     const out = preferDirect(rows);
-    expect(out.map((r) => `${r.competitor}:${r.dailyPrice}`).sort()).toEqual(["Avis (DiscoverCars):75", "Sixt:70", "Thrifty:60"]);
+    expect(out.map((r) => `${r.competitor}:${r.dailyPrice}`).sort()).toEqual([
+      "Avis (DiscoverCars):75",
+      "Sixt:70",
+      "Thrifty:60",
+    ]);
+  });
+  it("sem site direto: Rentcars antes do DiscoverCars; com site direto, os dois saem", () => {
+    const dc = { notes: "Preço total exibido no DiscoverCars" };
+    const rows = [
+      snap("Sixt", 70, dc),
+      snap("Sixt (Rentcars)", 72),
+      snap("Hertz (Rentcars)", 90),
+      snap("Hertz", 85),
+    ];
+    expect(
+      preferDirect(rows)
+        .map((r) => r.competitor)
+        .sort(),
+    ).toEqual(["Hertz", "Sixt (Rentcars)"]);
   });
   it("mercado: a opção de extras muda a mediana e o número de comparáveis", () => {
     const rows = [

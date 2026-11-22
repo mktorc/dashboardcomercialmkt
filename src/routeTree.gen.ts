@@ -30,6 +30,7 @@ import { Route as ApiFilaExternoRouteImport } from './routes/api/fila/externo'
 import { Route as ApiFilaHistoricoRouteImport } from './routes/api/fila/historico'
 import { Route as ApiFilaProximoRouteImport } from './routes/api/fila/proximo'
 import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
+import { Route as ApiPublicRentcarsRouteImport } from './routes/api/public/rentcars'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
 import { Route as ApiFilaVendedoresIndexRouteImport } from './routes/api/fila/vendedores/index'
@@ -155,6 +156,11 @@ const ApiFilaToggleRoute = ApiFilaToggleRouteImport.update({
   path: '/api/fila/toggle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicRentcarsRoute = ApiPublicRentcarsRouteImport.update({
+  id: '/api/public/rentcars',
+  path: '/api/public/rentcars',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppComissoesAPagarRoute = AppComissoesAPagarRouteImport.update({
   id: '/app/comissoes/a-pagar',
   path: '/app/comissoes/a-pagar',
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -300,6 +307,7 @@ export interface FileRoutesByTo {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -380,6 +389,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
     | '/api/fila/vendedores/$id'
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
     | '/api/fila/vendedores/$id'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
     | '/api/fila/vendedores/$id'
@@ -491,6 +503,7 @@ export interface RootRouteChildren {
   ApiFilaHistoricoRoute: typeof ApiFilaHistoricoRoute
   ApiFilaProximoRoute: typeof ApiFilaProximoRoute
   ApiFilaToggleRoute: typeof ApiFilaToggleRoute
+  ApiPublicRentcarsRoute: typeof ApiPublicRentcarsRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
   ApiFilaVendedoresIdRoute: typeof ApiFilaVendedoresIdRoute
@@ -658,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFilaToggleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/rentcars': {
+      id: '/api/public/rentcars'
+      path: '/api/public/rentcars'
+      fullPath: '/api/public/rentcars'
+      preLoaderRoute: typeof ApiPublicRentcarsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/app/comissoes/a-pagar': {
       id: '/app/comissoes/a-pagar'
       path: '/app/comissoes/a-pagar'
@@ -811,6 +831,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilaHistoricoRoute: ApiFilaHistoricoRoute,
   ApiFilaProximoRoute: ApiFilaProximoRoute,
   ApiFilaToggleRoute: ApiFilaToggleRoute,
+  ApiPublicRentcarsRoute: ApiPublicRentcarsRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,
   ApiFilaVendedoresIdRoute: ApiFilaVendedoresIdRoute,

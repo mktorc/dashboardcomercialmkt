@@ -159,17 +159,25 @@ export function latestOffers<T extends Snapshot>(rows: T[]): T[] {
 export const isDiscoverCars = (r: Pick<Snapshot, "notes" | "competitor">) =>
   /discovercars/i.test(r.notes ?? "") || /\(discovercars\)/i.test(r.competitor);
 
-/** Nome da locadora sem o sufixo da fonte ("Avis (DiscoverCars)" -> "Avis"). */
-export const baseCompetitor = (c: string) => c.replace(/\s*\(discovercars\)\s*$/i, "").trim();
+/** Cotação capturada na Rentcars (botão no navegador): comparador, com proteções e taxas da locadora no total. */
+export const isRentcars = (r: Pick<Snapshot, "competitor">) => /\(rentcars\)/i.test(r.competitor);
+
+/** Nome da locadora sem o sufixo da fonte ("Avis (DiscoverCars)" -> "Avis", "Hertz (Rentcars)" -> "Hertz"). */
+export const baseCompetitor = (c: string) =>
+  c.replace(/\s*\((discovercars|rentcars)\)\s*$/i, "").trim();
 
 /**
- * Site direto primeiro: se a mesma locadora tem cotação do próprio site para a mesma categoria e período, a do DiscoverCars sai
- * (evita a mesma locadora duas vezes). Sem cotação direta, a do DiscoverCars fica (decisão do usuário, 2026-11-22).
+ * Site direto primeiro: se a mesma locadora tem cotação do próprio site para a mesma categoria e período, as dos comparadores
+ * saem (evita a mesma locadora duas vezes). Sem cotação direta, vale a do comparador: a Rentcars antes do DiscoverCars, porque
+ * traz cadeirinha e motorista (decisão do usuário, 2026-11-22).
  */
 export function preferDirect<T extends Snapshot>(rows: T[]): T[] {
-  const key = (r: T) => `${baseCompetitor(r.competitor).toLowerCase()}|${r.category}|${r.pickupAt.slice(0, 10)}|${r.returnAt.slice(0, 10)}`;
-  const direct = new Set(rows.filter((r) => !isDiscoverCars(r) && r.category).map(key));
-  return rows.filter((r) => !isDiscoverCars(r) || !direct.has(key(r)));
+  const key = (r: T) =>
+    `${baseCompetitor(r.competitor).toLowerCase()}|${r.category}|${r.pickupAt.slice(0, 10)}|${r.returnAt.slice(0, 10)}`;
+  const rank = (r: T) => (isDiscoverCars(r) ? 2 : isRentcars(r) ? 1 : 0);
+  const best = new Map<string, number>();
+  for (const r of rows) if (r.category) best.set(key(r), Math.min(best.get(key(r)) ?? 9, rank(r)));
+  return rows.filter((r) => !r.category || rank(r) === best.get(key(r)));
 }
 
 /**

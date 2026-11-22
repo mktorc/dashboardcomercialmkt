@@ -278,13 +278,17 @@ export function Competitividade({
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
   // Concorrentes cujas cotações vêm só do DiscoverCars (marcados com * na legenda).
   const dcNames = new Set(
-    concorrentes.filter((c) => rows.filter((r) => r.competitor === c).every((r) => isDiscoverCars(r))),
+    concorrentes.filter((c) =>
+      rows.filter((r) => r.competitor === c).every((r) => isDiscoverCars(r)),
+    ),
   );
   const colorOf = (c: string) => {
     const k = Object.keys(FIXED_COLORS).find((n) => c.toLowerCase().startsWith(n));
     if (k) return FIXED_COLORS[k]!;
     const livres = COMP_COLORS.filter((x) => !Object.values(FIXED_COLORS).includes(x));
-    const outros = concorrentes.filter((n) => !Object.keys(FIXED_COLORS).some((k) => n.toLowerCase().startsWith(k)));
+    const outros = concorrentes.filter(
+      (n) => !Object.keys(FIXED_COLORS).some((k) => n.toLowerCase().startsWith(k)),
+    );
     return livres[outros.indexOf(c) % livres.length]!;
   };
   const dates = pickupDates(range.from, lastNight);
@@ -560,6 +564,13 @@ export function Competitividade({
                   * Via DiscoverCars (a locadora não tem coleta pelo site próprio): preço com taxas
                   embutidas, sem cadeirinha e sem motorista adicional. Não é a mesma base das
                   outras.
+                </p>
+              ) : null}
+              {concorrentes.some((c) => /\(rentcars\)/i.test(c)) ? (
+                <p className="w-full text-xs text-muted-foreground">
+                  (Rentcars): capturado no navegador; total com proteções e taxas da locadora
+                  inclusas. Cadeirinha e motorista entram quando a oferta da locadora é aberta e
+                  capturada.
                 </p>
               ) : null}
             </div>
