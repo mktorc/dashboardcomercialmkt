@@ -708,7 +708,8 @@ def categoria_por_modelo(o):
         return "SUV Executive 8 Seats"
     if re.search(r"suburban", nome, re.I):
         return "SUV Executive 7 Seats" if seats == 7 else "SUV Executive 8 Seats"
-    if re.search(r"transit", nome, re.I) or (seats >= 12 and re.search(r"van", classe + " " + nome, re.I)):
+    # Só van de 12 lugares (a nossa é a Transit de 12); vans de 15 lugares ficam sem par (pedido do usuário, 2026-11-22).
+    if seats <= 12 and (re.search(r"transit", nome, re.I) or (seats == 12 and re.search(r"van", classe + " " + nome, re.I))):
         return "Van 12 Seats"
     if acriss.startswith("MV") or _MINIVAN.search(nome) or _MINIVAN.search(classe):
         return "Mini Van 8 Seats"  # minivan de 7 ou 8 lugares

@@ -394,6 +394,8 @@ class DiscoverCars(unittest.TestCase):
         self.assertEqual(f("Chevrolet Suburban", 7), "SUV Executive 7 Seats")
         self.assertEqual(f("Chevrolet Suburban", 8), "SUV Executive 8 Seats")
         self.assertEqual(f("Ford Transit", 12), "Van 12 Seats")
+        self.assertIsNone(f("CHEVROLET Express 3500", 15, "PVAR", "VAN PREMIUM"))
+        self.assertIsNone(f("Ford Transit", 15))
         self.assertEqual(f("Chrysler Pacifica", 7, "MVAV"), "Mini Van 8 Seats")
         self.assertEqual(f("Dodge Grand Caravan", 7), "Mini Van 8 Seats")
         self.assertIsNone(f("Chevrolet Tahoe", 7, "FFAR", "Full-size SUV"))
