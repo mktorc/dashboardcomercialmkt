@@ -167,6 +167,15 @@ export function Competitividade({
   const [selRaw, setSel] = useState<Sel>(null);
   const coletar = useServerFn(coletarPeriodo);
   const [pedido, setPedido] = useState<string | null>(null);
+  // Concorrentes ocultos na régua (clique na legenda); a mediana da régua é refeita sem eles.
+  const [ocultos, setOcultos] = useState<Set<string>>(() => new Set());
+  const toggleOculto = (c: string) =>
+    setOcultos((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
 
   // Só a coleta mais recente de cada oferta: coletas repetidas ou antigas não aparecem como atuais.
   const rows = useMemo(() => preferDirect(latestOffers(snaps.data ?? [])), [snaps.data]);
@@ -252,6 +261,25 @@ export function Competitividade({
         currency: moeda,
       }),
     [rows, comp, shownCats, range.from, fullNights, ours, now, moeda],
+  );
+  const reguaComps: Comp[] = useMemo(
+    () =>
+      ocultos.size
+        ? buildComparisons({
+            rows: rows.filter(
+              (r) =>
+                r.category && (comp === ALL || r.competitor === comp) && !ocultos.has(r.competitor),
+            ),
+            categories: shownCats,
+            from: range.from,
+            to: range.from,
+            duration: fullNights,
+            rateOf: (d, c) => ours.get(rateKey(d, c)),
+            now,
+            currency: moeda,
+          })
+        : fullComps,
+    [ocultos, fullComps, rows, comp, shownCats, range.from, fullNights, ours, now, moeda],
   );
 
   if (snaps.isLoading || rates.isLoading)
@@ -541,8 +569,9 @@ export function Competitividade({
                 último. Cada ponto é o preço total de um concorrente para esse período, contra o
                 nosso (0% = nosso total, no centro). À direita, mais caro; à esquerda, mais barato.
                 O traço cinza é a mediana do mercado. Pontos apagados não entram na mediana. Sem
-                cotação exata do período, o total é composto noite a noite. Passe o mouse para os
-                detalhes.
+                cotação exata do período, o total é composto noite a noite. Clique numa locadora da
+                legenda para ocultá-la: a mediana da régua é refeita só com as visíveis. Passe o
+                mouse para os detalhes.
               </InfoTip>
               <div className="ml-auto flex flex-wrap gap-3 text-xs text-muted-foreground">
                 {concorrentes
@@ -551,13 +580,32 @@ export function Competitividade({
                       used.some((q) => q.row.competitor === c) ||
                       scope.some((s) => s.quotes.some((q) => q.row.competitor === c)),
                   )
-                  .map((c) => (
-                    <span key={c} className="flex items-center gap-1">
-                      <span className="size-2 rounded-full" style={{ background: colorOf(c) }} />
-                      {c}
-                      {dcNames.has(c) ? <span className="text-amber-400">*</span> : null}
-                    </span>
-                  ))}
+                  .map((c) => {
+                    const off = ocultos.has(c);
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => toggleOculto(c)}
+                        title={off ? "Mostrar na régua" : "Ocultar da régua"}
+                        aria-pressed={!off}
+                        className={`flex items-center gap-1 rounded hover:text-foreground ${off ? "line-through opacity-40" : ""}`}
+                      >
+                        <span className="size-2 rounded-full" style={{ background: colorOf(c) }} />
+                        {c}
+                        {dcNames.has(c) ? <span className="text-amber-400">*</span> : null}
+                      </button>
+                    );
+                  })}
+                {ocultos.size ? (
+                  <button
+                    type="button"
+                    onClick={() => setOcultos(new Set())}
+                    className="underline hover:text-foreground"
+                  >
+                    mostrar todos
+                  </button>
+                ) : null}
               </div>
               {concorrentes.some((c) => dcNames.has(c)) ? (
                 <p className="w-full text-xs text-amber-400/90">
@@ -575,8 +623,8 @@ export function Competitividade({
               ) : null}
             </div>
             <Regua
-              summaries={summarizeCategories(fullComps)}
-              scope={fullComps}
+              summaries={summarizeCategories(reguaComps)}
+              scope={reguaComps}
               moeda={moeda}
               colorOf={colorOf}
               now={now}
