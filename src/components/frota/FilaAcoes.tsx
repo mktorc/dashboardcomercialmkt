@@ -12,7 +12,6 @@ import {
   PhoneCall,
   Repeat,
   Truck,
-  Upload,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -313,19 +312,6 @@ export function ActionCard({
                   <span className="hidden lg:inline">WhatsApp</span>
                 </Button>
               )}
-              {podeAplicar && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-emerald-600/60 text-emerald-300"
-                  onClick={() => setConfirmar(true)}
-                  disabled={leaving || aplicando}
-                  title="Trocar o carro desta reserva direto no HQ"
-                >
-                  <Upload className="mr-1 size-4" />
-                  <span className="hidden lg:inline">Aplicar no HQ</span>
-                </Button>
-              )}
               {onAdjust && (
                 <Button
                   size="sm"
@@ -338,7 +324,12 @@ export function ActionCard({
                   <span className="hidden sm:inline">Feito com ajuste</span>
                 </Button>
               )}
-              <Button size="sm" onClick={done} disabled={leaving}>
+              <Button
+                size="sm"
+                onClick={() => (podeAplicar ? setConfirmar(true) : done())}
+                disabled={leaving || aplicando}
+                title={podeAplicar ? "Troca o carro no HQ e marca como feito" : undefined}
+              >
                 <Check className="mr-1 size-4" /> Feito
               </Button>
             </div>
@@ -362,8 +353,20 @@ export function ActionCard({
               >
                 Cancelar
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setConfirmar(false);
+                  done();
+                }}
+                disabled={aplicando}
+                title="A troca já foi feita no HQ: só marcar como feito"
+              >
+                Já fiz no HQ
+              </Button>
               <Button size="sm" onClick={aplicar} disabled={aplicando}>
-                {aplicando ? "Aplicando…" : "Confirmar no HQ"}
+                {aplicando ? "Aplicando…" : "Aplicar no HQ e concluir"}
               </Button>
             </div>
           )}
