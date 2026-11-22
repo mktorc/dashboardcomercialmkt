@@ -301,10 +301,10 @@ describe("coleta mais antiga e alerta de equivalência", () => {
     ).toEqual({ oldest: 5, newest: 0 });
     expect(collectionAges([], NOW)).toBeNull();
   });
-  it("alerta com um único concorrente ou diferença acima de ±30%", () => {
-    expect(equivalenceAlert(2, 1)).toBe(true);
-    expect(equivalenceAlert(31, 3)).toBe(true);
-    expect(equivalenceAlert(-30.5, 4)).toBe(true);
+  it("alerta de equivalência desligado (pareamento pelo nome)", () => {
+    expect(equivalenceAlert(2, 1)).toBe(false);
+    expect(equivalenceAlert(31, 3)).toBe(false);
+    expect(equivalenceAlert(-30.5, 4)).toBe(false);
     expect(equivalenceAlert(30, 2)).toBe(false);
     expect(equivalenceAlert(null, 2)).toBe(false);
   });

@@ -280,8 +280,6 @@ export function avisos(
     if (m.idadeDias != null && m.idadeDias > cfg.idadeMaxDias)
       principais.push(`coleta de mercado há ${m.idadeDias} dias`);
     if (equivalenceAlert(m.pct, m.n)) principais.push("alerta de equivalência");
-    if (m.n >= 1 && m.n <= 2 && m.pct != null && Math.abs(m.pct) > cfg.difPoucosPct)
-      principais.push("confira se a oferta do concorrente é equivalente");
     if (m.n < cfg.minConcorrentes) permanentes.push(`só ${m.n} concorrente${m.n === 1 ? "" : "s"}`);
   }
   if (d.sinalHist !== "sem-historico" && d.hist.fonte === "sazonalidade")

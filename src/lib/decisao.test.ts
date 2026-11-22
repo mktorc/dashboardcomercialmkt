@@ -191,8 +191,6 @@ describe("avisos", () => {
     expect(avisos(d)).toEqual({
       principais: [
         "coleta de mercado há 5 dias",
-        "alerta de equivalência",
-        "confira se a oferta do concorrente é equivalente",
         "histórico só pela sazonalidade",
         "data de evento",
       ],
@@ -205,7 +203,7 @@ describe("avisos", () => {
   });
 });
 
-describe("exceção de equivalência", () => {
+describe.skip("exceção de equivalência (desligada: pareamento pelo nome)", () => {
   it("Baixar sustentado só pelo mercado com alerta vira Verificar dados", () => {
     // histórico dentro (neutro) + mercado acima com 1 concorrente → seria Baixar até a mediana
     const d = decidir(ent({ tarifa: 84, mercado: { n: 1, idadeDias: 1, pct: 20, mediana: 70 } }))!;
@@ -740,7 +738,7 @@ describe("etiquetas dos sinais", () => {
 });
 
 describe("etapa final: avisos e potencial limitado", () => {
-  it("1 ou 2 concorrentes com diferença acima de ±20% pede conferir a oferta", () => {
+  it.skip("1 ou 2 concorrentes com diferença acima de ±20% pede conferir a oferta (desligado)", () => {
     const av = (n: number, pct: number) =>
       avisos(decidir(ent({ mercado: { n, idadeDias: 1, pct, mediana: 80 } }))!).principais;
     expect(av(2, 25)).toContain("confira se a oferta do concorrente é equivalente");
@@ -866,7 +864,7 @@ describe("cartão de leitura rápida", () => {
     ).toBe("Verificar: sem mercado e sem histórico");
     expect(
       etiquetaAcao(um({ tarifa: 84, mercado: { n: 1, idadeDias: 1, pct: 20, mediana: 70 } })).texto,
-    ).toBe("Verificar: cotação do concorrente pode não ser equivalente");
+    ).toBe("Baixar para US$ 78");
     expect(etiquetaAcao(um({ occ: "dentro" })).texto).toBe("Manter");
   });
   it("cabeçalho e linha de contexto", () => {

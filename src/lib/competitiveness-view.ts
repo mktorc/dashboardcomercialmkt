@@ -293,8 +293,9 @@ export function datesWithoutQuotes(dates: string[], cells: Map<string, CalendarC
 
 /** Alerta "verificar equivalência": mediana de um único concorrente ou diferença além de ±limit%. */
 export const EQUIVALENCE_ALERT_PCT = 30;
-export function equivalenceAlert(pct: number | null, n: number, limit = EQUIVALENCE_ALERT_PCT) {
-  return n === 1 || (pct != null && Math.abs(pct) > limit);
+/** Desligado: o pareamento é feito pelo nome do modelo, então a equivalência já é garantida. */
+export function equivalenceAlert(_pct: number | null, _n: number, _limit = EQUIVALENCE_ALERT_PCT) {
+  return false;
 }
 
 /** Resumo de uma categoria no escopo (uma data ou o intervalo inteiro). */
