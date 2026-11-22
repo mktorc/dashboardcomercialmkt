@@ -20,6 +20,8 @@ import {
   dailyOf,
   diffPct,
   latestOffers,
+  preferDirect,
+  isDiscoverCars,
   totalOf,
   type Equivalence,
   type OurRate,
@@ -88,6 +90,8 @@ type CompPoint = {
   n: number;
   dates: number;
   excluded: boolean;
+  /** Todas as cotações deste ponto vêm do DiscoverCars. */
+  viaDC: boolean;
   only: { q: Quote; c: Comp } | null;
   newest: string;
   oldest: string;
@@ -165,7 +169,7 @@ export function Competitividade({
   const [pedido, setPedido] = useState<string | null>(null);
 
   // Só a coleta mais recente de cada oferta: coletas repetidas ou antigas não aparecem como atuais.
-  const rows = useMemo(() => latestOffers(snaps.data ?? []), [snaps.data]);
+  const rows = useMemo(() => preferDirect(latestOffers(snaps.data ?? [])), [snaps.data]);
   // Moeda da nossa tarifa (HQ): concorrentes só entram na referência se estiverem nela, sem conversão cambial.
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
   const ours = useMemo(
@@ -272,6 +276,10 @@ export function Competitividade({
     );
 
   const concorrentes = [...new Set(rows.map((r) => r.competitor))].sort();
+  // Concorrentes cujas cotações vêm só do DiscoverCars (marcados com * na legenda).
+  const dcNames = new Set(
+    concorrentes.filter((c) => rows.filter((r) => r.competitor === c).every((r) => isDiscoverCars(r))),
+  );
   const colorOf = (c: string) => {
     const k = Object.keys(FIXED_COLORS).find((n) => c.toLowerCase().startsWith(n));
     if (k) return FIXED_COLORS[k]!;
@@ -543,9 +551,17 @@ export function Competitividade({
                     <span key={c} className="flex items-center gap-1">
                       <span className="size-2 rounded-full" style={{ background: colorOf(c) }} />
                       {c}
+                      {dcNames.has(c) ? <span className="text-amber-400">*</span> : null}
                     </span>
                   ))}
               </div>
+              {concorrentes.some((c) => dcNames.has(c)) ? (
+                <p className="w-full text-xs text-amber-400/90">
+                  * Via DiscoverCars (a locadora não tem coleta pelo site próprio): preço com taxas
+                  embutidas, sem cadeirinha e sem motorista adicional. Não é a mesma base das
+                  outras.
+                </p>
+              ) : null}
             </div>
             <Regua
               summaries={summarizeCategories(fullComps)}
@@ -843,6 +859,7 @@ function Regua({
         n: base.length,
         dates: new Set(base.map((x) => x.c.date)).size,
         excluded: !valid.length,
+        viaDC: base.every((x) => isDiscoverCars(x.q.row)),
         only: base.length === 1 ? base[0]! : null,
         newest,
         oldest,
@@ -936,6 +953,11 @@ function Regua({
                   ) : (
                     <div className="space-y-0.5">
                       <div className="font-medium">{p.competitor}</div>
+                      {p.viaDC ? (
+                        <div className="text-amber-400">
+                          Via DiscoverCars: com taxas, sem cadeirinha e sem motorista adicional
+                        </div>
+                      ) : null}
                       <div>
                         {pctSigned(p.vsUs)} contra nossa diária (mediana de{" "}
                         {plural(p.dates, "data de retirada", "datas de retirada")})

@@ -15,6 +15,7 @@ import {
   latestPerCompetitor,
   marketOf,
   median,
+  preferDirect,
   priceLevel,
   type Snapshot,
 } from "./competitiveness";
@@ -76,6 +77,12 @@ describe("competitividade", () => {
     expect(comparable(antiga, NOW, "USD")).toBe(true);
     expect(comparable(antiga, NOW, "USD", 7, true)).toBe(false);
     expect(comparable(snap("UP", 42, { notes: NOTA_UP }), NOW, "USD", 7, true)).toBe(true);
+  });
+  it("site direto primeiro: a cotação do DiscoverCars da mesma locadora/categoria/período sai", () => {
+    const dc = { notes: "Preço total exibido no DiscoverCars" };
+    const rows = [snap("Thrifty", 60), snap("Thrifty", 80, dc), snap("Sixt", 70, dc), snap("Avis (DiscoverCars)", 75, dc)];
+    const out = preferDirect(rows);
+    expect(out.map((r) => `${r.competitor}:${r.dailyPrice}`).sort()).toEqual(["Avis (DiscoverCars):75", "Sixt:70", "Thrifty:60"]);
   });
   it("mercado: a opção de extras muda a mediana e o número de comparáveis", () => {
     const rows = [

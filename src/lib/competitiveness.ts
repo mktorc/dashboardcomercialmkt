@@ -155,6 +155,23 @@ export function latestOffers<T extends Snapshot>(rows: T[]): T[] {
   return [...by.values()];
 }
 
+/** Cotação vinda do DiscoverCars (taxas embutidas, sem cadeirinha nem motorista adicional). */
+export const isDiscoverCars = (r: Pick<Snapshot, "notes" | "competitor">) =>
+  /discovercars/i.test(r.notes ?? "") || /\(discovercars\)/i.test(r.competitor);
+
+/** Nome da locadora sem o sufixo da fonte ("Avis (DiscoverCars)" -> "Avis"). */
+export const baseCompetitor = (c: string) => c.replace(/\s*\(discovercars\)\s*$/i, "").trim();
+
+/**
+ * Site direto primeiro: se a mesma locadora tem cotação do próprio site para a mesma categoria e período, a do DiscoverCars sai
+ * (evita a mesma locadora duas vezes). Sem cotação direta, a do DiscoverCars fica (decisão do usuário, 2026-11-22).
+ */
+export function preferDirect<T extends Snapshot>(rows: T[]): T[] {
+  const key = (r: T) => `${baseCompetitor(r.competitor).toLowerCase()}|${r.category}|${r.pickupAt.slice(0, 10)}|${r.returnAt.slice(0, 10)}`;
+  const direct = new Set(rows.filter((r) => !isDiscoverCars(r) && r.category).map(key));
+  return rows.filter((r) => !isDiscoverCars(r) || !direct.has(key(r)));
+}
+
 /**
  * Correções de pareamento aplicadas na leitura (coletas antigas foram gravadas com o mapa anterior). Chave: concorrente e trecho
  * do modelo dele, em minúsculas; valor: nossa categoria (null = sem par, não entra na comparação).
