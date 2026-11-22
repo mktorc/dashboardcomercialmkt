@@ -326,7 +326,7 @@ export function ActionCard({
               )}
               <Button
                 size="sm"
-                onClick={() => (podeAplicar ? setConfirmar(true) : done())}
+                onClick={() => setConfirmar(true)}
                 disabled={leaving || aplicando}
                 title={podeAplicar ? "Troca o carro no HQ e marca como feito" : undefined}
               >
@@ -335,7 +335,34 @@ export function ActionCard({
             </div>
           </div>
 
-          {confirmar && a.vehicle && (
+          {confirmar && !podeAplicar && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-sky-600/50 bg-sky-600/10 px-3 py-2 text-sm">
+              <span className="flex-1">
+                Marcar a reserva <b>{a.reservationId}</b> como feita?{" "}
+                <span className="text-muted-foreground">
+                  {a.type === "transferir"
+                    ? "Nada muda no HQ: o carro já é o da reserva; é só a viagem."
+                    : a.type === "sem_solucao"
+                      ? "Nada muda no HQ: confirme que já falou com o cliente."
+                      : "Nada muda no HQ."}
+                </span>
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setConfirmar(false)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setConfirmar(false);
+                  done();
+                }}
+              >
+                Confirmar
+              </Button>
+            </div>
+          )}
+
+          {confirmar && podeAplicar && a.vehicle && (
             <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-emerald-600/50 bg-emerald-600/10 px-3 py-2 text-sm">
               <span className="flex-1">
                 Trocar no HQ: reserva <b>{a.reservationId}</b> → <b>{carName(a.vehicle)}</b>
