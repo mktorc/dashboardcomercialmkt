@@ -13,11 +13,12 @@ export const addMonths = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** Período padrão: o mês atual. */
-export const defaultRange = (today: string): Range => ({
-  from: monthStart(today),
-  to: monthEnd(today),
-});
+/** Período padrão: de hoje até 7 dias para frente. */
+export const defaultRange = (today: string): Range => {
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 7);
+  return { from: today, to: d.toISOString().slice(0, 10) };
+};
 
 /** Data de hoje (AAAA-MM-DD) no fuso do navegador. */
 export function todayIso() {
