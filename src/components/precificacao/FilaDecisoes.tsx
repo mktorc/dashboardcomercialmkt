@@ -9,6 +9,19 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { avisoMinimo, type MinimoLinha } from "@/lib/dinheiro-mesa";
+import {
+  ajustarBloco,
+  lerPadrao,
+  ordenarPorPadrao,
+  tipoDoBloco,
+  type AjustePreco,
+  type Leitura,
+} from "@/lib/padrao-aceite";
+import {
+  SeuPadrao,
+  usePadraoAceite,
+  useRecarregarPadrao,
+} from "@/components/precificacao/SeuPadrao";
 
 /** Categoria × mês que está repetindo o padrão de esgotar cedo, com o texto do aviso. */
 export type Repetindo = { category: string; mes: number; texto: string; datas: string[] };
@@ -259,6 +272,8 @@ async function salvar(
   preco: number | null,
   motivo: string | null,
   tarifaEm: string | null,
+  original: Bloco = b,
+  ajuste: AjustePreco | null = null,
 ) {
   const d = b.itens.reduce((a, x) => (x.lead < a.lead ? x : a));
   const row = {
@@ -309,14 +324,17 @@ async function salvar(
       receita: b.receita,
       urgencia: b.urgencia,
       config: DECISAO_PADRAO,
+      janelaTipo: b.janela,
+      ajustePadrao: ajuste ? { razao: ajuste.razao, sugerido: [b.sugMin, b.sugMax] } : null,
     },
     recommended_action: b.acao,
     confidence: b.confianca,
     rule_version: RULE_VERSION,
     current_rate: d.tarifa,
     tariff_snapshot_at: tarifaEm,
-    suggested_min: b.sugMin,
-    suggested_max: b.sugMax,
+    // Sugestão original da regra (sem o ajuste do padrão), para o aprendizado não se realimentar.
+    suggested_min: original.sugMin,
+    suggested_max: original.sugMax,
     decision: decisao,
     applied_price: preco,
     reason: motivo || null,
@@ -329,6 +347,8 @@ const NOTA_REGISTRO = "Só registra a decisão; não altera tarifas.";
 
 function Acoes({
   b,
+  original,
+  ajuste,
   ativo,
   tarifaEm,
   feito,
@@ -336,6 +356,8 @@ function Acoes({
   moeda,
 }: {
   b: Bloco;
+  original: Bloco;
+  ajuste: AjustePreco | null;
   ativo: boolean;
   tarifaEm: string | null;
   feito: Tomada | undefined;
@@ -350,7 +372,7 @@ function Acoes({
   const go = async (t: Tomada, p: number | null, m: string | null) => {
     setEnviando(true);
     try {
-      await salvar(b, t, p, m, tarifaEm);
+      await salvar(b, t, p, m, tarifaEm, original, ajuste);
       onFeito(t);
       toast.success("Decisão registrada (nenhuma tarifa foi alterada).");
     } catch (e) {
@@ -496,8 +518,14 @@ function Cartao({
   onFeito,
   minimos,
   repetindo,
+  original,
+  ajuste,
+  leitura,
 }: {
   b: Bloco;
+  original: Bloco;
+  ajuste: AjustePreco | null;
+  leitura: Leitura | null;
   moeda: string;
   onOpen: (d: Decisao) => void;
   ativo: boolean;
@@ -582,6 +610,16 @@ function Cartao({
         <BlocoSinal p={pm} detalheTooltip={detalheMercado(d, moeda)} />
         <BlocoSinal p={ph} detalheTooltip={detalheHistorico(d, moeda)} />
       </div>
+      {leitura || ajuste ? (
+        <div className="mt-2 space-y-0.5 text-xs text-indigo-700 dark:text-indigo-300">
+          {leitura ? (
+            <p className={leitura.tendencia === "ignora" ? "font-medium" : ""}>
+              Seu padrão: {leitura.texto}
+            </p>
+          ) : null}
+          {ajuste ? <p>{ajuste.texto}</p> : null}
+        </div>
+      ) : null}
       {b.captura ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -641,6 +679,8 @@ function Cartao({
         <div className="self-end md:self-auto">
           <Acoes
             b={b}
+            original={original}
+            ajuste={ajuste}
             ativo={ativo}
             tarifaEm={tarifaEm}
             feito={feito}
@@ -693,19 +733,41 @@ export function FilaDecisoes({
   const [feitos, setFeitos] = useState<Record<string, Tomada>>({});
   const [abertos, setAbertos] = useState<Record<string, number>>({});
   const [nHoje, setNHoje] = useState(10);
-  const hoje = decidirHoje(blocos, nHoje);
-  const fila = separarFila(blocos);
+  const pad = usePadraoAceite();
+  const recarregarPadrao = useRecarregarPadrao();
+  const perfil = pad.data?.perfil ?? null;
+  // Preço sugerido ajustado pelo padrão aprendido (o original fica guardado para o registro).
+  const ajustados = new Map(
+    blocos.map((b) => [b.key, perfil ? ajustarBloco(b, perfil) : { bloco: b, ajuste: null }]),
+  );
+  const blocosP = blocos.map((b) => ajustados.get(b.key)!.bloco);
+  const originais = new Map(blocos.map((b) => [b.key, b]));
+  const ordenar = (l: Bloco[]) => (perfil ? ordenarPorPadrao(l, perfil) : l);
+  const hoje = ordenar(decidirHoje(blocosP, blocosP.length)).slice(0, nHoje);
+  const fila0 = separarFila(blocosP);
+  const fila = {
+    ...fila0,
+    porGrupo: Object.fromEntries(
+      Object.entries(fila0.porGrupo).map(([g, l]) => [g, ordenar(l)]),
+    ) as typeof fila0.porGrupo,
+  };
   const abre = proximaAbertura(blocos);
   const cartao = (b: Bloco) => (
     <Cartao
       key={b.key}
       b={b}
+      original={originais.get(b.key) ?? b}
+      ajuste={ajustados.get(b.key)?.ajuste ?? null}
+      leitura={perfil ? lerPadrao(perfil, tipoDoBloco(b)) : null}
       moeda={moeda}
       onOpen={onOpen}
       ativo={REGISTRO_DECISOES_ATIVO && !!reg.data}
       tarifaEm={tarifaEm}
       feito={feitos[b.key]}
-      onFeito={(t) => setFeitos((f) => ({ ...f, [b.key]: t }))}
+      onFeito={(t) => {
+        setFeitos((f) => ({ ...f, [b.key]: t }));
+        void recarregarPadrao();
+      }}
       minimos={minimos}
       repetindo={repetindo}
     />
@@ -798,6 +860,14 @@ export function FilaDecisoes({
             <span>{blocos.length} blocos</span>
           </div>
         </div>
+        {pad.data && REGISTRO_DECISOES_ATIVO ? (
+          <SeuPadrao
+            key={JSON.stringify(pad.data.config)}
+            perfil={pad.data.perfil}
+            config={pad.data.config}
+            podeSalvar={pad.data.podeSalvar}
+          />
+        ) : null}
         {blocos.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nenhuma data com sinal de ocupação neste recorte.
