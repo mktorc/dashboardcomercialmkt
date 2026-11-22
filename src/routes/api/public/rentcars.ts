@@ -13,7 +13,7 @@ import {
 // Recebe a página da Rentcars capturada pelo botão de favoritos no navegador do usuário (a busca é feita por uma pessoa; nada
 // aqui acessa a Rentcars). Lista → grava uma cotação por locadora × categoria; oferta → grava a cadeirinha/motorista nas
 // cotações daquela locadora para a mesma busca. Corpo em text/plain (JSON) para não exigir preflight de CORS.
-// Proteção: o token do agendamento (SYNC_CRON_TOKEN) vai no corpo.
+// Proteção: o token do botão (RENTCARS_IMPORT_TOKEN, ou um dos segredos do agendamento) vai no corpo.
 
 // As tabelas de concorrência não estão nos tipos gerados do Supabase: cliente sem tipos.
 const supabaseAdmin = admin as unknown as SupabaseClient;
@@ -188,7 +188,7 @@ export const Route = createFileRoute("/api/public/rentcars")({
         }
         // Mesmos segredos aceitos pelas rotas de sincronização (sync-auth), sem espaços nas pontas.
         const tok = (body.token ?? "").trim();
-        const ok = ["SYNC_CRON_TOKEN", "CRON_SECRET", "LOVABLE_CRON_SECRET"]
+        const ok = ["RENTCARS_IMPORT_TOKEN", "SYNC_CRON_TOKEN", "CRON_SECRET", "LOVABLE_CRON_SECRET"]
           .map((k) => (process.env[k] ?? "").trim())
           .some((s) => !!s && s === tok);
         if (!tok || !ok) return resp(request, { ok: false, erro: "não autorizado" }, 401);
