@@ -1160,3 +1160,62 @@ describe("lição do Dinheiro na mesa entra na decisão", () => {
     expect(decidir(ent({ padrao: null }))!.acao).toBe("baixar");
   });
 });
+
+describe("4º pilar: pickup da categoria (Demanda & Preço)", () => {
+  it("sinal com tolerância de ±10% e evidência por ação", async () => {
+    const { sinalPickup, evidenciaPickup, DECISAO_PADRAO } = await import("./decisao");
+    expect(sinalPickup({ razao: 1.1, otb: 11, otbAnoAnterior: 10 })).toBe("acima");
+    expect(sinalPickup({ razao: 1.05, otb: 21, otbAnoAnterior: 20 })).toBe("dentro");
+    expect(sinalPickup({ razao: 0.9, otb: 9, otbAnoAnterior: 10 })).toBe("abaixo");
+    expect(sinalPickup(null)).toBeNull();
+    // configuração gravada antes do 4º pilar (sem pickupTol) usa o padrão
+    expect(
+      sinalPickup(
+        { razao: 1.2, otb: 12, otbAnoAnterior: 10 },
+        { ...DECISAO_PADRAO, pickupTol: undefined as unknown as number },
+      ),
+    ).toBe("acima");
+    expect(evidenciaPickup("baixar", "acima")).toBe("contra");
+    expect(evidenciaPickup("acao-comercial", "abaixo")).toBe("favor");
+    expect(evidenciaPickup("subir-pouco", "acima")).toBe("favor");
+    expect(evidenciaPickup("subir", "abaixo")).toBe("contra");
+    expect(evidenciaPickup("manter", "acima")).toBe("neutro");
+    expect(evidenciaPickup("baixar", "dentro")).toBe("neutro");
+  });
+});
+
+describe("4º pilar em decidir()", () => {
+  const pk = (razao: number) => ({ razao, otb: Math.round(20 * razao), otbAnoAnterior: 20 });
+  it("pickup acima contradiz Baixar: confiança baixa e urgência um nível abaixo, ação igual", () => {
+    const sem = decidir(ent({}))!;
+    const com = decidir(ent({ pickupCat: pk(1.4) }))!;
+    expect(com.acao).toBe(sem.acao);
+    expect(grupoDe(com.acao)).toBe("baixar");
+    expect(com.evPickup).toBe("contra");
+    expect(com.confianca.nivel).toBe("baixa");
+    expect(com.confianca.motivos.at(-1)).toContain("pickup da categoria contradiz");
+    expect(NIVEIS_ORDEM.indexOf(com.urgencia)).toBe(
+      Math.max(0, NIVEIS_ORDEM.indexOf(sem.urgencia) - 1),
+    );
+    expect(explicarConfianca(com).linhas.at(-1)).toContain("Pickup da categoria");
+  });
+  it("pickup sem base não muda nada", () => {
+    const sem = decidir(ent({}))!;
+    const nulo = decidir(ent({ pickupCat: null }))!;
+    expect(nulo.confianca).toEqual(sem.confianca);
+    expect(nulo.urgencia).toBe(sem.urgencia);
+    expect(explicarConfianca(nulo).linhas).toHaveLength(3);
+  });
+  it("pickup que sustenta eleva confiança média para alta", () => {
+    // Sem histórico de preço: ocupação e mercado pedem baixar, o histórico não opina → média.
+    const semHist = { hist: { faixa: null, fonte: "mes" } } as Partial<DecisaoEntrada>;
+    const base = decidir(ent(semHist))!;
+    expect(grupoDe(base.acao)).toBe("baixar");
+    expect(base.confianca.nivel).toBe("media");
+    const com = decidir(ent({ ...semHist, pickupCat: pk(0.7) }))!;
+    expect(com.evPickup).toBe("favor");
+    expect(com.confianca.nivel).toBe("alta");
+    expect(explicarConfianca(com).resumo).toContain("pickup da categoria confirma");
+  });
+});
+const NIVEIS_ORDEM = ["baixa", "media", "alta"];

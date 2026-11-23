@@ -8,7 +8,7 @@ import { BASE_TXT, JANELA_TXT, type CapturaDecisao, type Janela } from "./captur
 import { faixasPreco, type PontoEpoca, type SinalOcupacao, type SinalRitmo } from "./preco-analise";
 
 /** Versão da regra gravada com cada decisão (mude ao alterar a tabela de ações ou os parâmetros padrão). */
-export const RULE_VERSION = "2026-11-17.1";
+export const RULE_VERSION = "2026-11-23.1";
 
 export type DecisaoConfig = {
   /** Mercado "alinhado": ± % contra a mediana. */
@@ -39,6 +39,8 @@ export type DecisaoConfig = {
   urgLeadAlta: number;
   urgLeadMedia: number;
   urgCarros: number;
+  /** Pickup da categoria no mês vs ano anterior (aba Demanda & Preço): "acima"/"abaixo" a partir de ± esta fração. */
+  pickupTol: number;
 };
 
 export const DECISAO_PADRAO: DecisaoConfig = {
@@ -61,6 +63,7 @@ export const DECISAO_PADRAO: DecisaoConfig = {
   urgLeadAlta: 30,
   urgLeadMedia: 60,
   urgCarros: 3,
+  pickupTol: 0.1,
 };
 
 export type Nivel = "alta" | "media" | "baixa";
@@ -222,6 +225,35 @@ export function regraAcao(o: SinalOcc, m: SinalMerc, h: SinalHist): Regra {
 const SENSIVEL_RITMO = (a: Acao) => grupoDe(a) === "baixar" || a === "acao-comercial";
 export const ritmoSegura = (a: Acao, ritmo: SinalRitmo | null) =>
   SENSIVEL_RITMO(a) && (ritmo === "igual" || ritmo === "acima");
+
+/* ───────────────────────── pickup da categoria (4º pilar) ───────────────────────── */
+
+/** Reservas da categoria no mês já feitas hoje vs as do mesmo mês do ano anterior até a mesma data (aba Demanda & Preço). */
+export type PickupCategoria = { razao: number; otb: number; otbAnoAnterior: number };
+export type SinalPickup = "acima" | "dentro" | "abaixo";
+
+export function sinalPickup(
+  p: PickupCategoria | null | undefined,
+  cfg: DecisaoConfig = DECISAO_PADRAO,
+): SinalPickup | null {
+  if (!p || !Number.isFinite(p.razao)) return null;
+  const tol = cfg.pickupTol ?? DECISAO_PADRAO.pickupTol; // configurações gravadas antes do 4º pilar
+  if (p.razao >= 1 + tol) return "acima";
+  if (p.razao <= 1 - tol) return "abaixo";
+  return "dentro";
+}
+
+/** O pickup sustenta ou contradiz a ação? Baixar/revisar canais com a categoria vendendo acima do ano anterior contradiz; Subir com ela atrás também. */
+export function evidenciaPickup(acao: Acao, s: SinalPickup | null): Evidencia {
+  if (s == null || s === "dentro") return "neutro";
+  const g = grupoDe(acao);
+  if (g === "baixar" || g === "acao-comercial") return s === "acima" ? "contra" : "favor";
+  if (g === "subir") return s === "acima" ? "favor" : "contra";
+  return "neutro";
+}
+
+export const pickupTxt = (p: PickupCategoria) =>
+  `${p.otb} reservas no mês vs ${p.otbAnoAnterior} na mesma data do ano anterior (${p.razao >= 1 ? "+" : ""}${Math.round((p.razao - 1) * 100)}%)`;
 
 /* ───────────────────────── confiança ───────────────────────── */
 
@@ -462,6 +494,8 @@ export type DecisaoEntrada = {
   captura?: CapturaDecisao | null;
   /** Lição da aba Dinheiro na mesa para esta categoria × mês (só quando o mês esgotou cedo em 2+ anos). */
   padrao?: PadraoMesa | null;
+  /** Pickup da categoria no mês vs ano anterior (aba Demanda & Preço); null sem base suficiente. */
+  pickupCat?: PickupCategoria | null;
 };
 
 export type Decisao = DecisaoEntrada & {
@@ -476,6 +510,9 @@ export type Decisao = DecisaoEntrada & {
   manterMotivo: string | null;
   /** Texto quando a ação veio da lição do passado (mês repetindo o padrão de esgotar cedo). */
   padraoMotivo: string | null;
+  /** Pickup da categoria no mês (4º pilar): sinal e se sustenta ou contradiz a ação. */
+  sinalPickup: SinalPickup | null;
+  evPickup: Evidencia;
   sugerido: PrecoSugerido | null;
   carros: number;
   /** Baixar/Ação comercial: carro-dias abaixo da esperada × tarifa atual. */
@@ -602,13 +639,23 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     manterMotivo = TEXTO_MUDANCA_PEQUENA;
     padraoMotivo = null;
   }
-  const conf: Confianca = verificarMotivo
+  let conf: Confianca = verificarMotivo
     ? { nivel: "baixa", motivos: [verificarMotivo] }
     : manterMotivo
       ? { nivel: "media", motivos: [manterMotivo] }
       : padraoMotivo
         ? { nivel: "media", motivos: [padraoMotivo] }
         : confianca({ acao: regra.acao, occ: e.occ, sinalHist, sinalMerc });
+  // 4º pilar: o pickup da categoria no mês não muda a ação, só a confiança (e a urgência de Baixar quando contradiz).
+  const sp = sinalPickup(e.pickupCat, cfg);
+  const evPickup = verificarMotivo ? "neutro" : evidenciaPickup(regra.acao, sp);
+  if (evPickup === "contra" && e.pickupCat)
+    conf = {
+      nivel: "baixa",
+      motivos: [...conf.motivos, `o pickup da categoria contradiz: ${pickupTxt(e.pickupCat)}`],
+    };
+  else if (evPickup === "favor" && conf.nivel === "media" && !manterMotivo && !padraoMotivo)
+    conf = { nivel: "alta", motivos: [] };
   const carros = e.gapCarros ?? 0;
   const rc = receitas(regra.acao, carros, e.tarifa, sugerido);
   const receita = rc.risco + rc.potencial;
@@ -622,12 +669,19 @@ export function decidir(e: DecisaoEntrada, cfg: DecisaoConfig = DECISAO_PADRAO):
     verificarMotivo,
     manterMotivo,
     padraoMotivo,
+    sinalPickup: sp,
+    evPickup,
     sugerido,
     carros,
     receitaRisco: rc.risco,
     receitaPotencial: rc.potencial,
     receita,
-    urgencia: urgencia({ lead: e.lead, carros, receita, acao: regra.acao, ritmo: e.ritmo }, cfg),
+    urgencia:
+      evPickup === "contra" && grupoDe(regra.acao) !== "subir"
+        ? baixarNivel(
+            urgencia({ lead: e.lead, carros, receita, acao: regra.acao, ritmo: e.ritmo }, cfg),
+          )
+        : urgencia({ lead: e.lead, carros, receita, acao: regra.acao, ritmo: e.ritmo }, cfg),
   };
 }
 
@@ -1335,7 +1389,9 @@ export function contexto(b: Bloco, cur = "USD"): string {
 /** Explicação da confiança, pilar a pilar, em linguagem simples (tooltip do cartão). */
 export function explicarConfianca(
   d: Pick<Decisao, "acao" | "occ" | "sinalHist" | "sinalMerc" | "verificarMotivo" | "confianca"> &
-    Partial<Pick<Decisao, "padraoMotivo" | "manterMotivo">>,
+    Partial<
+      Pick<Decisao, "padraoMotivo" | "manterMotivo" | "sinalPickup" | "evPickup" | "pickupCat">
+    >,
 ): { resumo: string; linhas: string[] } {
   const nivel = NIVEL_TXT[d.confianca.nivel].toLowerCase();
   if (d.padraoMotivo || d.manterMotivo === TEXTO_PADRAO_NAO_BAIXAR)
@@ -1393,13 +1449,28 @@ export function explicarConfianca(
     linha("Mercado", ev.mercado, mercTxt, d.sinalMerc === "sem-mercado"),
     linha("Histórico", ev.historico, histTxt, d.sinalHist === "sem-historico"),
   ];
+  // 4º pilar (aba Demanda & Preço): não muda a ação, só a confiança.
+  const evP = d.evPickup ?? "neutro";
+  if (d.pickupCat && d.sinalPickup) {
+    const txt =
+      d.sinalPickup === "acima"
+        ? `categoria vendendo à frente do ano anterior (${pickupTxt(d.pickupCat)})`
+        : d.sinalPickup === "abaixo"
+          ? `categoria vendendo atrás do ano anterior (${pickupTxt(d.pickupCat)})`
+          : `categoria no ritmo do ano anterior (${pickupTxt(d.pickupCat)})`;
+    linhas.push(linha("Pickup da categoria", evP, txt, false));
+  }
   const n = d.confianca.nivel;
   const resumo =
     n === "alta"
-      ? `Confiança alta: os três sinais pedem ${pede}.`
+      ? evP === "favor"
+        ? `Confiança alta: os sinais pedem ${pede} e o pickup da categoria confirma.`
+        : `Confiança alta: os três sinais pedem ${pede}.`
       : n === "media"
         ? `Confiança média: dois sinais pedem ${pede} e um não opina. A sugestão vale, mas com um apoio a menos.`
-        : `Confiança baixa: um dos sinais aponta para o lado contrário. Confira antes de seguir.`;
+        : evP === "contra"
+          ? `Confiança baixa: o pickup da categoria aponta para o lado contrário. Confira antes de seguir.`
+          : `Confiança baixa: um dos sinais aponta para o lado contrário. Confira antes de seguir.`;
   return { resumo, linhas };
 }
 

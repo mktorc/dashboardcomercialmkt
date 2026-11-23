@@ -35,6 +35,9 @@ import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
 import { normCategoria, rateKey } from "@/lib/categoria";
 import { SinaisDemanda } from "@/components/precificacao/SinaisDemanda";
+import { useDemandaPreco } from "@/components/precificacao/useDemandaPreco";
+import { TODAS } from "@/lib/demanda-preco";
+import type { PickupCategoria } from "@/lib/decisao";
 import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
 import { TOL_PADRAO, pontosEpoca, quadranteDia, type PontoEpoca } from "@/lib/preco-analise";
 import {
@@ -273,6 +276,19 @@ function Painel({
   const rates = useOurRates();
   const nossaColeta = useOurRateFreshness();
   const [cat, setCat] = useState(categoriaInicial ?? ALL);
+  // 4º pilar da decisão: pickup da categoria no mês vs ano anterior (mesma análise da aba Demanda & Preço).
+  const demanda = useDemandaPreco();
+  const pickupPorCatMes = useMemo(() => {
+    const m = new Map<string, PickupCategoria>();
+    for (const p of demanda.dados?.pk ?? [])
+      if (p.categoria !== TODAS && p.razao != null && p.otbAnoAnterior != null)
+        m.set(`${normCategoria(p.categoria)}|${p.mes}`, {
+          razao: p.razao,
+          otb: p.otb,
+          otbAnoAnterior: p.otbAnoAnterior,
+        });
+    return m;
+  }, [demanda.dados]);
   // Preço com 1 motorista adicional e 1 bebê conforto (alguns concorrentes cobram): desligado = só o preço do veículo.
   const [comExtras, setComExtras] = useState(false);
   // Vindo do link "Conferir já" (categoria e período escolhidos), não troca o período pela faixa padrão.
@@ -536,6 +552,8 @@ function Painel({
             ritmoAno: q.ano,
             captura: cv ? capturaDecisao(cv, r.lead, base) : null,
             padrao: padraoParaData(prevPorMes.get(`${r.category}|${mes}`), r.date),
+            pickupCat:
+              pickupPorCatMes.get(`${normCategoria(r.category)}|${r.date.slice(0, 7)}`) ?? null,
             hist: h,
             evento: !!payload.cal[r.date]?.[1],
             mercado: {
@@ -550,7 +568,7 @@ function Painel({
       cache.set(k, out);
       return out;
     };
-  }, [model, payload, base, priceOf, now, prevPorMes]);
+  }, [model, payload, base, priceOf, now, prevPorMes, pickupPorCatMes]);
   // Só para explicar um recorte vazio: quantas datas existem se a antecedência não filtrasse.
   const semFiltroAntecedencia = useMemo(
     () =>
