@@ -42,6 +42,11 @@ UP_URL = ("https://uprentcar.com/reservations-orlando/?target_step=2&forced_loca
 UP_LOCAL = "Orlando (Aeroporto MCO)"
 
 
+# Toda busca sai como cliente do Brasil: navegador em português do Brasil, fuso de São Paulo e, onde o site pede, país de
+# residência BR. (Os executores do GitHub ficam nos EUA: o IP não é brasileiro; o que o site permite declarar, declaramos.)
+BR = dict(locale="pt-BR", timezone_id="America/Sao_Paulo", extra_http_headers={"Accept-Language": "pt-BR,pt;q=0.9"})
+
+
 def num(s):
     """Número com vírgula ou ponto decimal: '39,00', '1.260,00', '71.58', '1,680.00'. O último separador, com 1 ou 2 dígitos depois, é o decimal."""
     s = s.strip()
@@ -54,8 +59,8 @@ def num(s):
 
 EXTRAS_TAG = "extras:"  # formato lido pela tela (parseExtras em src/lib/competitiveness.ts)
 _NOME_MOTORISTA = re.compile(r"additional driver|motorista adicional", re.I)
-_NOME_BEBE = re.compile(r"beb[êe] conforto|baby seat|infant seat", re.I)
-_NOME_CADEIRA = re.compile(r"cadeirinha|child seat", re.I)
+_NOME_BEBE = re.compile(r"beb[êe] conforto|assento de beb[êe]|baby seat|infant seat", re.I)
+_NOME_CADEIRA = re.compile(r"cadeirinha|assento infantil|child seat", re.I)
 _PRECO_EXTRA = re.compile(r"\$\s?([\d.,]+)\s*(?:/\s*(dia|day)|(uma vez|one time))", re.I)
 _GRATIS = re.compile(r"^(livre|free)$", re.I)
 _IGNORAR = {"", "read more", "consulte mais informação", "select", "selected", "recommended", "(obrigatório)"}
@@ -171,7 +176,7 @@ def coleta_up(pickups, dias):
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_page(user_agent=UA)
+        pg = b.new_page(user_agent=UA, **BR)
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
@@ -197,15 +202,16 @@ ALLY_LOCAL = "Orlando (Aeroporto MCO)"
 
 def parse_ally(texto):
     """Lê o passo 'Vehicles' do motor HQ do Allycar: [{categoria, diaria, total, dias, promo, tipo}]. Sem preço = fora."""
-    resto = texto.replace("\xa0", " ").split("Available Vehicle Classes", 1)[-1]
+    # A página vem em português (navegador pt-BR) ou em inglês: aceita os dois.
+    resto = re.split(r"Available Vehicle Classes|Classe de Veículo Disponível", texto.replace("\xa0", " "), maxsplit=1)[-1]
     out = []
-    for bloco in resto.split("Continue"):
-        m_dia = re.search(r"\$\s?([\d.,]+)\s*/\s*day", bloco)
-        m_tot = re.search(r"\$\s?([\d.,]+)\s*total for\s*(\d+)\s*Days", bloco)
+    for bloco in re.split(r"\bContinue\b|\bProsseguir\b", resto):
+        m_dia = re.search(r"\$\s?([\d.,]+)\s*/\s*(?:day|dia)", bloco)
+        m_tot = re.search(r"\$\s?([\d.,]+)\s*total (?:for|para)\s*(\d+)\s*(?:Days|Dias)", bloco)
         linhas = [ln.strip() for ln in bloco.splitlines() if ln.strip()]
         if not (m_dia and m_tot and linhas):
             continue
-        tipo = next((ln for ln in linhas if re.search(r"\d\+?\s*Seats", ln)), "")
+        tipo = next((ln for ln in linhas if re.search(r"\d\+?\s*(?:Seats|Assentos)", ln)), "")
         diaria, total, dias = num(m_dia.group(1)), num(m_tot.group(1)), int(m_tot.group(2))
         if diaria > 0 and total > 0:
             out.append(dict(categoria=linhas[0], tipo=re.sub(r"\s+", " ", tipo), diaria=diaria, total=total, dias=dias, promo=False))
@@ -217,7 +223,7 @@ def coleta_ally(pickups, dias):
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_page(user_agent=UA)
+        pg = b.new_page(user_agent=UA, **BR)
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
@@ -234,7 +240,8 @@ def coleta_ally(pickups, dias):
                 if "hqrentals.app/public/car-rental/reservations/step2" in fr.url:
                     texto, f2 = fr.inner_text("body"), fr
             itens = parse_ally(texto)
-            extras = _extras_apos_escolher(pg, f2, "Continue") if itens and f2 else None
+            botao = "Prosseguir" if "Prosseguir" in texto else "Continue"
+            extras = _extras_apos_escolher(pg, f2, botao) if itens and f2 else None
             print(f"Allycar {d}: {len(itens)} categorias com preço; extras: {'lidos' if extras else 'NÃO lidos'}")
             for it in itens:
                 res.append(dict(it, retirada=d, devolucao=fim, coletado_em=agora, url="https://allycar.com/booking.html", extras=extras))
@@ -295,7 +302,7 @@ def coleta_florida(pickups, dias):
     res, extras, tentativas = [], None, 0
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_page(user_agent=UA, viewport={"width": 1280, "height": 900})
+        pg = b.new_page(user_agent=UA, viewport={"width": 1280, "height": 900}, **BR)
         for i, d in enumerate(pickups):
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
@@ -420,7 +427,7 @@ def _coleta_lac(nome, home, site, pickups, dias):
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        ctx = b.new_context(user_agent=UA, locale="pt-BR")
+        ctx = b.new_context(user_agent=UA, **BR)
         ctx.add_cookies([{"name": "currency", "value": "USD", "domain": urlparse(home).hostname, "path": "/"}])
         pg = ctx.new_page()
         for d in pickups:
@@ -517,7 +524,7 @@ def _coleta_hlac(chave, pickups, dias):
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        ctx = b.new_context(user_agent=UA, locale="pt-BR")
+        ctx = b.new_context(user_agent=UA, **BR)
         ctx.add_cookies([{"name": "currency", "value": "USD", "domain": urlparse(home).hostname, "path": "/"}])
         pg = ctx.new_page()
         for d in pickups:
@@ -562,7 +569,7 @@ NATIONAL_MCO = "1019103"  # Orlando International Airport (MCO), agência MCOT01
 NATIONAL_LOCAL = "Orlando (Aeroporto MCO)"
 _NATIONAL_JS = """async ([api, loc, ini, fim, brand, pagina]) => {
   const h = {"content-type": "application/json", accept: "application/json, text/plain, */*", brand: brand, channel: "WEB",
-             locale: "pt_US", domain_country_of_residence: "US", page_type: "home", request_origin_page: pagina};
+             locale: "pt_BR", domain_country_of_residence: "BR", page_type: "home", request_origin_page: pagina};
   const r = await fetch(api + "/reservations/initiate", {method: "POST", credentials: "include", headers: h, body: JSON.stringify({
     pickup_location_id: loc, return_location_id: loc, pickup_time: ini + "T10:00", return_time: fim + "T10:00", renter_age: 25,
     one_way_rental: false, car_class_code: null, contract_details: null, iata_number: null, show_product_code: false,
@@ -601,7 +608,7 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_context(user_agent=UA, locale="pt-BR").new_page()
+        pg = b.new_context(user_agent=UA, **BR).new_page()
         pg.goto(home, wait_until="domcontentloaded", timeout=90000)
         pg.wait_for_timeout(5000)
         falhas = []
@@ -842,7 +849,7 @@ def coleta_nosso(pickups, dias):
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_page(user_agent=UA)
+        pg = b.new_page(user_agent=UA, **BR)
         for d in pickups:
             fim = d + timedelta(days=dias)
             agora = datetime.now(timezone.utc)
@@ -944,13 +951,13 @@ FONTES = {
                "Seguro Essencial (budgetlac.com, USD); taxas não separadas: a API informa totalTax 0; km livre; motorista adicional incluso (0)",
                "Seguro Essencial: proteção do carro (CDW/LDW) e contra roubo (TP) incluídas"),
     "national": ("National", coleta_national, NATIONAL_LOCAL,
-                 "Tarifa base sem taxas (nationalcar.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+                 "Tarifa base sem taxas (nationalcar.com/pt, USD, residente no Brasil, pagar na retirada, convidado, 25+); km livre",
                  "não incluídas (tarifa sem proteções)"),
     "alamo": ("Alamo", coleta_alamo, NATIONAL_LOCAL,
-              "Tarifa base sem taxas (alamo.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+              "Tarifa base sem taxas (alamo.com/pt, USD, residente no Brasil, pagar na retirada, convidado, 25+); km livre",
               "não incluídas (tarifa sem proteções)"),
     "enterprise": ("Enterprise", coleta_enterprise, NATIONAL_LOCAL,
-                   "Tarifa base sem taxas (enterprise.com/pt, USD, pagar na retirada, convidado, 25+); km livre",
+                   "Tarifa base sem taxas (enterprise.com/pt, USD, residente no Brasil, pagar na retirada, convidado, 25+); km livre",
                    "não incluídas (tarifa sem proteções)"),
     "thrifty": ("Thrifty", coleta_thrifty, "Orlando (Aeroporto MCO)", "Preço sem taxas e sem seguros (lac.thrifty.com, USD, cliente do Brasil, tarifa só do carro); km livre", "não incluídas (tarifa sem proteções)"),
     "dollar": ("Dollar", coleta_dollar, "Orlando (Aeroporto MCO)", "Preço sem taxas e sem seguros (lac.dollar.com, USD, cliente do Brasil, tarifa só do carro); km livre", "não incluídas (tarifa sem proteções)"),

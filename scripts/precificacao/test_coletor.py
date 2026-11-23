@@ -64,6 +64,17 @@ class Ally(unittest.TestCase):
     def test_resumo_sem_preco_fica_fora(self):
         self.assertEqual(C.parse_ally("Available Vehicle Classes\nSummary\nTotal $0,00"), [])
 
+    def test_portugues(self):
+        # Navegador pt-BR (busca como cliente do Brasil): a página vem em português.
+        t = ("Classe de Veículo Disponível\nChevrolet Suburban\n\nSUV extra grande.\n SUV  8+ Assentos  6+ Malas\n"
+             "$180,00 / dia\n$1.260,00 total para 7 Dias\nExcl. impostos\nProsseguir\nResumo")
+        r = C.parse_ally(t)
+        self.assertEqual([(x["categoria"], x["diaria"], x["total"], x["dias"]) for x in r], [("Chevrolet Suburban", 180.0, 1260.0, 7)])
+
+    def test_extras_portugues(self):
+        t = "Equipamentos e Serviços\nAssento de bebê\nLivre\n0\nMotorista Adicional\nLivre\n0\nDescontos"
+        self.assertEqual(C.parse_extras(t), {"motorista": (0.0, "uma_vez"), "bebe": (0.0, "uma_vez"), "bebe_nome": "Assento de bebê"})
+
 
 NOSSO = """1
 Datas
