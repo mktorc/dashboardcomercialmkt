@@ -471,7 +471,7 @@ export function Competitividade({
                 <TooltipContent className="max-w-xs">
                   Idade das cotações usadas: a mais nova é de {ageLabel(ages.newest)} e a mais
                   antiga de {ageLabel(ages.oldest)}. A coleta diária cota cada data de retirada uma
-                  vez por semana, então até 7 dias é normal.
+                  vez por semana, então até 7 dias é normal (entram no mercado coletas de até 9).
                 </TooltipContent>
               </Tooltip>
             ) : null}
@@ -755,7 +755,7 @@ export function Competitividade({
                 noite (preferindo a que começa mais perto da noite). Nossa reserva é a soma da nossa
                 diária de cada noite (sem tarifa em alguma noite, fica em branco). Só coletas
                 equivalentes ou parciais, na mesma moeda da nossa tarifa (sem conversão cambial),
-                com até 7 dias entram na mediana, uma por concorrente (a mais barata dele); com
+                com até 9 dias entram na mediana, uma por concorrente (a mais barata dele); com
                 menos de 3 concorrentes, a confiança é baixa. Mostrando até 200 linhas
                 {table.length > 200 ? ` de ${table.length}` : ""}.
               </InfoTip>

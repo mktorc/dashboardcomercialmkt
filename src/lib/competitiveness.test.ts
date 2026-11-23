@@ -156,6 +156,12 @@ describe("competitividade", () => {
       false,
     );
   });
+  it("aceita coleta de até 9 dias (margem sobre o ciclo semanal) e recusa a de 10", () => {
+    const dias = (n: number) => new Date(Date.parse(NOW) - n * 86400000).toISOString();
+    expect(comparable(snap("A", 100, { collectedAt: dias(8) }), NOW, "USD")).toBe(true);
+    expect(comparable(snap("A", 100, { collectedAt: dias(9) }), NOW, "USD")).toBe(true);
+    expect(comparable(snap("A", 100, { collectedAt: dias(10) }), NOW, "USD")).toBe(false);
+  });
   it("usa a última coleta de cada concorrente", () => {
     const rows = [snap("A", 100), snap("A", 120, { collectedAt: "2026-11-09T08:00:00Z" })];
     expect(latestPerCompetitor(rows)).toHaveLength(1);

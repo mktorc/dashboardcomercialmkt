@@ -7,6 +7,7 @@ import {
   dailyOf,
   diffPct,
   latestPerCompetitor,
+  MAX_AGE_DAYS,
   marketOf,
   median,
   mean,
@@ -24,8 +25,6 @@ export type ViewBands = { close: number; significant: number };
 export const VIEW_BANDS: ViewBands = { close: 5, significant: 10 };
 /** Idade (dias) a partir da qual o selo da coleta fica âmbar. */
 export const STALE_AFTER_DAYS = 3;
-/** Idade máxima de uma coleta para entrar na mediana (mesma regra de comparable). */
-export const MAX_AGE_DAYS = 7;
 
 export type Position = "acima" | "alinhado" | "abaixo";
 
@@ -57,7 +56,7 @@ export type ExclusionReason =
   | "moeda diferente"
   | "não equivalente"
   | "equivalência não avaliada"
-  | "coleta com mais de 7 dias"
+  | "coleta com mais de 9 dias"
   | "outro modelo do mesmo concorrente, mais caro"
   | "coleta mais antiga do mesmo concorrente";
 
@@ -81,7 +80,7 @@ export function classifyQuotes<T extends Snapshot>(
     else if (row.currency.toUpperCase() !== currency.toUpperCase()) reason = "moeda diferente";
     else if (row.equivalence === "nao_equivalente") reason = "não equivalente";
     else if (row.equivalence === "nao_avaliada") reason = "equivalência não avaliada";
-    else if (!ok.includes(row)) reason = "coleta com mais de 7 dias";
+    else if (!ok.includes(row)) reason = "coleta com mais de 9 dias";
     else {
       const chosen = [...used].find((u) => u.competitor === row.competitor);
       reason =

@@ -124,7 +124,7 @@ describe("motivo de exclusão das cotações", () => {
       "não equivalente",
       "equivalência não avaliada",
       "moeda diferente",
-      "coleta com mais de 7 dias",
+      "coleta com mais de 9 dias",
       "indisponível ou sem preço",
       null,
     ]);

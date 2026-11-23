@@ -47,7 +47,7 @@ type RawSnapshot = {
 };
 
 // O banco devolve no máximo 1.000 linhas por consulta: tudo é lido paginado (fetchAll), em ordem estável.
-// Coletas: só as dos últimos 30 dias (a referência de mercado usa coletas de até 7 dias).
+// Coletas: só as dos últimos 30 dias (a referência de mercado usa coletas de até 9 dias, MAX_AGE_DAYS).
 const JANELA_COLETAS_DIAS = 30;
 
 export function useCompetitorSnapshots() {

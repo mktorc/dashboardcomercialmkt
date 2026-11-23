@@ -124,6 +124,13 @@ export function dailyOf(s: Snapshot, comExtras = false): number | null {
 }
 
 /**
+ * Idade máxima da coleta que entra no mercado. A coleta diária cota cada data de retirada uma vez por semana (o início desloca 1 dia por
+ * rodada), e o agendador do GitHub atrasa ou pula rodadas: com 7 dias exatos não havia margem e a cotação caía do mercado no próprio
+ * dia de ser renovada. 9 dias absorvem até dois dias de atraso sem aceitar dado realmente velho.
+ */
+export const MAX_AGE_DAYS = 9;
+
+/**
  * Só entram na referência de mercado coletas equivalentes ou parciais, na MESMA moeda da nossa tarifa (sem conversão cambial:
  * câmbio seria um dado inventado), com preço, e não obsoletas.
  */
@@ -131,7 +138,7 @@ export function comparable(
   s: Snapshot,
   now: string,
   currency: string,
-  maxAgeDays = 7,
+  maxAgeDays = MAX_AGE_DAYS,
   comExtras = false,
 ): boolean {
   if (s.equivalence === "nao_equivalente" || s.equivalence === "nao_avaliada") return false;
@@ -293,7 +300,9 @@ export function marketOf(
   currency: string,
   comExtras = false,
 ): Market {
-  const used = latestPerCompetitor(rows.filter((r) => comparable(r, now, currency, 7, comExtras)));
+  const used = latestPerCompetitor(
+    rows.filter((r) => comparable(r, now, currency, MAX_AGE_DAYS, comExtras)),
+  );
   const prices = used.map((r) => dailyOf(r, comExtras) as number);
   return {
     n: used.length,

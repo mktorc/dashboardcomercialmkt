@@ -886,7 +886,7 @@ function StatusDados({
       {!coletasCarregando && fontes.some((f) => nivelIdade(f.iso) !== "ok") ? (
         <p className="text-amber-700 dark:text-amber-300">
           Há coleta de preço com mais de 26 h (ou sem registro): a comparação de mercado pode estar
-          desatualizada. Coletas com mais de 7 dias não entram no posicionamento.
+          desatualizada. Coletas com mais de 9 dias não entram no posicionamento.
         </p>
       ) : null}
       <p>
@@ -1118,7 +1118,7 @@ function AjudaMercado() {
     <Ajuda titulo="Situação de mercado">
       <p>
         Nossa tarifa comparada com a mediana dos concorrentes para a mesma data e categoria (coletas
-        dos últimos 7 dias, na mesma moeda). Por padrão compara só o preço do veículo; marque
+        dos últimos 9 dias, na mesma moeda). Por padrão compara só o preço do veículo; marque
         “Incluir motorista adicional e bebê conforto” para somar esses extras, que alguns
         concorrentes cobram.
       </p>
@@ -1811,7 +1811,7 @@ function Detalhe({
                     {p.lastCollectedAt
                       ? ` · última coleta ${formatLastUpdate(p.lastCollectedAt)}`
                       : ""}
-                    . Só entram ofertas equivalentes, na mesma moeda e coletadas nos últimos 7 dias.
+                    . Só entram ofertas equivalentes, na mesma moeda e coletadas nos últimos 9 dias.
                   </p>
                 )}
                 {concorrentes.length ? (

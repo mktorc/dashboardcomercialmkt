@@ -13,11 +13,15 @@ Quatro etapas, verificadas separadamente (o que vale é o dado publicado; a exec
 Autocorreção: se o agendamento falhou e a rotina ficou 24 h sem execução agendada ou manual (push não conta), o monitor a dispara (workflow_dispatch) e registra isso;
 a falha continua valendo (issue aberta), porque o agendador do GitHub é o que está com problema.
 
+Validade das cotações: para CADA concorrente, a cotação mais recente de cada data de retirada (próximos 45 dias) não pode passar de 7 dias (aviso)
+nem de 9 dias (falha, que é o limite que a tela aceita no Mercado). Para as fontes próprias vencidas, o monitor dispara uma coleta de reposição
+(workflow_dispatch com `inicio` na data vencida e `sem_discovercars`), no máximo 3 por dia. O DiscoverCars (pago) só gera aviso.
+
 Resultado: relatório no log e em $GITHUB_STEP_SUMMARY. Se houver falha, abre (ou atualiza) uma issue "Alerta: dados de precificação"
 e a fecha sozinha quando tudo volta ao normal.
 """
 import json, os, sys, urllib.error, urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -33,6 +37,13 @@ WORKFLOWS = {  # arquivo do workflow -> o que ele alimenta
     "previsao-ocupacao.yml": "ocupação, previsão e cancelamentos",
     "coleta-concorrentes.yml": "preços de concorrentes e nossa tarifa",
 }
+# Validade das cotações por concorrente. A tela só usa coleta de até 9 dias (MAX_AGE_DAYS em src/lib/competitiveness.ts): aviso aos 7, falha aos 9.
+FONTES_PROPRIAS = ("UP Rent a Car", "Allycar", "Florida Rental Car", "National", "Alamo")  # coleta grátis, 2x ao dia; o resto vem do DiscoverCars (pago)
+LIMITE_COTACAO_AVISO = timedelta(days=7)
+LIMITE_COTACAO_FALHA = timedelta(days=9)
+HORIZONTE_COTACAO_DIAS = 45
+ANTECEDENCIA_MINIMA_DIAS = 3  # os sites só cotam com ~48 h de antecedência: data mais próxima que isso não dá para recoletar
+MAX_REPOSICOES_POR_DIA = 3
 ISSUE_TITULO = "Alerta: dados de precificação"
 # Autocorreção: se o agendamento falhou e a rotina não teve execução agendada/manual (push não conta) nesse prazo, o monitor a dispara pela API.
 # O prazo evita disparos repetidos (no máximo um por dia por rotina) e não atropela uma execução em andamento ou recente.
@@ -142,6 +153,88 @@ def checar_dados():
             f"{datas} datas de retirada cotadas; {usaveis} de {len(recentes)} cotações utilizáveis na comparação (equivalentes ou parciais; amostra de até 1000)")
 
 
+def supabase_todas(caminho, pagina=1000, maximo=100000):
+    """Lê todas as linhas (o banco devolve no máximo 1.000 por consulta). `caminho` precisa de order estável."""
+    saida = []
+    while len(saida) < maximo:
+        lote = supabase(f"{caminho}&limit={pagina}&offset={len(saida)}")
+        saida += lote
+        if len(lote) < pagina:
+            break
+    return saida
+
+
+def checar_validade_cotacoes():
+    """Idade da cotação mais recente de cada (concorrente, data de retirada). Devolve as datas vencidas das fontes próprias (para reposição)."""
+    hoje = AGORA.date()
+    ini = hoje + timedelta(days=ANTECEDENCIA_MINIMA_DIAS)
+    fim = hoje + timedelta(days=HORIZONTE_COTACAO_DIAS)
+    desde = (AGORA - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+    linhas = supabase_todas(
+        f"competitor_price_snapshots?select=pickup_at,collected_at,competitors(name)&pickup_at=gte.{ini}&pickup_at=lt.{fim}&collected_at=gte.{desde}&order=id"
+    )
+    ultima = {}
+    for r in linhas:
+        k = ((r.get("competitors") or {}).get("name") or "—", r["pickup_at"][:10])
+        if k not in ultima or r["collected_at"] > ultima[k]:
+            ultima[k] = r["collected_at"]
+    por_fonte = {}
+    for (nome, dia), iso in ultima.items():
+        por_fonte.setdefault(nome, []).append((idade(iso), dia))
+    vencidas = set()
+    for nome in sorted(por_fonte):
+        itens = por_fonte[nome]
+        mais_velha = max(i[0] for i in itens)
+        velhas = [dia for ida, dia in itens if ida > LIMITE_COTACAO_AVISO]
+        propria = nome in FONTES_PROPRIAS
+        if not velhas:
+            reg(3, f"Validade: {nome}", "ok", f"{len(itens)} datas de retirada; a mais velha tem {txt(mais_velha)}")
+            continue
+        nivel = "falha" if propria and mais_velha > LIMITE_COTACAO_FALHA else "aviso"
+        origem = "" if propria else " (DiscoverCars: pago, coleta de 3 em 3 dias; só aviso)"
+        reg(3, f"Validade: {nome}", nivel,
+            f"{len(velhas)} de {len(itens)} datas com cotação acima de {txt(LIMITE_COTACAO_AVISO)}; a mais velha tem {txt(mais_velha)}{origem}")
+        if propria:
+            vencidas.update(velhas)
+    if not por_fonte:
+        reg(3, "Validade das cotações", "aviso", "nenhuma cotação de retirada futura nos últimos 30 dias")
+    return sorted(vencidas)
+
+
+def repor_datas_vencidas(vencidas):
+    """Dispara a coleta (sem DiscoverCars) começando na data vencida: ela recota aquele dia da semana pelas próximas 26 semanas."""
+    if not vencidas or "--sem-github" in sys.argv or not os.environ.get("GITHUB_TOKEN") or not os.environ.get("GITHUB_REPOSITORY"):
+        return
+    repo = os.environ["GITHUB_REPOSITORY"]
+    arquivo = "coleta-concorrentes.yml"
+    item = "Reposição de cotações"
+    try:
+        runs = github(f"repos/{repo}/actions/workflows/{arquivo}/runs?per_page=20")["workflow_runs"]
+    except urllib.error.HTTPError as e:
+        reg(1, item, "aviso", f"não foi possível consultar o GitHub (HTTP {e.code})")
+        return
+    if any(r["status"] != "completed" or idade(r["created_at"]) <= timedelta(hours=5) for r in runs):
+        reg(1, item, "aviso", f"{len(vencidas)} datas vencidas, mas há coleta em andamento ou com menos de 5 h: não disparada")
+        return
+    hoje_ = [r for r in runs if r["event"] == "workflow_dispatch" and idade(r["created_at"]) <= timedelta(hours=24)]
+    if len(hoje_) >= MAX_REPOSICOES_POR_DIA:
+        reg(1, item, "aviso", f"{len(vencidas)} datas vencidas, mas já houve {len(hoje_)} disparos manuais em 24 h: limite diário atingido (veja se alguma fonte está bloqueada)")
+        return
+    por_dia_semana = {}
+    for dia in vencidas:  # uma data por dia da semana (a primeira): o coletor repete de 7 em 7 dias a partir dela
+        por_dia_semana.setdefault(date.fromisoformat(dia).weekday(), dia)
+    disparadas = []
+    for dia in list(por_dia_semana.values())[: MAX_REPOSICOES_POR_DIA - len(hoje_)][:2]:
+        try:
+            github(f"repos/{repo}/actions/workflows/{arquivo}/dispatches", "POST",
+                   {"ref": "main", "inputs": {"sem_discovercars": "true", "inicio": dia}})
+            disparadas.append(dia)
+        except urllib.error.HTTPError as e:
+            reg(1, item, "aviso", f"não foi possível disparar a coleta a partir de {dia} (HTTP {e.code})")
+    if disparadas:
+        reg(1, item, "aviso", f"{len(vencidas)} datas com cotação acima de {txt(LIMITE_COTACAO_AVISO)}: coleta de reposição disparada a partir de {', '.join(disparadas)} (sem DiscoverCars)")
+
+
 def autocorrigir(repo, arquivo, execucoes):
     """Dispara a rotina que deixou de rodar pelo agendamento, se também não houve execução recente agendada ou manual/do monitor.
     Run de push já concluído não conta (run em andamento conta): ele só roda quando o código muda e não garante a atualização diária."""
@@ -149,8 +242,12 @@ def autocorrigir(repo, arquivo, execucoes):
     if recentes:
         reg(1, f"{arquivo} (autocorreção)", "aviso", f"não disparada: houve execução há {txt(idade(recentes[0]['created_at']))} ({recentes[0]['event']})")
         return
+    corpo = {"ref": "main"}
+    if arquivo == "coleta-concorrentes.yml":
+        # Disparo manual roda o DiscoverCars (robô pago na Apify) a menos que se peça para pular: o monitor nunca deve gastar sozinho.
+        corpo["inputs"] = {"sem_discovercars": "true"}
     try:
-        github(f"repos/{repo}/actions/workflows/{arquivo}/dispatches", "POST", {"ref": "main"})
+        github(f"repos/{repo}/actions/workflows/{arquivo}/dispatches", "POST", corpo)
         reg(1, f"{arquivo} (autocorreção)", "aviso", f"sem execução há mais de {txt(LIMITE_REDISPARO)}: disparada pelo monitor (workflow_dispatch)")
     except urllib.error.HTTPError as e:
         reg(1, f"{arquivo} (autocorreção)", "falha", f"não foi possível disparar (HTTP {e.code}); verifique a permissão actions: write")
@@ -258,8 +355,14 @@ if __name__ == "__main__":
         checar_dados()
     except Exception as e:  # o banco inacessível também é um alerta
         reg(3, "Consulta ao banco", "falha", f"{type(e).__name__}: {str(e)[:160]}")
+    vencidas = []
+    try:
+        vencidas = checar_validade_cotacoes()
+    except Exception as e:
+        reg(3, "Validade das cotações", "aviso", f"não foi possível verificar: {type(e).__name__}: {str(e)[:160]}")
     checar_workflows()
     checar_rotinas_frequentes()
+    repor_datas_vencidas(vencidas)
     falhas = [r for r in resultados if r[2] == "falha"]
     avisos = [r for r in resultados if r[2] == "aviso"]
     corpo = publicar_resumo(falhas, avisos)
