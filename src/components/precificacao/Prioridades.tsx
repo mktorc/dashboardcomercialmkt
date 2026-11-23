@@ -335,10 +335,10 @@ function Painel({
     }
     setShown(PAGE);
   };
-  // Ao abrir com a faixa padrão e um período que não alcança essa antecedência (ex.: o mês atual com D-60+), alinha o período.
+  // Ao abrir, o período manda (padrão: hoje até 7 dias para frente): a antecedência se ajusta a ele, não o contrário.
   useEffect(() => {
     const b = bands.find((x) => x.key === leadKey);
-    if (b && leadKey !== "all" && range.to < addDays(base, b.min)) onRangeChange(periodoDaFaixa(b));
+    if (b && leadKey !== "all" && range.to < addDays(base, b.min)) aplicarPeriodo(range);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const moeda = (rates.data ?? [])[0]?.currency.toUpperCase() ?? "USD";
