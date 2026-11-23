@@ -310,6 +310,38 @@ export function Competitividade({
       rows.filter((r) => r.competitor === c).every((r) => isDiscoverCars(r)),
     ),
   );
+  // Legenda da régua: de quando são as coletas de cada locadora no período e de onde vieram.
+  const origemDe = (c: string) => {
+    const qs = fullComps.flatMap((x) => x.quotes.filter((q) => q.row.competitor === c));
+    if (!qs.length) return null;
+    const datas = qs.map((q) => q.row.collectedAt).sort();
+    const fontes = new Map<string, number>();
+    for (const q of qs) {
+      let host = "";
+      try {
+        host = q.row.sourceUrl ? new URL(q.row.sourceUrl).hostname.replace(/^www\./, "") : "";
+      } catch {
+        host = "";
+      }
+      const f = [q.row.source, host].filter(Boolean).join(" · ") || "fonte não informada";
+      fontes.set(f, (fontes.get(f) ?? 0) + 1);
+    }
+    const quando = (iso: string) =>
+      new Date(iso).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    return {
+      de: quando(datas[0]!),
+      ate: quando(datas.at(-1)!),
+      mesma: datas[0]!.slice(0, 16) === datas.at(-1)!.slice(0, 16),
+      n: qs.length,
+      fontes: [...fontes].sort((a, b) => b[1] - a[1]),
+    };
+  };
   const colorOf = (c: string) => {
     const k = Object.keys(FIXED_COLORS).find((n) => c.toLowerCase().startsWith(n));
     if (k) return FIXED_COLORS[k]!;
@@ -582,19 +614,47 @@ export function Competitividade({
                   )
                   .map((c) => {
                     const off = ocultos.has(c);
+                    const og = origemDe(c);
                     return (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => toggleOculto(c)}
-                        title={off ? "Mostrar na régua" : "Ocultar da régua"}
-                        aria-pressed={!off}
-                        className={`flex items-center gap-1 rounded hover:text-foreground ${off ? "line-through opacity-40" : ""}`}
-                      >
-                        <span className="size-2 rounded-full" style={{ background: colorOf(c) }} />
-                        {c}
-                        {dcNames.has(c) ? <span className="text-amber-400">*</span> : null}
-                      </button>
+                      <Tooltip key={c}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => toggleOculto(c)}
+                            aria-pressed={!off}
+                            className={`flex items-center gap-1 rounded hover:text-foreground ${off ? "line-through opacity-40" : ""}`}
+                          >
+                            <span
+                              className="size-2 rounded-full"
+                              style={{ background: colorOf(c) }}
+                            />
+                            {c}
+                            {dcNames.has(c) ? <span className="text-amber-400">*</span> : null}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm space-y-1 text-xs">
+                          <p className="font-medium">{c}</p>
+                          {og ? (
+                            <>
+                              <p>
+                                Consulta: {og.mesma ? og.ate : `de ${og.de} a ${og.ate}`} ({og.n}{" "}
+                                cotaç{og.n === 1 ? "ão" : "ões"} neste período)
+                              </p>
+                              {og.fontes.map(([f, n]) => (
+                                <p key={f} className="text-muted-foreground">
+                                  Fonte: {f}
+                                  {og.fontes.length > 1 ? ` (${n})` : ""}
+                                </p>
+                              ))}
+                            </>
+                          ) : (
+                            <p className="text-muted-foreground">Sem cotação neste período.</p>
+                          )}
+                          <p className="text-muted-foreground">
+                            Clique para {off ? "mostrar na" : "ocultar da"} régua.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 {ocultos.size ? (
