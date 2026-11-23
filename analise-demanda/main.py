@@ -36,6 +36,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sem-coleta", action="store_true")
     ap.add_argument("--hoje", help="data de corte (AAAA-MM-DD); padrão: hoje")
+    ap.add_argument("--so-ntto", action="store_true",
+                    help="só coleta o NTTO e grava ntto_chegadas (rotina semanal do GitHub Actions)")
     ap.add_argument("--sem-banco", action="store_true",
                     help="não grava no Supabase (ntto_chegadas e loja das reservas)")
     a = ap.parse_args()
@@ -49,6 +51,8 @@ def main() -> None:
         # Grava o NTTO antes do resto: se reservas/HQ falharem, a aba já tem o mês novo.
         if not a.sem_banco:
             print(f"ntto_chegadas: {coleta.gravar_ntto_banco(ntto_df)} meses gravados")
+        if a.so_ntto:
+            return
         print("Coletando reservas (Supabase)…"); coleta.coletar_interno(RAW)
         print("Coletando datas de criação e lojas (HQ, só GET)…"); coleta.coletar_hq(RAW)
         if not a.sem_banco:

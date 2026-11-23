@@ -128,7 +128,7 @@ tests/                 testes com dados sintéticos
 
 ## Atualização mensal
 
-**Automático:** o GitHub Actions roda `.github/workflows/atualizar-ntto.yml` toda segunda (10:41 UTC) e também dá
+**Automático:** o GitHub Actions roda `.github/workflows/atualizar-ntto.yml` (`main.py --so-ntto`: só NTTO → `ntto_chegadas`) toda segunda (10:41 UTC) e também dá
 para disparar à mão (Actions → "Atualizar NTTO" → Run workflow). Para rodar localmente:
 
 O NTTO publica o mês M como preliminar por volta de M+1 e como final em M+2/M+3.

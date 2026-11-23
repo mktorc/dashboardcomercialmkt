@@ -1,10 +1,10 @@
 # Atualização do NTTO (chegadas de brasileiros) para a aba Demanda & Preço, sem depender de computador ligado.
-# Roda analise-demanda/main.py: baixa os resumos mensais do NTTO (trade.gov), troca preliminares pelos finais, grava
-# ntto_chegadas no Supabase e preenche a loja das reservas que ainda estiverem sem ela (HQ, só GET).
+# Roda analise-demanda/main.py --so-ntto: baixa os resumos mensais do NTTO (trade.gov), troca preliminares pelos finais e grava
+# ntto_chegadas no Supabase. A loja das reservas vem do sync do HQ; a análise completa do Python roda só localmente.
 # O NTTO publica em datas variáveis (preliminar ~M+1, final ~M+2/M+3): rodar toda semana pega o arquivo novo em até 7 dias;
 # sem novidade, o upsert regrava os mesmos valores (o runner não tem cache: os ~94 arquivos são baixados de novo, ~20 MB).
 # Repositório público: nada de artefatos nem dados de reserva no log (o relatório de qualidade fica só no runner).
-# Requer os segredos SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HQ_TENANT_TOKEN e HQ_USER_TOKEN.
+# Requer os segredos SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.
 name: Atualizar NTTO (Demanda & Preço)
 
 on:
@@ -46,6 +46,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          HQ_TENANT_TOKEN: ${{ secrets.HQ_TENANT_TOKEN }}
-          HQ_USER_TOKEN: ${{ secrets.HQ_USER_TOKEN }}
-        run: python -I main.py
+        run: python -I main.py --so-ntto
