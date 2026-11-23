@@ -279,9 +279,21 @@ def _supabase_req(metodo: str, caminho: str, corpo, prefer: str = "") -> None:
     cab = {**UA, "apikey": chave, "Authorization": f"Bearer {chave}", "Content-Type": "application/json"}
     if prefer:
         cab["Prefer"] = prefer
-    req = urllib.request.Request(f"{base}/rest/v1/{caminho}", data=json.dumps(corpo).encode(), method=metodo, headers=cab)
-    with urllib.request.urlopen(req, timeout=120) as r:
-        r.read()
+    dados = json.dumps(corpo).encode()
+    # Upsert/PATCH são idempotentes: dá para repetir com segurança em erro passageiro (inclusive 52x do Cloudflare).
+    for t in range(6):
+        try:
+            req = urllib.request.Request(f"{base}/rest/v1/{caminho}", data=dados, method=metodo, headers=cab)
+            with urllib.request.urlopen(req, timeout=120) as r:
+                r.read()
+            return
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504, 520, 521, 522, 523, 524) or t == 5:
+                raise
+        except (urllib.error.URLError, TimeoutError):
+            if t == 5:
+                raise
+        time.sleep(min(90, 5 * 2 ** t))
 
 
 def gravar_ntto_banco(df: pd.DataFrame) -> int:
