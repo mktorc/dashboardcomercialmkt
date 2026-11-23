@@ -1,0 +1,86 @@
+# Configuração da análise de demanda e preço — escopo atual: só Orlando.
+
+coleta:
+  # Anos dos resumos mensais do NTTO por destino (estado/porto). 2020 e 2021 ficam fora de propósito.
+  ntto_anos_destino: [2017, 2018, 2019, 2022, 2023, 2024, 2025, 2026]
+  env_file: ../.env.local          # service role (Supabase) e tokens do HQ, só leitura
+
+demanda:
+  # Antes disso o HQ estava em implantação (migração em 01/07/2023): fora do share, da sazonalidade e do pickup.
+  inicio_historico_confiavel: "2023-08"
+  # Status que contam como demanda (locação realizada ou on the books).
+  status_demanda: [confirmed, cancelled-paid]
+  # Base da taxa de cancelamento: cancelados ÷ (demanda + cancelados + no-show). Pending fica fora.
+  status_cancelados: [cancelled, cancelled-paid]
+  status_base_cancelamento: [confirmed, cancelled, cancelled-paid, no-show]
+
+destinos:
+  # Destinos analisados (base, alertas, dashboard). Miami e EUA seguem definidos, mas desativados:
+  # para religar, basta incluí-los aqui.
+  ativos: [Orlando]
+  # Só contexto nos gráficos de demanda (chegadas e sazonalidade); não entra em share nem alertas.
+  referencia: Florida
+  # Destino → séries do NTTO somadas como denominador (chegadas de brasileiros).
+  series:
+    EUA: [eua]                       # total geral (Tabela I.1)
+    Florida: [florida]               # estado de primeiro endereço (Tabela I.1)
+    Orlando: [orlando]               # porto aéreo Orlando, FL (Tabela Q.1)
+    Miami: [miami, fort_lauderdale]  # portos aéreos Miami + Fort Lauderdale
+  # Lojas (id em fleet_locations) de cada destino, seguindo a região do cadastro. Orlando: MCO, TPA, SFB,
+  # Port Canaveral, hotéis, casa de férias, lounge e trem de Orlando. Mesma lista em src/lib/demanda-preco.ts.
+  lojas:
+    Orlando: [1, 4, 5, 7, 8, 9, 11, 12]
+    Miami: [2, 3, 6, 10, 13, 14, 15, 16]   # 6 = antiga "Hotel/Porto em Mia/FLL"
+  # Reservas sem loja não entram em nenhum destino de loja.
+
+preco:
+  # Faixas de antecedência (dias entre reserva e retirada), limites inclusivos.
+  faixas_antecedencia: [[0, 7], [8, 30], [31, 60], [61, 90], [91, 9999]]
+  rotulos_faixas: ["0–7", "8–30", "31–60", "61–90", "90+"]
+  horizonte_pickup_meses: 6
+  # "Pico" para a leitura ADR × demanda: índice de demanda acima disso.
+  indice_pico: 1.10
+
+sazonalidade:
+  anos_excluidos: [2020, 2021]     # pandemia: fora dos índices
+  nacional_desde: 2000
+
+pickup:
+  marcos_dias: [90, 60, 30, 7]
+  # Anos anteriores usados como "histórico" no ritmo de vendas (1 = só o ano anterior).
+  anos_historico: 2
+  # Razões de ritmo só com pelo menos N reservas na base de comparação (evita 1 vs 0,5 = 200%).
+  min_reservas_base: 10
+
+gatilhos:
+  fechar_entrada:
+    ativo: true
+    indice_sazonal_min: 1.3
+    pickup_vs_ano_anterior_min: 1.0     # razão on-the-books atual ÷ ano anterior na mesma data (> 1 = à frente)
+    horizonte_meses: 6
+    acao: "Fechar categoria de entrada"
+  share_caindo:
+    ativo: true
+    meses_seguidos: 2
+    # yoy: share abaixo do mesmo mês do ano anterior (tira a sazonalidade); mom: abaixo do mês anterior.
+    comparacao: yoy
+    acao: "Revisar preço / testar redução"
+  aereo_yoy:
+    ativo: false                        # sem dados aéreos (ForwardKeys/OAG) por enquanto
+    limite: 0.10
+    acao: "Antecipar fechamento de categorias"
+  pickup_abaixo:
+    ativo: true
+    dias_ate_retirada: 30               # meses que começam em até N dias (ou o mês corrente)
+    tolerancia: 0.10                    # dispara se ritmo < histórico × (1 − tolerância)
+    acao: "Abrir categorias / promoção"
+  ultima_hora:
+    ativo: true
+    min_reservas: 10                    # reservas pagas mínimas na faixa 0–7 e em cada faixa comparada
+    acao: "Revisar desconto de última hora"
+  subir_preco_categoria:
+    ativo: true
+    pickup_vs_ano_anterior_min: 1.0     # categoria à frente do ano anterior na mesma data…
+    adr_vs_ano_anterior_max: 0.98       # …e com ADR on the books ≥ 2% abaixo do ano anterior na mesma data
+    horizonte_meses: 6
+    acao: "Subir preço da categoria"

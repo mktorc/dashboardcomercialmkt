@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.pytest_cache/
+# Dados internos (reservas, HQ) e derivados não vão para o git; o pipeline recria tudo.
+data/raw/*
+data/processed/*
+relatorios/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!relatorios/.gitkeep

@@ -364,6 +364,7 @@ export type Database = {
           miscellaneous_price: number | null;
           phone8: string | null;
           pick_up_at: string | null;
+          pick_up_location_id: number | null;
           rack_rate: number | null;
           rental_days: number;
           reservation_id: string | null;
@@ -386,6 +387,7 @@ export type Database = {
           miscellaneous_price?: number | null;
           phone8?: string | null;
           pick_up_at?: string | null;
+          pick_up_location_id?: number | null;
           rack_rate?: number | null;
           rental_days?: number;
           reservation_id?: string | null;
@@ -408,6 +410,7 @@ export type Database = {
           miscellaneous_price?: number | null;
           phone8?: string | null;
           pick_up_at?: string | null;
+          pick_up_location_id?: number | null;
           rack_rate?: number | null;
           rental_days?: number;
           reservation_id?: string | null;

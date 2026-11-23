@@ -12,6 +12,7 @@ import {
   FileText,
   Swords,
   Coins,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/dashboard/SyncButton";
@@ -26,6 +27,7 @@ import { DinheiroNaMesa } from "@/components/precificacao/DinheiroNaMesa";
 import { Competitividade } from "@/components/precificacao/Competitividade";
 import { Prioridades } from "@/components/precificacao/Prioridades";
 import { OcupacaoEsperada } from "@/components/precificacao/OcupacaoEsperada";
+import { DemandaPreco } from "@/components/precificacao/DemandaPreco";
 import {
   PrecificacaoSidebar,
   type PricingNavItem,
@@ -62,7 +64,14 @@ const SHOW_ESTUDO = false;
 const SHOW_OCUPACAO_ESPERADA = false;
 
 type Section =
-  "prioridades" | "ocupacao" | "gestao" | "faixa-preco" | "mesa" | "competitividade" | "estudo";
+  | "prioridades"
+  | "ocupacao"
+  | "gestao"
+  | "faixa-preco"
+  | "mesa"
+  | "competitividade"
+  | "demanda"
+  | "estudo";
 const NAV: PricingNavItem<Section>[] = [
   { key: "prioridades", label: "Prioridades", icon: ListChecks },
   ...(SHOW_OCUPACAO_ESPERADA
@@ -72,6 +81,7 @@ const NAV: PricingNavItem<Section>[] = [
   { key: "faixa-preco", label: "Faixa de preço", icon: DollarSign },
   { key: "mesa", label: "Dinheiro na mesa", icon: Coins },
   { key: "competitividade", label: "Competitividade", icon: Swords },
+  { key: "demanda", label: "Demanda & Preço", icon: TrendingUp },
   ...(SHOW_ESTUDO ? [{ key: "estudo" as const, label: "Estudo", icon: FileText }] : []),
 ];
 
@@ -185,17 +195,19 @@ export function PricingHubView({
             <p className="text-sm text-foreground/70">
               {secao === "estudo" && data
                 ? `Estudo: período ${dataBR(data.period_start)} a ${dataBR(data.period_end)} · gerado em ${new Date(data.generated_at).toLocaleDateString("pt-BR")}.`
-                : secao === "prioridades"
-                  ? "O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado."
-                  : secao === "mesa"
-                    ? "Onde vendemos barato e cedo demais no passado, e se isso está se repetindo agora."
-                    : secao === "faixa-preco"
-                      ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
-                      : secao === "competitividade"
-                        ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
-                        : secao === "gestao"
-                          ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
-                          : "Ocupação atual e esperada por categoria, data a data."}
+                : secao === "demanda"
+                  ? "Orlando: demanda de brasileiros (NTTO) × nossas locações e preço, com alertas para abrir, fechar e precificar categorias."
+                  : secao === "prioridades"
+                    ? "O que decidir hoje, cruzando ocupação, nosso histórico de preço e mercado."
+                    : secao === "mesa"
+                      ? "Onde vendemos barato e cedo demais no passado, e se isso está se repetindo agora."
+                      : secao === "faixa-preco"
+                        ? "Nossa diária por época: que faixa de preço rendeu mais faturamento por veículo."
+                        : secao === "competitividade"
+                          ? "Nossa tarifa de tabela contra os preços coletados dos concorrentes."
+                          : secao === "gestao"
+                            ? "Ocupação atual contra a esperada (média da janela de 7 dias do ano de referência), na antecedência escolhida."
+                            : "Ocupação atual e esperada por categoria, data a data."}
             </p>
           </div>
           <SyncButton fn={syncPricing} ultimaAtualizacao={ultimaAtualizacao} />
@@ -224,6 +236,8 @@ export function PricingHubView({
             />
           ) : secao === "competitividade" ? (
             <Competitividade range={range} onRangeChange={setRange} />
+          ) : secao === "demanda" ? (
+            <DemandaPreco onAbrirPrioridades={() => setSecao("prioridades")} />
           ) : (
             <>
               {isLoading ? (

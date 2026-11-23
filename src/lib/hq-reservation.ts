@@ -53,6 +53,11 @@ export function mapReservation(r: HqReservation, users: Map<string, string>) {
     discount_amount: Number(r["discounts_amount"]) || 0,
     pick_up_at: (r["pick_up_date"] as string | null) ?? null,
     return_at: (r["return_date"] as string | null) ?? null,
+    // Loja de retirada (aba Demanda & Preço separa Orlando por ela). Coluna criada em sql-para-gravar/demanda_preco.sql.
+    pick_up_location_id:
+      Number.isFinite(Number(r["pick_up_location_id"])) && r["pick_up_location_id"] != null
+        ? Number(r["pick_up_location_id"])
+        : null,
     created_at: (r["created_at"] as string | null) ?? new Date().toISOString(),
   };
 }

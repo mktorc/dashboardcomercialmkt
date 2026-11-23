@@ -33,7 +33,8 @@ import {
 } from "@/components/ui/sheet";
 import { Ajuda, AjudaItem } from "@/components/precificacao/Ajuda";
 import { PeriodFilter } from "@/components/precificacao/PeriodFilter";
-import { rateKey } from "@/lib/categoria";
+import { normCategoria, rateKey } from "@/lib/categoria";
+import { SinaisDemanda } from "@/components/precificacao/SinaisDemanda";
 import { DetalheData, EtiquetaFrota } from "@/components/precificacao/DetalheData";
 import { TOL_PADRAO, pontosEpoca, quadranteDia, type PontoEpoca } from "@/lib/preco-analise";
 import {
@@ -694,6 +695,25 @@ function Painel({
           </label>
         </PeriodFilter>
       </Card>
+
+      <SinaisDemanda
+        onVer={(categoria, mes) => {
+          // Mês do sinal (sem datas passadas nem além da base de ocupação) e, se houver, a categoria.
+          const [y, mm] = mes.split("-").map(Number) as [number, number];
+          const fim = new Date(Date.UTC(y, mm, 0)).toISOString().slice(0, 10);
+          const ini = `${mes}-01`;
+          aplicarPeriodo({
+            from: ini < base ? base : ini,
+            to: fim > payload.ate ? payload.ate : fim,
+          });
+          const alvo = categoria
+            ? payload.categorias.find((c) => normCategoria(c) === normCategoria(categoria))
+            : undefined;
+          setCat(alvo ?? ALL);
+          setFiltroDia(null);
+          setShown(PAGE);
+        }}
+      />
 
       {base_rows.length === 0 ? (
         <RecorteVazio
