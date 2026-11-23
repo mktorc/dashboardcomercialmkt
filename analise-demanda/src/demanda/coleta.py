@@ -55,7 +55,8 @@ def _get(url: str, headers: dict | None = None, tentativas: int = 5) -> bytes:
             with urllib.request.urlopen(req, timeout=120) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
-            if e.code in (429, 500, 502, 503, 504) and t < tentativas - 1:
+            # 520–524: erros do Cloudflare na frente do Supabase (origem lenta/instável), passageiros.
+            if e.code in (429, 500, 502, 503, 504, 520, 521, 522, 523, 524) and t < tentativas - 1:
                 time.sleep(min(60, 2 ** (t + 2)))
                 continue
             raise

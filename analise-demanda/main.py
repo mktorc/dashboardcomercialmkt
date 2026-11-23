@@ -44,12 +44,14 @@ def main() -> None:
 
     if not a.sem_coleta:
         coleta.carregar_env((RAIZ / cfg["coleta"]["env_file"]).resolve())
-        print("Coletando NTTO…"); coleta.coletar_ntto(RAW, cfg["coleta"]["ntto_anos_destino"])
+        print("Coletando NTTO…"); ntto_df = coleta.coletar_ntto(RAW, cfg["coleta"]["ntto_anos_destino"])
         coleta.coletar_ntto_nacional(RAW)
+        # Grava o NTTO antes do resto: se reservas/HQ falharem, a aba já tem o mês novo.
+        if not a.sem_banco:
+            print(f"ntto_chegadas: {coleta.gravar_ntto_banco(ntto_df)} meses gravados")
         print("Coletando reservas (Supabase)…"); coleta.coletar_interno(RAW)
         print("Coletando datas de criação e lojas (HQ, só GET)…"); coleta.coletar_hq(RAW)
         if not a.sem_banco:
-            print(f"ntto_chegadas: {coleta.gravar_ntto_banco(pd.read_csv(RAW / 'ntto/ntto_destinos.csv'))} meses gravados")
             print(f"Loja das reservas preenchida (onde vazia): {coleta.preencher_lojas(pd.read_csv(RAW / 'interno/hq_reservas.csv'))}")
 
     ntto = limpeza.limpar_ntto(pd.read_csv(RAW / "ntto/ntto_destinos.csv"))
