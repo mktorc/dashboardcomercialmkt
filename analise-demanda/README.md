@@ -128,7 +128,10 @@ tests/                 testes com dados sintéticos
 
 ## Atualização mensal
 
-O NTTO publica o mês M como preliminar por volta de M+1 e como final em M+2/M+3. Uma vez por mês:
+**Automático:** o GitHub Actions roda `.github/workflows/atualizar-ntto.yml` toda segunda (10:41 UTC) e também dá
+para disparar à mão (Actions → "Atualizar NTTO" → Run workflow). Para rodar localmente:
+
+O NTTO publica o mês M como preliminar por volta de M+1 e como final em M+2/M+3.
 
 ```bash
 .venv/bin/python -I main.py

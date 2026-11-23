@@ -1,0 +1,51 @@
+# Atualização do NTTO (chegadas de brasileiros) para a aba Demanda & Preço, sem depender de computador ligado.
+# Roda analise-demanda/main.py: baixa os resumos mensais do NTTO (trade.gov), troca preliminares pelos finais, grava
+# ntto_chegadas no Supabase e preenche a loja das reservas que ainda estiverem sem ela (HQ, só GET).
+# O NTTO publica em datas variáveis (preliminar ~M+1, final ~M+2/M+3): rodar toda semana pega o arquivo novo em até 7 dias;
+# sem novidade, o upsert regrava os mesmos valores (o runner não tem cache: os ~94 arquivos são baixados de novo, ~20 MB).
+# Repositório público: nada de artefatos nem dados de reserva no log (o relatório de qualidade fica só no runner).
+# Requer os segredos SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HQ_TENANT_TOKEN e HQ_USER_TOKEN.
+name: Atualizar NTTO (Demanda & Preço)
+
+on:
+  schedule:
+    # Segundas, 10:41 UTC (07:41 em Brasília). Fora do minuto cheio e longe dos syncs do HQ (07:17 e 15:00 UTC), que dividem a cota.
+    - cron: '41 10 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'analise-demanda/src/demanda/coleta.py'
+      - '.github/workflows/atualizar-ntto.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: atualizar-ntto
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: analise-demanda
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: analise-demanda/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Testes do pipeline
+        run: python -I -m pytest -q tests
+      - name: Coletar NTTO e gravar no banco
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HQ_TENANT_TOKEN: ${{ secrets.HQ_TENANT_TOKEN }}
+          HQ_USER_TOKEN: ${{ secrets.HQ_USER_TOKEN }}
+        run: python -I main.py
