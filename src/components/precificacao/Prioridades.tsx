@@ -715,6 +715,8 @@ function Painel({
       </Card>
 
       <SinaisDemanda
+        periodo={range}
+        categoria={cat === ALL ? null : cat}
         onVer={(categoria, mes) => {
           // Mês do sinal (sem datas passadas nem além da base de ocupação) e, se houver, a categoria.
           const [y, mm] = mes.split("-").map(Number) as [number, number];

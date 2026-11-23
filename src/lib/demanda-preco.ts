@@ -442,7 +442,7 @@ export function alertas(
       out.push({
         mes: p.mes,
         categoria: TODAS,
-        acao: "Fechar categoria de entrada",
+        acao: "Parar de vender o carro mais barato",
         valor: p.razao,
         motivo: `Alta temporada (índice ${idx.toFixed(2)}) e ${p.otb} reservas vs ${p.otbAnoAnterior} na mesma data do ano anterior`,
       });
@@ -454,7 +454,7 @@ export function alertas(
       out.push({
         mes: p.mes,
         categoria: TODAS,
-        acao: "Abrir categorias / promoção",
+        acao: "Fazer promoção (vendas fracas)",
         valor: p.razaoHistorico,
         motivo: `${p.otb} reservas vs média de ${p.otbHistorico?.toFixed(0)} na mesma data dos anos anteriores`,
       });
