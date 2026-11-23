@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { timingSafeEqual } from "crypto";
 import { z } from "zod";
-import type { Json } from "@/integrations/supabase/types";
+import { resumirPayload } from "@/lib/webhook-audit";
 
 // Webhook ClickMassa (Eventos PUSH) -> tabela `crm_leads`.
 // Proteção: header Authorization: Bearer <CLICKMASSA_WEBHOOK_SECRET>.
@@ -198,7 +198,7 @@ async function auditAndProcess(rawBody: string, authHeader: string): Promise<voi
     }
 
     const eventType = payload ? pick(payload, ["event", "event_type", "type", "action"]) : null;
-    const auditPayload = (payload ?? { raw: rawBody }) as Json;
+    const auditPayload = resumirPayload(payload, rawBody.length);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: log, error: logError } = await supabaseAdmin
       .from("webhook_logs")
@@ -243,7 +243,7 @@ async function auditAndProcess(rawBody: string, authHeader: string): Promise<voi
       } else {
         await supabaseAdmin.from("webhook_logs").insert({
           source: "clickmassa",
-          payload: (payload ?? { raw: rawBody }) as Json,
+          payload: resumirPayload(payload, rawBody.length),
           authorized,
           processing_status: "failed",
           error_message: message,

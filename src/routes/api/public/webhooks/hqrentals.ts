@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto";
 import type { Json } from "@/integrations/supabase/types";
 import { syncReservationById, syncVehicleById } from "@/lib/hq-reservation";
 import { notifyReservationsOpened } from "@/lib/push.server";
+import { resumirPayload } from "@/lib/webhook-audit";
 
 // Webhook de reservas do HQ Rentals (tempo real). Registra cada evento em `webhook_logs`
 // (source = 'hq_rentals') e, se autorizado, rele a reserva completa no HQ e grava em `reservations`,
@@ -47,7 +48,7 @@ async function handle(rawBody: string, ok: boolean): Promise<void> {
     .insert({
       source: "hq_rentals",
       event_type: eventType ?? null,
-      payload,
+      payload: resumirPayload(payload, rawBody.length),
       authorized: ok,
       processing_status: ok ? "logged" : "unauthorized",
     })
