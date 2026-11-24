@@ -162,7 +162,22 @@ export const Route = createFileRoute("/api/kb/ask")({
               c.enqueue(line({ type: "done" }));
             } catch (e) {
               console.error("[kb] erro na IA", e);
-              c.enqueue(line({ type: "error", msg: "Falha ao consultar a IA. Tente de novo." }));
+              // Mostra o código e a mensagem do Gemini (sem a chave) para dar para entender a falha.
+              const raw = e instanceof Error ? e.message : String(e);
+              const code = /Gemini (\d{3})/.exec(raw)?.[1];
+              const why = /"message":\s*"([^"]{0,160})/.exec(raw)?.[1] ?? raw.slice(0, 160);
+              const hint =
+                code === "503"
+                  ? "o Gemini está sobrecarregado agora, tente em alguns minutos"
+                  : code === "429"
+                    ? "limite gratuito do Gemini atingido, tente mais tarde"
+                    : why;
+              c.enqueue(
+                line({
+                  type: "error",
+                  msg: `Falha ao consultar a IA${code ? ` (Gemini ${code})` : ""}: ${hint}`,
+                }),
+              );
             }
             c.close();
           },
