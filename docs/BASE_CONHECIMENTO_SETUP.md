@@ -4,7 +4,7 @@ O módulo **Base de Conhecimento** responde às dúvidas do time usando só os a
 pastas do Google Drive. Para funcionar, ele precisa de:
 
 - uma **conta de serviço** do Google, que é um "usuário robô" com permissão só de leitura nas pastas;
-- uma **chave da API da Anthropic**, para a IA (Claude);
+- uma **chave da API do Gemini** (Google AI Studio, gratuita), para a IA;
 - as **tabelas no Supabase**;
 - as **variáveis cadastradas no Vercel**.
 
@@ -85,16 +85,24 @@ Esse é o valor de `DRIVE_FOLDER_IDS`.
 
 ---
 
-## d) Criar a chave da API da Anthropic
+## d) Criar a chave da API do Gemini (gratuita)
 
-1. Acesse <https://console.anthropic.com/> e entre (ou crie a conta da empresa).
-2. Em **Billing**, cadastre um cartão e adicione créditos. Sem crédito a IA não responde.
-3. Vá em **API Keys → Create Key**, dê um nome (ex.: `painel-base-conhecimento`) e copie a chave
-   (começa com `sk-ant-`). Ela só aparece uma vez.
-4. Esse é o valor de `ANTHROPIC_API_KEY`.
+1. Acesse <https://aistudio.google.com/> com uma conta Google (pode ser a mesma do Google Cloud).
+2. Clique em **Get API key → Criar chave de API**. Se pedir, escolha o projeto
+   `orlando-base-conhecimento`.
+3. Copie a chave (começa com `AIza`). Esse é o valor de `GEMINI_API_KEY`.
 
-Cada pergunta envia até 8 trechos de texto para o modelo Claude Sonnet. Há um limite de 20
-perguntas a cada 10 minutos por usuário.
+O modelo padrão é o `gemini-2.5-flash`. Para usar outro, cadastre `GEMINI_MODEL` com o nome do
+modelo.
+
+> ⚠️ **Privacidade na camada gratuita:** sem faturamento ativado no projeto, o Google pode usar as
+> perguntas e os trechos enviados para melhorar os produtos dele, e pessoas podem revisar esse
+> conteúdo. Não coloque na pasta dados pessoais de clientes ou informações sigilosas. Se precisar
+> disso, ative o faturamento no projeto (camada paga, cobrada por uso).
+
+A camada gratuita tem limite de requisições por minuto e por dia. Se o time usar muito, o chat pode
+responder "Falha ao consultar a IA" até o limite renovar. O painel também limita a 20 perguntas a
+cada 10 minutos por usuário.
 
 ---
 
@@ -107,7 +115,7 @@ perguntas a cada 10 minutos por usuário.
    |---|---|
    | `GOOGLE_SERVICE_ACCOUNT_JSON` | o base64 do passo (a.7) |
    | `DRIVE_FOLDER_IDS` | os IDs do passo (c) |
-   | `ANTHROPIC_API_KEY` | a chave do passo (d) |
+   | `GEMINI_API_KEY` | a chave do passo (d) |
    | `KB_SYNC_SECRET` | uma senha longa e aleatória (ex.: gere com `openssl rand -hex 32`) |
 
    O agendamento diário do Vercel envia o `CRON_SECRET` do projeto, que já é usado pelos outros
@@ -152,5 +160,5 @@ Google Docs, Google Sheets (como CSV), Google Slides, PDF (com texto), Word (.do
 |---|---|
 | Sincronização "com erro": *File not found* | A pasta não foi compartilhada com o e-mail da conta de serviço ou o ID está errado |
 | *GOOGLE_SERVICE_ACCOUNT_JSON não configurada* | Variável não cadastrada ou faltou o redeploy |
-| Chat responde "Falha ao consultar a IA" | Chave da Anthropic errada ou sem crédito |
+| Chat responde "Falha ao consultar a IA" | Chave do Gemini errada ou limite gratuito atingido (veja o log da função no Vercel) |
 | "Acesso negado" | O usuário não tem o módulo marcado em Configurações |

@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 
 // Pergunta à IA usando só os trechos da base. Resposta em streaming NDJSON:
 //   {"type":"sources","sources":[...]}  depois  {"type":"text","text":"..."}…  e  {"type":"done"}
-const MODEL = "claude-sonnet-5-5";
+// Gemini (camada gratuita do Google AI Studio). Modelo trocável por GEMINI_MODEL.
+const MODEL = process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
 const TOP_K = 8;
 const MAX_HISTORY = 6;
 const NOT_FOUND = "Não encontrei essa informação nos arquivos da base";
@@ -51,8 +52,8 @@ export const Route = createFileRoute("/api/kb/ask")({
         const question =
           typeof body?.["question"] === "string" ? body["question"].trim().slice(0, 2000) : "";
         if (!question) return kb.fail("Escreva uma pergunta");
-        if (!process.env["ANTHROPIC_API_KEY"])
-          return kb.fail("ANTHROPIC_API_KEY não configurada", 500);
+        const apiKey = process.env["GEMINI_API_KEY"];
+        if (!apiKey) return kb.fail("GEMINI_API_KEY não configurada", 500);
         if (!(await kb.checkAskLimit(u.userId)))
           return kb.fail("Muitas perguntas em pouco tempo. Aguarde alguns minutos.", 429);
 
@@ -101,28 +102,56 @@ export const Route = createFileRoute("/api/kb/ask")({
           )
           .join("\n\n");
 
-        const { default: Anthropic } = await import("@anthropic-ai/sdk");
-        const anthropic = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
+        // Gemini usa "model" no lugar de "assistant"; o system vai em systemInstruction.
+        const contents = [
+          ...history.map((m) => ({
+            role: m.role === "assistant" ? "model" : "user",
+            parts: [{ text: m.content }],
+          })),
+          {
+            role: "user",
+            parts: [{ text: `<trechos>\n${context}\n</trechos>\n\nPergunta: ${question}` }],
+          },
+        ];
 
         const stream = new ReadableStream({
           async start(c) {
             c.enqueue(line({ type: "sources", sources }));
             try {
-              const s = anthropic.messages.stream({
-                model: MODEL,
-                max_tokens: 2048,
-                system: SYSTEM,
-                messages: [
-                  ...history,
-                  {
-                    role: "user",
-                    content: `<trechos>\n${context}\n</trechos>\n\nPergunta: ${question}`,
-                  },
-                ],
-              });
-              for await (const ev of s) {
-                if (ev.type === "content_block_delta" && ev.delta.type === "text_delta")
-                  c.enqueue(line({ type: "text", text: ev.delta.text }));
+              const res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:streamGenerateContent?alt=sse`,
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+                  body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: SYSTEM }] },
+                    contents,
+                    generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
+                  }),
+                },
+              );
+              if (!res.ok || !res.body) {
+                const detail = (await res.text().catch(() => "")).slice(0, 300);
+                throw new Error(`Gemini ${res.status}: ${detail}`);
+              }
+              // Resposta em SSE: linhas "data: {json}" com pedaços do texto.
+              const reader = res.body.getReader();
+              const dec = new TextDecoder();
+              let buf = "";
+              for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += dec.decode(value, { stream: true });
+                const lines = buf.split("\n");
+                buf = lines.pop() ?? "";
+                for (const l of lines) {
+                  if (!l.startsWith("data:")) continue;
+                  const ev = JSON.parse(l.slice(5));
+                  const text = (ev?.candidates?.[0]?.content?.parts ?? [])
+                    .map((p: { text?: string }) => p.text ?? "")
+                    .join("");
+                  if (text) c.enqueue(line({ type: "text", text }));
+                }
               }
               c.enqueue(line({ type: "done" }));
             } catch (e) {

@@ -15,7 +15,6 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.13.0",
     "@block65/webcrypto-web-push": "^2.0.0",
     "@googleapis/drive": "^27.1.0",
     "@hookform/resolvers": "^5.2.2",
