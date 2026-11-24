@@ -348,9 +348,15 @@ function ArquivosTab() {
     queryFn: () => api<{ files: KbFile[]; lastSync: SyncRun | null }>("files"),
   });
   const sync = useMutation({
-    mutationFn: () => api<{ status: string; stats: Record<string, number> }>("sync", "POST"),
+    mutationFn: () =>
+      api<{ status: string; stats: Record<string, number | string> }>("sync", "POST"),
     onSuccess: (r) => {
       const s = r.stats;
+      if (r.status === "erro") {
+        toast.error(`Sincronização com erro: ${s["erro"] ?? "motivo desconhecido"}`);
+        void qc.invalidateQueries({ queryKey: ["kb-files"] });
+        return;
+      }
       toast.success(
         `Sincronização ${RUN_LABEL[r.status] ?? r.status}: ${s["indexados"] ?? 0} atualizado(s), ${s["sem_mudanca"] ?? 0} sem mudança, ${s["erros"] ?? 0} erro(s).`,
       );
@@ -377,6 +383,9 @@ function ArquivosTab() {
               ? `${fmt(last.finished_at ?? last.started_at)} (${last.origem === "cron" ? "automática" : "manual"}, ${RUN_LABEL[last.status] ?? last.status})`
               : "nunca"}
           </p>
+          {last?.status === "erro" && typeof last.stats["erro"] === "string" && (
+            <p className="text-destructive">Motivo: {last.stats["erro"]}</p>
+          )}
         </div>
         <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
           <RefreshCw className={`mr-1 size-4 ${sync.isPending ? "animate-spin" : ""}`} />
