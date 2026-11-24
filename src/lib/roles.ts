@@ -8,10 +8,14 @@ export type PageKey =
   | "comissoes"
   | "configuracoes"
   | "fila-leads"
-  | "frota";
+  | "frota"
+  | "kb-comercial"
+  | "kb-cs"
+  // Página da Base de Conhecimento: liberada para quem tem qualquer uma das duas áreas.
+  | "base-conhecimento";
 
 /** Módulos que dá para marcar por usuário em Configurações (Configurações em si vem do Admin). */
-export type ModuleKey = Exclude<PageKey, "configuracoes">;
+export type ModuleKey = Exclude<PageKey, "configuracoes" | "base-conhecimento">;
 
 export const MODULE_LABELS: Record<ModuleKey, string> = {
   dashboard: "Marketing (Dashboard)",
@@ -20,6 +24,8 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
   comissoes: "Comissões",
   "fila-leads": "Fila de Leads",
   frota: "Gestão de Frota",
+  "kb-comercial": "Base de Conhecimento - Comercial",
+  "kb-cs": "Base de Conhecimento - CS",
 };
 export const MODULE_KEYS = Object.keys(MODULE_LABELS) as ModuleKey[];
 
@@ -29,7 +35,10 @@ export type Access = { modules: ModuleKey[]; admin: boolean; canPay: boolean };
 export function canAccess(access: Access | null, page: PageKey) {
   if (!access) return false;
   if (access.admin) return true;
-  return page !== "configuracoes" && access.modules.includes(page);
+  if (page === "configuracoes") return false;
+  if (page === "base-conhecimento")
+    return access.modules.includes("kb-comercial") || access.modules.includes("kb-cs");
+  return access.modules.includes(page);
 }
 
 const HOME_ORDER: [ModuleKey, HomePath][] = [
@@ -39,6 +48,8 @@ const HOME_ORDER: [ModuleKey, HomePath][] = [
   ["fila-leads", "/fila-leads"],
   ["comissoes", "/app/comissoes/a-pagar"],
   ["frota", "/frota"],
+  ["kb-comercial", "/base-conhecimento"],
+  ["kb-cs", "/base-conhecimento"],
 ];
 type HomePath =
   | "/app/dashboard"
@@ -46,12 +57,21 @@ type HomePath =
   | "/comercial-operacional"
   | "/fila-leads"
   | "/app/comissoes/a-pagar"
-  | "/frota";
+  | "/frota"
+  | "/base-conhecimento";
 
 /** Página inicial: o primeiro módulo liberado; sem nenhum, o hub. */
 export function homeOf(access: Access): HomePath | "/app" {
   if (access.admin) return "/app";
   return HOME_ORDER.find(([m]) => access.modules.includes(m))?.[1] ?? "/app";
+}
+
+/** Áreas da Base de Conhecimento que o usuário pode abrir. */
+export type KbArea = "comercial" | "cs";
+export function kbAreasOf(access: Access | null): KbArea[] {
+  if (!access) return [];
+  if (access.admin) return ["comercial", "cs"];
+  return (["comercial", "cs"] as const).filter((a) => access.modules.includes(`kb-${a}`));
 }
 
 export async function getMyAccess(): Promise<Access | null> {

@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ComercialOperacionalRouteImport } from './routes/comercial-operacional'
 import { Route as ControleReservasRouteImport } from './routes/controle-reservas'
+import { Route as DashboardsRouteImport } from './routes/dashboards'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -26,13 +27,26 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as OauthConsentRouteImport } from './routes/oauth.consent'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/app.dashboard'
+import { Route as AuthenticatedBaseConhecimentoIndexRouteImport } from './routes/_authenticated/base-conhecimento.index'
+import { Route as AuthenticatedBaseConhecimentoAreaRouteImport } from './routes/_authenticated/base-conhecimento.$area'
+import { Route as AuthenticatedBaseConhecimentoAdminRouteImport } from './routes/_authenticated/base-conhecimento.admin'
 import { Route as ApiFilaExternoRouteImport } from './routes/api/fila/externo'
 import { Route as ApiFilaHistoricoRouteImport } from './routes/api/fila/historico'
 import { Route as ApiFilaProximoRouteImport } from './routes/api/fila/proximo'
 import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
+import { Route as ApiKbAreasRouteImport } from './routes/api/kb/areas'
+import { Route as ApiKbArticlesRouteImport } from './routes/api/kb/articles'
+import { Route as ApiKbAskRouteImport } from './routes/api/kb/ask'
+import { Route as ApiKbFeedbackRouteImport } from './routes/api/kb/feedback'
+import { Route as ApiKbFilesRouteImport } from './routes/api/kb/files'
+import { Route as ApiKbSyncRouteImport } from './routes/api/kb/sync'
 import { Route as ApiPublicRentcarsRouteImport } from './routes/api/public/rentcars'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
+import { Route as AuthenticatedBaseConhecimentoAreaIndexRouteImport } from './routes/_authenticated/base-conhecimento.$area.index'
+import { Route as AuthenticatedBaseConhecimentoAreaArtigoRouteImport } from './routes/_authenticated/base-conhecimento.$area.$artigo'
+import { Route as AuthenticatedBaseConhecimentoAreaChatRouteImport } from './routes/_authenticated/base-conhecimento.$area.chat'
+import { Route as AuthenticatedBaseConhecimentoAreaTemplatesRouteImport } from './routes/_authenticated/base-conhecimento.$area.templates'
 import { Route as ApiFilaVendedoresIndexRouteImport } from './routes/api/fila/vendedores/index'
 import { Route as ApiFilaVendedoresIdRouteImport } from './routes/api/fila/vendedores/$id'
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
@@ -70,6 +84,11 @@ const ComercialOperacionalRoute = ComercialOperacionalRouteImport.update({
 const ControleReservasRoute = ControleReservasRouteImport.update({
   id: '/controle-reservas',
   path: '/controle-reservas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardsRoute = DashboardsRouteImport.update({
+  id: '/dashboards',
+  path: '/dashboards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -136,6 +155,24 @@ const AuthenticatedAppDashboardRoute =
     path: '/app/dashboard',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedBaseConhecimentoIndexRoute =
+  AuthenticatedBaseConhecimentoIndexRouteImport.update({
+    id: '/base-conhecimento/',
+    path: '/base-conhecimento/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBaseConhecimentoAreaRoute =
+  AuthenticatedBaseConhecimentoAreaRouteImport.update({
+    id: '/base-conhecimento/$area',
+    path: '/base-conhecimento/$area',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBaseConhecimentoAdminRoute =
+  AuthenticatedBaseConhecimentoAdminRouteImport.update({
+    id: '/base-conhecimento/admin',
+    path: '/base-conhecimento/admin',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiFilaExternoRoute = ApiFilaExternoRouteImport.update({
   id: '/api/fila/externo',
   path: '/api/fila/externo',
@@ -156,6 +193,36 @@ const ApiFilaToggleRoute = ApiFilaToggleRouteImport.update({
   path: '/api/fila/toggle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKbAreasRoute = ApiKbAreasRouteImport.update({
+  id: '/api/kb/areas',
+  path: '/api/kb/areas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbArticlesRoute = ApiKbArticlesRouteImport.update({
+  id: '/api/kb/articles',
+  path: '/api/kb/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbAskRoute = ApiKbAskRouteImport.update({
+  id: '/api/kb/ask',
+  path: '/api/kb/ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbFeedbackRoute = ApiKbFeedbackRouteImport.update({
+  id: '/api/kb/feedback',
+  path: '/api/kb/feedback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbFilesRoute = ApiKbFilesRouteImport.update({
+  id: '/api/kb/files',
+  path: '/api/kb/files',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbSyncRoute = ApiKbSyncRouteImport.update({
+  id: '/api/kb/sync',
+  path: '/api/kb/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicRentcarsRoute = ApiPublicRentcarsRouteImport.update({
   id: '/api/public/rentcars',
   path: '/api/public/rentcars',
@@ -171,6 +238,30 @@ const AppComissoesHistoricoRoute = AppComissoesHistoricoRouteImport.update({
   path: '/app/comissoes/historico',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedBaseConhecimentoAreaIndexRoute =
+  AuthenticatedBaseConhecimentoAreaIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
+const AuthenticatedBaseConhecimentoAreaArtigoRoute =
+  AuthenticatedBaseConhecimentoAreaArtigoRouteImport.update({
+    id: '/$artigo',
+    path: '/$artigo',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
+const AuthenticatedBaseConhecimentoAreaChatRoute =
+  AuthenticatedBaseConhecimentoAreaChatRouteImport.update({
+    id: '/chat',
+    path: '/chat',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
+const AuthenticatedBaseConhecimentoAreaTemplatesRoute =
+  AuthenticatedBaseConhecimentoAreaTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
 const ApiFilaVendedoresIndexRoute = ApiFilaVendedoresIndexRouteImport.update({
   id: '/api/fila/vendedores/',
   path: '/api/fila/vendedores/',
@@ -252,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -264,13 +356,25 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/base-conhecimento/$area': typeof AuthenticatedBaseConhecimentoAreaRouteWithChildren
+  '/base-conhecimento/admin': typeof AuthenticatedBaseConhecimentoAdminRoute
   '/api/fila/externo': typeof ApiFilaExternoRoute
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/areas': typeof ApiKbAreasRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/feedback': typeof ApiKbFeedbackRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/base-conhecimento/': typeof AuthenticatedBaseConhecimentoIndexRoute
+  '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
+  '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -284,6 +388,7 @@ export interface FileRoutesByFullPath {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/base-conhecimento/$area/': typeof AuthenticatedBaseConhecimentoAreaIndexRoute
   '/api/fila/vendedores/': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRoutesByTo {
@@ -291,6 +396,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -303,13 +409,24 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/base-conhecimento/admin': typeof AuthenticatedBaseConhecimentoAdminRoute
   '/api/fila/externo': typeof ApiFilaExternoRoute
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/areas': typeof ApiKbAreasRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/feedback': typeof ApiKbFeedbackRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/base-conhecimento': typeof AuthenticatedBaseConhecimentoIndexRoute
+  '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
+  '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -323,6 +440,7 @@ export interface FileRoutesByTo {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/base-conhecimento/$area': typeof AuthenticatedBaseConhecimentoAreaIndexRoute
   '/api/fila/vendedores': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRoutesById {
@@ -332,6 +450,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -344,13 +463,25 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/_authenticated/base-conhecimento/$area': typeof AuthenticatedBaseConhecimentoAreaRouteWithChildren
+  '/_authenticated/base-conhecimento/admin': typeof AuthenticatedBaseConhecimentoAdminRoute
   '/api/fila/externo': typeof ApiFilaExternoRoute
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/areas': typeof ApiKbAreasRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/feedback': typeof ApiKbFeedbackRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
+  '/_authenticated/base-conhecimento/': typeof AuthenticatedBaseConhecimentoIndexRoute
+  '/_authenticated/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
+  '/_authenticated/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/_authenticated/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -364,6 +495,7 @@ export interface FileRoutesById {
   '/api/public/sync/meta-ads': typeof ApiPublicSyncMetaAdsRoute
   '/api/public/webhooks/clickmassa': typeof ApiPublicWebhooksClickmassaRoute
   '/api/public/webhooks/hqrentals': typeof ApiPublicWebhooksHqrentalsRoute
+  '/_authenticated/base-conhecimento/$area/': typeof AuthenticatedBaseConhecimentoAreaIndexRoute
   '/api/fila/vendedores/': typeof ApiFilaVendedoresIndexRoute
 }
 export interface FileRouteTypes {
@@ -373,6 +505,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -385,13 +518,25 @@ export interface FileRouteTypes {
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
+    | '/base-conhecimento/$area'
+    | '/base-conhecimento/admin'
     | '/api/fila/externo'
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/areas'
+    | '/api/kb/articles'
+    | '/api/kb/ask'
+    | '/api/kb/feedback'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/base-conhecimento/'
+    | '/base-conhecimento/$area/$artigo'
+    | '/base-conhecimento/$area/chat'
+    | '/base-conhecimento/$area/templates'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -405,6 +550,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/base-conhecimento/$area/'
     | '/api/fila/vendedores/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -412,6 +558,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -424,13 +571,24 @@ export interface FileRouteTypes {
     | '/app'
     | '/.lovable/oauth/consent'
     | '/app/dashboard'
+    | '/base-conhecimento/admin'
     | '/api/fila/externo'
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/areas'
+    | '/api/kb/articles'
+    | '/api/kb/ask'
+    | '/api/kb/feedback'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/base-conhecimento'
+    | '/base-conhecimento/$area/$artigo'
+    | '/base-conhecimento/$area/chat'
+    | '/base-conhecimento/$area/templates'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -444,6 +602,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/base-conhecimento/$area'
     | '/api/fila/vendedores'
   id:
     | '__root__'
@@ -452,6 +611,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -464,13 +624,25 @@ export interface FileRouteTypes {
     | '/app/'
     | '/.lovable/oauth/consent'
     | '/_authenticated/app/dashboard'
+    | '/_authenticated/base-conhecimento/$area'
+    | '/_authenticated/base-conhecimento/admin'
     | '/api/fila/externo'
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/areas'
+    | '/api/kb/articles'
+    | '/api/kb/ask'
+    | '/api/kb/feedback'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
+    | '/_authenticated/base-conhecimento/'
+    | '/_authenticated/base-conhecimento/$area/$artigo'
+    | '/_authenticated/base-conhecimento/$area/chat'
+    | '/_authenticated/base-conhecimento/$area/templates'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -484,6 +656,7 @@ export interface FileRouteTypes {
     | '/api/public/sync/meta-ads'
     | '/api/public/webhooks/clickmassa'
     | '/api/public/webhooks/hqrentals'
+    | '/_authenticated/base-conhecimento/$area/'
     | '/api/fila/vendedores/'
   fileRoutesById: FileRoutesById
 }
@@ -493,6 +666,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ComercialOperacionalRoute: typeof ComercialOperacionalRoute
   ControleReservasRoute: typeof ControleReservasRoute
+  DashboardsRoute: typeof DashboardsRoute
   McpRoute: typeof McpRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -503,6 +677,12 @@ export interface RootRouteChildren {
   ApiFilaHistoricoRoute: typeof ApiFilaHistoricoRoute
   ApiFilaProximoRoute: typeof ApiFilaProximoRoute
   ApiFilaToggleRoute: typeof ApiFilaToggleRoute
+  ApiKbAreasRoute: typeof ApiKbAreasRoute
+  ApiKbArticlesRoute: typeof ApiKbArticlesRoute
+  ApiKbAskRoute: typeof ApiKbAskRoute
+  ApiKbFeedbackRoute: typeof ApiKbFeedbackRoute
+  ApiKbFilesRoute: typeof ApiKbFilesRoute
+  ApiKbSyncRoute: typeof ApiKbSyncRoute
   ApiPublicRentcarsRoute: typeof ApiPublicRentcarsRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
@@ -557,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/controle-reservas'
       fullPath: '/controle-reservas'
       preLoaderRoute: typeof ControleReservasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboards': {
+      id: '/dashboards'
+      path: '/dashboards'
+      fullPath: '/dashboards'
+      preLoaderRoute: typeof DashboardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -643,6 +830,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/base-conhecimento/': {
+      id: '/_authenticated/base-conhecimento/'
+      path: '/base-conhecimento'
+      fullPath: '/base-conhecimento/'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/base-conhecimento/$area': {
+      id: '/_authenticated/base-conhecimento/$area'
+      path: '/base-conhecimento/$area'
+      fullPath: '/base-conhecimento/$area'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/base-conhecimento/admin': {
+      id: '/_authenticated/base-conhecimento/admin'
+      path: '/base-conhecimento/admin'
+      fullPath: '/base-conhecimento/admin'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/fila/externo': {
       id: '/api/fila/externo'
       path: '/api/fila/externo'
@@ -671,6 +879,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiFilaToggleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/kb/areas': {
+      id: '/api/kb/areas'
+      path: '/api/kb/areas'
+      fullPath: '/api/kb/areas'
+      preLoaderRoute: typeof ApiKbAreasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/articles': {
+      id: '/api/kb/articles'
+      path: '/api/kb/articles'
+      fullPath: '/api/kb/articles'
+      preLoaderRoute: typeof ApiKbArticlesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/ask': {
+      id: '/api/kb/ask'
+      path: '/api/kb/ask'
+      fullPath: '/api/kb/ask'
+      preLoaderRoute: typeof ApiKbAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/feedback': {
+      id: '/api/kb/feedback'
+      path: '/api/kb/feedback'
+      fullPath: '/api/kb/feedback'
+      preLoaderRoute: typeof ApiKbFeedbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/files': {
+      id: '/api/kb/files'
+      path: '/api/kb/files'
+      fullPath: '/api/kb/files'
+      preLoaderRoute: typeof ApiKbFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/sync': {
+      id: '/api/kb/sync'
+      path: '/api/kb/sync'
+      fullPath: '/api/kb/sync'
+      preLoaderRoute: typeof ApiKbSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/rentcars': {
       id: '/api/public/rentcars'
       path: '/api/public/rentcars'
@@ -691,6 +941,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/comissoes/historico'
       preLoaderRoute: typeof AppComissoesHistoricoRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/base-conhecimento/$area/': {
+      id: '/_authenticated/base-conhecimento/$area/'
+      path: '/'
+      fullPath: '/base-conhecimento/$area/'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaIndexRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
+    }
+    '/_authenticated/base-conhecimento/$area/$artigo': {
+      id: '/_authenticated/base-conhecimento/$area/$artigo'
+      path: '/$artigo'
+      fullPath: '/base-conhecimento/$area/$artigo'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaArtigoRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
+    }
+    '/_authenticated/base-conhecimento/$area/chat': {
+      id: '/_authenticated/base-conhecimento/$area/chat'
+      path: '/chat'
+      fullPath: '/base-conhecimento/$area/chat'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaChatRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
+    }
+    '/_authenticated/base-conhecimento/$area/templates': {
+      id: '/_authenticated/base-conhecimento/$area/templates'
+      path: '/templates'
+      fullPath: '/base-conhecimento/$area/templates'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaTemplatesRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
     }
     '/api/fila/vendedores/': {
       id: '/api/fila/vendedores/'
@@ -793,6 +1071,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedBaseConhecimentoAreaRouteChildren {
+  AuthenticatedBaseConhecimentoAreaArtigoRoute: typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
+  AuthenticatedBaseConhecimentoAreaChatRoute: typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  AuthenticatedBaseConhecimentoAreaTemplatesRoute: typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
+  AuthenticatedBaseConhecimentoAreaIndexRoute: typeof AuthenticatedBaseConhecimentoAreaIndexRoute
+}
+
+const AuthenticatedBaseConhecimentoAreaRouteChildren: AuthenticatedBaseConhecimentoAreaRouteChildren =
+  {
+    AuthenticatedBaseConhecimentoAreaArtigoRoute:
+      AuthenticatedBaseConhecimentoAreaArtigoRoute,
+    AuthenticatedBaseConhecimentoAreaChatRoute:
+      AuthenticatedBaseConhecimentoAreaChatRoute,
+    AuthenticatedBaseConhecimentoAreaTemplatesRoute:
+      AuthenticatedBaseConhecimentoAreaTemplatesRoute,
+    AuthenticatedBaseConhecimentoAreaIndexRoute:
+      AuthenticatedBaseConhecimentoAreaIndexRoute,
+  }
+
+const AuthenticatedBaseConhecimentoAreaRouteWithChildren =
+  AuthenticatedBaseConhecimentoAreaRoute._addFileChildren(
+    AuthenticatedBaseConhecimentoAreaRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
@@ -800,6 +1102,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFrotaRoute: typeof AuthenticatedFrotaRoute
   AuthenticatedPrecificacaoRoute: typeof AuthenticatedPrecificacaoRoute
   AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
+  AuthenticatedBaseConhecimentoAreaRoute: typeof AuthenticatedBaseConhecimentoAreaRouteWithChildren
+  AuthenticatedBaseConhecimentoAdminRoute: typeof AuthenticatedBaseConhecimentoAdminRoute
+  AuthenticatedBaseConhecimentoIndexRoute: typeof AuthenticatedBaseConhecimentoIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -809,6 +1114,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFrotaRoute: AuthenticatedFrotaRoute,
   AuthenticatedPrecificacaoRoute: AuthenticatedPrecificacaoRoute,
   AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
+  AuthenticatedBaseConhecimentoAreaRoute:
+    AuthenticatedBaseConhecimentoAreaRouteWithChildren,
+  AuthenticatedBaseConhecimentoAdminRoute:
+    AuthenticatedBaseConhecimentoAdminRoute,
+  AuthenticatedBaseConhecimentoIndexRoute:
+    AuthenticatedBaseConhecimentoIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -820,6 +1131,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ComercialOperacionalRoute: ComercialOperacionalRoute,
   ControleReservasRoute: ControleReservasRoute,
+  DashboardsRoute: DashboardsRoute,
   McpRoute: McpRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
@@ -831,6 +1143,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilaHistoricoRoute: ApiFilaHistoricoRoute,
   ApiFilaProximoRoute: ApiFilaProximoRoute,
   ApiFilaToggleRoute: ApiFilaToggleRoute,
+  ApiKbAreasRoute: ApiKbAreasRoute,
+  ApiKbArticlesRoute: ApiKbArticlesRoute,
+  ApiKbAskRoute: ApiKbAskRoute,
+  ApiKbFeedbackRoute: ApiKbFeedbackRoute,
+  ApiKbFilesRoute: ApiKbFilesRoute,
+  ApiKbSyncRoute: ApiKbSyncRoute,
   ApiPublicRentcarsRoute: ApiPublicRentcarsRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,

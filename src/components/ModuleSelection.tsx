@@ -16,6 +16,8 @@ import {
   Settings,
   ListOrdered,
   Car,
+  BookOpen,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -73,7 +75,29 @@ const MODULES = [
     description: "Carros que precisam mudar de região (Orlando e Miami) antes da próxima reserva.",
     cta: "Acessar Gestão de Frota",
   },
+  {
+    page: "base-conhecimento" as PageKey,
+    to: "/base-conhecimento",
+    icon: BookOpen,
+    title: "Base de Conhecimento",
+    description: "Tire dúvidas com a IA usando os arquivos das pastas do Drive do time.",
+    cta: "Acessar Base de Conhecimento",
+  },
 ] as const;
+
+// Marketing, Gerencial e Operacional ficam agrupados no card "Dashboards" (página /dashboards).
+const DASH_PAGES: readonly string[] = ["/app/dashboard", "/comercial", "/comercial-operacional"];
+const DASHBOARDS_MODULE = {
+  to: "/dashboards",
+  icon: LayoutDashboard,
+  title: "Dashboards",
+  description: "Acesse os dashboards disponíveis para o seu perfil.",
+  cta: "Acessar Dashboards",
+} as const;
+const agruparDashboards = <T extends { to: string }>(lista: readonly T[]) =>
+  lista.some((m) => DASH_PAGES.includes(m.to))
+    ? [...lista.filter((m) => !DASH_PAGES.includes(m.to)), DASHBOARDS_MODULE]
+    : [...lista];
 
 // Controle de Reservas: visível a quem entra no hub, com ou sem login.
 const RESERVAS_MODULE = {
@@ -159,11 +183,13 @@ export function ModuleSelection() {
   if (isLoading) return <div className="min-h-screen bg-background" />;
 
   const logado = access != null;
-  const base = logado
-    ? MODULES.filter((m) => canAccess(access, m.page))
-    : publico
-      ? PUBLIC_MODULES
-      : [];
+  const base = agruparDashboards<{
+    to: string;
+    icon: typeof Users;
+    title: string;
+    description: string;
+    cta: string;
+  }>(logado ? MODULES.filter((m) => canAccess(access, m.page)) : publico ? PUBLIC_MODULES : []);
   const comReservas = logado ? [...base, RESERVAS_MODULE] : base;
   const todos = logado && canSeePricing(email) ? [...comReservas, PRICING_MODULE] : comReservas;
   const termo = busca.trim().toLowerCase();
