@@ -68,7 +68,21 @@ let client: drive_v3.Drive | null = null;
 export function driveClient(): drive_v3.Drive {
   if (client) return client;
   const b64 = process.env["GOOGLE_SERVICE_ACCOUNT_JSON"];
-  if (!b64) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON não configurada");
+  if (!b64) {
+    // Diagnóstico sem expor valores: quais variáveis da base o servidor enxerga (e o tamanho).
+    const seen = [
+      "GOOGLE_SERVICE_ACCOUNT_JSON",
+      "DRIVE_FOLDER_IDS",
+      "GEMINI_API_KEY",
+      "KB_SYNC_SECRET",
+    ]
+      .map((k) => `${k}: ${process.env[k] ? `sim (${process.env[k]!.length})` : "não"}`)
+      .join(", ");
+    const similar = Object.keys(process.env).filter((k) => /GOOGLE|SERVICE|KB_|DRIVE/i.test(k));
+    throw new Error(
+      `GOOGLE_SERVICE_ACCOUNT_JSON não configurada. Vistas: ${seen}. Nomes parecidos: ${similar.join(", ") || "nenhum"}. Ambiente: ${process.env["VERCEL_ENV"] ?? "?"}`,
+    );
+  }
   const credentials = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
   const auth = new JWT({
     email: credentials.client_email,
