@@ -5,6 +5,8 @@
 const API = "https://generativelanguage.googleapis.com";
 
 export const primaryModel = () => process.env["GEMINI_MODEL"] || "gemini-4-hydrogen";
+// Reserva fixa testada no AI Studio desta conta; depois vêm os outros flash da lista da API.
+const KNOWN_FALLBACK = "gemini-3.5-flash-lite";
 
 let cached: { at: number; models: string[] } | null = null;
 
@@ -43,11 +45,12 @@ async function availableFlashModels(apiKey: string): Promise<string[]> {
   return names;
 }
 
-/** Ordem de tentativa: principal e depois até 3 reservas. */
+/** Ordem de tentativa: principal, reserva fixa e até 2 outras da lista. */
 export async function modelChain(apiKey: string): Promise<string[]> {
   const primary = primaryModel();
-  const others = (await availableFlashModels(apiKey)).filter((m) => m !== primary);
-  return [primary, ...others.slice(0, 3)];
+  const listed = await availableFlashModels(apiKey);
+  const others = listed.filter((m) => m !== primary && m !== KNOWN_FALLBACK);
+  return [...new Set([primary, KNOWN_FALLBACK, ...others.slice(0, 2)])];
 }
 
 /**
