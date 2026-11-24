@@ -92,20 +92,28 @@ async function deleteFile(name: string) {
 }
 
 async function generate(part: Record<string, unknown>, prompt: string, lowRes: boolean) {
-  const res = await fetch(`${API}/v1beta/models/${encodeURIComponent(MODEL())}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": key() },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [part, { text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 16384,
-        // Resolução baixa: vídeo longo gasta ~1/3 dos tokens e cabe no limite gratuito.
-        ...(lowRes ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}),
-      },
-    }),
+  const body = JSON.stringify({
+    contents: [{ role: "user", parts: [part, { text: prompt }] }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 16384,
+      // Resolução baixa: vídeo longo gasta ~1/3 dos tokens e cabe no limite gratuito.
+      ...(lowRes ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}),
+    },
   });
-  if (!res.ok) throw await geminiError(res, "leitura do arquivo");
+  // 503 (modelo sobrecarregado) e 429 (limite) são passageiros: tenta de novo com espera crescente.
+  const waits = [0, 8_000, 20_000];
+  let res: Response | null = null;
+  for (const wait of waits) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    res = await fetch(`${API}/v1beta/models/${encodeURIComponent(MODEL())}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": key() },
+      body,
+    });
+    if (res.status !== 503 && res.status !== 429) break;
+  }
+  if (!res || !res.ok) throw await geminiError(res!, "leitura do arquivo");
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };

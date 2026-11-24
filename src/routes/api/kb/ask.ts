@@ -118,21 +118,27 @@ export const Route = createFileRoute("/api/kb/ask")({
           async start(c) {
             c.enqueue(line({ type: "sources", sources }));
             try {
-              const res = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:streamGenerateContent?alt=sse`,
-                {
-                  method: "POST",
-                  headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-                  body: JSON.stringify({
-                    systemInstruction: { parts: [{ text: SYSTEM }] },
-                    contents,
-                    generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
-                  }),
-                },
-              );
-              if (!res.ok || !res.body) {
-                const detail = (await res.text().catch(() => "")).slice(0, 300);
-                throw new Error(`Gemini ${res.status}: ${detail}`);
+              // 503/429 do Gemini são passageiros: tenta de novo antes de desistir.
+              let res: Response | null = null;
+              for (const wait of [0, 3_000, 8_000]) {
+                if (wait) await new Promise((r) => setTimeout(r, wait));
+                res = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:streamGenerateContent?alt=sse`,
+                  {
+                    method: "POST",
+                    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+                    body: JSON.stringify({
+                      systemInstruction: { parts: [{ text: SYSTEM }] },
+                      contents,
+                      generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
+                    }),
+                  },
+                );
+                if (res.status !== 503 && res.status !== 429) break;
+              }
+              if (!res || !res.ok || !res.body) {
+                const detail = ((await res?.text().catch(() => "")) ?? "").slice(0, 300);
+                throw new Error(`Gemini ${res?.status}: ${detail}`);
               }
               // Resposta em SSE: linhas "data: {json}" com pedaços do texto.
               const reader = res.body.getReader();
