@@ -2,7 +2,16 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { chunkText } from "./chunk";
-import { extractText, isMedia, isSupported, listAllFiles, type DriveFile } from "./drive.server";
+import {
+  driveClient,
+  extractText,
+  isMedia,
+  isSupported,
+  listAllFiles,
+  type DriveFile,
+  type FileArea,
+} from "./drive.server";
+import { parseTemplatesMarkdown, TEMPLATES_DOC_RE } from "./templates";
 import { Bm25Searcher, type KbChunk, type Searcher } from "./search";
 
 // As tabelas kb_* (sql-para-gravar/base_conhecimento.sql) ainda não estão em types.ts.
@@ -17,10 +26,15 @@ export const fail = (msg: string, status = 400) => Response.json({ ok: false, ms
 // Acesso
 // ---------------------------------------------------------------------------------------------
 
-/** Usuário logado (Bearer do Supabase) com o módulo Base de Conhecimento ou Admin. */
-export async function requireKbUser(
-  request: Request,
-): Promise<{ userId: string } | { denied: Response }> {
+export type KbArea = "comercial" | "cs";
+export const KB_AREAS: KbArea[] = ["comercial", "cs"];
+export const parseArea = (v: unknown): KbArea | null =>
+  v === "comercial" || v === "cs" ? v : null;
+
+type KbUser = { userId: string; admin: boolean; areas: KbArea[] };
+
+/** Usuário logado (Bearer do Supabase) com pelo menos uma área da base (kb-comercial/kb-cs) ou Admin. */
+export async function requireKbUser(request: Request): Promise<KbUser | { denied: Response }> {
   const auth = request.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   if (!token) return { denied: fail("Não autenticado", 401) };
@@ -31,9 +45,31 @@ export async function requireKbUser(
     .select("modules, is_admin")
     .eq("user_id", data.user.id)
     .maybeSingle();
-  if (!acc || !(acc.is_admin || acc.modules.includes("base-conhecimento")))
-    return { denied: fail("Acesso negado", 403) };
-  return { userId: data.user.id };
+  const admin = !!acc?.is_admin;
+  const areas = admin ? KB_AREAS : KB_AREAS.filter((a) => (acc?.modules ?? []).includes(`kb-${a}`));
+  if (!areas.length) return { denied: fail("Acesso negado", 403) };
+  return { userId: data.user.id, admin, areas };
+}
+
+/** Exige acesso à área pedida (filtro no servidor, não só no front). */
+export async function requireArea(
+  request: Request,
+  areaParam: unknown,
+): Promise<(KbUser & { area: KbArea }) | { denied: Response }> {
+  const u = await requireKbUser(request);
+  if ("denied" in u) return u;
+  const area = parseArea(areaParam);
+  if (!area) return { denied: fail("Área inválida", 400) };
+  if (!u.areas.includes(area)) return { denied: fail("Sem acesso a esta área", 403) };
+  return { ...u, area };
+}
+
+/** Só Admin (administração da base: arquivos e sincronização). */
+export async function requireKbAdmin(request: Request): Promise<KbUser | { denied: Response }> {
+  const u = await requireKbUser(request);
+  if ("denied" in u) return u;
+  if (!u.admin) return { denied: fail("Só administradores", 403) };
+  return u;
 }
 
 /** Cron: Bearer igual a KB_SYNC_SECRET (ou CRON_SECRET, que é o que o Vercel Cron envia). */
@@ -72,7 +108,13 @@ const TIME_BUDGET_MS = 200_000; // a função tem 300 s; para antes e o resto fi
 // Vídeo (e PDF escaneado) pode levar ~2 min no Gemini: só começa se ainda sobrar tempo.
 const MEDIA_START_MS = 100_000;
 
-type FileRow = { file_id: string; modified_time: string | null; status: string };
+type FileRow = {
+  file_id: string;
+  modified_time: string | null;
+  status: string;
+  area: string;
+  category: string;
+};
 
 export async function runSync(origem: "manual" | "cron") {
   const started = Date.now();
@@ -94,7 +136,7 @@ export async function runSync(origem: "manual" | "cron") {
 
     const { data: existing } = await db
       .from("kb_files")
-      .select("file_id, modified_time, status")
+      .select("file_id, modified_time, status, area, category")
       .limit(100_000);
     const known = new Map<string, FileRow>(
       ((existing ?? []) as FileRow[]).map((r) => [r.file_id, r]),
@@ -120,6 +162,12 @@ export async function runSync(origem: "manual" | "cron") {
         f.modifiedTime &&
         new Date(prev.modified_time).getTime() === new Date(f.modifiedTime).getTime();
       if (unchanged) {
+        // Arquivo mudou de pasta/área sem ser editado: só atualiza a classificação.
+        if (prev.area !== f.area || prev.category !== f.category)
+          await db
+            .from("kb_files")
+            .update({ area: f.area, category: f.category, folder: f.folder })
+            .eq("file_id", f.id);
         if (prev.status === "ignorado") stats.ignorados++;
         else stats.sem_mudanca++;
         continue;
@@ -148,6 +196,7 @@ export async function runSync(origem: "manual" | "cron") {
         stats.erros++;
       }
     }
+    await syncTemplates(files);
     if (stats.pendentes) status = "parcial";
   } catch (e) {
     status = "erro";
@@ -163,11 +212,48 @@ export async function runSync(origem: "manual" | "cron") {
   return { status, stats };
 }
 
+/**
+ * Documento "Templates de mensagem" (Google Docs) em cada área: cada título vira um template com
+ * o texto abaixo dele. Grava templates-<area>.json no bucket "kb"; sem documento, grava lista vazia.
+ */
+async function syncTemplates(files: DriveFile[]) {
+  const byArea = new Map<FileArea, DriveFile[]>();
+  for (const f of files)
+    if (f.mimeType === "application/vnd.google-apps.document" && TEMPLATES_DOC_RE.test(f.name))
+      byArea.set(f.area, [...(byArea.get(f.area) ?? []), f]);
+  const storage = db.storage.from("kb");
+  for (const area of ["comercial", "cs", "compartilhado"] as FileArea[]) {
+    const docs = byArea.get(area) ?? [];
+    const templates = [];
+    for (const d of docs) {
+      try {
+        const res = await driveClient().files.export(
+          { fileId: d.id, mimeType: "text/markdown" },
+          { responseType: "text" },
+        );
+        for (const t of parseTemplatesMarkdown(String(res.data ?? "")))
+          templates.push({ ...t, source: { name: d.name, link: d.webViewLink } });
+      } catch (e) {
+        console.error(`[kb] templates: falha ao ler ${d.name}`, e);
+      }
+    }
+    await storage.upload(
+      `templates-${area}.json`,
+      new Blob([JSON.stringify({ updatedAt: new Date().toISOString(), templates })], {
+        type: "application/json",
+      }),
+      { upsert: true, contentType: "application/json" },
+    );
+  }
+}
+
 async function saveFile(f: DriveFile, status: string, detail: string | null, chunks: string[]) {
   const { error } = await db.from("kb_files").upsert({
     file_id: f.id,
     name: f.name,
     folder: f.folder,
+    area: f.area,
+    category: f.category,
     web_view_link: f.webViewLink,
     mime_type: f.mimeType,
     modified_time: f.modifiedTime,
@@ -188,12 +274,15 @@ async function saveFile(f: DriveFile, status: string, detail: string | null, chu
 }
 
 // ---------------------------------------------------------------------------------------------
-// Índice em memória (recarrega quando houver sincronização mais nova)
+// Índice em memória por área (recarrega quando houver sincronização mais nova).
+// Cada área enxerga os arquivos dela + os compartilhados.
 // ---------------------------------------------------------------------------------------------
-let cache: { version: string; searcher: Searcher } | null = null;
+let cache: { version: string; chunks: (KbChunk & { area: FileArea })[] } | null = null;
+const searchers = new Map<KbArea, { version: string; searcher: Searcher }>();
 
 function invalidateIndex() {
   cache = null;
+  searchers.clear();
 }
 
 async function indexVersion(): Promise<string> {
@@ -207,27 +296,30 @@ async function indexVersion(): Promise<string> {
   return data ? `${data.id}:${data.finished_at}` : "vazio";
 }
 
-export async function getSearcher(): Promise<Searcher> {
-  const version = await indexVersion();
-  if (cache?.version === version) return cache.searcher;
-
+async function loadChunks(version: string) {
+  if (cache?.version === version) return cache.chunks;
   const { data: files } = await db
     .from("kb_files")
-    .select("file_id, name, folder, web_view_link, modified_time")
+    .select("file_id, name, folder, web_view_link, modified_time, area")
     .eq("status", "indexado")
     .limit(100_000);
   const meta = new Map<
     string,
-    { name: string; folder: string; link: string | null; mod: string | null }
+    { name: string; folder: string; link: string | null; mod: string | null; area: FileArea }
   >(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (files ?? []).map((f: any) => [
       f.file_id,
-      { name: f.name, folder: f.folder, link: f.web_view_link, mod: f.modified_time },
+      {
+        name: f.name,
+        folder: f.folder,
+        link: f.web_view_link,
+        mod: f.modified_time,
+        area: f.area ?? "compartilhado",
+      },
     ]),
   );
-
-  const chunks: KbChunk[] = [];
+  const chunks: (KbChunk & { area: FileArea })[] = [];
   const PAGE = 1000;
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await db
@@ -248,11 +340,40 @@ export async function getSearcher(): Promise<Searcher> {
         folder: m.folder,
         link: m.link,
         modifiedTime: m.mod,
+        area: m.area,
       });
     }
     if (!data || data.length < PAGE) break;
   }
+  cache = { version, chunks };
+  return chunks;
+}
+
+export async function getSearcher(area: KbArea): Promise<Searcher> {
+  const version = await indexVersion();
+  const hit = searchers.get(area);
+  if (hit?.version === version) return hit.searcher;
+  const chunks = (await loadChunks(version)).filter(
+    (c) => c.area === area || c.area === "compartilhado",
+  );
   const searcher = new Bm25Searcher(chunks);
-  cache = { version, searcher };
+  searchers.set(area, { version, searcher });
   return searcher;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Índice leve dos artigos (id → áreas), para contar por área e validar votos/visualizações.
+// ---------------------------------------------------------------------------------------------
+let articleIndex: { at: number; areasById: Map<string, string[]> } | null = null;
+
+export async function articleAreas(): Promise<Map<string, string[]>> {
+  if (articleIndex && Date.now() - articleIndex.at < 10 * 60_000) return articleIndex.areasById;
+  const { data } = await db.storage.from("kb").download("articles.json");
+  const areasById = new Map<string, string[]>();
+  if (data) {
+    const json = JSON.parse(await data.text()) as { articles: { id: string; areas: string[] }[] };
+    for (const a of json.articles) areasById.set(a.id, a.areas);
+  }
+  articleIndex = { at: Date.now(), areasById };
+  return areasById;
 }

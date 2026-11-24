@@ -38,15 +38,15 @@ export const Route = createFileRoute("/api/kb/ask")({
     handlers: {
       POST: async ({ request }) => {
         const kb = await import("@/lib/kb/kb.server");
-        const u = await kb.requireKbUser(request);
-        if ("denied" in u) return u.denied;
-
         let body: Record<string, unknown> | null = null;
         try {
           body = JSON.parse((await request.text()).slice(0, 64 * 1024));
         } catch {
           /* corpo inválido */
         }
+        // O chat de uma área só busca nos arquivos daquela área (+ compartilhados).
+        const u = await kb.requireArea(request, body?.["area"]);
+        if ("denied" in u) return u.denied;
         const question =
           typeof body?.["question"] === "string" ? body["question"].trim().slice(0, 2000) : "";
         if (!question) return kb.fail("Escreva uma pergunta");
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/api/kb/ask")({
         // Histórico: a pergunta atual + a última pergunta do usuário ajudam a buscar em continuações.
         const history = parseHistory(body?.["history"]);
         const lastUser = [...history].reverse().find((m) => m.role === "user")?.content ?? "";
-        const searcher = await kb.getSearcher();
+        const searcher = await kb.getSearcher(u.area);
         let hits = searcher.search(question, TOP_K);
         if (hits.length < TOP_K && lastUser) {
           const extra = searcher.search(`${question} ${lastUser}`, TOP_K);
@@ -68,7 +68,10 @@ export const Route = createFileRoute("/api/kb/ask")({
 
         const sources = [
           ...new Map(
-            hits.map((h) => [h.fileId, { name: h.name, link: h.link, folder: h.folder }]),
+            hits.map((h) => [
+              h.fileId,
+              { fileId: h.fileId, name: h.name, link: h.link, folder: h.folder },
+            ]),
           ).values(),
         ];
         const enc = new TextEncoder();

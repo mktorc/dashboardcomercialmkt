@@ -6,13 +6,13 @@ export const Route = createFileRoute("/api/kb/files")({
     handlers: {
       GET: async ({ request }) => {
         const kb = await import("@/lib/kb/kb.server");
-        const u = await kb.requireKbUser(request);
+        const u = await kb.requireKbAdmin(request);
         if ("denied" in u) return u.denied;
         const [files, runs] = await Promise.all([
           kb.db
             .from("kb_files")
             .select(
-              "file_id, name, folder, web_view_link, mime_type, modified_time, status, detail, chunks, indexed_at",
+              "file_id, name, folder, area, category, web_view_link, mime_type, modified_time, status, detail, chunks, indexed_at",
             )
             .order("folder")
             .order("name")
