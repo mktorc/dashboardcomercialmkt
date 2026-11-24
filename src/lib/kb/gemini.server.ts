@@ -1,9 +1,10 @@
 // Escolha de modelo do Gemini com reserva: se o principal estiver sobrecarregado (503) ou no
 // limite (429), tenta os outros modelos "flash" que a chave aceita (lista vinda da própria API).
+// Principal: gemini-4-hydrogen, o padrão do AI Studio para esta conta (o 3.8-flash vivia em 503).
 
 const API = "https://generativelanguage.googleapis.com";
 
-export const primaryModel = () => process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
+export const primaryModel = () => process.env["GEMINI_MODEL"] || "gemini-4-hydrogen";
 
 let cached: { at: number; models: string[] } | null = null;
 

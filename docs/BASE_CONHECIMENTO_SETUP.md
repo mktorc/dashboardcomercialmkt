@@ -92,7 +92,7 @@ Esse é o valor de `DRIVE_FOLDER_IDS`.
    `orlando-base-conhecimento`.
 3. Copie a chave (começa com `AIza`). Esse é o valor de `GEMINI_API_KEY`.
 
-O modelo padrão é o `gemini-3.8-flash`. Para usar outro, cadastre `GEMINI_MODEL` com o nome do
+O modelo padrão é o `gemini-4-hydrogen`. Para usar outro, cadastre `GEMINI_MODEL` com o nome do
 modelo.
 
 > ⚠️ **Privacidade na camada gratuita:** sem faturamento ativado no projeto, o Google pode usar as
