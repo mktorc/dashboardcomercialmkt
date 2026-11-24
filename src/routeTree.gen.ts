@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ComercialOperacionalRouteImport } from './routes/comercial-operacional'
 import { Route as ControleReservasRouteImport } from './routes/controle-reservas'
+import { Route as DashboardsRouteImport } from './routes/dashboards'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -83,6 +84,11 @@ const ComercialOperacionalRoute = ComercialOperacionalRouteImport.update({
 const ControleReservasRoute = ControleReservasRouteImport.update({
   id: '/controle-reservas',
   path: '/controle-reservas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardsRoute = DashboardsRouteImport.update({
+  id: '/dashboards',
+  path: '/dashboards',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -337,6 +343,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -389,6 +396,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -442,6 +450,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/comercial-operacional': typeof ComercialOperacionalRoute
   '/controle-reservas': typeof ControleReservasRoute
+  '/dashboards': typeof DashboardsRoute
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -496,6 +505,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -548,6 +558,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -600,6 +611,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/comercial-operacional'
     | '/controle-reservas'
+    | '/dashboards'
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
@@ -654,6 +666,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ComercialOperacionalRoute: typeof ComercialOperacionalRoute
   ControleReservasRoute: typeof ControleReservasRoute
+  DashboardsRoute: typeof DashboardsRoute
   McpRoute: typeof McpRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
@@ -724,6 +737,13 @@ declare module '@tanstack/react-router' {
       path: '/controle-reservas'
       fullPath: '/controle-reservas'
       preLoaderRoute: typeof ControleReservasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboards': {
+      id: '/dashboards'
+      path: '/dashboards'
+      fullPath: '/dashboards'
+      preLoaderRoute: typeof DashboardsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -1111,6 +1131,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ComercialOperacionalRoute: ComercialOperacionalRoute,
   ControleReservasRoute: ControleReservasRoute,
+  DashboardsRoute: DashboardsRoute,
   McpRoute: McpRoute,
   PrivacidadeRoute: PrivacidadeRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
