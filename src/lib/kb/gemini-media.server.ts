@@ -1,8 +1,9 @@
 // Transforma vídeo, imagem e PDF escaneado em texto com o Gemini, para entrar no índice.
 // Arquivos grandes vão pela Files API do Gemini (upload resumível) e são apagados no final.
 
+import { callWithFallback } from "./gemini.server";
+
 const API = "https://generativelanguage.googleapis.com";
-const MODEL = () => process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
 const INLINE_MAX = 15 * 1024 * 1024; // até aqui a imagem vai direto no corpo da requisição
 
 export const hasGemini = () => !!process.env["GEMINI_API_KEY"];
@@ -101,19 +102,18 @@ async function generate(part: Record<string, unknown>, prompt: string, lowRes: b
       ...(lowRes ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}),
     },
   });
-  // 503 (modelo sobrecarregado) e 429 (limite) são passageiros: tenta de novo com espera crescente.
-  const waits = [0, 8_000, 20_000];
-  let res: Response | null = null;
-  for (const wait of waits) {
-    if (wait) await new Promise((r) => setTimeout(r, wait));
-    res = await fetch(`${API}/v1beta/models/${encodeURIComponent(MODEL())}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": key() },
-      body,
-    });
-    if (res.status !== 503 && res.status !== 429) break;
-  }
-  if (!res || !res.ok) throw await geminiError(res!, "leitura do arquivo");
+  // Principal e, se estiver sobrecarregado, os outros modelos flash da chave.
+  const res = await callWithFallback(
+    key(),
+    (model) =>
+      fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": key() },
+        body,
+      }),
+    6_000,
+  );
+  if (!res.ok) throw await geminiError(res, "leitura do arquivo");
   const data = (await res.json()) as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };

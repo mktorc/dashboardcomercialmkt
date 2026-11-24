@@ -2,8 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 
 // Pergunta à IA usando só os trechos da base. Resposta em streaming NDJSON:
 //   {"type":"sources","sources":[...]}  depois  {"type":"text","text":"..."}…  e  {"type":"done"}
-// Gemini (camada gratuita do Google AI Studio). Modelo trocável por GEMINI_MODEL.
-const MODEL = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
 const TOP_K = 8;
 const MAX_HISTORY = 6;
 const NOT_FOUND = "Não encontrei essa informação nos arquivos da base";
@@ -118,12 +116,11 @@ export const Route = createFileRoute("/api/kb/ask")({
           async start(c) {
             c.enqueue(line({ type: "sources", sources }));
             try {
-              // 503/429 do Gemini são passageiros: tenta de novo antes de desistir.
-              let res: Response | null = null;
-              for (const wait of [0, 3_000, 8_000]) {
-                if (wait) await new Promise((r) => setTimeout(r, wait));
-                res = await fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:streamGenerateContent?alt=sse`,
+              // Principal e, se estiver sobrecarregado (503/429), os outros modelos flash da chave.
+              const { callWithFallback } = await import("@/lib/kb/gemini.server");
+              const res = await callWithFallback(apiKey, (model) =>
+                fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
                   {
                     method: "POST",
                     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
@@ -133,12 +130,11 @@ export const Route = createFileRoute("/api/kb/ask")({
                       generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
                     }),
                   },
-                );
-                if (res.status !== 503 && res.status !== 429) break;
-              }
-              if (!res || !res.ok || !res.body) {
-                const detail = ((await res?.text().catch(() => "")) ?? "").slice(0, 300);
-                throw new Error(`Gemini ${res?.status}: ${detail}`);
+                ),
+              );
+              if (!res.ok || !res.body) {
+                const detail = (await res.text().catch(() => "")).slice(0, 300);
+                throw new Error(`Gemini ${res.status}: ${detail}`);
               }
               // Resposta em SSE: linhas "data: {json}" com pedaços do texto.
               const reader = res.body.getReader();
