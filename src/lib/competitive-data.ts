@@ -62,6 +62,9 @@ export function useCompetitorSnapshots() {
             "id,source,source_url,location,normalized_category,source_category,collected_at,pickup_at,return_at,total_price,daily_price,currency,available,equivalence,protections,mileage,cancellation_policy,equivalence_notes,competitors(name)",
           )
           .gte("collected_at", desde)
+          // Sem categoria nossa a coleta não entra em tela nenhuma (~80% das linhas, quase tudo DiscoverCars sem par):
+          // trazê-las deixava a leitura em ~84 páginas e o Mercado ficava "sem cotação" enquanto carregava.
+          .not("normalized_category", "is", null)
           .order("collected_at", { ascending: false })
           .order("id")
           .range(from, to),
