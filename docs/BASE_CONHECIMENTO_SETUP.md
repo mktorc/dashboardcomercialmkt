@@ -114,7 +114,8 @@ cada 10 minutos por usuário.
    | Variável | Valor |
    |---|---|
    | `GOOGLE_SERVICE_ACCOUNT_JSON` | o base64 do passo (a.7) |
-   | `DRIVE_FOLDER_IDS` | os IDs do passo (c) |
+   | `DRIVE_FOLDERS_COMERCIAL` / `DRIVE_FOLDERS_CS` | os IDs das pastas de cada área (veja "Áreas") |
+   | `DRIVE_FOLDER_IDS` | (opcional) pasta de conteúdo compartilhado |
    | `GEMINI_API_KEY` | a chave do passo (d) |
    | `KB_SYNC_SECRET` | uma senha longa e aleatória (ex.: gere com `openssl rand -hex 32`) |
 
@@ -179,15 +180,73 @@ são processados. Se um vídeo der erro (por exemplo, por atingir o limite gratu
 
 ---
 
-## Aba "Base" (artigos organizados)
+## Áreas: Comercial e CS
 
-A aba **Base** mostra os processos, regras, templates e a frota organizados em artigos, com etapas
+A base é dividida em duas áreas, cada uma com os próprios artigos, busca e chat:
+
+- **Comercial** e **Sucesso do Cliente (CS)**. Conteúdo comum (políticas, frota, manual do cliente)
+  aparece nas duas, marcado como **Compartilhado**.
+- **Acesso:** em **Configurações**, marque para cada usuário o módulo
+  **Base de Conhecimento - Comercial** e/ou **Base de Conhecimento - CS**. Admin vê as duas áreas e a
+  página de Administração. Quem não tem a área recebe **403** do servidor nos artigos, no chat e no
+  voto (não é só o menu que esconde).
+- Rode antes o SQL `sql-para-gravar/base_conhecimento_areas.sql` no Supabase. Ele cria as colunas de
+  área, as tabelas de visualizações e votos, e troca o módulo antigo `base-conhecimento` pelos dois novos.
+
+### Como organizar as pastas no Drive
+
+Crie uma pasta por área e, dentro dela, uma subpasta por assunto. **As subpastas viram as categorias**
+dos arquivos (na Administração e nas fontes do chat).
+
+```
+Base de Conhecimento - Comercial/      → DRIVE_FOLDERS_COMERCIAL
+  Regras e processos/
+  Objeções/
+  Templates de mensagem   (Google Docs)
+Base de Conhecimento - CS/             → DRIVE_FOLDERS_CS
+  Rotina/
+  Pedágios/
+  Templates de mensagem   (Google Docs)
+```
+
+1. Compartilhe cada pasta de área com o e-mail da conta de serviço como **Leitor** (como no passo b).
+2. No Vercel, cadastre os IDs (passo c) em:
+
+   | Variável | Valor |
+   |---|---|
+   | `DRIVE_FOLDERS_COMERCIAL` | ID(s) da pasta do Comercial, separados por vírgula |
+   | `DRIVE_FOLDERS_CS` | ID(s) da pasta do CS, separados por vírgula |
+   | `DRIVE_FOLDER_IDS` | (opcional) pastas de conteúdo **compartilhado** pelas duas áreas |
+
+3. Faça o redeploy e clique em **Sincronizar** na Administração.
+
+Enquanto as pastas não forem separadas, a pasta atual (em `DRIVE_FOLDER_IDS`) continua funcionando
+e conta como compartilhada: o chat das duas áreas usa os mesmos arquivos.
+
+### Documento "Templates de mensagem"
+
+Para os templates aparecerem com o texto completo e o botão **Copiar**, crie em cada pasta de área
+um Google Docs chamado **Templates de mensagem**:
+
+- Cada template começa com o **nome em estilo de título** (Formatar → Estilos de parágrafo →
+  Título 1, 2 ou 3), por exemplo `Boa viagem CS`.
+- Abaixo do título, o texto da mensagem, do jeito que é enviado.
+- Variáveis entre colchetes ou chaves ficam destacadas: `[NOME]`, `{data}`, `{{valor}}`.
+
+Na sincronização seguinte, cada template vira um bloco com **Copiar**, na página Templates e dentro
+dos artigos onde o nome dele aparece. Sem o documento, aparece só o nome do template.
+
+---
+
+## Artigos organizados
+
+Os artigos mostram os processos, regras, templates e a frota organizados em artigos, com etapas
 numeradas, tabelas e as imagens dos PDFs (cartões da frota e páginas do manual do cliente).
 
 - Os artigos foram escritos a partir dos arquivos da pasta e ficam no Supabase Storage, no bucket
   **privado** `kb` (`articles.json` e a pasta `img/`). As imagens só abrem pelo painel, com link
   temporário de 1 hora.
-- A aba é **só leitura**. Para corrigir algo, ajuste o arquivo de origem no Drive e peça a
+- Os artigos são **só leitura**. Para corrigir algo, ajuste o arquivo de origem no Drive e peça a
   atualização da base. Ela não se atualiza sozinha com a sincronização: a sincronização alimenta o
   **Chat**.
 - Quando os documentos se contradizem, o artigo mostra um aviso amarelo de **divergência** em vez de

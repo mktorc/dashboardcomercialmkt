@@ -12,7 +12,11 @@ export type DriveFile = {
   webViewLink: string | null;
   size: number | null;
   folder: string; // caminho: "Pasta raiz / Subpasta"
+  area: FileArea; // de qual variável de pasta veio
+  category: string; // primeira subpasta abaixo da raiz ("Geral" se estiver na raiz)
 };
+
+export type FileArea = "comercial" | "cs" | "compartilhado";
 
 const FOLDER = "application/vnd.google-apps.folder";
 const MAX_BYTES = 100 * 1024 * 1024; // PDFs cheios de imagem passam de 50 MB e ainda cabem na função
@@ -57,11 +61,26 @@ export function isSupported(f: Pick<DriveFile, "mimeType" | "name">): boolean {
   );
 }
 
-export function folderIds(): string[] {
-  return (process.env["DRIVE_FOLDER_IDS"] ?? "")
+const ids = (v: string | undefined) =>
+  (v ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+
+/** Pastas por área. DRIVE_FOLDER_IDS (antiga) conta como conteúdo compartilhado pelas duas. */
+export function areaFolders(): { area: FileArea; id: string }[] {
+  return [
+    ...ids(process.env["DRIVE_FOLDERS_COMERCIAL"]).map((id) => ({
+      area: "comercial" as const,
+      id,
+    })),
+    ...ids(process.env["DRIVE_FOLDERS_CS"]).map((id) => ({ area: "cs" as const, id })),
+    ...ids(process.env["DRIVE_FOLDER_IDS"]).map((id) => ({ area: "compartilhado" as const, id })),
+  ];
+}
+
+export function folderIds(): string[] {
+  return areaFolders().map((f) => f.id);
 }
 
 let client: drive_v3.Drive | null = null;
@@ -99,7 +118,7 @@ export async function listAllFiles(): Promise<DriveFile[]> {
   const out: DriveFile[] = [];
   const seenFolders = new Set<string>();
 
-  async function walk(folderId: string, path: string) {
+  async function walk(folderId: string, path: string, area: FileArea, category: string | null) {
     if (seenFolders.has(folderId)) return;
     seenFolders.add(folderId);
     let pageToken: string | undefined;
@@ -116,7 +135,7 @@ export async function listAllFiles(): Promise<DriveFile[]> {
       for (const f of res.data.files ?? []) {
         if (!f.id || !f.name || !f.mimeType) continue;
         if (f.mimeType === FOLDER) {
-          await walk(f.id, `${path} / ${f.name}`);
+          await walk(f.id, `${path} / ${f.name}`, area, category ?? f.name);
           continue;
         }
         out.push({
@@ -127,15 +146,17 @@ export async function listAllFiles(): Promise<DriveFile[]> {
           webViewLink: f.webViewLink ?? null,
           size: f.size ? Number(f.size) : null,
           folder: path,
+          area,
+          category: category ?? "Geral",
         });
       }
       pageToken = res.data.nextPageToken ?? undefined;
     } while (pageToken);
   }
 
-  for (const id of folderIds()) {
+  for (const { id, area } of areaFolders()) {
     const root = await drive.files.get({ fileId: id, fields: "name", supportsAllDrives: true });
-    await walk(id, root.data.name ?? id);
+    await walk(id, root.data.name ?? id, area, null);
   }
   return out;
 }

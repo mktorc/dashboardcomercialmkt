@@ -6,7 +6,7 @@ async function handle(request: Request, viaCron: boolean) {
   const kb = await import("@/lib/kb/kb.server");
   if (!kb.isSyncSecret(request)) {
     if (viaCron) return kb.fail("Não autorizado", 401);
-    const u = await kb.requireKbUser(request);
+    const u = await kb.requireKbAdmin(request);
     if ("denied" in u) return u.denied;
   }
   const { data: running } = await kb.db
