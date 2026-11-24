@@ -176,3 +176,19 @@ são processados. Se um vídeo der erro (por exemplo, por atingir o limite gratu
 | *GOOGLE_SERVICE_ACCOUNT_JSON não configurada* | Variável não cadastrada ou faltou o redeploy |
 | Chat responde "Falha ao consultar a IA" | Chave do Gemini errada ou limite gratuito atingido (veja o log da função no Vercel) |
 | "Acesso negado" | O usuário não tem o módulo marcado em Configurações |
+
+---
+
+## Aba "Base" (artigos organizados)
+
+A aba **Base** mostra os processos, regras, templates e a frota organizados em artigos, com etapas
+numeradas, tabelas e as imagens dos PDFs (cartões da frota e páginas do manual do cliente).
+
+- Os artigos foram escritos a partir dos arquivos da pasta e ficam no Supabase Storage, no bucket
+  **privado** `kb` (`articles.json` e a pasta `img/`). As imagens só abrem pelo painel, com link
+  temporário de 1 hora.
+- A aba é **só leitura**. Para corrigir algo, ajuste o arquivo de origem no Drive e peça a
+  atualização da base. Ela não se atualiza sozinha com a sincronização: a sincronização alimenta o
+  **Chat**.
+- Quando os documentos se contradizem, o artigo mostra um aviso amarelo de **divergência** em vez de
+  escolher um dos lados.

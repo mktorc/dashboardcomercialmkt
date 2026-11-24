@@ -31,6 +31,7 @@ import { Route as ApiFilaExternoRouteImport } from './routes/api/fila/externo'
 import { Route as ApiFilaHistoricoRouteImport } from './routes/api/fila/historico'
 import { Route as ApiFilaProximoRouteImport } from './routes/api/fila/proximo'
 import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
+import { Route as ApiKbArticlesRouteImport } from './routes/api/kb/articles'
 import { Route as ApiKbAskRouteImport } from './routes/api/kb/ask'
 import { Route as ApiKbFilesRouteImport } from './routes/api/kb/files'
 import { Route as ApiKbSyncRouteImport } from './routes/api/kb/sync'
@@ -166,6 +167,11 @@ const ApiFilaToggleRoute = ApiFilaToggleRouteImport.update({
   path: '/api/fila/toggle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKbArticlesRoute = ApiKbArticlesRouteImport.update({
+  id: '/api/kb/articles',
+  path: '/api/kb/articles',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiKbAskRoute = ApiKbAskRouteImport.update({
   id: '/api/kb/ask',
   path: '/api/kb/ask',
@@ -294,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -337,6 +344,7 @@ export interface FileRoutesByTo {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -382,6 +390,7 @@ export interface FileRoutesById {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -427,6 +436,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/articles'
     | '/api/kb/ask'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -470,6 +480,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/articles'
     | '/api/kb/ask'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -514,6 +525,7 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/articles'
     | '/api/kb/ask'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -552,6 +564,7 @@ export interface RootRouteChildren {
   ApiFilaHistoricoRoute: typeof ApiFilaHistoricoRoute
   ApiFilaProximoRoute: typeof ApiFilaProximoRoute
   ApiFilaToggleRoute: typeof ApiFilaToggleRoute
+  ApiKbArticlesRoute: typeof ApiKbArticlesRoute
   ApiKbAskRoute: typeof ApiKbAskRoute
   ApiKbFilesRoute: typeof ApiKbFilesRoute
   ApiKbSyncRoute: typeof ApiKbSyncRoute
@@ -728,6 +741,13 @@ declare module '@tanstack/react-router' {
       path: '/api/fila/toggle'
       fullPath: '/api/fila/toggle'
       preLoaderRoute: typeof ApiFilaToggleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/articles': {
+      id: '/api/kb/articles'
+      path: '/api/kb/articles'
+      fullPath: '/api/kb/articles'
+      preLoaderRoute: typeof ApiKbArticlesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/kb/ask': {
@@ -913,6 +933,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilaHistoricoRoute: ApiFilaHistoricoRoute,
   ApiFilaProximoRoute: ApiFilaProximoRoute,
   ApiFilaToggleRoute: ApiFilaToggleRoute,
+  ApiKbArticlesRoute: ApiKbArticlesRoute,
   ApiKbAskRoute: ApiKbAskRoute,
   ApiKbFilesRoute: ApiKbFilesRoute,
   ApiKbSyncRoute: ApiKbSyncRoute,

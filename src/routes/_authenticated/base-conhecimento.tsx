@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { guardPage } from "@/lib/roles";
+import { BaseArtigos } from "@/components/base-conhecimento/BaseArtigos";
 
 export const Route = createFileRoute("/_authenticated/base-conhecimento")({
   head: () => ({
@@ -91,14 +92,19 @@ function BaseConhecimentoPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Base de Conhecimento</h1>
           <p className="text-sm text-muted-foreground">
-            Pergunte e a IA responde só com o que está nos arquivos das pastas do Drive.
+            Processos e regras organizados a partir dos arquivos do Drive, e um chat que responde
+            com base neles.
           </p>
         </div>
-        <Tabs defaultValue="chat">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="base">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="base">Base</TabsTrigger>
             <TabsTrigger value="chat">Chat</TabsTrigger>
             <TabsTrigger value="arquivos">Arquivos</TabsTrigger>
           </TabsList>
+          <TabsContent value="base">
+            <BaseArtigos fetchBase={() => api("articles")} />
+          </TabsContent>
           <TabsContent value="chat">
             <ChatTab />
           </TabsContent>
