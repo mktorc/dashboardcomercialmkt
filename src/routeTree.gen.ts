@@ -17,6 +17,7 @@ import { Route as ControleReservasRouteImport } from './routes/controle-reservas
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as AuthenticatedBaseConhecimentoRouteImport } from './routes/_authenticated/base-conhecimento'
 import { Route as AuthenticatedComercialRouteImport } from './routes/_authenticated/comercial'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedFilaLeadsRouteImport } from './routes/_authenticated/fila-leads'
@@ -30,6 +31,9 @@ import { Route as ApiFilaExternoRouteImport } from './routes/api/fila/externo'
 import { Route as ApiFilaHistoricoRouteImport } from './routes/api/fila/historico'
 import { Route as ApiFilaProximoRouteImport } from './routes/api/fila/proximo'
 import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
+import { Route as ApiKbAskRouteImport } from './routes/api/kb/ask'
+import { Route as ApiKbFilesRouteImport } from './routes/api/kb/files'
+import { Route as ApiKbSyncRouteImport } from './routes/api/kb/sync'
 import { Route as ApiPublicRentcarsRouteImport } from './routes/api/public/rentcars'
 import { Route as AppComissoesAPagarRouteImport } from './routes/app.comissoes.a-pagar'
 import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoes.historico'
@@ -87,6 +91,12 @@ const Char91DotwellKnownChar93OauthProtectedResourceRoute =
     id: '/.well-known/oauth-protected-resource',
     path: '/.well-known/oauth-protected-resource',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedBaseConhecimentoRoute =
+  AuthenticatedBaseConhecimentoRouteImport.update({
+    id: '/base-conhecimento',
+    path: '/base-conhecimento',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedComercialRoute = AuthenticatedComercialRouteImport.update({
   id: '/comercial',
@@ -154,6 +164,21 @@ const ApiFilaProximoRoute = ApiFilaProximoRouteImport.update({
 const ApiFilaToggleRoute = ApiFilaToggleRouteImport.update({
   id: '/api/fila/toggle',
   path: '/api/fila/toggle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbAskRoute = ApiKbAskRouteImport.update({
+  id: '/api/kb/ask',
+  path: '/api/kb/ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbFilesRoute = ApiKbFilesRouteImport.update({
+  id: '/api/kb/files',
+  path: '/api/kb/files',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKbSyncRoute = ApiKbSyncRouteImport.update({
+  id: '/api/kb/sync',
+  path: '/api/kb/sync',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicRentcarsRoute = ApiPublicRentcarsRouteImport.update({
@@ -255,6 +280,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/base-conhecimento': typeof AuthenticatedBaseConhecimentoRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/fila-leads': typeof AuthenticatedFilaLeadsRoute
@@ -268,6 +294,9 @@ export interface FileRoutesByFullPath {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
@@ -294,6 +323,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/base-conhecimento': typeof AuthenticatedBaseConhecimentoRoute
   '/comercial': typeof AuthenticatedComercialRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/fila-leads': typeof AuthenticatedFilaLeadsRoute
@@ -307,6 +337,9 @@ export interface FileRoutesByTo {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
@@ -335,6 +368,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/privacidade': typeof PrivacidadeRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/_authenticated/base-conhecimento': typeof AuthenticatedBaseConhecimentoRoute
   '/_authenticated/comercial': typeof AuthenticatedComercialRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/fila-leads': typeof AuthenticatedFilaLeadsRoute
@@ -348,6 +382,9 @@ export interface FileRoutesById {
   '/api/fila/historico': typeof ApiFilaHistoricoRoute
   '/api/fila/proximo': typeof ApiFilaProximoRoute
   '/api/fila/toggle': typeof ApiFilaToggleRoute
+  '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/files': typeof ApiKbFilesRoute
+  '/api/kb/sync': typeof ApiKbSyncRoute
   '/api/public/rentcars': typeof ApiPublicRentcarsRoute
   '/app/comissoes/a-pagar': typeof AppComissoesAPagarRoute
   '/app/comissoes/historico': typeof AppComissoesHistoricoRoute
@@ -376,6 +413,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
+    | '/base-conhecimento'
     | '/comercial'
     | '/configuracoes'
     | '/fila-leads'
@@ -389,6 +427,9 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/ask'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
@@ -415,6 +456,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
+    | '/base-conhecimento'
     | '/comercial'
     | '/configuracoes'
     | '/fila-leads'
@@ -428,6 +470,9 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/ask'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
@@ -455,6 +500,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/privacidade'
     | '/.well-known/oauth-protected-resource'
+    | '/_authenticated/base-conhecimento'
     | '/_authenticated/comercial'
     | '/_authenticated/configuracoes'
     | '/_authenticated/fila-leads'
@@ -468,6 +514,9 @@ export interface FileRouteTypes {
     | '/api/fila/historico'
     | '/api/fila/proximo'
     | '/api/fila/toggle'
+    | '/api/kb/ask'
+    | '/api/kb/files'
+    | '/api/kb/sync'
     | '/api/public/rentcars'
     | '/app/comissoes/a-pagar'
     | '/app/comissoes/historico'
@@ -503,6 +552,9 @@ export interface RootRouteChildren {
   ApiFilaHistoricoRoute: typeof ApiFilaHistoricoRoute
   ApiFilaProximoRoute: typeof ApiFilaProximoRoute
   ApiFilaToggleRoute: typeof ApiFilaToggleRoute
+  ApiKbAskRoute: typeof ApiKbAskRoute
+  ApiKbFilesRoute: typeof ApiKbFilesRoute
+  ApiKbSyncRoute: typeof ApiKbSyncRoute
   ApiPublicRentcarsRoute: typeof ApiPublicRentcarsRoute
   AppComissoesAPagarRoute: typeof AppComissoesAPagarRoute
   AppComissoesHistoricoRoute: typeof AppComissoesHistoricoRoute
@@ -579,6 +631,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/.well-known/oauth-protected-resource'
       preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/base-conhecimento': {
+      id: '/_authenticated/base-conhecimento'
+      path: '/base-conhecimento'
+      fullPath: '/base-conhecimento'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/comercial': {
       id: '/_authenticated/comercial'
@@ -669,6 +728,27 @@ declare module '@tanstack/react-router' {
       path: '/api/fila/toggle'
       fullPath: '/api/fila/toggle'
       preLoaderRoute: typeof ApiFilaToggleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/ask': {
+      id: '/api/kb/ask'
+      path: '/api/kb/ask'
+      fullPath: '/api/kb/ask'
+      preLoaderRoute: typeof ApiKbAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/files': {
+      id: '/api/kb/files'
+      path: '/api/kb/files'
+      fullPath: '/api/kb/files'
+      preLoaderRoute: typeof ApiKbFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/sync': {
+      id: '/api/kb/sync'
+      path: '/api/kb/sync'
+      fullPath: '/api/kb/sync'
+      preLoaderRoute: typeof ApiKbSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/rentcars': {
@@ -794,6 +874,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedBaseConhecimentoRoute: typeof AuthenticatedBaseConhecimentoRoute
   AuthenticatedComercialRoute: typeof AuthenticatedComercialRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedFilaLeadsRoute: typeof AuthenticatedFilaLeadsRoute
@@ -803,6 +884,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedBaseConhecimentoRoute: AuthenticatedBaseConhecimentoRoute,
   AuthenticatedComercialRoute: AuthenticatedComercialRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedFilaLeadsRoute: AuthenticatedFilaLeadsRoute,
@@ -831,6 +913,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilaHistoricoRoute: ApiFilaHistoricoRoute,
   ApiFilaProximoRoute: ApiFilaProximoRoute,
   ApiFilaToggleRoute: ApiFilaToggleRoute,
+  ApiKbAskRoute: ApiKbAskRoute,
+  ApiKbFilesRoute: ApiKbFilesRoute,
+  ApiKbSyncRoute: ApiKbSyncRoute,
   ApiPublicRentcarsRoute: ApiPublicRentcarsRoute,
   AppComissoesAPagarRoute: AppComissoesAPagarRoute,
   AppComissoesHistoricoRoute: AppComissoesHistoricoRoute,

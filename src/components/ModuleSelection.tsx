@@ -16,6 +16,7 @@ import {
   Settings,
   ListOrdered,
   Car,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -72,6 +73,14 @@ const MODULES = [
     title: "Gestão de Frota",
     description: "Carros que precisam mudar de região (Orlando e Miami) antes da próxima reserva.",
     cta: "Acessar Gestão de Frota",
+  },
+  {
+    page: "base-conhecimento" as PageKey,
+    to: "/base-conhecimento",
+    icon: BookOpen,
+    title: "Base de Conhecimento",
+    description: "Tire dúvidas com a IA usando os arquivos das pastas do Drive do time.",
+    cta: "Acessar Base de Conhecimento",
   },
 ] as const;
 
