@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle, Check, Copy, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { slug, type Block, type Template } from "./kb-api";
 import { templateKey, VARIABLE_RE } from "@/lib/kb/templates";
 
@@ -65,6 +66,38 @@ export function MessageBlock({ title, text }: { title?: string | undefined; text
         <HighlightVars text={text} />
       </p>
     </div>
+  );
+}
+
+/** Nome de template clicável: abre o texto com "Copiar", ou avisa que o texto ainda não foi cadastrado. */
+export function TemplateChip({ name, tpl }: { name: string; tpl?: Template | undefined }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`rounded-md border px-2 py-0.5 text-left font-mono text-xs text-foreground transition hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          tpl ? "border-primary/40 bg-primary/10" : "border-border bg-muted/40"
+        }`}
+      >
+        <HighlightVars text={name} />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogTitle className="pr-6 text-base">{name}</DialogTitle>
+          <DialogDescription className="sr-only">Texto do template</DialogDescription>
+          {tpl ? (
+            <MessageBlock title={tpl.title} text={tpl.text} />
+          ) : (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              O texto deste template ainda não foi cadastrado na base. Ele aparece aqui, com o botão
+              Copiar, quando existir no documento “Templates de mensagem” do Drive.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -269,26 +302,14 @@ export function KbBlock({
     case "tags": {
       // Se o documento "Templates de mensagem" tiver o template, mostra o texto com "Copiar".
       const found = b.items.map((name) => ({ name, tpl: templates.get(templateKey(name)) }));
-      const full = found.filter((f) => f.tpl);
-      const onlyName = found.filter((f) => !f.tpl);
       return (
         <div className="space-y-2">
           {b.title && <p className="text-sm font-semibold text-foreground">{b.title}</p>}
-          {full.map((f) => (
-            <MessageBlock key={f.name} title={f.tpl!.title} text={f.tpl!.text} />
-          ))}
-          {onlyName.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {onlyName.map((f) => (
-                <code
-                  key={f.name}
-                  className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-foreground"
-                >
-                  {f.name}
-                </code>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            {found.map((f) => (
+              <TemplateChip key={f.name} name={f.name} tpl={f.tpl} />
+            ))}
+          </div>
         </div>
       );
     }

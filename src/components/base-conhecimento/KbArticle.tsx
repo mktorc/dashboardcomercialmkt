@@ -173,8 +173,8 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
     .slice(0, 4);
 
   return (
-    <div className="flex gap-10 px-4 py-6 sm:px-8 lg:py-10">
-      <article className="min-w-0 max-w-[720px] flex-1">
+    <div className="mx-auto flex w-full max-w-[1180px] justify-center gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8 lg:py-10 2xl:max-w-[1500px]">
+      <article className="min-w-0 max-w-[860px] flex-1 break-words 2xl:max-w-[1040px]">
         <nav
           aria-label="Trilha"
           className="mb-5 flex flex-wrap items-center gap-1 text-sm text-muted-foreground"
@@ -292,7 +292,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
           </div>
         </div>
       </article>
-      <aside className="hidden w-56 shrink-0 xl:block">
+      <aside className="hidden w-56 shrink-0 xl:block 2xl:w-64">
         <Toc article={article} />
       </aside>
     </div>

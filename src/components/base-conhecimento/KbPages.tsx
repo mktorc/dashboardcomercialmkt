@@ -17,7 +17,8 @@ import {
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildIndex, searchArticles } from "./kb-search";
-import { HighlightVars, MessageBlock } from "./KbBlocks";
+import { MessageBlock, TemplateChip } from "./KbBlocks";
+import { templateKey } from "@/lib/kb/templates";
 import { AREA_INFO, fmtDate, type Article, type KbArea, type KbAreaData } from "./kb-api";
 
 // Atalhos do dia a dia de cada área (ids de artigos).
@@ -77,7 +78,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-10 px-4 py-8 sm:px-8 lg:py-12">
+    <div className="mx-auto max-w-4xl space-y-10 px-4 py-8 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-12 2xl:max-w-7xl">
       <section className="space-y-5">
         <div className="space-y-1">
           <p className="text-sm font-medium text-primary">{info.title}</p>
@@ -143,7 +144,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
           <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             <CalendarClock className="size-4" /> Dia a dia
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {quick.map((a) => (
               <Link
                 key={a.id}
@@ -230,6 +231,7 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
   const full = data.templates.filter(
     (t) => !nq || `${t.title} ${t.text}`.toLowerCase().includes(nq),
   );
+  const byKey = new Map(data.templates.map((t) => [templateKey(t.title), t]));
   // Sem o documento "Templates de mensagem": mostra só os nomes que estão nos artigos.
   const names = data.articles
     .filter((a) => a.category === "templates")
@@ -243,7 +245,7 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
     }))
     .filter((g) => g.items.length);
   return (
-    <div className="mx-auto max-w-[760px] space-y-6 px-4 py-8 sm:px-8 lg:py-12">
+    <div className="mx-auto max-w-[760px] space-y-6 px-4 py-8 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-12 2xl:max-w-7xl">
       <div className="space-y-1">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
           <MessagesSquare className="size-6 text-primary" /> Templates
@@ -276,12 +278,7 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
             <h2 className="text-sm font-semibold text-foreground">{g.title}</h2>
             <div className="flex flex-wrap gap-1.5">
               {g.items.map((i) => (
-                <code
-                  key={i}
-                  className="rounded-md border border-border bg-muted/40 px-2 py-0.5 text-xs text-foreground"
-                >
-                  <HighlightVars text={i} />
-                </code>
+                <TemplateChip key={i} name={i} tpl={byKey.get(templateKey(i))} />
               ))}
             </div>
           </section>

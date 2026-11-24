@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeftRight,
@@ -7,6 +7,8 @@ import {
   Home,
   LayoutGrid,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   MessageSquare,
   MessagesSquare,
   Search,
@@ -26,10 +28,12 @@ function Sidebar({
   data,
   onSearch,
   onNavigate,
+  onCollapse,
 }: {
   data: KbAreaData;
   onSearch: () => void;
   onNavigate?: () => void;
+  onCollapse?: () => void;
 }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const base = `/base-conhecimento/${data.area}`;
@@ -54,18 +58,33 @@ function Sidebar({
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
             Base de Conhecimento
           </p>
-          <p className="truncate font-semibold text-foreground">{AREA_INFO[data.area].title}</p>
+          <p className="font-semibold leading-tight text-foreground">
+            {AREA_INFO[data.area].title}
+          </p>
         </div>
-        {data.areas.length > 1 && (
-          <Link
-            to="/base-conhecimento"
-            onClick={onNavigate}
-            title="Trocar de área"
-            className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-primary hover:text-foreground"
-          >
-            <ArrowLeftRight className="size-4" />
-          </Link>
-        )}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onCollapse && (
+            <button
+              type="button"
+              onClick={onCollapse}
+              aria-label="Recolher barra lateral"
+              title="Recolher barra lateral"
+              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-primary hover:text-foreground"
+            >
+              <PanelLeftClose className="size-4" />
+            </button>
+          )}
+          {data.areas.length > 1 && (
+            <Link
+              to="/base-conhecimento"
+              onClick={onNavigate}
+              title="Trocar de área"
+              className="rounded-md border border-border p-1.5 text-muted-foreground transition hover:border-primary hover:text-foreground"
+            >
+              <ArrowLeftRight className="size-4" />
+            </Link>
+          )}
+        </div>
       </div>
 
       <button
@@ -162,6 +181,23 @@ function Sidebar({
 export function KbLayout({ data, children }: { data: KbAreaData; children: ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("kb-sidebar-collapsed") === "1");
+    } catch {
+      /* sem armazenamento: começa aberta */
+    }
+  }, []);
+  const toggle = () =>
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem("kb-sidebar-collapsed", c ? "0" : "1");
+      } catch {
+        /* ignora */
+      }
+      return !c;
+    });
   return (
     <div className="min-h-screen bg-background">
       {/* Celular: barra no topo com a gaveta */}
@@ -199,11 +235,39 @@ export function KbLayout({ data, children }: { data: KbAreaData; children: React
         </SheetContent>
       </Sheet>
 
-      <div className="mx-auto flex max-w-[1400px]">
-        <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-border lg:block">
-          <Sidebar data={data} onSearch={() => setPalette(true)} />
-        </aside>
-        <main className="min-w-0 flex-1 animate-in fade-in-0 duration-300">{children}</main>
+      <div className="mx-auto flex max-w-[1920px]">
+        {!collapsed && (
+          <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 border-r border-border lg:block">
+            <Sidebar data={data} onSearch={() => setPalette(true)} onCollapse={toggle} />
+          </aside>
+        )}
+        <main className="relative min-w-0 flex-1 animate-in fade-in-0 duration-300">
+          {collapsed && (
+            <div className="sticky top-0 z-20 hidden items-center gap-2 border-b border-border bg-background/95 px-4 py-2 backdrop-blur lg:flex">
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label="Expandir barra lateral"
+                title="Expandir barra lateral"
+                className="rounded-md p-2 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+              >
+                <PanelLeftOpen className="size-4" />
+              </button>
+              <BookOpen className="size-4 text-primary" />
+              <span className="flex-1 truncate text-sm font-semibold">
+                {AREA_INFO[data.area].title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPalette(true)}
+                className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Search className="size-4" /> Buscar
+              </button>
+            </div>
+          )}
+          {children}
+        </main>
       </div>
       <KbSearchPalette data={data} open={palette} onOpenChange={setPalette} />
     </div>
