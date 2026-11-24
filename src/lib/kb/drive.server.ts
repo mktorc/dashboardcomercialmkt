@@ -1,6 +1,6 @@
 // Leitura do Google Drive com a conta de serviço (somente leitura).
 import { drive_v3, drive as makeDrive } from "@googleapis/drive";
-import { GoogleAuth } from "google-auth-library";
+import { JWT } from "google-auth-library";
 
 export type DriveFile = {
   id: string;
@@ -13,7 +13,7 @@ export type DriveFile = {
 };
 
 const FOLDER = "application/vnd.google-apps.folder";
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = 100 * 1024 * 1024; // PDFs cheios de imagem passam de 50 MB e ainda cabem na função
 
 const EXPORTS: Record<string, string> = {
   "application/vnd.google-apps.document": "text/plain",
@@ -47,8 +47,9 @@ export function driveClient(): drive_v3.Drive {
   const b64 = process.env["GOOGLE_SERVICE_ACCOUNT_JSON"];
   if (!b64) throw new Error("GOOGLE_SERVICE_ACCOUNT_JSON não configurada");
   const credentials = JSON.parse(Buffer.from(b64, "base64").toString("utf8"));
-  const auth = new GoogleAuth({
-    credentials,
+  const auth = new JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],
   });
   client = makeDrive({ version: "v3", auth });
@@ -113,7 +114,7 @@ export async function extractText(f: DriveFile): Promise<string> {
     );
     return String(res.data ?? "");
   }
-  if (f.size && f.size > MAX_BYTES) throw new Error("Arquivo maior que 25 MB");
+  if (f.size && f.size > MAX_BYTES) throw new Error("Arquivo maior que 100 MB");
   const res = await drive.files.get(
     { fileId: f.id, alt: "media", supportsAllDrives: true },
     { responseType: "arraybuffer" },
