@@ -151,8 +151,22 @@ curl -X POST https://SEU-DOMINIO/api/kb/sync -H "Authorization: Bearer $KB_SYNC_
 
 ### Tipos de arquivo lidos
 
-Google Docs, Google Sheets (como CSV), Google Slides, PDF (com texto), Word (.docx), .txt, .md e
-.csv. Os outros tipos são ignorados e listados na aba Arquivos.
+- **Texto direto:** Google Docs, Google Sheets (como CSV), Google Slides, PDF com texto, Word
+  (.docx), .txt, .md e .csv.
+- **Lidos pela IA (Gemini):**
+  - **vídeos** (.mp4, .mov, .webm etc., até 1 GB): o Gemini gera resumo, passo a passo,
+    transcrição da fala e os textos que aparecem na tela;
+  - **imagens** (.jpg, .png, .webp, .heic): transcrição do texto e descrição;
+  - **PDFs escaneados ou feitos de imagens** (menos de 300 caracteres de texto por página).
+
+Os outros tipos são ignorados e aparecem na aba Arquivos como "Ignorado".
+
+**Vídeos levam tempo.** Cada sincronização processa os documentos primeiro e depois só os vídeos
+que couberem em cerca de 4 minutos (um vídeo de 20 minutos leva de 1 a 2 minutos). O restante fica
+para a próxima rodada e o status aparece como "parcial". Na primeira vez, clique em **Sincronizar
+agora** algumas vezes até não sobrar nada pendente. Depois disso, só arquivos novos ou alterados
+são processados. Se um vídeo der erro (por exemplo, por atingir o limite gratuito do Gemini), ele
+é tentado de novo na sincronização seguinte.
 
 ### Problemas comuns
 

@@ -2,7 +2,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { chunkText } from "./chunk";
-import { extractText, isSupported, listAllFiles, type DriveFile } from "./drive.server";
+import { extractText, isMedia, isSupported, listAllFiles, type DriveFile } from "./drive.server";
 import { Bm25Searcher, type KbChunk, type Searcher } from "./search";
 
 // As tabelas kb_* (sql-para-gravar/base_conhecimento.sql) ainda não estão em types.ts.
@@ -68,7 +68,9 @@ export async function checkAskLimit(userId: string): Promise<boolean> {
 // ---------------------------------------------------------------------------------------------
 // Sincronização
 // ---------------------------------------------------------------------------------------------
-const TIME_BUDGET_MS = 240_000; // a função tem 300 s; para antes e o resto fica para a próxima
+const TIME_BUDGET_MS = 200_000; // a função tem 300 s; para antes e o resto fica para a próxima
+// Vídeo (e PDF escaneado) pode levar ~2 min no Gemini: só começa se ainda sobrar tempo.
+const MEDIA_START_MS = 100_000;
 
 type FileRow = { file_id: string; modified_time: string | null; status: string };
 
@@ -106,11 +108,14 @@ export async function runSync(origem: "manual" | "cron") {
       stats.removidos = gone.length;
     }
 
+    // Documentos primeiro, vídeos e imagens por último (são os mais lentos).
+    files.sort((a, b) => Number(isMedia(a)) - Number(isMedia(b)));
     for (const f of files) {
       const prev = known.get(f.id);
       const unchanged =
         prev &&
         prev.status !== "erro" &&
+        !(prev.status === "ignorado" && isSupported(f)) &&
         prev.modified_time &&
         f.modifiedTime &&
         new Date(prev.modified_time).getTime() === new Date(f.modifiedTime).getTime();
@@ -119,7 +124,9 @@ export async function runSync(origem: "manual" | "cron") {
         else stats.sem_mudanca++;
         continue;
       }
-      if (Date.now() - started > TIME_BUDGET_MS) {
+      const elapsed = Date.now() - started;
+      const slow = isMedia(f) || f.mimeType === "application/pdf";
+      if (elapsed > TIME_BUDGET_MS || (slow && elapsed > MEDIA_START_MS)) {
         stats.pendentes++;
         continue;
       }

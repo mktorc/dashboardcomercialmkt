@@ -1,6 +1,8 @@
 // Leitura do Google Drive com a conta de serviço (somente leitura).
 import { drive_v3, drive as makeDrive } from "@googleapis/drive";
+import { Readable } from "stream";
 import { JWT } from "google-auth-library";
+import { hasGemini, mediaToText } from "./gemini-media.server";
 
 export type DriveFile = {
   id: string;
@@ -24,8 +26,29 @@ const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const PLAIN = new Set(["text/plain", "text/markdown", "text/x-markdown", "text/csv"]);
 const PLAIN_EXT = /\.(txt|md|markdown|csv)$/i;
 
+// Vídeo e imagem viram texto pelo Gemini (precisa de GEMINI_API_KEY).
+const VIDEO = new Set([
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/webm",
+  "video/x-ms-wmv",
+  "video/3gpp",
+  "video/x-flv",
+]);
+const IMAGE = new Set(["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"]);
+const MAX_MEDIA_BYTES = 1024 * 1024 * 1024; // 1 GB por vídeo
+// PDF com menos que isso de texto por página é tratado como escaneado e lido pelo Gemini.
+const PDF_MIN_CHARS_PER_PAGE = 300;
+
+export function isMedia(f: Pick<DriveFile, "mimeType">): boolean {
+  return VIDEO.has(f.mimeType) || IMAGE.has(f.mimeType);
+}
+
 export function isSupported(f: Pick<DriveFile, "mimeType" | "name">): boolean {
   return (
+    (isMedia(f) && hasGemini()) ||
     f.mimeType in EXPORTS ||
     f.mimeType === "application/pdf" ||
     f.mimeType === DOCX ||
@@ -114,6 +137,24 @@ export async function extractText(f: DriveFile): Promise<string> {
     );
     return String(res.data ?? "");
   }
+  if (VIDEO.has(f.mimeType)) {
+    if (!f.size) throw new Error("Tamanho do vídeo desconhecido");
+    if (f.size > MAX_MEDIA_BYTES) throw new Error("Vídeo maior que 1 GB");
+    // Vai do Drive direto para o Gemini, sem carregar o vídeo inteiro na memória.
+    const res = await drive.files.get(
+      { fileId: f.id, alt: "media", supportsAllDrives: true },
+      { responseType: "stream" },
+    );
+    const body = Readable.toWeb(res.data as Readable) as ReadableStream<Uint8Array>;
+    const text = await mediaToText({
+      kind: "video",
+      body,
+      size: f.size,
+      mimeType: f.mimeType,
+      name: f.name,
+    });
+    return text ? `[Vídeo: ${f.name}]\n${text}` : "";
+  }
   if (f.size && f.size > MAX_BYTES) throw new Error("Arquivo maior que 100 MB");
   const res = await drive.files.get(
     { fileId: f.id, alt: "media", supportsAllDrives: true },
@@ -123,7 +164,30 @@ export async function extractText(f: DriveFile): Promise<string> {
   if (f.mimeType === "application/pdf") {
     // lib/pdf-parse.js direto: o index.js do pacote roda um teste ao ser importado como ESM.
     const { default: pdf } = await import("pdf-parse/lib/pdf-parse.js");
-    return (await pdf(buf)).text;
+    const parsed = await pdf(buf);
+    const pages = Math.max(1, parsed.numpages || 1);
+    if (hasGemini() && parsed.text.trim().length / pages < PDF_MIN_CHARS_PER_PAGE) {
+      // Conteúdo em imagem: o Gemini lê as páginas.
+      const text = await mediaToText({
+        kind: "pdf",
+        body: buf,
+        size: buf.length,
+        mimeType: "application/pdf",
+        name: f.name,
+      });
+      return text ? `[PDF lido pela IA: ${f.name}]\n${text}` : parsed.text;
+    }
+    return parsed.text;
+  }
+  if (IMAGE.has(f.mimeType)) {
+    const text = await mediaToText({
+      kind: "image",
+      body: buf,
+      size: buf.length,
+      mimeType: f.mimeType,
+      name: f.name,
+    });
+    return text ? `[Imagem: ${f.name}]\n${text}` : "";
   }
   if (f.mimeType === DOCX) {
     const mammoth = await import("mammoth");
