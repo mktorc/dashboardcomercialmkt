@@ -31,7 +31,7 @@ function key(): string {
 }
 
 async function geminiError(res: Response, what: string): Promise<Error> {
-  const body = (await res.text().catch(() => "")).slice(0, 300);
+  const body = (await res.text().catch(() => "")).slice(0, 1500);
   return new Error(`Gemini (${what}) ${res.status}: ${body}`);
 }
 

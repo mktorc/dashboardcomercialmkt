@@ -144,7 +144,7 @@ export async function runSync(origem: "manual" | "cron") {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[kb] erro em ${f.name}: ${msg}`);
-        await saveFile(f, "erro", msg.slice(0, 500), []);
+        await saveFile(f, "erro", msg.slice(0, 1600), []);
         stats.erros++;
       }
     }
