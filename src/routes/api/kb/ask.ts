@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // Pergunta à IA usando só os trechos da base. Resposta em streaming NDJSON:
 //   {"type":"sources","sources":[...]}  depois  {"type":"text","text":"..."}…  e  {"type":"done"}
 // Gemini (camada gratuita do Google AI Studio). Modelo trocável por GEMINI_MODEL.
-const MODEL = process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
+const MODEL = process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
 const TOP_K = 8;
 const MAX_HISTORY = 6;
 const NOT_FOUND = "Não encontrei essa informação nos arquivos da base";

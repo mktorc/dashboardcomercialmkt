@@ -176,9 +176,11 @@ export async function extractText(f: DriveFile): Promise<string> {
   );
   const buf = Buffer.from(res.data as ArrayBuffer);
   if (f.mimeType === "application/pdf") {
-    // lib/pdf-parse.js direto: o index.js do pacote roda um teste ao ser importado como ESM.
-    const { default: pdf } = await import("pdf-parse/lib/pdf-parse.js");
-    const parsed = await pdf(buf);
+    // unpdf: pdf.js empacotado para serverless (o pdf-parse quebrava no bundle do Vercel).
+    const { extractText: pdfText, getDocumentProxy } = await import("unpdf");
+    const doc = await getDocumentProxy(new Uint8Array(buf));
+    const { totalPages, text: pdfContent } = await pdfText(doc, { mergePages: true });
+    const parsed = { numpages: totalPages, text: pdfContent };
     const pages = Math.max(1, parsed.numpages || 1);
     if (hasGemini() && parsed.text.trim().length / pages < PDF_MIN_CHARS_PER_PAGE) {
       // Conteúdo em imagem: o Gemini lê as páginas.

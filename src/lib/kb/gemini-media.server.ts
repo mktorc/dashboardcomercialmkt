@@ -2,7 +2,7 @@
 // Arquivos grandes vão pela Files API do Gemini (upload resumível) e são apagados no final.
 
 const API = "https://generativelanguage.googleapis.com";
-const MODEL = () => process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
+const MODEL = () => process.env["GEMINI_MODEL"] || "gemini-3.8-flash";
 const INLINE_MAX = 15 * 1024 * 1024; // até aqui a imagem vai direto no corpo da requisição
 
 export const hasGemini = () => !!process.env["GEMINI_API_KEY"];
@@ -102,7 +102,6 @@ async function generate(part: Record<string, unknown>, prompt: string, lowRes: b
         maxOutputTokens: 16384,
         // Resolução baixa: vídeo longo gasta ~1/3 dos tokens e cabe no limite gratuito.
         ...(lowRes ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}),
-        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
