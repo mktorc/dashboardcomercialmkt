@@ -608,9 +608,13 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7
     res = []
     with sync_playwright() as p:
         b = p.chromium.launch()
-        pg = b.new_context(user_agent=UA, **BR).new_page()
-        pg.goto(home, wait_until="domcontentloaded", timeout=90000)
-        pg.wait_for_timeout(5000)
+
+        def nova_sessao():  # contexto novo = cookies limpos (a sessão passa a falhar depois de ~12 consultas)
+            pg = b.new_context(user_agent=UA, **BR).new_page()
+            pg.goto(home, wait_until="domcontentloaded", timeout=90000)
+            pg.wait_for_timeout(5000)
+            return pg
+        pg = nova_sessao()
         falhas = []
         for d in pickups:
             fim = d + timedelta(days=dias)
@@ -622,10 +626,10 @@ def _coleta_ehi(nome, brand, home, api, loc, pickups, dias, minivans=("Minivan 7
                     break
                 except Exception as e:
                     print(f"  {nome} {d}: tentativa {tentativa + 1} falhou ({str(e).splitlines()[0][:120]})")
-                    pg.wait_for_timeout(10000 * (tentativa + 1))
+                    pg.wait_for_timeout(15000 * (tentativa + 1))
                     try:
-                        pg.goto(home, wait_until="domcontentloaded", timeout=90000)
-                        pg.wait_for_timeout(5000)
+                        pg.context.close()
+                        pg = nova_sessao()
                     except Exception:
                         pass
             if itens is None:  # pula só esta data; as outras continuam e são gravadas
