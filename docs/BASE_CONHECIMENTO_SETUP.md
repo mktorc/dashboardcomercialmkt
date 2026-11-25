@@ -141,8 +141,7 @@ cada 10 minutos por usuário.
 4. Faça também uma pergunta que **não** está nos arquivos. A resposta esperada é *"Não encontrei
    essa informação nos arquivos da base."*
 
-Depois disso, o Vercel roda a sincronização todo dia às 06h (horário de Brasília) e reprocessa só
-os arquivos alterados.
+Depois disso, o Vercel roda a sincronização uma vez por dia, às 06h (horário de Brasília), e reprocessa só os arquivos alterados.
 
 Para disparar manualmente de fora do painel:
 
@@ -240,14 +239,14 @@ dos artigos onde o nome dele aparece. Sem o documento, aparece só o nome do tem
 
 ## Artigos organizados
 
-Os artigos mostram os processos, regras, templates e a frota organizados em artigos, com etapas
-numeradas, tabelas e as imagens dos PDFs (cartões da frota e páginas do manual do cliente).
+Os artigos são gerados automaticamente pela IA a partir dos arquivos das pastas `COMERCIAL` e `CS`.
 
-- Os artigos foram escritos a partir dos arquivos da pasta e ficam no Supabase Storage, no bucket
-  **privado** `kb` (`articles.json` e a pasta `img/`). As imagens só abrem pelo painel, com link
-  temporário de 1 hora.
-- Os artigos são **só leitura**. Para corrigir algo, ajuste o arquivo de origem no Drive e peça a
-  atualização da base. Ela não se atualiza sozinha com a sincronização: a sincronização alimenta o
-  **Chat**.
-- Quando os documentos se contradizem, o artigo mostra um aviso amarelo de **divergência** em vez de
-  escolher um dos lados.
+- A cada sincronização (diária às 06h ou pelo botão), arquivo novo ou alterado, inclusive de uma
+  pasta nova, vira um ou mais artigos com etapas, tabelas e avisos. Arquivo que saiu do Drive some.
+- Cada artigo aparece só na área da pasta de onde veio. A subpasta vira a categoria na barra lateral.
+- Arquivo sem mudança reaproveita o artigo já gerado (`gen/<id>.json` no bucket `kb`). Se o tempo da
+  sincronização acabar, o resto fica para a próxima rodada e o status aparece como "parcial".
+- Os artigos escritos à mão antes da geração automática ficam guardados em
+  `articles-manual-backup.json`, no bucket `kb`.
+- Para corrigir um artigo, ajuste o arquivo de origem no Drive. Na próxima sincronização ele é
+  refeito.

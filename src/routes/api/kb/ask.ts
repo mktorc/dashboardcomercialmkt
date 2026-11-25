@@ -44,7 +44,7 @@ export const Route = createFileRoute("/api/kb/ask")({
         } catch {
           /* corpo inválido */
         }
-        // O chat de uma área só busca nos arquivos daquela área (+ compartilhados).
+        // O chat de uma área só busca nos arquivos daquela área.
         const u = await kb.requireArea(request, body?.["area"]);
         if ("denied" in u) return u.denied;
         const question =

@@ -67,7 +67,10 @@ const ids = (v: string | undefined) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-/** Pastas por área. DRIVE_FOLDER_IDS (antiga) conta como conteúdo compartilhado pelas duas. */
+/**
+ * Pastas por área. DRIVE_FOLDERS_COMERCIAL e DRIVE_FOLDERS_CS valem direto. DRIVE_FOLDER_IDS é uma
+ * pasta raiz com subpastas "COMERCIAL" e "CS": a área vem do nome da subpasta, e o que estiver
+ * fora delas não entra em nenhuma área. */
 export function areaFolders(): { area: FileArea; id: string }[] {
   return [
     ...ids(process.env["DRIVE_FOLDERS_COMERCIAL"]).map((id) => ({
@@ -135,9 +138,17 @@ export async function listAllFiles(): Promise<DriveFile[]> {
       for (const f of res.data.files ?? []) {
         if (!f.id || !f.name || !f.mimeType) continue;
         if (f.mimeType === FOLDER) {
+          if (area === "compartilhado") {
+            // Raiz compartilhada: a subpasta COMERCIAL ou CS define a área; as outras são ignoradas.
+            const n = f.name.trim().toLowerCase();
+            const sub: FileArea | null = n === "comercial" ? "comercial" : n === "cs" ? "cs" : null;
+            if (sub) await walk(f.id, `${path} / ${f.name}`, sub, null);
+            continue;
+          }
           await walk(f.id, `${path} / ${f.name}`, area, category ?? f.name);
           continue;
         }
+        if (area === "compartilhado") continue; // arquivo solto na raiz: sem área, não indexa
         out.push({
           id: f.id,
           name: f.name,
