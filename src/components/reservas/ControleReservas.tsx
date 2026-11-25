@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CalendarCheck, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowLeft, CalendarCheck, CalendarX, Maximize2, Minimize2, X } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -22,6 +22,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { brl } from "@/lib/analytics";
+import { useLiveUpdates } from "@/lib/live-updates";
 
 const axis = { stroke: "oklch(0.74 0.03 150)", fontSize: 12 };
 const tooltipStyle = {
@@ -95,6 +96,42 @@ async function fetchPendingToOpen(from: string, to: string) {
   return changes.map((c) => ({ ...c, info: info.get(c.reservation_id) }));
 }
 
+type Cancelada = Change & { from_status: string | null; info: ReservationInfo | undefined };
+
+/** Reservas que foram canceladas (to_status = cancelled) entre `from` e `to` (dias locais). */
+async function fetchCanceladas(from: string, to: string): Promise<Cancelada[]> {
+  const start = new Date(`${from}T00:00:00`).toISOString();
+  const end = new Date(`${to}T23:59:59.999`).toISOString();
+  const history = await fetchAll((a, b) =>
+    supabase
+      .from("reservation_status_history")
+      .select("reservation_id, changed_at, from_status")
+      .eq("to_status", "cancelled")
+      .gte("changed_at", start)
+      .lte("changed_at", end)
+      .order("changed_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(a, b),
+  );
+  if (history.error) throw history.error;
+  // Uma linha por reserva (a mais recente), caso tenha sido cancelada mais de uma vez.
+  const vistas = new Set<string>();
+  const changes = (history.data as (Change & { from_status: string | null })[]).filter((c) =>
+    vistas.has(c.reservation_id) ? false : (vistas.add(c.reservation_id), true),
+  );
+  const ids = changes.map((c) => c.reservation_id);
+  const info = new Map<string, ReservationInfo>();
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data, error } = await supabase
+      .from("reservations")
+      .select("reservation_id, car_category, total_amount, seller_name, created_at, status")
+      .in("reservation_id", ids.slice(i, i + 150));
+    if (error) throw error;
+    (data as ReservationInfo[]).forEach((r) => info.set(r.reservation_id, r));
+  }
+  return changes.map((c) => ({ ...c, info: info.get(c.reservation_id) }));
+}
+
 /** Colunas de onboarding: checkbox "realizado" e responsável (só habilitado com onboarding realizado). */
 function OnboardingCells({
   reservationId,
@@ -156,6 +193,12 @@ function OnboardingCells({
   );
 }
 
+/** Atualização ao vivo na página pública (dentro do app logado o layout já faz isso). */
+function LiveUpdates() {
+  useLiveUpdates();
+  return null;
+}
+
 export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const today = new Date();
   const [from, setFrom] = useState(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
@@ -165,6 +208,11 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   const [search, setSearch] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [showCanceladas, setShowCanceladas] = useState(false);
+  const { data: canceladas, isLoading: loadingCanceladas } = useQuery({
+    queryKey: ["reservas-canceladas", from, to],
+    queryFn: () => fetchCanceladas(from, to),
+  });
   const canEditOnboarding = true; // edição pública, como a página
   const { data: onboardingList } = useQuery({
     queryKey: ["reservas-onboarding"],
@@ -249,10 +297,15 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
   }, [data, onboardingById]);
 
   const total = data?.length ?? 0;
-  const amount = (data ?? []).reduce((s, c) => s + (Number(c.info?.total_amount) || 0), 0);
+  const nCanceladas = canceladas?.length ?? 0;
+  const valorCanceladas = (canceladas ?? []).reduce(
+    (s, c) => s + (Number(c.info?.total_amount) || 0),
+    0,
+  );
 
   return (
     <div className="min-h-screen bg-background">
+      {showBack ? <LiveUpdates /> : null}
       <header
         className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6"
         style={{ background: "var(--gradient-brand)" }}
@@ -315,21 +368,112 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
             }
             footer={`Média de ${(total / Math.max(1, daily.length)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} por dia`}
           />
-          <KpiCard
-            icon={CalendarCheck}
-            label="Valor dessas reservas"
-            value={isLoading ? "—" : brl(amount)}
-            help={
-              "Soma do valor total atual das reservas que passaram de pending para open no período."
-            }
-            calc={
-              isLoading
-                ? undefined
-                : `${total.toLocaleString("pt-BR")} reservas somando ${brl(amount)}${total ? ` → ${brl(amount / total)} por reserva` : ""}`
-            }
-            footer="Soma do valor total atual das reservas"
-          />
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={showCanceladas}
+            aria-label="Mostrar reservas canceladas no período"
+            className="cursor-pointer rounded-xl transition hover:ring-2 hover:ring-destructive/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/60"
+            onClick={(e) => {
+              // cliques no ícone de ajuda do card não abrem a lista
+              // (o balão de ajuda abre em portal, fora do card, mas o clique sobe pela árvore do React)
+              const alvo = e.target as HTMLElement;
+              if (!e.currentTarget.contains(alvo) || alvo.closest("button")) return;
+              setShowCanceladas((v) => !v);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setShowCanceladas((v) => !v);
+              }
+            }}
+          >
+            <KpiCard
+              icon={CalendarX}
+              label="Canceladas no período"
+              value={loadingCanceladas ? "—" : nCanceladas.toLocaleString("pt-BR")}
+              className="h-full"
+              help={
+                "Reservas que mudaram para cancelada no período selecionado (pela data em que o cancelamento foi detectado). Clique no card para ver a lista."
+              }
+              calc={
+                loadingCanceladas
+                  ? undefined
+                  : `${nCanceladas.toLocaleString("pt-BR")} reservas canceladas somando ${brl(valorCanceladas)}`
+              }
+              footer={
+                showCanceladas ? "Clique para fechar a lista" : "Clique para ver as canceladas"
+              }
+            />
+          </div>
         </div>
+
+        {showCanceladas ? (
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="text-sm font-semibold text-foreground">
+                Reservas canceladas de {br(from)} a {br(to)} ({nCanceladas.toLocaleString("pt-BR")})
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCanceladas(false)}
+                aria-label="Fechar lista de canceladas"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-5 py-2 text-left">Cancelada em</th>
+                    <th className="px-3 py-2 text-left">Reserva</th>
+                    <th className="px-3 py-2 text-left">Status anterior</th>
+                    <th className="px-3 py-2 text-left">Categoria</th>
+                    <th className="px-3 py-2 text-left">Vendedor</th>
+                    <th className="px-3 py-2 text-left">Criada em</th>
+                    <th className="px-5 py-2 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(canceladas ?? []).map((c) => (
+                    <tr key={c.reservation_id} className="border-t border-border">
+                      <td className="px-5 py-2">
+                        {new Date(c.changed_at).toLocaleString("pt-BR", {
+                          timeZone: TZ,
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </td>
+                      <td className="px-3 py-2 font-medium text-foreground">{c.reservation_id}</td>
+                      <td className="px-3 py-2">{statusLabel(c.from_status)}</td>
+                      <td className="px-3 py-2">{c.info?.car_category ?? "—"}</td>
+                      <td className="px-3 py-2">{c.info?.seller_name ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        {c.info
+                          ? new Date(c.info.created_at).toLocaleDateString("pt-BR", {
+                              timeZone: TZ,
+                            })
+                          : "—"}
+                      </td>
+                      <td className="px-5 py-2 text-right">
+                        {c.info?.total_amount != null ? brl(Number(c.info.total_amount)) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!loadingCanceladas && !nCanceladas ? (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-8 text-center text-muted-foreground">
+                        Nenhuma reserva cancelada no período.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
           {RESPONSAVEIS_ONBOARDING.map((nome) => {
