@@ -302,6 +302,16 @@ export type CityStatus = {
   yard: number;
   /** Primeira falta (estoque < 0) no horizonte, se houver. */
   shortage: { classLabel: string; missing: number; day: string } | null;
+  /** Ações pendentes que tocam a cidade (o "Ok" depende delas). */
+  pending: {
+    chegam: number;
+    saem: number;
+    /** Contagem por cidade de origem / destino das transferências. */
+    chegamDe: Partial<Record<Region, number>>;
+    saemPara: Partial<Record<Region, number>>;
+    outras: number;
+    nextDeadline: number | null;
+  };
 };
 
 export function cityStatus(
@@ -340,10 +350,30 @@ export function cityStatus(
         };
       }
     }
+    const mine = actions.filter(
+      (a) => a.type !== "sem_solucao" && (a.region === r || a.fromRegion === r),
+    );
+    const isTr = (a: Action) => a.type === "transferir";
+    const chegamDe: Partial<Record<Region, number>> = {};
+    const saemPara: Partial<Record<Region, number>> = {};
+    for (const a of mine) {
+      if (!isTr(a)) continue;
+      if (a.region === r && a.fromRegion) chegamDe[a.fromRegion] = (chegamDe[a.fromRegion] ?? 0) + 1;
+      if (a.fromRegion === r && a.region) saemPara[a.region] = (saemPara[a.region] ?? 0) + 1;
+    }
+    const pending = {
+      chegamDe,
+      saemPara,
+      chegam: mine.filter((a) => isTr(a) && a.region === r).length,
+      saem: mine.filter((a) => isTr(a) && a.fromRegion === r).length,
+      outras: mine.filter((a) => !isTr(a) && a.region === r).length,
+      nextDeadline: mine.length ? Math.min(...mine.map((a) => a.deadline)) : null,
+    };
     return {
       region: r,
       yard: position.filter((p) => !p.rented && p.region === r).length,
       shortage,
+      pending,
     };
   });
 }

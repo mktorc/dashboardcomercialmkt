@@ -10,6 +10,18 @@ const dia = (key: string) =>
     .toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })
     .replace(".", "");
 
+const prazo = (ms: number) =>
+  new Date(ms)
+    .toLocaleString("pt-BR", {
+      timeZone: "America/New_York",
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+    .replace(".", "");
+
 /** Um card por cidade: verde "Ok nos próximos X dias" ou vermelho "Falta N [categoria] em [data]". */
 export function Semaforo({
   status,
@@ -27,6 +39,13 @@ export function Semaforo({
       {status.map((c) => {
         const bad = c.shortage != null;
         const sel = selected === c.region;
+        const pend = c.pending;
+        const warn = !bad && pend.chegam + pend.saem + pend.outras > 0;
+        const partes = [
+          ...Object.entries(pend.saemPara).map(([c, n]) => `${n} ${n! > 1 ? "vão" : "vai"} p/ ${c}`),
+          ...Object.entries(pend.chegamDe).map(([c, n]) => `${n} ${n! > 1 ? "vêm" : "vem"} de ${c}`),
+          pend.outras && `${pend.outras} troca/upgrade`,
+        ].filter(Boolean);
         return (
           <button
             key={c.region}
@@ -34,7 +53,9 @@ export function Semaforo({
             className={`rounded-lg border p-3 text-left transition-colors ${
               bad
                 ? "border-red-500/50 bg-red-500/10 hover:bg-red-500/15"
-                : "border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15"
+                : warn
+                  ? "border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/15"
+                  : "border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15"
             } ${sel ? "ring-2 ring-foreground" : ""}`}
           >
             <div className="flex items-center justify-between gap-2">
@@ -48,12 +69,22 @@ export function Semaforo({
               <span className="text-xs text-muted-foreground">pátio {c.yard}</span>
             </div>
             <div
-              className={`mt-1 text-sm font-medium ${bad ? "text-red-400" : "text-emerald-400"}`}
+              className={`mt-1 text-sm font-medium ${bad ? "text-red-400" : warn ? "text-amber-400" : "text-emerald-400"}`}
             >
               {bad
                 ? `Falta ${c.shortage!.missing} ${c.shortage!.classLabel} em ${dia(c.shortage!.day)}`
-                : `Ok nos próximos ${days.length} dias`}
+                : warn
+                  ? `Só fica ok se fizer as ações`
+                  : `Ok nos próximos ${days.length} dias`}
             </div>
+            {partes.length > 0 && (
+              <div className="mt-0.5 text-xs text-muted-foreground">
+                Pendente: {partes.join(" · ")}
+                {pend.nextDeadline != null && (
+                  <> · próxima {prazo(pend.nextDeadline)}</>
+                )}
+              </div>
+            )}
           </button>
         );
       })}

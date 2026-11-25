@@ -725,9 +725,11 @@ export function StatusBar({
         <span className="text-muted-foreground">·</span>
         <span className="text-sky-400">🔵 {n("programado")} programadas</span>
         <span className="text-muted-foreground">·</span>
-        <span className="text-emerald-400">
-          ✅ {ok.length ? ok.join(", ") : "nenhuma cidade"} sem pendência
-        </span>
+        {ok.length ? (
+          <span className="text-emerald-400">✅ {ok.join(", ")} sem pendência</span>
+        ) : (
+          <span className="text-amber-400">⚠ todas as cidades têm pendência</span>
+        )}
       </Card>
     </div>
   );
