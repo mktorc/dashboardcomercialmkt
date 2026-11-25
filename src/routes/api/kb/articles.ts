@@ -18,7 +18,12 @@ type KbData = {
 };
 
 // Cache do conteúdo estático (artigos + links assinados); estatísticas vêm sempre na hora.
-let cache: { at: number; data: KbData; images: Record<string, string> } | null = null;
+let cache: {
+  at: number;
+  version: string;
+  data: KbData;
+  images: Record<string, string>;
+} | null = null;
 const TTL_MS = 30 * 60_000; // menor que a validade do link assinado (1 h)
 
 const fileIdOf = (link: string) => /\/d\/([\w-]{10,})/.exec(link)?.[1] ?? null;
@@ -44,7 +49,9 @@ export const Route = createFileRoute("/api/kb/articles")({
         if ("denied" in u) return u.denied;
         const storage = kb.db.storage.from("kb");
 
-        if (!cache || Date.now() - cache.at > TTL_MS) {
+        // Recarrega quando houver sincronização nova (pode ter gerado artigos novos).
+        const version = await kb.indexVersion();
+        if (!cache || cache.version !== version || Date.now() - cache.at > TTL_MS) {
           const data = await readJson<KbData>(storage, "articles.json");
           if (!data) return kb.fail("Base ainda não foi gerada", 404);
           const srcs = [
@@ -60,10 +67,14 @@ export const Route = createFileRoute("/api/kb/articles")({
             for (const s of signed ?? [])
               if (s.path && s.signedUrl) images[s.path.replace(/^img\//, "")] = s.signedUrl;
           }
-          cache = { at: Date.now(), data, images };
+          cache = { at: Date.now(), version, data, images };
         }
         const { data, images } = cache;
-        const articles = data.articles.filter((a) => a.areas.includes(u.area));
+        // Áreas pela pasta do Drive das fontes, não pelo campo "areas" do articles.json.
+        const realAreas = await kb.resolveArticleAreas(data.articles, data.sources);
+        const articles = data.articles
+          .map((a) => ({ ...a, areas: realAreas.get(a.id) ?? [] }))
+          .filter((a) => a.areas.includes(u.area));
         const ids = articles.map((a) => a.id);
 
         // Data real de atualização: o arquivo de origem mais recente no Drive.
@@ -74,7 +85,7 @@ export const Route = createFileRoute("/api/kb/articles")({
             ),
           ),
         ];
-        const [files, views, votes, myVotes, tplArea, tplShared] = await Promise.all([
+        const [files, views, votes, myVotes, tplArea] = await Promise.all([
           fileIds.length
             ? kb.db.from("kb_files").select("file_id, modified_time").in("file_id", fileIds)
             : { data: [] },
@@ -86,7 +97,6 @@ export const Route = createFileRoute("/api/kb/articles")({
             .eq("user_id", u.userId)
             .in("article_id", ids),
           readJson<{ templates: unknown[] }>(storage, `templates-${u.area}.json`),
-          readJson<{ templates: unknown[] }>(storage, "templates-compartilhado.json"),
         ]);
         const modByFile = new Map<string, string>(
           (files.data ?? []).map((f: { file_id: string; modified_time: string }) => [
@@ -121,7 +131,7 @@ export const Route = createFileRoute("/api/kb/articles")({
           articles: withDates,
           images,
           stats,
-          templates: [...(tplArea?.templates ?? []), ...(tplShared?.templates ?? [])],
+          templates: tplArea?.templates ?? [],
         });
       },
     },

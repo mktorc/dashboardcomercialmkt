@@ -87,6 +87,31 @@ function Sidebar({
         </div>
       </div>
 
+      {data.areas.length > 1 && (
+        <div className="mb-2">
+          <p className="px-1 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+            Áreas
+          </p>
+          <div className="grid grid-cols-2 gap-1 rounded-md border border-border bg-muted/30 p-1">
+            {data.areas.map((a) => (
+              <Link
+                key={a}
+                to="/base-conhecimento/$area"
+                params={{ area: a }}
+                onClick={onNavigate}
+                className={`rounded px-2 py-1.5 text-center text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  a === data.area
+                    ? "bg-primary/15 font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                {AREA_INFO[a].title}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         onClick={onSearch}

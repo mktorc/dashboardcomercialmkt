@@ -107,6 +107,10 @@ export async function checkAskLimit(userId: string): Promise<boolean> {
 const TIME_BUDGET_MS = 200_000; // a função tem 300 s; para antes e o resto fica para a próxima
 // Vídeo (e PDF escaneado) pode levar ~2 min no Gemini: só começa se ainda sobrar tempo.
 const MEDIA_START_MS = 100_000;
+// Arquivos lidos ao mesmo tempo (vídeos vão para o Gemini em paralelo).
+const SYNC_PARALLEL = 5;
+// Geração dos artigos: não começa arquivo novo depois disto (cada um leva ~10-40 s no Gemini).
+const ARTICLES_DEADLINE_MS = 240_000;
 
 type FileRow = {
   file_id: string;
@@ -152,6 +156,7 @@ export async function runSync(origem: "manual" | "cron") {
 
     // Documentos primeiro, vídeos e imagens por último (são os mais lentos).
     files.sort((a, b) => Number(isMedia(a)) - Number(isMedia(b)));
+    const todo: DriveFile[] = [];
     for (const f of files) {
       const prev = known.get(f.id);
       const unchanged =
@@ -172,32 +177,48 @@ export async function runSync(origem: "manual" | "cron") {
         else stats.sem_mudanca++;
         continue;
       }
-      const elapsed = Date.now() - started;
-      const slow = isMedia(f) || f.mimeType === "application/pdf";
-      if (elapsed > TIME_BUDGET_MS || (slow && elapsed > MEDIA_START_MS)) {
-        stats.pendentes++;
-        continue;
-      }
-      if (!isSupported(f)) {
-        console.log(`[kb] ignorado (${f.mimeType}): ${f.folder} / ${f.name}`);
-        stats.ignorados++;
-        stats.tipos_ignorados[f.mimeType] = (stats.tipos_ignorados[f.mimeType] ?? 0) + 1;
-        await saveFile(f, "ignorado", `Tipo não suportado: ${f.mimeType}`, []);
-        continue;
-      }
-      try {
-        const chunks = chunkText(await extractText(f));
-        await saveFile(f, chunks.length ? "indexado" : "vazio", null, chunks);
-        stats.indexados++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.error(`[kb] erro em ${f.name}: ${msg}`);
-        await saveFile(f, "erro", msg.slice(0, 1600), []);
-        stats.erros++;
-      }
+      todo.push(f);
     }
+
+    // Vários arquivos ao mesmo tempo: um vídeo leva 1-2 min no Gemini, e um por vez não caberia
+    // no tempo da função. Cada "trabalhador" pega o próximo da fila enquanto houver tempo.
+    let next = 0;
+    const worker = async () => {
+      while (next < todo.length) {
+        const f = todo[next++]!;
+        const elapsed = Date.now() - started;
+        const slow = isMedia(f) || f.mimeType === "application/pdf";
+        if (elapsed > TIME_BUDGET_MS || (slow && elapsed > MEDIA_START_MS)) {
+          stats.pendentes++;
+          continue;
+        }
+        if (!isSupported(f)) {
+          console.log(`[kb] ignorado (${f.mimeType}): ${f.folder} / ${f.name}`);
+          stats.ignorados++;
+          stats.tipos_ignorados[f.mimeType] = (stats.tipos_ignorados[f.mimeType] ?? 0) + 1;
+          await saveFile(f, "ignorado", `Tipo não suportado: ${f.mimeType}`, []);
+          continue;
+        }
+        try {
+          const chunks = chunkText(await extractText(f));
+          await saveFile(f, chunks.length ? "indexado" : "vazio", null, chunks);
+          stats.indexados++;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error(`[kb] erro em ${f.name}: ${msg}`);
+          await saveFile(f, "erro", msg.slice(0, 1600), []);
+          stats.erros++;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: SYNC_PARALLEL }, worker));
     await syncTemplates(files);
-    if (stats.pendentes) status = "parcial";
+    // Artigos: arquivo novo/alterado (inclusive pasta nova) vira artigo; o resto é reaproveitado.
+    const { regenerateArticles } = await import("./articles-gen.server");
+    const gen = await regenerateArticles(db, started + ARTICLES_DEADLINE_MS);
+    (stats as Record<string, unknown>)["artigos"] = gen;
+    // Erro na geração (quase sempre Gemini sobrecarregado) também pede nova rodada.
+    if (stats.pendentes || gen.pendentes || gen.erros) status = "parcial";
   } catch (e) {
     status = "erro";
     (stats as Record<string, unknown>)["erro"] = e instanceof Error ? e.message : String(e);
@@ -275,7 +296,7 @@ async function saveFile(f: DriveFile, status: string, detail: string | null, chu
 
 // ---------------------------------------------------------------------------------------------
 // Índice em memória por área (recarrega quando houver sincronização mais nova).
-// Cada área enxerga os arquivos dela + os compartilhados.
+// Cada área enxerga somente os arquivos da pasta dela.
 // ---------------------------------------------------------------------------------------------
 let cache: { version: string; chunks: (KbChunk & { area: FileArea })[] } | null = null;
 const searchers = new Map<KbArea, { version: string; searcher: Searcher }>();
@@ -283,9 +304,10 @@ const searchers = new Map<KbArea, { version: string; searcher: Searcher }>();
 function invalidateIndex() {
   cache = null;
   searchers.clear();
+  articleIndex = null;
 }
 
-async function indexVersion(): Promise<string> {
+export async function indexVersion(): Promise<string> {
   const { data } = await db
     .from("kb_sync_runs")
     .select("id, finished_at")
@@ -353,9 +375,8 @@ export async function getSearcher(area: KbArea): Promise<Searcher> {
   const version = await indexVersion();
   const hit = searchers.get(area);
   if (hit?.version === version) return hit.searcher;
-  const chunks = (await loadChunks(version)).filter(
-    (c) => c.area === area || c.area === "compartilhado",
-  );
+  // Isolamento estrito: cada área só enxerga os arquivos da própria pasta do Drive.
+  const chunks = (await loadChunks(version)).filter((c) => c.area === area);
   const searcher = new Bm25Searcher(chunks);
   searchers.set(area, { version, searcher });
   return searcher;
@@ -366,13 +387,51 @@ export async function getSearcher(area: KbArea): Promise<Searcher> {
 // ---------------------------------------------------------------------------------------------
 let articleIndex: { at: number; areasById: Map<string, string[]> } | null = null;
 
+type ArticleLite = { id: string; areas: string[]; sources: string[] };
+const fileIdOfLink = (link: string) => /\/d\/([\w-]{10,})/.exec(link)?.[1] ?? null;
+
+/**
+ * Áreas reais de cada artigo, pela pasta do Drive dos arquivos de origem (kb_files.area), e não
+ * pelo campo "areas" do articles.json. Só aparece numa área o artigo cujas fontes estão TODAS na
+ * pasta daquela área; fontes de pastas diferentes (ou fora das pastas) deixam o artigo oculto.
+ * Fontes ainda não indexadas são ignoradas; sem nenhuma fonte conhecida, vale o campo "areas".
+ */
+export async function resolveArticleAreas(
+  articles: ArticleLite[],
+  sources: Record<string, { link: string }>,
+): Promise<Map<string, string[]>> {
+  const { data } = await db.from("kb_files").select("file_id, area").limit(100_000);
+  const areaByFile = new Map<string, string>(
+    (data ?? []).map((f: { file_id: string; area: string }) => [f.file_id, f.area]),
+  );
+  const out = new Map<string, string[]>();
+  for (const a of articles) {
+    const found = a.sources
+      .map((s) => areaByFile.get(fileIdOfLink(sources[s]?.link ?? "") ?? ""))
+      .filter((x): x is string => !!x);
+    if (!found.length) {
+      out.set(a.id, a.areas);
+      continue;
+    }
+    const uniq = new Set(found);
+    out.set(
+      a.id,
+      uniq.size === 1 && (found[0] === "comercial" || found[0] === "cs") ? [found[0]] : [],
+    );
+  }
+  return out;
+}
+
 export async function articleAreas(): Promise<Map<string, string[]>> {
   if (articleIndex && Date.now() - articleIndex.at < 10 * 60_000) return articleIndex.areasById;
   const { data } = await db.storage.from("kb").download("articles.json");
-  const areasById = new Map<string, string[]>();
+  let areasById = new Map<string, string[]>();
   if (data) {
-    const json = JSON.parse(await data.text()) as { articles: { id: string; areas: string[] }[] };
-    for (const a of json.articles) areasById.set(a.id, a.areas);
+    const json = JSON.parse(await data.text()) as {
+      sources: Record<string, { link: string }>;
+      articles: ArticleLite[];
+    };
+    areasById = await resolveArticleAreas(json.articles, json.sources);
   }
   articleIndex = { at: Date.now(), areasById };
   return areasById;

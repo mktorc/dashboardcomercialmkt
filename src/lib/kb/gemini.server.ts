@@ -45,12 +45,13 @@ async function availableFlashModels(apiKey: string): Promise<string[]> {
   return names;
 }
 
-/** Ordem de tentativa: principal, reserva fixa e até 2 outras da lista. */
+/** Ordem de tentativa: principal, reserva fixa e até 6 outros da lista. */
 export async function modelChain(apiKey: string): Promise<string[]> {
   const primary = primaryModel();
   const listed = await availableFlashModels(apiKey);
   const others = listed.filter((m) => m !== primary && m !== KNOWN_FALLBACK);
-  return [...new Set([primary, KNOWN_FALLBACK, ...others.slice(0, 2)])];
+  // Até 6 outros: os mais novos costumam estar em 503 juntos com o principal.
+  return [...new Set([primary, KNOWN_FALLBACK, ...others.slice(0, 6)])];
 }
 
 /**

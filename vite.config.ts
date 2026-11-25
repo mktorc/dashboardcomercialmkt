@@ -28,7 +28,8 @@ export default defineConfig({
           { path: "/api/public/sync/cron", schedule: "0 11 * * *" },
           { path: "/api/public/sync/cron", schedule: "0 15 * * *" },
           { path: "/api/public/sync/cron", schedule: "0 19 * * *" },
-          // Base de Conhecimento: reindexa os arquivos alterados no Drive, 06h de Brasília.
+          // Base de Conhecimento: 1x por dia (06h de Brasília) confere o Drive; arquivo/pasta nova é
+          // indexada e vira artigo. Sem mudança, só lista as pastas (sem custo de IA).
           { path: "/api/kb/sync", schedule: "0 9 * * *" },
         ],
       },
