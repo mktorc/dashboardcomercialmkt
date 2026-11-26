@@ -27,6 +27,16 @@ import {
   type Template,
 } from "./kb-api";
 
+/** Divide os blocos em seções: cada subtítulo ("h") abre uma seção recolhível até o próximo. */
+function sections(blocks: Article["blocks"]) {
+  const out: { head: number | null; body: number[] }[] = [{ head: null, body: [] }];
+  blocks.forEach((b, i) => {
+    if (b.t === "h") out.push({ head: i, body: [] });
+    else out[out.length - 1]!.body.push(i);
+  });
+  return out.filter((s) => s.head !== null || s.body.length);
+}
+
 function Toc({ article }: { article: Article }) {
   const heads = article.blocks.filter((b) => b.t === "h") as { t: "h"; text: string }[];
   const [active, setActive] = useState<string | null>(null);
@@ -59,6 +69,10 @@ function Toc({ article }: { article: Article }) {
             <li key={id}>
               <a
                 href={`#${id}`}
+                onClick={() => {
+                  const d = document.getElementById(id)?.parentElement;
+                  if (d instanceof HTMLDetailsElement) d.open = true;
+                }}
                 className={`-ml-px block border-l-2 py-1 pl-3 text-sm transition ${
                   active === id
                     ? "border-primary text-foreground"
@@ -222,16 +236,32 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
         </header>
 
         <div className="space-y-5 py-6">
-          {article.blocks.map((b, i) => (
-            <KbBlock
-              key={i}
-              block={b}
-              index={i}
-              articleId={article.id}
-              images={data.images}
-              templates={templates}
-            />
-          ))}
+          {sections(article.blocks).map((sec) => {
+            const render = (i: number) => (
+              <KbBlock
+                key={i}
+                block={article.blocks[i]!}
+                index={i}
+                articleId={article.id}
+                images={data.images}
+                templates={templates}
+              />
+            );
+            if (sec.head === null) return sec.body.map(render);
+            const text = (article.blocks[sec.head] as { text: string }).text;
+            return (
+              <details key={sec.head} open className="group space-y-5">
+                <summary
+                  id={slug(text)}
+                  className="flex cursor-pointer list-none items-center gap-2 scroll-mt-24 pt-4 text-lg font-semibold tracking-tight text-foreground [&::-webkit-details-marker]:hidden"
+                >
+                  <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
+                  {text}
+                </summary>
+                {sec.body.map(render)}
+              </details>
+            );
+          })}
         </div>
 
         <div className="space-y-6 border-t border-border pt-6">
