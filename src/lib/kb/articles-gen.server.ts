@@ -433,22 +433,143 @@ export async function regenerateArticles(
       articles.push({ id, category: catId, ...a, sources: [f.file_id], areas: [area] });
     }
   }
+  // Arquivos soltos na raiz da área (sem subpasta) caem todos em "Geral": a IA agrupa esses
+  // artigos por assunto. Subpasta no Drive continua mandando na categoria.
+  for (const area of ["comercial", "cs"] as Area[]) {
+    const geralId = `${area}-geral`;
+    const loose = articles.filter((a) => a["category"] === geralId);
+    if (loose.length < 6) continue;
+    const groups = await groupByTopic(db, area, loose, hardStop);
+    if (!groups) continue;
+    categories.delete(geralId);
+    for (const g of groups.categories) categories.set(g.id, g);
+    for (const a of loose) a["category"] = groups.assign[a["id"] as string] ?? geralId;
+    if (loose.some((a) => a["category"] === geralId))
+      categories.set(geralId, { id: geralId, title: "Outros", description: "Outros assuntos." });
+  }
   // Só regrava se algo mudou: arquivo novo/alterado, arquivo que saiu, ou ainda era o manual.
-  const prev = current as { auto?: boolean; sources?: Record<string, unknown> } | null;
+  const prev = current as {
+    auto?: boolean;
+    sources?: Record<string, unknown>;
+    grouped?: number;
+  } | null;
   const prevIds = Object.keys(prev?.sources ?? {});
   const sameFiles =
     prevIds.length === Object.keys(sources).length && prevIds.every((id) => id in sources);
-  if (prev?.auto && sameFiles && !changed) return stats;
+  if (prev?.auto && prev.grouped === GROUP_VERSION && sameFiles && !changed) return stats;
   // Publica a cada avanço: com o Gemini instável (503), exigir base completa travava a publicação
   // para sempre. O que falhou fica para a próxima rodada (status "parcial" encadeia outra).
   if (!Object.keys(sources).length) return stats;
 
   await writeJson(db, "articles.json", {
     auto: true,
+    grouped: GROUP_VERSION,
     generatedAt: new Date().toISOString(),
     categories: [...categories.values()],
     sources,
     articles,
   });
   return stats;
+}
+
+// ---- Agrupamento por assunto -------------------------------------------------------------
+
+const GROUP_VERSION = 1;
+type Cat = { id: string; title: string; description: string };
+type Groups = { key: string; categories: Cat[]; assign: Record<string, string> };
+
+const GROUP_PROMPT = `Você organiza o menu de uma base de conhecimento interna de uma locadora de carros.
+Abaixo estão os artigos de uma área (id | título | resumo). Agrupe-os em 5 a 10 categorias por
+assunto, com nomes curtos em português (2 a 4 palavras, ex.: "Frota e Categorias", "Pagamentos",
+"Sistemas (HQ e CRM)", "Seguros e Regras"). Ordene as categorias da mais usada no dia a dia para a
+menos usada. Todo artigo entra em exatamente uma categoria. Use os ids exatamente como recebidos.`;
+
+const GROUP_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    categories: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title: S,
+          description: S,
+          articles: SA,
+        },
+        required: ["title", "description", "articles"],
+      },
+    },
+  },
+  required: ["categories"],
+};
+
+/** Agrupa por assunto com a IA; guarda em groups-<area>.json e só refaz quando os artigos mudam. */
+async function groupByTopic(
+  db: Db,
+  area: Area,
+  arts: Record<string, unknown>[],
+  hardStop: number,
+): Promise<Groups | null> {
+  const key =
+    `${GROUP_VERSION}:` +
+    arts
+      .map((a) => a["id"] as string)
+      .sort()
+      .join(",");
+  const path = `groups-${area}.json`;
+  const cached = await readJson<Groups>(db, path);
+  if (cached?.key === key) return cached;
+  const apiKey = process.env["GEMINI_API_KEY"];
+  if (!apiKey || hardStop - Date.now() < 30_000) return cached ?? null;
+  const list = arts.map((a) => `${a["id"]} | ${a["title"]} | ${a["summary"] ?? ""}`).join("\n");
+  try {
+    const res = await callWithFallback(apiKey, async (model) => {
+      try {
+        return await fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: `${GROUP_PROMPT}\n\n${list}` }] }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 16384,
+              responseMimeType: "application/json",
+              responseSchema: GROUP_SCHEMA,
+            },
+          }),
+          signal: AbortSignal.timeout(Math.max(1_000, Math.min(90_000, hardStop - Date.now()))),
+        });
+      } catch {
+        return new Response("timeout", { status: 503 });
+      }
+    });
+    if (!res.ok) throw new Error(`Gemini ${res.status}`);
+    const out = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const raw = (out.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+    const json = JSON.parse(raw) as {
+      categories?: { title?: string; description?: string; articles?: string[] }[];
+    };
+    const valid = new Set(arts.map((a) => a["id"] as string));
+    const categories: Cat[] = [];
+    const assign: Record<string, string> = {};
+    for (const c of json.categories ?? []) {
+      const title = str(c.title);
+      if (!title) continue;
+      let id = `${area}-${slug(title)}`;
+      for (let n = 2; categories.some((x) => x.id === id); n++) id = `${area}-${slug(title)}-${n}`;
+      const ids = strs(c.articles).filter((x) => valid.has(x) && !assign[x]);
+      if (!ids.length) continue;
+      for (const x of ids) assign[x] = id;
+      categories.push({ id, title, description: str(c.description) || title });
+    }
+    if (!categories.length) throw new Error("agrupamento vazio");
+    const groups: Groups = { key, categories, assign };
+    await writeJson(db, path, groups);
+    return groups;
+  } catch (e) {
+    console.error(`[kb] agrupamento ${area} falhou`, e);
+    return cached ?? null; // sem IA agora: usa o último agrupamento (ou fica em "Geral")
+  }
 }
