@@ -323,13 +323,14 @@ describe("computeComercial", () => {
   });
 
   it("compara oportunidades sem tarefas nos mesmos dias do mês anterior", () => {
+    // "Sem tarefa" só conta o time comercial (isOperationalSeller): usa um vendedor real.
     const makeOpportunity = (opportunity_id: string, created_at: string) => ({
       opportunity_id,
       lead_id: opportunity_id,
       name: null,
       stage_name: null,
       status: "open",
-      seller_name: "Ana",
+      seller_name: "Mauro",
       pending_tasks: 0,
       total_tasks: 0,
       created_at,
@@ -396,7 +397,7 @@ describe("computeComercial", () => {
           name: null,
           stage_name: null,
           status: "open",
-          seller_name: "Ana",
+          seller_name: "Mauro",
           pending_tasks: 0,
           total_tasks: 0,
           created_at: "2026-09-30T12:00:00Z",
@@ -407,7 +408,7 @@ describe("computeComercial", () => {
           name: null,
           stage_name: null,
           status: "open",
-          seller_name: "Ana",
+          seller_name: "Mauro",
           pending_tasks: 0,
           total_tasks: 0,
           created_at: "2026-10-01T12:00:00Z",
@@ -418,7 +419,7 @@ describe("computeComercial", () => {
           name: null,
           stage_name: null,
           status: "open",
-          seller_name: "Ana",
+          seller_name: "Mauro",
           pending_tasks: 0,
           total_tasks: 0,
           created_at: "2026-10-02T12:00:00Z",
@@ -429,7 +430,7 @@ describe("computeComercial", () => {
           name: null,
           stage_name: null,
           status: "open",
-          seller_name: "Bia",
+          seller_name: "Thalita",
           pending_tasks: 0,
           total_tasks: 0,
           created_at: "2026-10-02T12:00:00Z",
@@ -440,7 +441,7 @@ describe("computeComercial", () => {
           name: null,
           stage_name: null,
           status: "open",
-          seller_name: "Ana",
+          seller_name: "Mauro",
           pending_tasks: 0,
           total_tasks: 0,
           created_at: "2026-10-05T12:00:00Z",
@@ -453,7 +454,7 @@ describe("computeComercial", () => {
           discount_amount: 10,
           rack_rate: 90,
           status: "confirmed",
-          seller_name: "Ana",
+          seller_name: "Mauro",
         },
         {
           created_at: "2026-10-02T12:00:00Z",
@@ -461,7 +462,7 @@ describe("computeComercial", () => {
           discount_amount: 20,
           rack_rate: 180,
           status: "confirmed",
-          seller_name: "Bia",
+          seller_name: "Thalita",
         },
         {
           created_at: "2026-10-03T12:00:00Z",
@@ -469,7 +470,7 @@ describe("computeComercial", () => {
           discount_amount: 0,
           rack_rate: 300,
           status: "confirmed",
-          seller_name: "Ana",
+          seller_name: "Mauro",
         },
       ],
       prevData: {
@@ -481,31 +482,35 @@ describe("computeComercial", () => {
             discount_amount: 10,
             rack_rate: 90,
             status: "confirmed",
-            seller_name: "Ana",
+            seller_name: "Mauro",
           },
         ],
       },
     } as unknown as ComercialData;
 
     const view = computeComercial(data, "2026-10-01", "2026-10-02", "all");
-    expect(view.dailyOpportunityKeys).toEqual(["Ana", "Bia"]);
+    expect(view.dailyOpportunityKeys).toEqual(["Mauro", "Thalita"]);
     expect(
-      view.dailyOpportunitiesBySeller.map((day) => [day["dia"], day["Ana"] ?? 0, day["Bia"] ?? 0]),
+      view.dailyOpportunitiesBySeller.map((day) => [
+        day["dia"],
+        day["Mauro"] ?? 0,
+        day["Thalita"] ?? 0,
+      ]),
     ).toEqual([
       ["01/10", 1, 0],
       ["02/10", 1, 1],
     ]);
     expect(
-      view.dailyRevenueBySeller.map((day) => [day["dia"], day["Ana"] ?? 0, day["Bia"] ?? 0]),
+      view.dailyRevenueBySeller.map((day) => [day["dia"], day["Mauro"] ?? 0, day["Thalita"] ?? 0]),
     ).toEqual([
       ["01/10", 90, 0],
       ["02/10", 0, 180],
     ]);
     expect(view.kpis.faturamento).toBe(270);
     expect(view.kpis.faturamentoVar).toBe(200);
-    expect(view.rows.find((row) => row.key === "ana")?.faturamento).toBe(90);
+    expect(view.rows.find((row) => row.key === "mauro")?.faturamento).toBe(90);
     expect(view.monthlyKpis[0]?.faturamento).toBe(570);
-    expect(view.monthly[0]?.["Ana"]).toBe(390);
+    expect(view.monthly[0]?.["Mauro"]).toBe(390);
     expect(view.kpis.conversao).toBe(2 / 3);
     // Inclui a de 30/09 (criada antes do período) e exclui a de 05/10 (criada depois do fim)
     expect(view.kpis.leadsNoTask).toBe(4);
