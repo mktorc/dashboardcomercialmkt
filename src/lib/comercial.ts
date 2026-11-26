@@ -55,19 +55,33 @@ const NON_AGENCY_ORIGINS = new Set(NON_AGENCY_ORIGIN_NAMES.map(originKey));
 export const isNonAgencyOrigin = (origin: string | null | undefined) =>
   NON_AGENCY_ORIGINS.has(originKey(origin));
 
-/** lead_id → origem do lead (apenas leads com origem preenchida). */
-export async function fetchLeadOrigins(): Promise<Map<string, string>> {
-  const { data, error } = await fetchAll((a, b) =>
-    supabase
-      .from("crm_leads")
-      .select("lead_id, lead_origin")
-      .not("lead_origin", "is", null)
-      .order("lead_id")
-      .range(a, b),
+/**
+ * lead_id → origem do lead (apenas leads com origem preenchida), só para os leads pedidos.
+ * Antes baixava a tabela inteira (~69 mil leads) e a tela levava dezenas de segundos.
+ */
+export async function fetchLeadOrigins(leadIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(leadIds)];
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil(ids.length / 300) }, (_, i) =>
+      fetchAll((a, b) =>
+        supabase
+          .from("crm_leads")
+          .select("lead_id, lead_origin")
+          .not("lead_origin", "is", null)
+          .in("lead_id", ids.slice(i * 300, (i + 1) * 300))
+          .order("lead_id")
+          .range(a, b),
+      ),
+    ),
   );
-  if (error) throw error;
+  const failed = pages.find((p) => p.error);
+  if (failed?.error) throw failed.error;
   return new Map(
-    (data as { lead_id: string; lead_origin: string }[]).map((l) => [l.lead_id, l.lead_origin]),
+    pages.flatMap((p) =>
+      (p.data as { lead_id: string; lead_origin: string }[]).map(
+        (l) => [l.lead_id, l.lead_origin] as const,
+      ),
+    ),
   );
 }
 
