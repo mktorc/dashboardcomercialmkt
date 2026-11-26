@@ -37,11 +37,18 @@ function Sidebar({
 }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const base = `/base-conhecimento/${data.area}`;
-  const cats = data.categories.filter((c) => data.articles.some((a) => a.category === c.id));
+  const hasArticles = (id: string) =>
+    data.articles.some((a) => a.category === id) ||
+    data.categories.some((k) => k.parent === id && data.articles.some((a) => a.category === k.id));
+  const cats = data.categories.filter((c) => !c.parent && hasArticles(c.id));
+  const rootOf = (id: string | undefined) => {
+    const c = data.categories.find((k) => k.id === id);
+    return c?.parent ? [c.parent, c.id] : id ? [id] : [];
+  };
   const activeArticle = path.startsWith(`${base}/`) ? path.slice(base.length + 1) : "";
   const [openCats, setOpenCats] = useState<Set<string>>(() => {
     const cur = data.articles.find((a) => a.id === activeArticle)?.category;
-    return new Set(cur ? [cur] : cats.slice(0, 1).map((c) => c.id));
+    return new Set(cur ? rootOf(cur) : cats.slice(0, 1).map((c) => c.id));
   });
   const toggle = (id: string) =>
     setOpenCats((prev) => {
@@ -99,13 +106,13 @@ function Sidebar({
                 to="/base-conhecimento/$area"
                 params={{ area: a }}
                 onClick={onNavigate}
-                className={`rounded px-2 py-1.5 text-center text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                className={`flex min-h-9 items-center justify-center rounded px-2 py-1.5 text-center text-sm leading-tight transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   a === data.area
                     ? "bg-primary/15 font-medium text-foreground"
                     : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 }`}
               >
-                {AREA_INFO[a].title}
+                {AREA_INFO[a].short}
               </Link>
             ))}
           </div>
@@ -134,6 +141,18 @@ function Sidebar({
       <div className="mt-3 flex-1 space-y-0.5 overflow-y-auto pr-1">
         {cats.map((c) => {
           const open = openCats.has(c.id);
+          const kids = data.categories.filter((k) => k.parent === c.id && hasArticles(k.id));
+          const link = (a: KbAreaData["articles"][number]) => (
+            <Link
+              key={a.id}
+              to="/base-conhecimento/$area/$artigo"
+              params={{ area: data.area, artigo: a.id }}
+              onClick={onNavigate}
+              className={`${navItem} ${activeArticle === a.id ? navActive : navIdle}`}
+            >
+              <span className="truncate">{a.title}</span>
+            </Link>
+          );
           return (
             <div key={c.id}>
               <button
@@ -149,19 +168,30 @@ function Sidebar({
               </button>
               {open && (
                 <div className="ml-3 space-y-0.5 border-l border-border pl-2">
-                  {data.articles
-                    .filter((a) => a.category === c.id)
-                    .map((a) => (
-                      <Link
-                        key={a.id}
-                        to="/base-conhecimento/$area/$artigo"
-                        params={{ area: data.area, artigo: a.id }}
-                        onClick={onNavigate}
-                        className={`${navItem} ${activeArticle === a.id ? navActive : navIdle}`}
-                      >
-                        <span className="truncate">{a.title}</span>
-                      </Link>
-                    ))}
+                  {data.articles.filter((a) => a.category === c.id).map(link)}
+                  {kids.map((k) => {
+                    const kOpen = openCats.has(k.id);
+                    return (
+                      <div key={k.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(k.id)}
+                          aria-expanded={kOpen}
+                          className={`${navItem} w-full justify-between font-medium text-foreground/80 hover:bg-muted/50`}
+                        >
+                          <span className="truncate">{k.title}</span>
+                          <ChevronRight
+                            className={`size-4 shrink-0 text-muted-foreground transition-transform ${kOpen ? "rotate-90" : ""}`}
+                          />
+                        </button>
+                        {kOpen && (
+                          <div className="ml-3 space-y-0.5 border-l border-border pl-2">
+                            {data.articles.filter((a) => a.category === k.id).map(link)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

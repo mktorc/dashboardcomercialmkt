@@ -29,7 +29,9 @@ export type Block =
   | { t: "table"; head: string[]; rows: string[][] }
   | { t: "img"; src: string; caption: string }
   | { t: "quote"; text: string; title?: string }
-  | { t: "tags"; items: string[]; title?: string };
+  | { t: "tags"; items: string[]; title?: string }
+  | { t: "sub"; text: string }
+  | { t: "file"; name: string; link: string; kind: "video" | "image" | "doc" };
 
 export type Article = {
   id: string;
@@ -55,7 +57,7 @@ export type KbAreaData = {
   areas: KbArea[];
   admin: boolean;
   generatedAt: string;
-  categories: { id: string; title: string; description: string }[];
+  categories: { id: string; title: string; description: string; parent?: string }[];
   sources: Record<string, { name: string; link: string }>;
   articles: Article[];
   images: Record<string, string>;

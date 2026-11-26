@@ -72,9 +72,17 @@ export const Route = createFileRoute("/api/kb/articles")({
         const { data, images } = cache;
         // Áreas pela pasta do Drive das fontes, não pelo campo "areas" do articles.json.
         const realAreas = await kb.resolveArticleAreas(data.articles, data.sources);
-        const articles = data.articles
+        const { organizeKb } = await import("@/lib/kb/estrutura");
+        const filtered = data.articles
           .map((a) => ({ ...a, areas: realAreas.get(a.id) ?? [] }))
           .filter((a) => a.areas.includes(u.area));
+        // Junta/ordena: apresentação da frota, condições de pagamento, Sistemas em HQ e CRM.
+        const org = organizeKb(
+          filtered as unknown as Parameters<typeof organizeKb>[0],
+          data.categories as Parameters<typeof organizeKb>[1],
+          data.sources,
+        );
+        const articles = org.articles as unknown as Article[];
         const ids = articles.map((a) => a.id);
 
         // Data real de atualização: o arquivo de origem mais recente no Drive.
@@ -126,7 +134,7 @@ export const Route = createFileRoute("/api/kb/articles")({
           areas: u.areas,
           admin: u.admin,
           generatedAt: data.generatedAt,
-          categories: data.categories,
+          categories: org.categories,
           sources: data.sources,
           articles: withDates,
           images,

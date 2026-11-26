@@ -181,6 +181,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
     );
 
   const cat = data.categories.find((c) => c.id === article.category);
+  const parentCat = cat?.parent ? data.categories.find((c) => c.id === cat.parent) : undefined;
   const drive = driveLinkOf(article, data);
   const related = data.articles
     .filter((a) => a.category === article.category && a.id !== article.id)
@@ -201,6 +202,12 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
             {AREA_INFO[data.area].short}
           </Link>
           <ChevronRight className="size-3.5" />
+          {parentCat && (
+            <>
+              <span>{parentCat.title}</span>
+              <ChevronRight className="size-3.5" />
+            </>
+          )}
           <span>{cat?.title ?? article.category}</span>
           <ChevronRight className="size-3.5" />
           <span className="truncate text-foreground">{article.title}</span>

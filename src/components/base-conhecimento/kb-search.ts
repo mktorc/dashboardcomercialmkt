@@ -16,6 +16,8 @@ export function blockText(b: Block): string {
       return [...b.head, ...b.rows.map((r) => r.join(" "))].join(". ");
     case "img":
       return b.caption;
+    case "file":
+      return b.name;
     default:
       return b.text;
   }

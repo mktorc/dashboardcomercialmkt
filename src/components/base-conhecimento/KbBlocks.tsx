@@ -1,5 +1,14 @@
 import { useState, type ReactNode } from "react";
-import { AlertTriangle, Check, Copy, Lightbulb } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  Lightbulb,
+  PlayCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { slug, type Block, type Template } from "./kb-api";
@@ -226,6 +235,30 @@ export function KbBlock({
           {b.text}
         </h2>
       );
+    case "sub":
+      return <h3 className="pt-2 text-base font-semibold text-foreground">{b.text}</h3>;
+    case "file": {
+      const Icon = b.kind === "video" ? PlayCircle : b.kind === "image" ? ImageIcon : FileText;
+      const label =
+        b.kind === "video" ? "Assistir vídeo" : b.kind === "image" ? "Ver foto" : "Abrir documento";
+      return (
+        <a
+          href={b.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group flex items-center gap-3 rounded-lg border border-border p-3 transition hover:border-primary hover:bg-muted/30"
+        >
+          <Icon className="size-6 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs text-muted-foreground">{label}</span>
+            <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
+              {b.name}
+            </span>
+          </span>
+          <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
+        </a>
+      );
+    }
     case "p": {
       const label = startsWithLabel(b.text);
       if (label)
