@@ -831,7 +831,7 @@ export function computeOpportunityOrigins(
     { key: "won", label: "Ganhos / Reservas Fechadas", id: null, isFinal: true },
   ];
   const stagePosition = new Map(stages.map((stage, index) => [stage.key, index]));
-  const positionFor = (opportunity: OpportunityOriginRow) => {
+  const rawPositionFor = (opportunity: OpportunityOriginRow) => {
     const label =
       opportunity.stage_name?.trim() ||
       (opportunity.pipeline_step_id ? `Etapa ${opportunity.pipeline_step_id}` : "Sem etapa");
@@ -839,12 +839,30 @@ export function computeOpportunityOrigins(
     return stagePosition.get(stageKey) ?? -1;
   };
   const latestById = new Map(updatedOpportunities.map((o) => [o.opportunity_id, o]));
-  const isWonNow = (o: OpportunityOriginRow) =>
-    isWonOpportunity(latestById.get(o.opportunity_id) ?? o);
+  // Etapa, ganho e origem de cada oportunidade calculados uma vez só (antes: por etapa do funil,
+  // com normalização de texto a cada vez, o que travava a tela com os dados do ano).
+  const positionCache = new Map<OpportunityOriginRow, number>();
+  const wonCache = new Map<OpportunityOriginRow, boolean>();
+  const positionFor = (o: OpportunityOriginRow) => {
+    let p = positionCache.get(o);
+    if (p === undefined) positionCache.set(o, (p = rawPositionFor(o)));
+    return p;
+  };
+  const isWonNow = (o: OpportunityOriginRow) => {
+    let w = wonCache.get(o);
+    if (w === undefined)
+      wonCache.set(o, (w = isWonOpportunity(latestById.get(o.opportunity_id) ?? o)));
+    return w;
+  };
+  const bySource = new Map<string, OpportunityOriginRow[]>();
+  opportunities.forEach((o) => {
+    const k = originKey(o.utm_source);
+    const list = bySource.get(k);
+    if (list) list.push(o);
+    else bySource.set(k, [o]);
+  });
   const funnel = sourceKeys.map((key, originIndex) => {
-    const sourceOpportunities = opportunities.filter(
-      (opportunity) => originKey(opportunity.utm_source) === key,
-    );
+    const sourceOpportunities = bySource.get(key) ?? [];
     let previousCount: number | null = null;
     let baseCount = 0;
     return {

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   ComposedChart,
@@ -201,23 +201,32 @@ function Dashboard() {
     },
   });
 
-  const originAnalytics = data
-    ? computeOpportunityOrigins(
-        data.current.opportunities,
-        data.current.updatedOpportunities,
-        from,
-        to,
-      )
-    : null;
+  // Cálculos pesados guardados (useMemo): antes rodavam a cada renderização e travavam a tela.
+  const originAnalytics = useMemo(
+    () =>
+      data
+        ? computeOpportunityOrigins(
+            data.current.opportunities,
+            data.current.updatedOpportunities,
+            from,
+            to,
+          )
+        : null,
+    [data, from, to],
+  );
 
-  const priorYearAnalytics = data
-    ? computeOpportunityOrigins(
-        data.prior.opportunities,
-        data.prior.updatedOpportunities,
-        priorYear.from,
-        priorYear.to,
-      )
-    : null;
+  const priorYearAnalytics = useMemo(
+    () =>
+      data
+        ? computeOpportunityOrigins(
+            data.prior.opportunities,
+            data.prior.updatedOpportunities,
+            priorYear.from,
+            priorYear.to,
+          )
+        : null,
+    [data, priorYear.from, priorYear.to],
+  );
 
   // Conversas iniciadas por mensagem no Meta, uma barra por dia do período (dias sem dado = 0).
   const metaConversationsDaily = (() => {
@@ -284,9 +293,14 @@ function Dashboard() {
     const rows = channelRows(format);
     return rows ? { columns: [column], rows } : undefined;
   };
-  const channelMonthly = data12
-    ? computeChannelMonthly(data12, channelMode, last12, teamCosts ?? {})
-    : [];
+  const last12Key = last12.join(",");
+  const channelMonthly = useMemo(
+    () =>
+      data12
+        ? computeChannelMonthly(data12, channelMode, last12Key.split(","), teamCosts ?? {})
+        : [],
+    [data12, channelMode, last12Key, teamCosts],
+  );
   const series = originData ? computeTimeseries(originData, from) : [];
   let attribution = originData ? computeAttribution(originData) : [];
   attribution = attribution.sort((a, b) => {
@@ -303,22 +317,31 @@ function Dashboard() {
       ? [{ key: ALL_ORIGINS_KEY, label: "Todas as origens" }]
       : (originAnalytics?.sources ?? []).filter((source) => source.label === originFilter);
 
-  const yearOrigin = data12
-    ? computeOpportunityOrigins(
-        data12.opportunities,
-        data12.updatedOpportunities,
-        yearStart,
-        localDateInput(today),
-      )
-    : null;
-  const yearPriorOrigin = data12Prior
-    ? computeOpportunityOrigins(
-        data12Prior.opportunities,
-        data12Prior.updatedOpportunities,
-        priorYearStart,
-        priorYearToday,
-      )
-    : null;
+  const todayStr = localDateInput(today);
+  const yearOrigin = useMemo(
+    () =>
+      data12
+        ? computeOpportunityOrigins(
+            data12.opportunities,
+            data12.updatedOpportunities,
+            yearStart,
+            todayStr,
+          )
+        : null,
+    [data12, yearStart, todayStr],
+  );
+  const yearPriorOrigin = useMemo(
+    () =>
+      data12Prior
+        ? computeOpportunityOrigins(
+            data12Prior.opportunities,
+            data12Prior.updatedOpportunities,
+            priorYearStart,
+            priorYearToday,
+          )
+        : null,
+    [data12Prior, priorYearStart, priorYearToday],
+  );
   const yoyCreatedMonthly =
     yearOrigin && yearPriorOrigin
       ? buildOpportunityComparison(
