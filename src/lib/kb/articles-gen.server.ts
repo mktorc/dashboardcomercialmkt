@@ -5,6 +5,7 @@
 // subpasta vira a categoria.
 
 import { callWithFallback } from "./gemini.server";
+import { fixAccents } from "./acentos";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Db = any;
@@ -20,7 +21,11 @@ type Block =
   | { t: "tags"; items: string[]; title?: string };
 
 type GenArticle = { title: string; summary: string; keywords: string; blocks: Block[] };
-type CacheEntry = { modified_time: string | null; articles: GenArticle[] };
+type CacheEntry = { modified_time: string | null; v?: number; articles: GenArticle[] };
+// Sobe quando a instrução de geração muda: força refazer todos os artigos.
+const GEN_VERSION = 2;
+const fresh = (c: CacheEntry | null, mt: string | null) =>
+  !!c && c.modified_time === mt && c.v === GEN_VERSION;
 
 type FileRow = {
   file_id: string;
@@ -54,6 +59,11 @@ Regras:
 - Valores e comparações viram "table". Avisos importantes viram "warn"; dicas viram "note".
 - Mensagens prontas para o cliente viram "quote" (title = nome do template, se houver).
 - Seja objetivo: frases curtas, sem repetir o título.
+- Título CURTO: no máximo 40 caracteres (2 a 5 palavras), sem parênteses nem nome de sistema
+  quando a pasta já deixa claro. Ex.: "Pagamento em reais", "Cotação no HQ", "Categoria Minivan".
+- Português correto, COM acentuação e cedilha em tudo (título, resumo e blocos): "validação",
+  "transação", "dólares", "método". Nunca escreva palavras sem acento.
+- Se o arquivo estiver em outro idioma, escreva o artigo em português mesmo assim.
 
 Responda APENAS com JSON neste formato:
 {"articles":[{"title":"...","summary":"uma frase","keywords":"palavras de busca sem acento",
@@ -68,7 +78,10 @@ Responda APENAS com JSON neste formato:
  {"t":"tags","title":"opcional","items":["..."]}
 ]}]}`;
 
-const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+const str = (v: unknown) =>
+  typeof v === "string"
+    ? v.replace(/[\u0000-\u0008\u000b-\u001f\ue000-\uf8ff\ufffd]/g, "").trim()
+    : "";
 const strs = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 
 /** Aceita só os tipos de bloco que a tela sabe desenhar, com os campos certos. */
@@ -224,13 +237,17 @@ async function generateFor(db: Db, f: FileRow, hardStop: number): Promise<GenArt
   for (let i = 0; i < parts.length; i++) {
     const path = `gen/${f.file_id}.p${i}.json`;
     const cached = await readJson<CacheEntry>(db, path);
-    if (cached && cached.modified_time === f.modified_time) {
-      all.push(...cached.articles);
+    if (fresh(cached, f.modified_time)) {
+      all.push(...cached!.articles);
       continue;
     }
     const label = ` (parte ${i + 1} de ${parts.length})`;
     const articles = await generatePart(apiKey, f, parts[i]!, hardStop, label);
-    await writeJson(db, path, { modified_time: f.modified_time, articles } satisfies CacheEntry);
+    await writeJson(db, path, {
+      modified_time: f.modified_time,
+      v: GEN_VERSION,
+      articles,
+    } satisfies CacheEntry);
     all.push(...articles);
   }
   return all;
@@ -356,12 +373,12 @@ export async function regenerateArticles(
   await Promise.all(
     files.map(async (f) => {
       const c = await readJson<CacheEntry>(db, `gen/${f.file_id}.json`);
-      if (c && c.modified_time === f.modified_time) {
-        results.set(f.file_id, c.articles);
+      if (fresh(c, f.modified_time)) {
+        results.set(f.file_id, c!.articles);
         stats.reaproveitados++;
       } else {
         // Versão antiga do arquivo continua no ar até a nova ficar pronta.
-        if (c?.articles?.length) results.set(f.file_id, c.articles);
+        if (c?.articles?.length) results.set(f.file_id, c!.articles);
         todo.push(f);
       }
     }),
@@ -392,6 +409,7 @@ export async function regenerateArticles(
           const articles = await generateFor(db, f, hardStop);
           await writeJson(db, `gen/${f.file_id}.json`, {
             modified_time: f.modified_time,
+            v: GEN_VERSION,
             articles,
           } satisfies CacheEntry);
           results.set(f.file_id, articles);
@@ -429,7 +447,8 @@ export async function regenerateArticles(
     // Documento com versão em português e espanhol ([ORC PT] / [ORC ES] no nome): o idioma vai
     // no título, para as duas versões aparecerem lado a lado sem parecer duplicadas.
     const lang = /\[ORC\s*(PT|ES)\]/i.exec(f.name)?.[1]?.toUpperCase();
-    for (const g of gen) {
+    for (const g0 of gen) {
+      const g = accentArticle(g0);
       const a =
         lang && !g.title.endsWith(`(${lang})`) ? { ...g, title: `${g.title} (${lang})` } : g;
       let id = slug(a.title);
@@ -479,7 +498,7 @@ export async function regenerateArticles(
 
 // ---- Agrupamento por assunto -------------------------------------------------------------
 
-const GROUP_VERSION = 2;
+const GROUP_VERSION = 3;
 type Cat = { id: string; title: string; description: string };
 type Groups = { key: string; categories: Cat[]; assign: Record<string, string> };
 
@@ -577,4 +596,22 @@ async function groupByTopic(
     console.error(`[kb] agrupamento ${area} falhou`, e);
     return cached ?? null; // sem IA agora: usa o último agrupamento (ou fica em "Geral")
   }
+}
+
+/** Acentua título, resumo e todo texto dos blocos (palavras-chave ficam sem acento, para busca). */
+function accentArticle(a: GenArticle): GenArticle {
+  const deep = (v: unknown): unknown =>
+    typeof v === "string"
+      ? fixAccents(v)
+      : Array.isArray(v)
+        ? v.map(deep)
+        : v && typeof v === "object"
+          ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === "t" ? x : deep(x)]))
+          : v;
+  return {
+    ...a,
+    title: fixAccents(a.title),
+    summary: fixAccents(a.summary),
+    blocks: deep(a.blocks) as Block[],
+  };
 }
