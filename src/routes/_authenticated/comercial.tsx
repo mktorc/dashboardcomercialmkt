@@ -1149,14 +1149,14 @@ function MonthlyBarChart({
               />
               {comparisonKey ? <Legend /> : null}
               {comparisonKey ? (
-                <Bar
+                <Bar isAnimationActive={false}
                   dataKey={comparisonKey}
                   name={comparisonName}
                   fill="#2f9c5a"
                   radius={[4, 4, 0, 0]}
                 />
               ) : null}
-              <Bar dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]}>
+              <Bar isAnimationActive={false} dataKey={dataKey} name={valueName} fill="#44E500" radius={[4, 4, 0, 0]}>
                 {comparisonKey ? (
                   <LabelList
                     dataKey={dataKey}
@@ -1295,7 +1295,7 @@ function OpportunitySellerChart({
                     );
                   }}
                 />
-                <Bar
+                <Bar isAnimationActive={false}
                   dataKey="oportunidades"
                   name="Oportunidades"
                   fill="#44E500"
@@ -1314,7 +1314,7 @@ function OpportunitySellerChart({
                   />
                 </Bar>
                 {compare ? (
-                  <Bar
+                  <Bar isAnimationActive={false}
                     dataKey="reservas"
                     name="Reservas concluídas"
                     fill="#2f9c5a"
@@ -1438,7 +1438,7 @@ function NoTaskBySellerChart({
                       );
                     }}
                   />
-                  <Bar dataKey="noTask" name={metric} fill={color} radius={[0, 4, 4, 0]}>
+                  <Bar isAnimationActive={false} dataKey="noTask" name={metric} fill={color} radius={[0, 4, 4, 0]}>
                     <LabelList
                       dataKey="sharePct"
                       content={barSideLabel(chartData.map((r) => r.sharePct))}
@@ -1568,7 +1568,7 @@ function SellerLineChart({
                   )}
                 />
                 {series.map((name, index) => (
-                  <Line
+                  <Line isAnimationActive={false}
                     key={name}
                     type="monotone"
                     dataKey={name}
@@ -1799,7 +1799,7 @@ function GoalChart({
               />
               <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]}>
+              <Bar isAnimationActive={false} dataKey={a} name="Alcançado" fill="#44E500" radius={[0, 4, 4, 0]}>
                 {showLabel && b ? (
                   <LabelList
                     dataKey={a}
@@ -1834,7 +1834,7 @@ function GoalChart({
                   />
                 ) : null}
               </Bar>
-              {b ? <Bar dataKey={b} name={bLabel} fill="#2f9c5a" radius={[0, 4, 4, 0]} /> : null}
+              {b ? <Bar isAnimationActive={false} dataKey={b} name={bLabel} fill="#2f9c5a" radius={[0, 4, 4, 0]} /> : null}
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -2327,15 +2327,15 @@ function RevenueBreakdownChart({
               <YAxis {...axis} tickFormatter={(value: number) => `$${Math.round(value / 1000)}k`} />
               <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => brl(value)} />
               <Legend wrapperStyle={{ paddingTop: "16px" }} />
-              <Bar
+              <Bar isAnimationActive={false}
                 dataKey="rackRate"
                 name="Rack Rate"
                 fill="#44E500"
                 stackId="a"
                 radius={[4, 4, 0, 0]}
               />
-              <Bar dataKey="miscellaneousPrice" name="Taxas Diversas" fill="#2f9c5a" stackId="a" />
-              <Bar
+              <Bar isAnimationActive={false} dataKey="miscellaneousPrice" name="Taxas Diversas" fill="#2f9c5a" stackId="a" />
+              <Bar isAnimationActive={false}
                 dataKey="additionalChargesPrice"
                 name="Cobranças Adicionais"
                 fill="#9be870"

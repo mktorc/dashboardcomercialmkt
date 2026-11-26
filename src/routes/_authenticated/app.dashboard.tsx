@@ -589,7 +589,7 @@ function Dashboard() {
                         tickFormatter={(value: number) => `$${Math.round(value)}`}
                       />
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                      <Area
+                      <Area isAnimationActive={false}
                         type="monotone"
                         dataKey="faturamento"
                         yAxisId="revenue"
@@ -598,7 +598,7 @@ function Dashboard() {
                         fill="url(#rev)"
                         strokeWidth={2}
                       />
-                      <Line
+                      <Line isAnimationActive={false}
                         type="monotone"
                         dataKey="investimento"
                         yAxisId="spend"
@@ -669,7 +669,7 @@ function Dashboard() {
                                   .join("/")
                               }
                             />
-                            <Bar
+                            <Bar isAnimationActive={false}
                               dataKey="conversations"
                               name="Conversas iniciadas"
                               fill={CHART_PRIMARY}
@@ -751,13 +751,13 @@ function Dashboard() {
                           }}
                         />
                         <Legend />
-                        <Bar
+                        <Bar isAnimationActive={false}
                           dataKey="conversao"
                           name="Taxa de Conversão (%)"
                           fill={CHART_PRIMARY}
                           radius={[4, 4, 0, 0]}
                         />
-                        <Bar
+                        <Bar isAnimationActive={false}
                           dataKey="cac"
                           name="CAC Percentual (%)"
                           fill={CHART_SECONDARY}
@@ -1230,12 +1230,12 @@ function OriginMonthlyChart({
                     }
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar
+                  <Bar isAnimationActive={false}
                     dataKey="previousYear"
                     name={`Ano Anterior (${previousYear})`}
                     fill={CHART_SECONDARY}
                   />
-                  <Bar
+                  <Bar isAnimationActive={false}
                     dataKey="currentYear"
                     name={`Ano Atual (${currentYear})`}
                     fill={CHART_PRIMARY}

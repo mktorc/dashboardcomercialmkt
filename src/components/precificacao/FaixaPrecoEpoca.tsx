@@ -224,7 +224,7 @@ function Painel({ payload }: { payload: PacePayload }) {
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   {anos.map((a, i) => (
-                    <Scatter
+                    <Scatter isAnimationActive={false}
                       key={a}
                       name={a}
                       data={pontos.filter((p) => p.ano === a)}

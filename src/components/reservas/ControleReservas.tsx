@@ -527,7 +527,7 @@ export function ControleReservas({ showBack = true }: { showBack?: boolean }) {
                   formatter={(v: number) => [v.toLocaleString("pt-BR"), "Reservas"]}
                   labelFormatter={(_, p) => br(String(p?.[0]?.payload?.day ?? ""))}
                 />
-                <Bar
+                <Bar isAnimationActive={false}
                   dataKey="reservas"
                   name="Reservas"
                   fill="#44E500"

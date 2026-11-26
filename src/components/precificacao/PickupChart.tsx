@@ -112,7 +112,7 @@ export function PickupChart({
                 contentStyle={{ fontSize: 12 }}
               />
               {(extras ?? []).map((e) => (
-                <Line
+                <Line isAnimationActive={false}
                   key={e.key}
                   type="monotone"
                   dataKey={e.key}
@@ -128,7 +128,7 @@ export function PickupChart({
                   connectNulls={false}
                 />
               ))}
-              <Line
+              <Line isAnimationActive={false}
                 type="monotone"
                 dataKey="esperada"
                 name={esperadaNome}
@@ -138,7 +138,7 @@ export function PickupChart({
                 dot={{ r: 3 }}
                 connectNulls={false}
               />
-              <Line
+              <Line isAnimationActive={false}
                 type="monotone"
                 dataKey="atual"
                 name="Atual"

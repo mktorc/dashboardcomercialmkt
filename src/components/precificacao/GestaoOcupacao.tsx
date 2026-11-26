@@ -623,7 +623,7 @@ function Comparativo({ days, base, bands }: { days: DayPace[]; base: string; ban
               <YAxis unit="%" tick={{ fontSize: 11 }} domain={[0, 100]} />
               <ChartTooltip content={<LineTip bands={bands} />} />
               <ReferenceLine y={100} stroke="var(--border)" />
-              <Line
+              <Line isAnimationActive={false}
                 type="monotone"
                 dataKey="esperada"
                 name="Esperada"
@@ -633,7 +633,7 @@ function Comparativo({ days, base, bands }: { days: DayPace[]; base: string; ban
                 dot={false}
                 connectNulls={false}
               />
-              <Line
+              <Line isAnimationActive={false}
                 type="monotone"
                 dataKey="atual"
                 name="Atual"

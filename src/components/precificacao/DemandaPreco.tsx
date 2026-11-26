@@ -290,7 +290,7 @@ export function DemandaPreco({ onAbrirPrioridades }: { onAbrirPrioridades?: () =
                       ["ADR", COR.adr],
                     ] as const
                   ).map(([serie, cor]) => (
-                    <Line
+                    <Line isAnimationActive={false}
                       key={serie}
                       dataKey={serie}
                       stroke={cor}
@@ -387,7 +387,7 @@ export function DemandaPreco({ onAbrirPrioridades }: { onAbrirPrioridades?: () =
                       return [`${usd(v)}${extra}`, "ADR"];
                     }}
                   />
-                  <Bar dataKey="adr" fill={COR.adr} radius={[4, 4, 0, 0]} />
+                  <Bar isAnimationActive={false} dataKey="adr" fill={COR.adr} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
