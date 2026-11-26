@@ -170,6 +170,32 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   // Mesmos limites em UTC da aba Comercial, para as oportunidades baterem.
   const utcFrom = `${from}T00:00:00.000Z`;
   const utcTo = `${to}T23:59:59.999Z`;
+  // Consultas independentes começam juntas (antes rodavam em ondas, uma depois da outra).
+  // Contatos por origem vêm só de crm_leads (nunca de crm_opportunities).
+  const countContacts = async (rule: ContactRule) => {
+    const ilikes = (col: string, terms: string[]) => terms.map((t) => `${col}.ilike.${t}`);
+    const count = async (filters: string[]) => {
+      const { count, error } = await supabase
+        .from("crm_leads")
+        .select("id", { count: "exact", head: true })
+        .or(filters.join(","))
+        .gte("created_at", iso(fromDate))
+        .lte("created_at", iso(toDate));
+      if (error) throw error;
+      return count ?? 0;
+    };
+    const conn = ilikes("first_connection_name", rule.connection);
+    const origin = ilikes("lead_origin", rule.origin);
+    if (rule.combined) return count([...conn, ...origin]);
+    // Primário: nome da conexão; fallback: Origem do Lead (histórico sem first_connection_name).
+    return (await count(conn)) || (await count(origin));
+  };
+  const contactCountsP = Promise.all(CONTACT_RULES.map(countContacts));
+  const kommoP = Promise.all([
+    fetchKommoLeads(utcFrom, utcTo),
+    fetchKommoWins(iso(fromDate), iso(toDate)),
+  ]);
+
   const [
     meta,
     google,
@@ -257,34 +283,10 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
       .gte("created_at", iso(fromDate))
       .lte("created_at", iso(toDate)),
   ]);
-  // Contatos por origem vêm só de crm_leads (nunca de crm_opportunities).
-  const countContacts = async (rule: ContactRule) => {
-    const ilikes = (col: string, terms: string[]) => terms.map((t) => `${col}.ilike.${t}`);
-    const count = async (filters: string[]) => {
-      const { count, error } = await supabase
-        .from("crm_leads")
-        .select("id", { count: "exact", head: true })
-        .or(filters.join(","))
-        .gte("created_at", iso(fromDate))
-        .lte("created_at", iso(toDate));
-      if (error) throw error;
-      return count ?? 0;
-    };
-    const conn = ilikes("first_connection_name", rule.connection);
-    const origin = ilikes("lead_origin", rule.origin);
-    if (rule.combined) return count([...conn, ...origin]);
-    // Primário: nome da conexão; fallback: Origem do Lead (histórico sem first_connection_name).
-    return (await count(conn)) || (await count(origin));
-  };
-  const contactCounts = await Promise.all(CONTACT_RULES.map(countContacts));
+  const [contactCounts, [kommoLeads, kommoWins]] = await Promise.all([contactCountsP, kommoP]);
   const contactsByOrigin = Object.fromEntries(
     CONTACT_RULES.map((r, i) => [r.id, contactCounts[i]!]),
   );
-  const [kommoLeads, kommoWins] = await Promise.all([
-    fetchKommoLeads(utcFrom, utcTo),
-    fetchKommoWins(iso(fromDate), iso(toDate)),
-  ]);
-
   const err =
     meta.error ||
     google.error ||
@@ -321,6 +323,15 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         .filter((id): id is string => Boolean(id) && !id!.startsWith(KOMMO_PREFIX)),
     ),
   ];
+  const rawReservations = (
+    (reservations.data ?? []) as (ReservationRow & { rack_rate: number | null })[]
+  ).map(({ rack_rate, ...reservation }) => ({
+    ...reservation,
+    total_amount: Number(rack_rate ?? reservation.total_amount),
+  }));
+
+  // Origem das reservas roda junto com a busca das origens das oportunidades.
+  const linkedReservationsP = attachLeadOrigin(rawReservations);
   const originLeadPages = await Promise.all(
     Array.from({ length: Math.ceil(leadIds.length / 400) }, (_, index) =>
       fetchAll((a, b) =>
@@ -399,14 +410,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
   const opportunities = attachOrigin(createdRows);
   const updated = attachOrigin(updatedRows);
 
-  const rawReservations = (
-    (reservations.data ?? []) as (ReservationRow & { rack_rate: number | null })[]
-  ).map(({ rack_rate, ...reservation }) => ({
-    ...reservation,
-    total_amount: Number(rack_rate ?? reservation.total_amount),
-  }));
-
-  const linkedReservations = await attachLeadOrigin(rawReservations);
+  const linkedReservations = await linkedReservationsP;
 
   return {
     meta: num((meta.data ?? []) as never[]),

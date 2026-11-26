@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { limparCacheLocal, persistirConsultas } from "@/lib/query-persist";
 
 function NotFoundComponent() {
   return (
@@ -122,9 +123,12 @@ function RootComponent() {
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
+  useEffect(() => persistirConsultas(queryClient), [queryClient]);
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      // Ao sair, apaga os dados guardados no navegador.
+      if (event === "SIGNED_OUT") void limparCacheLocal();
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
