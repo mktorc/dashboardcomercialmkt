@@ -426,7 +426,12 @@ export async function regenerateArticles(
         description: `Pasta ${f.category || "Geral"} (${area === "cs" ? "CS" : "Comercial"}).`,
       });
     sources[f.file_id] = { name: f.name, link: f.web_view_link ?? "" };
-    for (const a of gen) {
+    // Documento com versão em português e espanhol ([ORC PT] / [ORC ES] no nome): o idioma vai
+    // no título, para as duas versões aparecerem lado a lado sem parecer duplicadas.
+    const lang = /\[ORC\s*(PT|ES)\]/i.exec(f.name)?.[1]?.toUpperCase();
+    for (const g of gen) {
+      const a =
+        lang && !g.title.endsWith(`(${lang})`) ? { ...g, title: `${g.title} (${lang})` } : g;
       let id = slug(a.title);
       for (let n = 2; usedIds.has(id); n++) id = `${slug(a.title)}-${n}`;
       usedIds.add(id);
@@ -474,7 +479,7 @@ export async function regenerateArticles(
 
 // ---- Agrupamento por assunto -------------------------------------------------------------
 
-const GROUP_VERSION = 1;
+const GROUP_VERSION = 2;
 type Cat = { id: string; title: string; description: string };
 type Groups = { key: string; categories: Cat[]; assign: Record<string, string> };
 
