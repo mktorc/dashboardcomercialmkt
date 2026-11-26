@@ -37,7 +37,10 @@ export function useLiveUpdates() {
       timer = null;
       ultima = Date.now();
       // Só as consultas ativas (da tela aberta) são refeitas; as outras ficam marcadas como velhas.
-      void qc.invalidateQueries();
+      // As cargas do ano inteiro do Dashboard ficam de fora (pesadas): renovam pelo staleTime de 10 min.
+      void qc.invalidateQueries({
+        predicate: (q) => !String(q.queryKey[0]).startsWith("analytics-12m"),
+      });
     };
     const agendar = () => {
       if (timer) return;

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   Area,
   ComposedChart,
@@ -127,6 +127,22 @@ type AttributionSortKey =
   | "roas"
   | "cac";
 
+function useIsMainReady() {
+  const qc = useQueryClient();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (ready) return;
+    const check = () => {
+      const q = qc.getQueryCache().findAll({ queryKey: ["analytics"], exact: false });
+      if (q.some((x) => x.queryKey[0] === "analytics" && x.state.data !== undefined))
+        setReady(true);
+    };
+    check();
+    return qc.getQueryCache().subscribe(check);
+  }, [qc, ready]);
+  return ready;
+}
+
 function Dashboard() {
   const today = new Date();
   const [from, setFrom] = useState(
@@ -140,6 +156,8 @@ function Dashboard() {
     queryFn: fetchTeamCosts,
     staleTime: 10 * 60 * 1000,
   });
+  // Pronto quando a consulta do período (números do topo) já tem dados, mesmo que do cache.
+  const mainReady = useIsMainReady();
   // De janeiro do ano atual até o mês atual.
   const last12 = Array.from({ length: today.getMonth() + 1 }, (_, i) => {
     const d = new Date(today.getFullYear(), i, 1);
@@ -149,6 +167,8 @@ function Dashboard() {
     queryKey: ["analytics-12m", last12[0]],
     queryFn: () => fetchAnalytics(`${last12[0]}-01`, localDateInput(today)),
     staleTime: 10 * 60 * 1000,
+    // Só depois dos números do topo: as cargas do ano são pesadas e disputavam a rede com eles.
+    enabled: mainReady,
   });
   // Gráficos de oportunidades criadas/ganhas: sempre o ano todo (janeiro até hoje), independente do período.
   const yearStart = `${last12[0]}-01`;
@@ -160,6 +180,7 @@ function Dashboard() {
     queryKey: ["analytics-12m-prior", priorYearStart, priorYearToday],
     queryFn: () => fetchAnalytics(priorYearStart, priorYearToday),
     staleTime: 10 * 60 * 1000,
+    enabled: mainReady,
   });
   const [channelMode, setChannelMode] = useState<ChannelComparisonMode>("both");
   // O funil tem seu próprio seletor (independe do filtro de origem do topo).
@@ -589,7 +610,8 @@ function Dashboard() {
                         tickFormatter={(value: number) => `$${Math.round(value)}`}
                       />
                       <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => brl(v)} />
-                      <Area isAnimationActive={false}
+                      <Area
+                        isAnimationActive={false}
                         type="monotone"
                         dataKey="faturamento"
                         yAxisId="revenue"
@@ -598,7 +620,8 @@ function Dashboard() {
                         fill="url(#rev)"
                         strokeWidth={2}
                       />
-                      <Line isAnimationActive={false}
+                      <Line
+                        isAnimationActive={false}
                         type="monotone"
                         dataKey="investimento"
                         yAxisId="spend"
@@ -669,7 +692,8 @@ function Dashboard() {
                                   .join("/")
                               }
                             />
-                            <Bar isAnimationActive={false}
+                            <Bar
+                              isAnimationActive={false}
                               dataKey="conversations"
                               name="Conversas iniciadas"
                               fill={CHART_PRIMARY}
@@ -751,13 +775,15 @@ function Dashboard() {
                           }}
                         />
                         <Legend />
-                        <Bar isAnimationActive={false}
+                        <Bar
+                          isAnimationActive={false}
                           dataKey="conversao"
                           name="Taxa de Conversão (%)"
                           fill={CHART_PRIMARY}
                           radius={[4, 4, 0, 0]}
                         />
-                        <Bar isAnimationActive={false}
+                        <Bar
+                          isAnimationActive={false}
                           dataKey="cac"
                           name="CAC Percentual (%)"
                           fill={CHART_SECONDARY}
@@ -1230,12 +1256,14 @@ function OriginMonthlyChart({
                     }
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar isAnimationActive={false}
+                  <Bar
+                    isAnimationActive={false}
                     dataKey="previousYear"
                     name={`Ano Anterior (${previousYear})`}
                     fill={CHART_SECONDARY}
                   />
-                  <Bar isAnimationActive={false}
+                  <Bar
+                    isAnimationActive={false}
                     dataKey="currentYear"
                     name={`Ano Atual (${currentYear})`}
                     fill={CHART_PRIMARY}
