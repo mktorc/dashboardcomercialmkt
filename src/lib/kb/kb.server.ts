@@ -110,7 +110,9 @@ const MEDIA_START_MS = 100_000;
 // Arquivos lidos ao mesmo tempo (vídeos vão para o Gemini em paralelo).
 const SYNC_PARALLEL = 5;
 // Geração dos artigos: não começa arquivo novo depois disto (cada um leva ~10-40 s no Gemini).
-const ARTICLES_DEADLINE_MS = 240_000;
+const ARTICLES_DEADLINE_MS = 200_000;
+// Corte duro das chamadas ao Gemini: dá tempo de gravar gen/, articles.json e o status antes dos 300 s.
+const HARD_STOP_MS = 275_000;
 
 type FileRow = {
   file_id: string;
@@ -215,7 +217,11 @@ export async function runSync(origem: "manual" | "cron") {
     await syncTemplates(files);
     // Artigos: arquivo novo/alterado (inclusive pasta nova) vira artigo; o resto é reaproveitado.
     const { regenerateArticles } = await import("./articles-gen.server");
-    const gen = await regenerateArticles(db, started + ARTICLES_DEADLINE_MS);
+    const gen = await regenerateArticles(
+      db,
+      started + ARTICLES_DEADLINE_MS,
+      started + HARD_STOP_MS,
+    );
     (stats as Record<string, unknown>)["artigos"] = gen;
     // Erro na geração (quase sempre Gemini sobrecarregado) também pede nova rodada.
     if (stats.pendentes || gen.pendentes || gen.erros) status = "parcial";

@@ -181,7 +181,7 @@ const RESPONSE_SCHEMA = {
   required: ["articles"],
 };
 
-async function generateFor(db: Db, f: FileRow): Promise<GenArticle[]> {
+async function generateFor(db: Db, f: FileRow, hardStop: number): Promise<GenArticle[]> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
   const { data } = await db
@@ -211,15 +211,20 @@ async function generateFor(db: Db, f: FileRow): Promise<GenArticle[]> {
   });
   // Resposta cortada ou fora do formato: tenta de novo (até 3 vezes no total).
   let lastErr: unknown = null;
+  // Cada chamada é cortada no limite da função (hardStop): sem isso a Vercel mata a execução no
+  // meio, a rodada fica presa em "rodando" e nada do que já foi gerado é gravado.
+  const left = () => hardStop - Date.now();
   for (let attempt = 0; attempt < 3; attempt++) {
+    if (left() < 5_000) throw new Error("Sem tempo nesta rodada");
     const res = await callWithFallback(apiKey, (model) =>
       fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: "POST",
         headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
         body,
+        signal: AbortSignal.timeout(Math.max(1_000, left())),
       }),
     );
-    if (res.status === 503 && attempt < 2) {
+    if (res.status === 503 && attempt < 2 && left() > 15_000 * (attempt + 1) + 30_000) {
       // Todos os modelos sobrecarregados: espera um pouco e tenta de novo.
       await new Promise((r) => setTimeout(r, 15_000 * (attempt + 1)));
       continue;
@@ -269,7 +274,11 @@ export type GenStats = {
  * Atualiza o articles.json. `deadline` (epoch ms): não começa arquivo novo depois dele; o que
  * faltar fica para a próxima sincronização (status "parcial").
  */
-export async function regenerateArticles(db: Db, deadline: number): Promise<GenStats> {
+export async function regenerateArticles(
+  db: Db,
+  deadline: number,
+  hardStop: number,
+): Promise<GenStats> {
   const stats: GenStats = { gerados: 0, reaproveitados: 0, pendentes: 0, erros: 0 };
   const { data } = await db
     .from("kb_files")
@@ -293,11 +302,15 @@ export async function regenerateArticles(db: Db, deadline: number): Promise<GenS
       if (c && c.modified_time === f.modified_time) {
         results.set(f.file_id, c.articles);
         stats.reaproveitados++;
-      } else todo.push(f);
+      } else {
+        // Versão antiga do arquivo continua no ar até a nova ficar pronta.
+        if (c?.articles?.length) results.set(f.file_id, c.articles);
+        todo.push(f);
+      }
     }),
   );
 
-  const changed = todo.length > 0;
+  let changed = false;
   for (let i = 0; i < todo.length; i += PARALLEL) {
     if (Date.now() > deadline) {
       stats.pendentes += todo.length - i;
@@ -306,13 +319,14 @@ export async function regenerateArticles(db: Db, deadline: number): Promise<GenS
     await Promise.all(
       todo.slice(i, i + PARALLEL).map(async (f) => {
         try {
-          const articles = await generateFor(db, f);
+          const articles = await generateFor(db, f, hardStop);
           await writeJson(db, `gen/${f.file_id}.json`, {
             modified_time: f.modified_time,
             articles,
           } satisfies CacheEntry);
           results.set(f.file_id, articles);
           stats.gerados++;
+          changed = true;
         } catch (e) {
           console.error(`[kb] artigos: falha em ${f.name}`, e);
           stats.erros++;
@@ -351,9 +365,9 @@ export async function regenerateArticles(db: Db, deadline: number): Promise<GenS
   const sameFiles =
     prevIds.length === Object.keys(sources).length && prevIds.every((id) => id in sources);
   if (prev?.auto && sameFiles && !changed) return stats;
-  // Só publica a base completa: com arquivo faltando (erro ou sem tempo), mantém a versão no ar e
-  // guarda o que já foi gerado em gen/ para a próxima rodada. Evita a tela com metade dos artigos.
-  if (stats.pendentes || stats.erros) return stats;
+  // Publica a cada avanço: com o Gemini instável (503), exigir base completa travava a publicação
+  // para sempre. O que falhou fica para a próxima rodada (status "parcial" encadeia outra).
+  if (!Object.keys(sources).length) return stats;
 
   await writeJson(db, "articles.json", {
     auto: true,

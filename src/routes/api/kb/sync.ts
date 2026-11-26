@@ -9,6 +9,12 @@ async function handle(request: Request, viaCron: boolean) {
     const u = await kb.requireKbAdmin(request);
     if ("denied" in u) return u.denied;
   }
+  // Rodada morta pelo limite da função nunca chega a gravar o fim: fecha as presas há mais de 6 min.
+  await kb.db
+    .from("kb_sync_runs")
+    .update({ status: "erro", finished_at: new Date().toISOString() })
+    .eq("status", "rodando")
+    .lt("started_at", new Date(Date.now() - 6 * 60_000).toISOString());
   const { data: running } = await kb.db
     .from("kb_sync_runs")
     .select("id")
