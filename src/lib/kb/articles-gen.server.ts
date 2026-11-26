@@ -181,6 +181,30 @@ const RESPONSE_SCHEMA = {
   required: ["articles"],
 };
 
+/** Sem tempo nesta rodada: o arquivo fica pendente (não conta como erro) e segue na próxima. */
+class SemTempo extends Error {}
+
+// Arquivo grande (vídeo longo, PDF extenso) vira partes de até PART_CHARS, cada uma gerada e
+// guardada à parte (gen/<id>.p<n>.json). Assim nenhum arquivo precisa caber inteiro numa rodada:
+// cada rodada avança algumas partes e a última junta tudo.
+const PART_CHARS = 20_000;
+// Uma chamada travada não pode comer a rodada inteira: corta e passa para o próximo modelo.
+const CALL_TIMEOUT_MS = 120_000;
+
+function splitParts(chunks: string[]): string[] {
+  const parts: string[] = [];
+  let cur = "";
+  for (const c of chunks) {
+    if (cur && cur.length + c.length > PART_CHARS) {
+      parts.push(cur);
+      cur = "";
+    }
+    cur += (cur ? "\n" : "") + c;
+  }
+  if (cur.trim()) parts.push(cur);
+  return parts;
+}
+
 async function generateFor(db: Db, f: FileRow, hardStop: number): Promise<GenArticle[]> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
@@ -190,16 +214,42 @@ async function generateFor(db: Db, f: FileRow, hardStop: number): Promise<GenArt
     .eq("file_id", f.file_id)
     .order("idx")
     .limit(5000);
-  const text = ((data ?? []) as { content: string }[])
-    .map((c) => c.content)
-    .join("\n")
-    .slice(0, MAX_INPUT_CHARS);
-  if (!text.trim()) return [];
+  const chunks = ((data ?? []) as { content: string }[]).map((c) => c.content);
+  const total = chunks.join("\n").slice(0, MAX_INPUT_CHARS);
+  if (!total.trim()) return [];
+  if (total.length <= PART_CHARS * 1.25) return generatePart(apiKey, f, total, hardStop, "");
+
+  const parts = splitParts(chunks).slice(0, Math.ceil(MAX_INPUT_CHARS / PART_CHARS));
+  const all: GenArticle[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const path = `gen/${f.file_id}.p${i}.json`;
+    const cached = await readJson<CacheEntry>(db, path);
+    if (cached && cached.modified_time === f.modified_time) {
+      all.push(...cached.articles);
+      continue;
+    }
+    const label = ` (parte ${i + 1} de ${parts.length})`;
+    const articles = await generatePart(apiKey, f, parts[i]!, hardStop, label);
+    await writeJson(db, path, { modified_time: f.modified_time, articles } satisfies CacheEntry);
+    all.push(...articles);
+  }
+  return all;
+}
+
+async function generatePart(
+  apiKey: string,
+  f: FileRow,
+  text: string,
+  hardStop: number,
+  label: string,
+): Promise<GenArticle[]> {
   const body = JSON.stringify({
     contents: [
       {
         role: "user",
-        parts: [{ text: `${PROMPT}\n\nArquivo: ${f.name}\nPasta: ${f.category}\n\n---\n${text}` }],
+        parts: [
+          { text: `${PROMPT}\n\nArquivo: ${f.name}${label}\nPasta: ${f.category}\n\n---\n${text}` },
+        ],
       },
     ],
     generationConfig: {
@@ -215,15 +265,22 @@ async function generateFor(db: Db, f: FileRow, hardStop: number): Promise<GenArt
   // meio, a rodada fica presa em "rodando" e nada do que já foi gerado é gravado.
   const left = () => hardStop - Date.now();
   for (let attempt = 0; attempt < 3; attempt++) {
-    if (left() < 5_000) throw new Error("Sem tempo nesta rodada");
-    const res = await callWithFallback(apiKey, (model) =>
-      fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-        body,
-        signal: AbortSignal.timeout(Math.max(1_000, left())),
-      }),
-    );
+    if (left() < 20_000) throw new SemTempo("Sem tempo nesta rodada");
+    const res = await callWithFallback(apiKey, async (model) => {
+      if (left() < 10_000) return new Response("sem tempo", { status: 503 });
+      try {
+        return await fetch(`${API}/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+          body,
+          signal: AbortSignal.timeout(Math.min(CALL_TIMEOUT_MS, left())),
+        });
+      } catch {
+        // Demorou demais: trata como sobrecarga e deixa o próximo modelo tentar.
+        return new Response("timeout", { status: 503 });
+      }
+    });
+    if (res.status === 503 && left() < 20_000) throw new SemTempo("Sem tempo nesta rodada");
     if (res.status === 503 && attempt < 2 && left() > 15_000 * (attempt + 1) + 30_000) {
       // Todos os modelos sobrecarregados: espera um pouco e tenta de novo.
       await new Promise((r) => setTimeout(r, 15_000 * (attempt + 1)));
@@ -310,6 +367,19 @@ export async function regenerateArticles(
     }),
   );
 
+  // Menores primeiro: numa rodada curta, muitos arquivos pequenos entram antes dos vídeos longos.
+  const { data: sizes } = await db
+    .from("kb_chunks")
+    .select("file_id")
+    .in(
+      "file_id",
+      todo.map((f) => f.file_id),
+    )
+    .limit(100_000);
+  const nChunks = new Map<string, number>();
+  for (const r of (sizes ?? []) as { file_id: string }[])
+    nChunks.set(r.file_id, (nChunks.get(r.file_id) ?? 0) + 1);
+  todo.sort((x, y) => (nChunks.get(x.file_id) ?? 0) - (nChunks.get(y.file_id) ?? 0));
   let changed = false;
   for (let i = 0; i < todo.length; i += PARALLEL) {
     if (Date.now() > deadline) {
@@ -328,6 +398,10 @@ export async function regenerateArticles(
           stats.gerados++;
           changed = true;
         } catch (e) {
+          if (e instanceof SemTempo) {
+            stats.pendentes++;
+            return;
+          }
           console.error(`[kb] artigos: falha em ${f.name}`, e);
           stats.erros++;
         }
