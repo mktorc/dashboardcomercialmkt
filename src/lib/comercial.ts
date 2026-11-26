@@ -198,6 +198,7 @@ async function fetchRevenueBreakdown() {
           "created_at, seller_name, status, rack_rate, miscellaneous_price, additional_charges_price",
         )
         .gte("created_at", histFrom)
+        .order("reservation_id")
         .range(a, b),
     );
 
@@ -209,6 +210,7 @@ async function fetchRevenueBreakdown() {
           .from("reservations")
           .select("created_at, seller_name, status, rack_rate")
           .gte("created_at", histFrom)
+          .order("reservation_id")
           .range(a, b),
       );
 
@@ -319,6 +321,7 @@ export async function fetchComercial(from: string, to: string) {
         )
         .gte("created_at", histFrom)
         .lte("created_at", endIso(to))
+        .order("reservation_id")
         .range(a, b),
     ),
     // Tarefas criadas no período (contagens por vendedor). Antes vinha a tabela inteira (~33 mil).
@@ -351,6 +354,7 @@ export async function fetchComercial(from: string, to: string) {
         .select("created_at, total_amount, discount_amount, rack_rate, status, seller_name")
         .gte("created_at", startIso(prevFrom))
         .lte("created_at", endIso(prevTo))
+        .order("reservation_id")
         .range(a, b),
     ),
     fetchAll((a, b) =>
@@ -362,6 +366,7 @@ export async function fetchComercial(from: string, to: string) {
         .eq("pipeline_name", "Comercial")
         .gte("created_at", oppStartIso(prevFrom))
         .lte("created_at", oppEndIso(prevTo))
+        .order("opportunity_id")
         .range(a, b),
     ),
     fetchAll((a, b) =>
@@ -371,6 +376,7 @@ export async function fetchComercial(from: string, to: string) {
         .eq("status", "confirmed")
         .gte("created_at", startIso(previousYearDate(from)))
         .lte("created_at", endIso(previousYearDate(to)))
+        .order("reservation_id")
         .range(a, b),
     ),
     fetchAll((a, b) =>
@@ -382,6 +388,7 @@ export async function fetchComercial(from: string, to: string) {
         .eq("pipeline_name", "Comercial")
         .gte("created_at", oppStartIso(previousYearDate(from)))
         .lte("created_at", oppEndIso(previousYearDate(to)))
+        .order("opportunity_id")
         .range(a, b),
     ),
   ]);
@@ -1101,6 +1108,7 @@ export function computeComercial(
     rackRateVar: calcVariation(faturamento, prevFaturamento),
     conversao: currentConversao,
     conversaoVar: calcVariation(currentConversao, prevConversao),
+    conversaoDiffPp: (currentConversao - prevConversao) * 100,
     ticket: currentTicket,
     ticketVar: calcVariation(currentTicket, prevTicket),
     leadsNoTask,

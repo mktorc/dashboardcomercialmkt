@@ -213,6 +213,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         )
         .gte("date", from)
         .lte("date", to)
+        .order("id")
         .range(a, b),
     ),
     // `conversions` exige a migração 0033; sem ela, cai para a consulta antiga.
@@ -222,6 +223,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         .select("date, campaign_name, spend, clicks, impressions, utm_campaign, conversions")
         .gte("date", from)
         .lte("date", to)
+        .order("id")
         .range(a, b),
     ).then((res) =>
       res.error
@@ -231,6 +233,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
               .select("date, campaign_name, spend, clicks, impressions, utm_campaign")
               .gte("date", from)
               .lte("date", to)
+              .order("id")
               .range(a, b),
           )
         : res,
@@ -257,6 +260,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         .eq("pipeline_name", "Comercial")
         .gte("created_at", utcFrom)
         .lte("created_at", utcTo)
+        .order("opportunity_id")
         .range(a, b),
     ),
     fetchAll((a, b) =>
@@ -268,6 +272,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
         .eq("pipeline_name", "Comercial")
         .gte("updated_at", iso(fromDate))
         .lte("updated_at", iso(toDate))
+        .order("opportunity_id")
         .range(a, b),
     ),
     supabase
@@ -341,6 +346,7 @@ export async function fetchAnalytics(from: string, to: string): Promise<Analytic
             "lead_id, utm_source, lead_origin, utm_campaign, first_connection_name, phone8, email_lc",
           )
           .in("lead_id", leadIds.slice(index * 400, (index + 1) * 400))
+          .order("lead_id")
           .range(a, b),
       ),
     ),

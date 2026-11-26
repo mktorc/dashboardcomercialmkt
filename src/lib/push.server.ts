@@ -4,7 +4,8 @@ import { VAPID_PUBLIC_KEY } from "@/lib/push-config";
 type Sub = { endpoint: string; p256dh: string; auth: string };
 
 /**
- * Notifica os aparelhos inscritos sobre reservas que passaram de pending para confirmed (open no HQ) ou foram canceladas (canceled no HQ)
+ * Notifica os aparelhos inscritos sobre reservas que passaram de pending para confirmed (open no HQ) ou que estavam
+ * em open e foram canceladas (canceladas ainda em pending não avisam)
  * desde a última notificação. Várias reservas viram uma só notificação. Só leva o número da reserva.
  * Chamado ao fim do sync do HQ; nunca lança erro para não derrubar o sync.
  */
@@ -26,7 +27,9 @@ export async function notifyReservationsOpened(): Promise<{ sent: number; reserv
     const { data: changes, error } = await supabaseAdmin
       .from("reservation_status_history")
       .select("id, reservation_id, from_status, to_status")
-      .or("and(from_status.eq.pending,to_status.eq.confirmed),to_status.eq.cancelled")
+      .or(
+        "and(from_status.eq.pending,to_status.eq.confirmed),and(from_status.eq.confirmed,to_status.eq.cancelled)",
+      )
       .gt("id", last)
       .order("id")
       .limit(1000);

@@ -55,12 +55,14 @@ export const Route = createFileRoute("/api/public/sync/hqrentals")({
           page += 1;
           if (cutoff !== null) {
             // Reservas em aberto (devolução de ontem em diante) também entram: cancelamentos e
-            // mudanças de data feitos depois da criação alteram a ocupação futura. Por isso percorre
-            // todas as páginas, mas só grava as recentes ou em aberto.
+            // mudanças de data feitos depois da criação alteram a ocupação futura. Também entram as
+            // alteradas na janela (ex.: contrato fechado com extras depois da devolução), senão os
+            // valores ficam diferentes do HQ. Por isso percorre todas as páginas, mas só grava essas.
             all.push(
               ...data.filter(
                 (r) =>
                   Date.parse(String(r["created_at"] ?? "")) >= cutoff ||
+                  Date.parse(String(r["updated_at"] ?? "")) >= cutoff ||
                   Date.parse(String(r["return_date"] ?? "")) >= openFrom,
               ),
             );

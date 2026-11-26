@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isSyncAuthorized } from "@/lib/sync-auth";
 import { recordSyncRun } from "@/lib/sync-runs";
+import { fetchAll } from "@/lib/fetch-all";
 import { clickMassaBase, getClickMassaToken } from "@/lib/clickmassa-auth.server";
 
 // Sincroniza oportunidades do ClickMassa buscando GET /opportunity/:id
@@ -95,6 +96,27 @@ export const Route = createFileRoute("/api/public/sync/clickmassa-opportunities"
         const notFound: string[] = []; // excluídas no ClickMassa
         // Do mais novo ao mais antigo: se o tempo acabar, o que fica sem varrer é o mais antigo
         const ids = Array.from({ length: to - from + 1 }, (_, i) => to - i);
+        // Oportunidades abertas fora da faixa: criar/concluir tarefa não muda o updatedAt nem o id,
+        // então sem isto a contagem de tarefas delas fica diferente do ClickMassa. Entram depois da
+        // faixa, em ordem aleatória, para que execuções seguidas cubram todas dentro do orçamento.
+        if (!url.searchParams.get("from")) {
+          const { data: open } = await fetchAll((a, b) =>
+            supabaseAdmin
+              .from("crm_opportunities")
+              .select("opportunity_id")
+              .eq("status", "open")
+              .order("opportunity_id")
+              .range(a, b),
+          );
+          const extra = (open as { opportunity_id: string }[])
+            .map((r) => Number(r.opportunity_id))
+            .filter((n) => Number.isFinite(n) && n > 0 && n < from);
+          for (let i = extra.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [extra[i], extra[j]] = [extra[j]!, extra[i]!];
+          }
+          ids.push(...extra);
+        }
         // Orçamento de tempo: para antes do limite da função (300s) e ainda grava o que leu
         // 120s de leitura deixa folga para os upserts e para o limite de 300s da função
         const deadline = Date.now() + 120_000;

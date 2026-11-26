@@ -35,6 +35,7 @@ export async function fetchKommoLeads(
       .gte(dateColumn, fromIso)
       .lte(dateColumn, toIso)
       .order(dateColumn)
+      .order("lead_id")
       .range(a, b),
   );
   if (error) throw error;
@@ -80,6 +81,7 @@ export async function fetchKommoWins(fromIso: string, toIso: string): Promise<Ko
       .gte("created_at", fromIso)
       .lte("created_at", toIso)
       .order("created_at")
+      .order("reservation_id")
       .range(a, b),
   );
   if (res.error) throw res.error;

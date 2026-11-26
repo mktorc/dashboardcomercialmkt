@@ -136,9 +136,14 @@ export async function fetchOccupancy(from?: string, to?: string) {
         .eq("status", "confirmed")
         .lt("pick_up_at", end)
         .gte("return_at", start)
+        // Ordem estável: sem ela a paginação repete e perde linhas entre as páginas.
+        .order("reservation_id")
+        .order("seq")
         .range(a, b),
     ),
-    fetchAll((a, b) => supabase.from("fleet_vehicles").select("entry_date, exit_date").range(a, b)),
+    fetchAll((a, b) =>
+      supabase.from("fleet_vehicles").select("entry_date, exit_date").order("id").range(a, b),
+    ),
   ]);
 
   if (!segments.error && !fleet.error && fleet.data.length > 0) {
@@ -159,6 +164,7 @@ export async function fetchOccupancy(from?: string, to?: string) {
         .eq("status", "confirmed")
         .lt("pick_up_at", end)
         .gte("return_at", start)
+        .order("reservation_id")
         .range(a, b),
     ),
     supabase.from("fleet_stats").select("vehicles").eq("id", 1).maybeSingle(),

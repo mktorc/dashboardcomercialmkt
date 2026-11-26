@@ -56,7 +56,7 @@ import {
   type Goal,
   type COpp,
 } from "@/lib/comercial";
-import { fetchOccupancy, occupancyMonthVariation } from "@/lib/occupancy";
+import { fetchOccupancy } from "@/lib/occupancy";
 import {
   commissionFor,
   GLOBAL_GOAL,
@@ -113,6 +113,8 @@ const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const comparison = (value: number, base = "mês anterior") =>
   `${value >= 0 ? "+" : ""}${value.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}% vs. ${base}`;
+const comparisonPp = (pp: number, base = "mês anterior") =>
+  `${pp >= 0 ? "+" : ""}${pp.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} p.p. vs. ${base}`;
 const duration = (minutes: number) =>
   minutes < 60
     ? `${Math.round(minutes)} min`
@@ -489,7 +491,7 @@ export function ComercialPage({
           : undefined
       }
       value={k ? pct(k.conversao) : "—"}
-      hint={k ? comparison(k.conversaoVar) : undefined}
+      hint={k ? comparisonPp(k.conversaoDiffPp) : undefined}
       highlight
       goal={{
         actual: k?.conversao ?? 0,
@@ -522,7 +524,8 @@ export function ComercialPage({
               .slice(0, 7);
             const yearAgoMonth = occCards?.months.find((item) => item.month === yearAgoMonthKey);
             const occupancyRate = month?.rate;
-            const occupancyVariation = occupancyMonthVariation(month, yearAgoMonth);
+            const occupancyVariation =
+              month && yearAgoMonth ? (month.rate - yearAgoMonth.rate) * 100 : undefined;
             const occupancyTarget = data?.goals.find(
               (g) => g.seller_name === OCCUPANCY_GOAL && g.month === occupancyMonth,
             )?.discount_goal;
@@ -535,7 +538,7 @@ export function ComercialPage({
                 hint={
                   occupancyVariation === undefined
                     ? undefined
-                    : comparison(occupancyVariation, "ano anterior")
+                    : comparisonPp(occupancyVariation, "ano anterior")
                 }
                 highlight={index === 0}
                 compact
@@ -1116,14 +1119,18 @@ function MonthlyBarChart({
   /** Variação negativa em relação ao ano anterior é positiva (ex.: desconto). */
   lowerIsBetter?: boolean;
 }) {
+  // Indicadores em percentual comparam em pontos percentuais; os em valor, em variação %.
+  const isRatio = percentageAxis || dataKey === "rate" || dataKey === "conversao";
+  const chartChange = (curr: number, prev: number) =>
+    isRatio ? (curr - prev) * 100 : ((curr - prev) / prev) * 100;
   const monthLines = (data as Record<string, unknown>[]).map((row) => {
     const curr = Number(row[dataKey]);
     const prev = comparisonKey ? Number(row[comparisonKey]) : NaN;
-    const change = Number.isFinite(prev) && prev > 0 ? ((curr - prev) / prev) * 100 : null;
+    const change = Number.isFinite(prev) && prev > 0 ? chartChange(curr, prev) : null;
     const variation =
       change === null
         ? ""
-        : ` (${comparisonName.toLowerCase()} ${formatter(prev)}, ${change > 0 ? "+" : ""}${change.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%)`;
+        : ` (${comparisonName.toLowerCase()} ${formatter(prev)}, ${change > 0 ? "+" : ""}${change.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}${isRatio ? " p.p." : "%"})`;
     return `${String(row[dataKey === "rate" ? "label" : "mes"])}: ${formatter(curr)}${variation}`;
   });
   const autoCalc =
@@ -1187,7 +1194,7 @@ function MonthlyBarChart({
                       const curr = Number(row?.[dataKey]);
                       if (!row || !Number.isFinite(prev) || !(prev > 0) || !Number.isFinite(curr))
                         return null;
-                      const variation = ((curr - prev) / prev) * 100;
+                      const variation = chartChange(curr, prev);
                       const good = lowerIsBetter ? variation <= 0 : variation >= 0;
                       return (
                         <text
@@ -1198,7 +1205,7 @@ function MonthlyBarChart({
                           fontWeight={600}
                           fill={good ? "#44E500" : "#ef4444"}
                         >
-                          {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                          {`${variation > 0 ? "+" : ""}${variation.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}${isRatio ? " p.p." : "%"}`}
                         </text>
                       );
                     }}
