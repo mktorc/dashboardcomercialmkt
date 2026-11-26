@@ -299,6 +299,17 @@ export async function fetchComercial(from: string, to: string) {
 
   const histFrom = startIso(prevFrom);
 
+  // Independentes da consulta principal: começam juntas (antes esperavam em fila).
+  const revenueBreakdownP = fetchRevenueBreakdown();
+  // Leads do Kommo (anteriores ao ClickMassa): período anterior, 5 meses dos gráficos e ano anterior.
+  const [ty, tm] = to.split("-").map(Number);
+  const chartFrom = new Date(ty!, tm! - 5, 1).toISOString();
+  const kommoFrom = chartFrom < histFrom ? chartFrom : histFrom;
+  const kommoP = Promise.all([
+    fetchKommoLeads(kommoFrom, endIso(to)),
+    fetchKommoLeads(startIso(previousYearDate(from)), endIso(previousYearDate(to))),
+  ]);
+
   const [res, tasks, goals, opps, prevRes, prevOpps, yearRes, yearOpps] = await Promise.all([
     fetchAll((a, b) =>
       supabase
@@ -310,10 +321,14 @@ export async function fetchComercial(from: string, to: string) {
         .lte("created_at", endIso(to))
         .range(a, b),
     ),
+    // Tarefas criadas no período (contagens por vendedor). Antes vinha a tabela inteira (~33 mil).
     fetchAll((a, b) =>
       supabase
         .from("crm_tasks")
-        .select("lead_id, user_name, completed, due_date, created_at")
+        .select("task_id, lead_id, user_name, completed, due_date, created_at")
+        .gte("created_at", startIso(from))
+        .lte("created_at", endIso(to))
+        .order("task_id")
         .range(a, b),
     ),
     supabase
@@ -371,6 +386,27 @@ export async function fetchComercial(from: string, to: string) {
     ),
   ]);
 
+  // Tempo de resposta: todas as tarefas (de qualquer data) dos leads com oportunidade no período.
+  const periodLeadIds = [
+    ...new Set(
+      ((opps.data ?? []) as COpp[])
+        .filter((o) => o.lead_id && oppInRange(o.created_at, from, to))
+        .map((o) => o.lead_id!),
+    ),
+  ];
+  const leadTasksP = Promise.all(
+    Array.from({ length: Math.ceil(periodLeadIds.length / 300) }, (_, i) =>
+      fetchAll((a, b) =>
+        supabase
+          .from("crm_tasks")
+          .select("task_id, lead_id, user_name, completed, due_date, created_at")
+          .in("lead_id", periodLeadIds.slice(i * 300, (i + 1) * 300))
+          .order("task_id")
+          .range(a, b),
+      ),
+    ),
+  );
+
   // Reservas do período sem retirada em reservations: usa o primeiro trecho (reservation_segments), que o sync preenche por veículo.
   const missingPickup = ((res.data ?? []) as CRes[]).filter(
     (r) =>
@@ -397,15 +433,10 @@ export async function fetchComercial(from: string, to: string) {
     });
   }
 
-  const revenueBreakdownData = await fetchRevenueBreakdown();
-
-  // Leads do Kommo (anteriores ao ClickMassa): período anterior, 5 meses dos gráficos e ano anterior.
-  const [ty, tm] = to.split("-").map(Number);
-  const chartFrom = new Date(ty!, tm! - 5, 1).toISOString();
-  const kommoFrom = chartFrom < histFrom ? chartFrom : histFrom;
-  const [kommo, kommoYear] = await Promise.all([
-    fetchKommoLeads(kommoFrom, endIso(to)),
-    fetchKommoLeads(startIso(previousYearDate(from)), endIso(previousYearDate(to))),
+  const [revenueBreakdownData, [kommo, kommoYear], leadTasks] = await Promise.all([
+    revenueBreakdownP,
+    kommoP,
+    leadTasksP,
   ]);
   const kommoOpps = kommo.map((lead) => kommoAsOpportunity(lead));
   const err =
@@ -419,6 +450,13 @@ export async function fetchComercial(from: string, to: string) {
     yearOpps.error;
   if (err) throw err;
 
+  const leadTasksError = leadTasks.find((p) => p.error)?.error;
+  if (leadTasksError) throw leadTasksError;
+  const tasksById = new Map<string, CTask>();
+  for (const page of [tasks, ...leadTasks])
+    for (const t of page.data as (CTask & { task_id: string })[]) tasksById.set(t.task_id, t);
+  const mergedTasks = [...tasksById.values()];
+
   return {
     opportunities: [...((opps.data ?? []) as COpp[]), ...kommoOpps] as COpp[],
     reservations: (res.data as CRes[]).map((r) => ({
@@ -430,7 +468,7 @@ export async function fetchComercial(from: string, to: string) {
       additional_charges_price:
         r.additional_charges_price == null ? 0 : Number(r.additional_charges_price),
     })),
-    tasks: tasks.data as CTask[],
+    tasks: mergedTasks,
     goals: ((goals.data ?? []) as any[]).map((g) => ({
       ...g,
       revenue_goal: Number(g.revenue_goal),
