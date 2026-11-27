@@ -1220,7 +1220,7 @@ export function buildMarketingFunnel(
       label: "Leads gerados no Meta Ads",
       count: metaLeads,
       hint: metaLeads
-        ? [`CPL ${brl(spend / metaLeads)}`, fallback].filter(Boolean).join(" · ")
+        ? [`CPL ${usd2(spend / metaLeads)}`, fallback].filter(Boolean).join(" · ")
         : undefined,
     });
     metrics.push({
