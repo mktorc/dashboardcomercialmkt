@@ -266,14 +266,28 @@ function Dashboard() {
     includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
   // Meta e Google: reservas pela mesma regra mês a mês do comparativo de CAC (parceiro do HQ desde ago/2026,
   // antes disso a origem do lead). Demais origens: parceiro de comissão do HQ.
+  // Atribuição por canal (regra mês a mês do comparativo de CAC): pesada, calculada uma vez por carga.
+  const channelData = useMemo(() => {
+    if (!data) return null;
+    const modes = ["meta", "google", "both"] as const;
+    return {
+      reservations: Object.fromEntries(
+        modes.map((m) => [m, channelReservations(data.current, m)]),
+      ) as Record<(typeof modes)[number], ReturnType<typeof channelReservations>>,
+      created: Object.fromEntries(modes.map((m) => [m, channelCreated(data.current, m)])) as Record<
+        (typeof modes)[number],
+        number
+      >,
+    };
+  }, [data]);
   const reservationsFor = (
     origin: string | null,
     d: NonNullable<typeof data>,
     scoped: AnalyticsData,
   ) => {
     const key = origin ? normalizeOrigin(origin) : null;
-    return key === "meta" || key === "google"
-      ? { ...scoped, reservations: channelReservations(d.current, key) }
+    return (key === "meta" || key === "google") && channelData
+      ? { ...scoped, reservations: channelData.reservations[key] }
       : withPartnerReservations(scoped, origin, d.current.reservations);
   };
   const baseKpis =
@@ -281,10 +295,10 @@ function Dashboard() {
       ? computeKpis(reservationsFor(selectedOrigin, data, originData), teamSpend)
       : null;
   // ROAS global: só o faturamento atribuído a Meta + Google (o investimento é só mídia/equipe de marketing).
-  const marketingRevenue =
-    data && !selectedOrigin
-      ? channelReservations(data.current, "both").reduce((s, r) => s + r.total_amount, 0)
-      : null;
+  const marketingRows = channelData && !selectedOrigin ? channelData.reservations.both : null;
+  const marketingRevenue = marketingRows
+    ? marketingRows.reduce((s, r) => s + r.total_amount, 0)
+    : null;
   // CPL: oportunidades criadas pela mesma contagem do funil/CAC (Meta + Google em "Todas as origens").
   const cplMode = (origin: string | null) => {
     const key = origin ? normalizeOrigin(origin) : null;
@@ -293,10 +307,9 @@ function Dashboard() {
   // Mantém `leads` (usado na conversão); o CPL ganha a própria contagem em `cplLeads`.
   const withCpl = <K extends ReturnType<typeof computeKpis>>(k: K, origin: string | null) => {
     const mode = cplMode(origin);
-    const cplLeads = data && mode ? channelCreated(data.current, mode) : k.leads;
+    const cplLeads = channelData && mode ? channelData.created[mode] : k.leads;
     // Conversão com as mesmas ganhas e criadas do funil/CAC (Meta + Google em "Todas as origens").
-    const convWon =
-      data && mode === "both" ? channelReservations(data.current, "both").length : k.reservations;
+    const convWon = mode === "both" && marketingRows ? marketingRows.length : k.reservations;
     return {
       ...k,
       cplLeads,
@@ -315,6 +328,20 @@ function Dashboard() {
               ? marketingRevenue / baseKpis.spend
               : 0,
         roasRevenue: marketingRevenue ?? baseKpis.revenue,
+        // CAC global: só reservas e faturamento de Meta + Google (o ticket segue com todas as reservas).
+        cacReservations: marketingRows ? marketingRows.length : baseKpis.reservations,
+        cacRevenue: marketingRevenue ?? baseKpis.revenue,
+        cac: marketingRows
+          ? marketingRows.length
+            ? baseKpis.spend / marketingRows.length
+            : null
+          : baseKpis.cac,
+        cacPct:
+          marketingRevenue == null
+            ? baseKpis.cacPct
+            : marketingRevenue > 0
+              ? baseKpis.spend / marketingRevenue
+              : null,
       }
     : null;
   // Mesmo cálculo do filtro de origem, por canal, para a linha "Meta · Google" de cada card.
@@ -594,12 +621,12 @@ function Dashboard() {
               icon={Gauge}
               label="Custo de aquisição de clientes"
               help={
-                "CAC: quanto custa conquistar cada reserva.\nInvestimento em mídia (Meta + Google, mais equipe se marcada) ÷ reservas HQ.\nCAC percentual: investimento ÷ faturamento em rack rate."
+                "CAC: quanto custa conquistar cada reserva.\nInvestimento em mídia (Meta + Google, mais equipe se marcada) ÷ reservas de Meta + Google (ou da origem filtrada).\nCAC percentual: investimento ÷ faturamento em rack rate dessas reservas."
               }
               value={kpis?.cac == null ? "—" : `${brl(kpis.cac)} (${fmtPct(kpis.cacPct)})`}
               calc={
                 kpis
-                  ? `CAC: ${brl(kpis.spend)} investidos ÷ ${kpis.reservations} reservas HQ = ${kpis.cac == null ? "—" : brl(kpis.cac)}\nCAC percentual: ${brl(kpis.spend)} investidos ÷ ${brl(kpis.revenue)} de faturamento em rack rate = ${fmtPct(kpis.cacPct)}${kpis.teamSpend ? "\nO investimento inclui a equipe de marketing." : "\nSomente mídia (Meta + Google)."}`
+                  ? `CAC: ${brl(kpis.spend)} investidos ÷ ${kpis.cacReservations} reservas${selectedOrigin ? "" : " de Meta + Google"} = ${kpis.cac == null ? "—" : brl(kpis.cac)}\nCAC percentual: ${brl(kpis.spend)} investidos ÷ ${brl(kpis.cacRevenue)} de faturamento em rack rate = ${fmtPct(kpis.cacPct)}${kpis.teamSpend ? "\nO investimento inclui a equipe de marketing." : "\nSomente mídia (Meta + Google)."}`
                   : undefined
               }
               breakdown={
@@ -633,7 +660,7 @@ function Dashboard() {
               icon={TrendingUp}
               label="ROAS real global"
               help={
-                "Retorno sobre o investimento.\nFaturamento das reservas confirmadas ÷ investimento. 2x = cada US$ 1 investido voltou US$ 2."
+                "Retorno sobre o investimento.\nFaturamento das reservas de Meta + Google (ou da origem filtrada) ÷ investimento. 2x = cada US$ 1 investido voltou US$ 2."
               }
               value={kpis ? `${kpis.roas.toFixed(2)}x` : "—"}
               calc={
