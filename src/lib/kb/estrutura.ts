@@ -506,6 +506,86 @@ function mergeLanguagePairs(articles: EArticle[], src: Sources): EArticle[] {
   });
 }
 
+// ───────────── Vídeos: todo vídeo do Drive aparece no assunto dele ─────────────
+
+const idOfLink = (link: string) =>
+  /\/d\/([\w-]{10,})/.exec(link)?.[1] ?? /[?&]id=([\w-]{10,})/.exec(link)?.[1] ?? link;
+const STOP = new Set(
+  "para como com sem uma umas uns que dos das nos nas por pelo pela mais quando onde este esta isso cliente reserva video copia".split(
+    " ",
+  ),
+);
+const tokens = (s: string) =>
+  new Set(
+    norm(s)
+      .split(/[^a-z0-9]+/)
+      .filter((w) => w.length >= 4 && !STOP.has(w)),
+  );
+const hasVideo = (a: EArticle, fid: string) =>
+  a.blocks.some((b) => b.t === "file" && idOfLink(String(b["link"] ?? "")) === fid);
+/** Põe o vídeo no topo, junto dos outros cartões de vídeo/arquivo que já abrem a página. */
+const withVideo = (a: EArticle, v: Block): EArticle => {
+  let i = 0;
+  while (i < a.blocks.length && a.blocks[i]!.t === "file") i++;
+  return { ...a, blocks: [...a.blocks.slice(0, i), v, ...a.blocks.slice(i)] };
+};
+
+/**
+ * Garante que cada vídeo do Drive tenha lugar numa página, sem ninguém precisar mexer no código:
+ * 1) página que usa o vídeo como fonte (inclusive as revisadas à mão) ganha o cartão do vídeo;
+ * 2) vídeo novo cujos artigos da IA ficaram soltos é encaixado na página do mesmo assunto
+ *    (maior número de palavras em comum), com o conteúdo dele como seção no fim; se nenhum assunto
+ *    combinar, os artigos soltos continuam visíveis na pasta do Drive, já com o vídeo no topo.
+ */
+export function placeVideos(articles: EArticle[], src: Sources): EArticle[] {
+  let out = [...articles];
+  const videos = Object.entries(src).filter(([, s]) => VIDEO.test(s.name));
+  for (const [sid, s] of videos) {
+    const fid = idOfLink(s.link);
+    const v = fileBlock(src, sid)!;
+    // 1) Fonte da página e ainda sem o cartão.
+    out = out.map((a) => (a.sources.includes(sid) && !hasVideo(a, fid) ? withVideo(a, v) : a));
+    if (out.some((a) => a["curated"] && hasVideo(a, fid))) continue;
+    // 2) Só artigos gerados pela IA usam o vídeo: procurar o assunto revisado que ele trata.
+    const solos = out.filter(
+      (a) => !a["curated"] && a.sources.length === 1 && a.sources[0] === sid,
+    );
+    if (!solos.length) continue;
+    const want = tokens(
+      [cleanName(s.name), ...solos.map((a) => `${a.title} ${a.summary} ${a.keywords}`)].join(" "),
+    );
+    const name = tokens(cleanName(s.name));
+    let best: { a: EArticle; score: number } | null = null;
+    for (const a of out) {
+      if (!a["curated"] || solos.includes(a)) continue;
+      const have = tokens(`${a.title} ${a.title} ${a.summary} ${a.keywords}`);
+      let score = 0;
+      for (const w of want) if (have.has(w)) score += name.has(w) ? 3 : 1;
+      if (!best || score > best.score) best = { a, score };
+    }
+    if (!best || best.score < 6) continue;
+    const target = best.a;
+    const merged = withVideo(
+      {
+        ...target,
+        sources: [...new Set([...target.sources, sid])],
+        keywords: `${target.keywords} ${kw(solos)}`.trim(),
+        blocks: [
+          ...target.blocks,
+          ...solos.flatMap((a) => [
+            { t: "h", text: `Do vídeo ${cleanName(s.name)}: ${stripLang(a.title)}` },
+            ...demote(a.blocks.filter((b) => b.t !== "file")),
+          ]),
+        ],
+        newVideo: cleanName(s.name),
+      },
+      v,
+    );
+    out = out.filter((a) => !solos.includes(a)).map((a) => (a === target ? merged : a));
+  }
+  return out;
+}
+
 // Ordem das categorias: primeiro as ferramentas, depois o produto e o processo de venda.
 const CAT_ORDEM = [
   "sistemas",
@@ -613,6 +693,9 @@ export function organizeKb<A extends EArticle>(
     const dicas = categories.find((c) => c.id === "cs-dicas-e-viagem");
     if (dicas) dicas.title = "Dicas e Benefícios";
   }
+
+  // 3c) Vídeos: nenhum fica sem página; vídeo novo entra sozinho no assunto dele.
+  articles = placeVideos(articles, sources);
 
   // 4) Ordem: categorias (filhos logo após o pai) e artigos dentro de cada uma.
   const tops = categories

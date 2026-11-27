@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { organizeKb, type EArticle } from "./estrutura";
+import { organizeKb, placeVideos, type EArticle } from "./estrutura";
 
 const art = (id: string, category: string, title: string, src = "doc"): EArticle => ({
   id,
@@ -77,5 +77,43 @@ describe("organizeKb", () => {
     });
     expect(hq.blocks[0]).toMatchObject({ t: "file", kind: "video" });
     expect(r.categories[0]!.id).toBe("comercial-sistemas");
+  });
+});
+
+describe("placeVideos", () => {
+  const src = {
+    v1: {
+      name: "Cópia de Comissão de agência (1).mp4",
+      link: "https://drive.google.com/file/d/VIDEO_NOVO_123/view",
+    },
+    v2: {
+      name: "Receita de bolo.mp4",
+      link: "https://drive.google.com/file/d/VIDEO_SOLTO_45/view",
+    },
+  };
+  const curated: EArticle = {
+    ...art("reserva-lancamento-agencia", "comercial-reservas", "Lançamento de reserva de agência"),
+    summary: "Comissão da agência, observação no HQ e oportunidade",
+    keywords: "agencia comissao pix",
+    curated: true,
+  };
+  const novo = {
+    ...art("pagar-comissao-agencia", "comercial-geral", "Como pagar a comissão da agência", "v1"),
+    summary: "Pix da comissão de agência",
+  };
+  const solto = art("bolo", "comercial-geral", "Bolo de cenoura", "v2");
+  const out = placeVideos([curated, novo, solto], src);
+
+  it("encaixa vídeo novo na página do assunto, com o conteúdo como seção", () => {
+    const pg = out.find((a) => a.id === "reserva-lancamento-agencia")!;
+    expect(pg.blocks[0]).toMatchObject({ t: "file", kind: "video", name: "Comissão de agência" });
+    expect(
+      pg.blocks.some((b) => String(b["text"]).startsWith("Do vídeo Comissão de agência")),
+    ).toBe(true);
+    expect(out.some((a) => a.id === "pagar-comissao-agencia")).toBe(false);
+  });
+  it("vídeo sem assunto parecido continua visível, com o vídeo no topo", () => {
+    const pg = out.find((a) => a.id === "bolo")!;
+    expect(pg.blocks[0]).toMatchObject({ t: "file", kind: "video" });
   });
 });

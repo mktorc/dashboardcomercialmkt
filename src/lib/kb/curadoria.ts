@@ -1031,12 +1031,12 @@ const COMERCIAL: Curadoria = {
         ]),
         h("Lead de agência"),
         p(
-          "Toda agência é atendida pela Nathalia: transfira na hora o lead que se identificar como agência.",
+          "Qualquer pessoa do time pode atender agência, mas uma agência fala com uma pessoa por vez. Cotação que outro colega enviou e ele está online: ele segue com o lançamento.",
         ),
         list([
           "Origem do lead: a agência",
           "Etiqueta: quem fez o primeiro atendimento",
-          "Atendente padrão: Nathalia",
+          "Atendente padrão: quem está atendendo a agência",
           "Departamento: Comercial",
         ]),
       ],
@@ -1272,8 +1272,7 @@ const COMERCIAL: Curadoria = {
         ),
         h("1. Quem atende a agência"),
         list([
-          "Lead que se identifica como agência: transfira na hora para a Nathalia (Regra 04 das regras operacionais).",
-          "Uma agência fala com uma pessoa por vez. Se ela retoma uma cotação que outro colega enviou e ele está online, é ele quem segue com aquele lançamento.",
+          "Qualquer pessoa do time pode atender agência, mas uma agência fala com uma pessoa por vez. Se ela retoma uma cotação que outro colega enviou e ele está online, é ele quem segue com aquele lançamento.",
           "Follow-up é livre, desde que faça sentido no momento da conversa.",
         ]),
         sub("Painel lateral do contato da agência no ClickMassa"),
@@ -1402,7 +1401,10 @@ const COMERCIAL: Curadoria = {
               "Dois responsáveis",
               "Responsável e quem fez o follow-up têm até 24 horas cada um. O contato precisa fazer sentido na conversa, não só segurar a vez.",
             ],
-            ["Agências", "Todas as agências são da Nathalia. Transfira na hora."],
+            [
+              "Agências",
+              "Qualquer um pode atender, mas uma agência fala com uma pessoa por vez. Quem enviou a cotação, se estiver online, segue com o lançamento dela.",
+            ],
             [
               "Conferência",
               "Depois do sinal, confira os dados no CRM e no HQ com os documentos e envie o template Contrato COM.",
