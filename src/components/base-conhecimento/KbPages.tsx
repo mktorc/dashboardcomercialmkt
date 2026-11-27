@@ -231,7 +231,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
               )}
               {hits.length === 0 && !answer ? (
                 <p className="px-3 py-3 text-sm text-muted-foreground">
-                  Nenhum artigo. Aperte Enter para perguntar à IA.
+                  Nenhum artigo. Aperte Enter para perguntar à ORCI.
                 </p>
               ) : (
                 hits.map((h) => (
@@ -590,7 +590,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-foreground">
-            Não achou? Pergunte à IA
+            Não achou? Pergunte à ORCI
           </span>
           <span className="block text-xs text-muted-foreground">
             Ela responde com base nos arquivos da área e mostra as fontes.

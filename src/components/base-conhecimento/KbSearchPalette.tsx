@@ -149,7 +149,7 @@ export function KbSearchPalette({
                 >
                   <MessageSquare className="size-4 text-primary" />
                   <span className="text-sm">
-                    Perguntar à IA: <span className="font-medium">“{q}”</span>
+                    Perguntar à ORCI: <span className="font-medium">“{q}”</span>
                   </span>
                 </CommandItem>
               </CommandGroup>

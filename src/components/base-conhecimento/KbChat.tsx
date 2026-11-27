@@ -115,9 +115,9 @@ export function KbChat({
     <div className="mx-auto flex h-[calc(100vh-57px)] max-w-3xl flex-col px-4 lg:h-screen">
       <div className="flex items-center justify-between gap-2 py-5">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">Chat com IA</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">ORCI</h1>
           <p className="text-sm text-muted-foreground">
-            Responde só com os arquivos da área {AREA_INFO[data.area].short}.
+            ORC Intelligence · responde só com os arquivos da área {AREA_INFO[data.area].short}.
           </p>
         </div>
         {msgs.length > 0 && (
@@ -140,7 +140,9 @@ export function KbChat({
               <Sparkles className="size-7 text-primary" />
             </div>
             <div className="space-y-1">
-              <p className="text-lg font-medium text-foreground">Como posso ajudar?</p>
+              <p className="text-lg font-medium text-foreground">
+                Oi, eu sou a ORCI, a ORC Intelligence. Como posso ajudar?
+              </p>
               <p className="text-sm text-muted-foreground">
                 Pergunte sobre processos, regras ou templates. Escolha uma sugestão para começar.
               </p>
@@ -303,7 +305,7 @@ export function KbChat({
           </Button>
         </div>
         <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-          A IA responde só com o conteúdo da base e avisa quando não encontra.
+          A ORCI responde só com o conteúdo da base e avisa quando não encontra.
         </p>
       </form>
     </div>

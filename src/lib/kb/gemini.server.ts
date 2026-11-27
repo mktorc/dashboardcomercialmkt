@@ -46,12 +46,14 @@ async function availableFlashModels(apiKey: string): Promise<string[]> {
 }
 
 /** Ordem de tentativa: principal, reserva fixa e até 6 outros da lista. */
-export async function modelChain(apiKey: string): Promise<string[]> {
+export async function modelChain(apiKey: string, fast = false): Promise<string[]> {
   const primary = primaryModel();
   const listed = await availableFlashModels(apiKey);
   const others = listed.filter((m) => m !== primary && m !== KNOWN_FALLBACK);
   // Até 6 outros: os mais novos costumam estar em 503 juntos com o principal.
-  return [...new Set([primary, KNOWN_FALLBACK, ...others.slice(0, 6)])];
+  // Chat (fast): o lite responde em ~1 s; o principal leva ~7 s para começar e vive em 503.
+  const head = fast ? [KNOWN_FALLBACK, primary] : [primary, KNOWN_FALLBACK];
+  return [...new Set([...head, ...others.slice(0, 6)])];
 }
 
 /**
@@ -74,9 +76,12 @@ export async function callWithFallback(
   apiKey: string,
   makeRequest: (model: string) => Promise<Response>,
   waitMs = 4_000,
+  fast = false,
 ): Promise<Response> {
   let last: Response | null = null;
-  const chain = (await modelChain(apiKey)).filter((m) => (exhausted.get(m) ?? 0) < Date.now());
+  const chain = (await modelChain(apiKey, fast)).filter(
+    (m) => (exhausted.get(m) ?? 0) < Date.now(),
+  );
   for (const model of chain) {
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt) await new Promise((r) => setTimeout(r, waitMs));

@@ -696,7 +696,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                 params={{ area: data.area }}
                 search={{ q: `Sobre "${article.title}": ` }}
               >
-                <MessageSquare className="mr-1.5 size-4" /> Perguntar à IA sobre este artigo
+                <MessageSquare className="mr-1.5 size-4" /> Perguntar à ORCI sobre este artigo
               </Link>
             </Button>
           </div>

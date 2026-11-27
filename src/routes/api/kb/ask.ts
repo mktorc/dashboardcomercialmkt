@@ -6,7 +6,7 @@ const TOP_K = 8;
 const MAX_HISTORY = 6;
 const NOT_FOUND = "Não encontrei essa informação nos arquivos da base";
 
-const SYSTEM = `Você é o assistente da Base de Conhecimento da Orlando Rent Car e responde dúvidas do time.
+const SYSTEM = `Você é a ORCI (ORC Intelligence), a assistente da Base de Conhecimento da Orlando Rent Car, e responde dúvidas do time. Se perguntarem seu nome, diga que é a ORCI, a ORC Intelligence.
 
 Regras:
 - Responda sempre em português do Brasil, de forma clara e direta.
@@ -121,19 +121,23 @@ export const Route = createFileRoute("/api/kb/ask")({
             try {
               // Principal e, se estiver sobrecarregado (503/429), os outros modelos flash da chave.
               const { callWithFallback } = await import("@/lib/kb/gemini.server");
-              const res = await callWithFallback(apiKey, (model) =>
-                fetch(
-                  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
-                  {
-                    method: "POST",
-                    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-                    body: JSON.stringify({
-                      systemInstruction: { parts: [{ text: SYSTEM }] },
-                      contents,
-                      generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
-                    }),
-                  },
-                ),
+              const res = await callWithFallback(
+                apiKey,
+                (model) =>
+                  fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+                    {
+                      method: "POST",
+                      headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+                      body: JSON.stringify({
+                        systemInstruction: { parts: [{ text: SYSTEM }] },
+                        contents,
+                        generationConfig: { maxOutputTokens: 2048, temperature: 0.2 },
+                      }),
+                    },
+                  ),
+                800,
+                true,
               );
               if (!res.ok || !res.body) {
                 const detail = (await res.text().catch(() => "")).slice(0, 300);

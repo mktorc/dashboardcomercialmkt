@@ -258,7 +258,7 @@ function Sidebar({
           onClick={onNavigate}
           className={`${navItem} ${path === `${base}/chat` ? navActive : navIdle}`}
         >
-          <MessageSquare className="size-4" /> Chat com IA
+          <MessageSquare className="size-4" /> ORCI
         </Link>
         {data.admin && (
           <Link
