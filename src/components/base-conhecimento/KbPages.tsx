@@ -51,6 +51,7 @@ const QUICK: Record<KbArea, string[]> = {
   ],
   comercial: [
     "reserva-lancamento-hq",
+    "reserva-lancamento-agencia",
     "pagamento-condicoes",
     "frota-visao-geral-comercial",
     "retirada-regras-gerais",

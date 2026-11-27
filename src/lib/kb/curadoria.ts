@@ -869,15 +869,69 @@ const COMERCIAL: Curadoria = {
         note(
           "Sem essa observação, o CS pode cobrar o cliente final de uma reserva que a agência paga.",
         ),
+        p(
+          "O processo completo de reserva de agência, com comissão e oportunidade do cliente, está na página Lançamento de reserva de agência.",
+        ),
       ],
     },
     // Sistemas → CRM
+    {
+      id: "crm-introducao",
+      title: "Introdução ao CRM ClickMassa",
+      summary:
+        "Tour pelo CRM: dashboards, atendimento, contatos, pipeline, tarefas e configurações.",
+      blocks: [
+        video("Introdução ao CRM", "1Td0RjeE1R2B4vom0lDaAr6JM37HS7_W5"),
+        p(
+          "O ClickMassa é o CRM onde ficam as conversas com os clientes, as oportunidades de venda e as tarefas de follow-up. Os módulos ficam no menu lateral esquerdo.",
+        ),
+        table(
+          ["Módulo", "Para que serve"],
+          [
+            [
+              "Dashboards",
+              "Dash Atendimento (chats, pendentes, tempo de resposta), Dash Contatos (perfil, estado, canal e origem dos leads) e Dash Oportunidades (ganhos, perdas, ticket médio, conversão).",
+            ],
+            [
+              "Atendimento",
+              "As conversas. Abas Ativos (em andamento) e Pendentes (aguardando alguém aceitar). O funil filtra por todos ou só os seus.",
+            ],
+            [
+              "Consultar atendimentos",
+              "Histórico de conversas por data, canal, atendente, status ou protocolo.",
+            ],
+            ["Ao vivo", "Acompanha em tempo real a tela de atendimento de cada colega."],
+            ["Contatos", "Lista de todos os clientes cadastrados."],
+            [
+              "Pipeline",
+              "Oportunidades em colunas: Aguardando proposta, Proposta enviada, Agência de viagem, Aguardando pagamento do sinal, Ganho e Perda.",
+            ],
+            [
+              "Tarefas",
+              "Rotina de follow-up em Lista (atrasadas, hoje, 48h), Kanban, Foco, Calendário e Painel de gestão.",
+            ],
+            [
+              "Envios, ChatBots e Fluxos",
+              "Campanhas e robôs automáticos. Configurados pela gestão.",
+            ],
+            [
+              "Canais e Configurações",
+              "Contas de WhatsApp e Instagram, departamentos, usuários e etiquetas.",
+            ],
+          ],
+        ),
+        note(
+          "No dia a dia você vai usar mais Atendimento, Pipeline e Tarefas. Os passos de cada um estão nas próximas páginas de CRM.",
+        ),
+      ],
+    },
     {
       id: "crm-atendimento",
       title: "Atendimento e mensagens",
       summary:
         "Assumir conversas da IA, encerrar, devolver à fila e mandar mensagem com a janela fechada.",
       blocks: [
+        video("Atendimento, cotação e oportunidade", "1_9Pwnz_UKrnSN2j-iNfytkhk0h1ZQX8-"),
         h("Assumir o atendimento"),
         p("Quando a IA transfere a conversa ou para de responder, o atendimento passa a ser seu."),
         steps([
@@ -992,6 +1046,7 @@ const COMERCIAL: Curadoria = {
       title: "Tarefas e follow-up",
       summary: "Nenhum cliente sem tarefa: como criar, acompanhar e concluir follow-ups.",
       blocks: [
+        video("Tarefas no CRM", "1Th7QZjzSnu06F3lltsmYKy-reprBVtQg"),
         {
           t: "keys",
           items: [
@@ -1126,6 +1181,7 @@ const COMERCIAL: Curadoria = {
       title: "Lançamento da reserva no HQ",
       summary: "Documentos, horários de voo, validação com o cliente e conclusão da reserva.",
       blocks: [
+        video("Lançamento de reserva no HQ", "1aX9ghhDMFbD_aF6YcWx0fYr_B69evSWN"),
         {
           t: "keys",
           items: [
@@ -1191,6 +1247,141 @@ const COMERCIAL: Curadoria = {
             text: "Com todos os dados corretos, e continuar o atendimento.",
           },
         ]),
+      ],
+    },
+    {
+      id: "reserva-lancamento-agencia",
+      cat: "comercial-reservas-e-vendas",
+      title: "Lançamento de reserva de agência",
+      summary:
+        "Reserva intermediada por agência de viagem: quem atende, observação no HQ, comissão de 10% sobre a diária e oportunidade do cliente final.",
+      keywords:
+        "agência agencia agente de viagem operador turístico comissão comissao 10% pix gobbo reserva_agencia intermediada",
+      blocks: [
+        video("Lançamento de agência", "1fn8HOy6mzKuV1UocyT5JbADMBJdwKNv6"),
+        {
+          t: "keys",
+          items: [
+            { value: "10%", label: "comissão sobre as diárias" },
+            { value: "Pix", label: "forma de pagar a comissão" },
+            { value: "2", label: "oportunidades: agência e cliente" },
+          ],
+        },
+        p(
+          "O lançamento da reserva é o mesmo de uma venda direta. O que muda em reserva de agência: saber com quem fica o contato, registrar isso no HQ, controlar a comissão e criar a oportunidade em nome do cliente final.",
+        ),
+        h("1. Quem atende a agência"),
+        list([
+          "Lead que se identifica como agência: transfira na hora para a Nathalia (Regra 04 das regras operacionais).",
+          "Uma agência fala com uma pessoa por vez. Se ela retoma uma cotação que outro colega enviou e ele está online, é ele quem segue com aquele lançamento.",
+          "Follow-up é livre, desde que faça sentido no momento da conversa.",
+        ]),
+        sub("Painel lateral do contato da agência no ClickMassa"),
+        table(
+          ["Campo", "O que preencher"],
+          [
+            ["Origem do lead", "A agência (ex.: Gobbo Viagens)"],
+            ["Etiqueta", "Quem fez o primeiro atendimento"],
+            ["Atendente padrão", "Quem está atendendo a agência"],
+            ["Departamento padrão", "Comercial"],
+          ],
+        ),
+        h("2. Perguntar com quem fica o contato"),
+        p(
+          "Pergunte à agência se a reserva vai ser sempre intermediada por ela ou se, depois de fechar, o time pode falar direto com o cliente. A resposta vai para os comentários da reserva no HQ.",
+        ),
+        steps([
+          { title: "Abrir a reserva", text: "HQ > Reservas > a reserva da agência." },
+          { title: "Ir até Comentários", text: "Role a tela da reserva até a seção Comentários." },
+          {
+            title: "Escrever a regra de contato",
+            text: "Deixe claro com quem falar e quem recebe a cobrança.",
+            list: [
+              "Contato diretamente com o cliente",
+              "Atendimentos referente a pagamentos tratar com agência XXX",
+            ],
+          },
+          { title: "Salvar Comentários" },
+        ]),
+        warn(
+          "Sem essa observação, o CS pode mandar ao cliente final uma informação que deveria ir para a agência, como uma cobrança que a agência paga.",
+        ),
+        h("3. Comissão da agência"),
+        table(
+          ["Regra", "Como funciona"],
+          [
+            [
+              "Valor",
+              "10% sobre o valor das diárias (painel Resumo do HQ). Não entra taxa, proteção nem o total da reserva.",
+            ],
+            ["Exemplo", "Diárias de US$ 450,07 → comissão de US$ 45,07."],
+            [
+              "Quando pagar",
+              "Em geral quando a locação termina. Pode ser antes, se a agência já quitou a reserva inteira.",
+            ],
+            ["Como pagar", "Por Pix: peça a chave à agência."],
+          ],
+        ),
+        note(
+          'Comissão ainda não paga? Escreva "Pagamento ainda não realizado" nos comentários da reserva no HQ. É por ali que o financeiro (Luiz) confere o que falta pagar e pede os dados.',
+        ),
+        h("4. Oportunidade do cliente final"),
+        p(
+          "Não marque como ganho a oportunidade da agência: ela continua no pipeline como agência. Crie uma oportunidade nova em nome do cliente.",
+        ),
+        steps([
+          {
+            title: "Escolher onde criar",
+            text: "Se a agência liberou o contato e você já fala com o cliente, crie no contato do cliente. Se o contato fica com a agência até o CS assumir, crie dentro do contato da agência.",
+          },
+          {
+            title: "Criar a oportunidade",
+            text: "Oportunidades > + (Criar oportunidade).",
+            list: [
+              "Nome: RA + número + nome do cliente (ex.: RA 7261 João Medeiros)",
+              "Pipeline: Comercial",
+              "Etapa: Aguardando pagamento do sinal",
+              "Responsável: quem atendeu",
+              "Previsão de fechamento: data de chegada do cliente",
+              "Valor: valor da diária",
+              "Produto: a categoria fechada (ex.: MidSize SUV)",
+              "Descrição: pode repetir a regra de contato escrita no HQ",
+            ],
+          },
+          {
+            title: "Marcar como ganho só no fim",
+            text: "Depois que a agência pagar, o contrato for validado e enviado por e-mail. O ganho cria a oportunidade no Sucesso do Cliente.",
+          },
+        ]),
+        h("5. Falar direto com o cliente (quando a agência liberar)"),
+        steps([
+          {
+            title: "Iniciar atendimento",
+            text: "Chat > + Iniciar atendimento, com o telefone do cliente, o canal e o departamento.",
+          },
+          {
+            title: "Usar o template de agência",
+            text: "Template reserva_agencia: campo 1 = nome do cliente, campo 2 = seu nome, campo 3 = nome da agência.",
+          },
+          {
+            title: "Ajustar o contato do cliente",
+            text: "Nome do cliente, origem do lead = a agência e, quando não houver mais nada do Comercial, departamento Sucesso do Cliente.",
+          },
+        ]),
+        msg(
+          "reserva_agencia",
+          "Olá, [nome do cliente]! Tudo bem? Aqui é a [seu nome], da equipe da ORC. Recebemos seu contato através da [nome da agência] e estamos entrando em contato para dar continuidade à sua solicitação e compartilhar os detalhes necessários. Podemos prosseguir?",
+        ),
+        h("Antes de encerrar, confira"),
+        list([
+          "Comentário no HQ dizendo com quem falar e quem paga",
+          "Comissão paga, ou anotada como não paga no HQ",
+          "Oportunidade do cliente criada com RA, valor da diária e produto",
+          "Oportunidade da agência sem ganho, no pipeline de agência",
+        ]),
+        note(
+          "Cada negociação pode ter exceções, como one way fee ou a taxa de US$ 40 para receber o carro no lounge. Pendências que não dependem só do CS voltam para quem lançou.",
+        ),
       ],
     },
     {
@@ -1281,6 +1472,7 @@ const COMERCIAL: Curadoria = {
       title: "Pagamento em reais (Global Pays)",
       summary: "Gerar o link em reais, conferir o pagamento e lançar no HQ.",
       blocks: [
+        video("Lançamento com Global Pays", "1x6Ce_JAVp5w3J88TvjllMwhWJgt4SeoR"),
         {
           t: "keys",
           items: [
@@ -1330,6 +1522,7 @@ const COMERCIAL: Curadoria = {
       title: "Link parcelado sem juros",
       summary: "Link do Global Pays em que a loja assume a taxa do parcelamento.",
       blocks: [
+        video("Link sem juros em reais", "1-UsMRuCelY-ZJU4LkP07ZQVZ2cjQ19o_"),
         p(
           "Use quando o parcelamento sem juros foi negociado com o cliente. A taxa fica com a ORC.",
         ),

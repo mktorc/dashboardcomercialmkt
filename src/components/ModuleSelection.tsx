@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -23,6 +24,13 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { canAccess, canSeePricing, getMyEmail, getMyAccess, type PageKey } from "@/lib/roles";
 import { supabase } from "@/integrations/supabase/client";
+
+// Holofote dos cards: posição do cursor vira --mx/--my (ver .spotlight em styles.css).
+const spot = (e: React.PointerEvent<HTMLElement>) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+  e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+};
 
 // Com login (superadmin): todos os módulos.
 const MODULES = [
@@ -246,7 +254,7 @@ export function ModuleSelection() {
         ) : null}
       </header>
 
-      <main className="mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
+      <main className="stagger mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
         {(logado || publico) && todos.length > 0 ? (
           <div className="relative sm:col-span-2 lg:col-span-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -261,7 +269,10 @@ export function ModuleSelection() {
         ) : null}
         {!logado && !publico ? (
           <>
-            <Card className="flex flex-col justify-between gap-6 p-6">
+            <Card
+              className="spotlight flex flex-col justify-between gap-6 p-6"
+              onPointerMove={spot}
+            >
               <div className="space-y-3">
                 <LogIn className="size-8 text-accent" />
                 <h2 className="text-lg font-semibold text-foreground">Fazer login</h2>
@@ -271,7 +282,10 @@ export function ModuleSelection() {
               </div>
               <Button onClick={irParaLogin}>Fazer login</Button>
             </Card>
-            <Card className="flex flex-col justify-between gap-6 p-6">
+            <Card
+              className="spotlight flex flex-col justify-between gap-6 p-6"
+              onPointerMove={spot}
+            >
               <div className="space-y-3">
                 <Globe className="size-8 text-accent" />
                 <h2 className="text-lg font-semibold text-foreground">Acesso público</h2>
@@ -287,10 +301,16 @@ export function ModuleSelection() {
           </>
         ) : (
           modulos.map((m) => (
-            <Card key={m.to} className="flex flex-col justify-between gap-6 p-6">
+            <Card
+              key={m.to}
+              className="spotlight flex flex-col justify-between gap-6 p-6"
+              onPointerMove={spot}
+            >
               <div className="space-y-3">
-                <m.icon className="size-8 text-accent" />
-                <h2 className="text-lg font-semibold text-foreground">{m.title}</h2>
+                <span className="spot-icon inline-flex size-12 items-center justify-center rounded-xl bg-accent/10 ring-1 ring-accent/20">
+                  <m.icon className="size-6 text-accent" />
+                </span>
+                <h2 className="text-xl font-semibold text-foreground">{m.title}</h2>
                 <p className="text-sm text-muted-foreground">{m.description}</p>
               </div>
               <Button asChild>

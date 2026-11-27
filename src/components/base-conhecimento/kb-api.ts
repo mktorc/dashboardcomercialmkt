@@ -246,6 +246,7 @@ export const TRILHA: Record<KbArea, string[]> = {
     "cancelamento-e-alteracoes",
     "reserva-cotacao",
     "reserva-lancamento-hq",
+    "reserva-lancamento-agencia",
     "crm-tarefas",
     "regras-operacionais",
     "faq-cliente-comercial",
