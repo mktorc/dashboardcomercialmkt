@@ -1429,12 +1429,12 @@ export function withPartnerReservations(
   };
 }
 
-export function computeChannelMonthly(
-  data: AnalyticsData,
-  mode: ChannelComparisonMode,
-  months: string[],
-  teamCosts: Record<string, number> = {},
-): ChannelMonthlyPoint[] {
+/**
+ * Reservas do canal mês a mês, com a mesma regra do comparativo de CAC: reservas do HQ cujo parceiro de
+ * comissão é o canal; nos meses em que o HQ não registrava o parceiro (menos de MIN_CHANNEL_RESERVATIONS,
+ * antes de ago/2026) segue a atribuição por origem do lead (ganhas do ClickMassa / reservas do Kommo).
+ */
+function channelMonthResolver(data: AnalyticsData, mode: ChannelComparisonMode) {
   // A atribuição usa o período todo (campanha → canal); só depois divide por mês.
   const scopedAll: AnalyticsData =
     mode === "both" ? scopeMetaGoogle(data) : filterAnalyticsByOrigin(data, mode);
@@ -1444,7 +1444,7 @@ export function computeChannelMonthly(
     return mode === "both" ? origin === "meta" || origin === "google" : origin === mode;
   };
   const channelKommoLeads = (data.kommoLeadsAll ?? []).filter(inChannel);
-  return months.map((key) => {
+  const forMonth = (key: string) => {
     const inMonth = (value: string) => value.slice(0, 7) === key;
     const summary = computeWonSummary({
       opportunities: scopedAll.opportunities,
@@ -1453,22 +1453,52 @@ export function computeChannelMonthly(
       reservationsByContact,
       inRange: inMonth,
     });
-    // Faturamento do HQ: reservas confirmadas do mês cujo parceiro de comissão é o canal. Meses em que o HQ
-    // não registrava o parceiro (antes de ago/2026) seguem a atribuição por origem do lead.
     const hqReservations = data.reservations.filter(
       (r) =>
         r.status === "confirmed" &&
         inMonth(r.created_at) &&
         inChannel({ utm_source: r.commission_partner } as OpportunityOriginRow),
     );
+    const usesHq = hqReservations.length >= MIN_CHANNEL_RESERVATIONS;
+    return {
+      inMonth,
+      summary,
+      usesHq,
+      reservations: usesHq ? hqReservations : summary.revenueRows,
+    };
+  };
+  return { scopedAll, forMonth };
+}
+
+/** Reservas atribuídas ao canal no período todo (soma da regra mês a mês do comparativo de CAC). */
+export function channelReservations(
+  data: AnalyticsData,
+  mode: ChannelComparisonMode,
+): ReservationRow[] {
+  const { forMonth } = channelMonthResolver(data, mode);
+  const months = new Set<string>();
+  [...data.reservations, ...data.opportunities, ...(data.kommoLeadsAll ?? [])].forEach((r) => {
+    if (r.created_at) months.add(r.created_at.slice(0, 7));
+  });
+  return [...months].sort().flatMap((key) => forMonth(key).reservations);
+}
+
+export function computeChannelMonthly(
+  data: AnalyticsData,
+  mode: ChannelComparisonMode,
+  months: string[],
+  teamCosts: Record<string, number> = {},
+): ChannelMonthlyPoint[] {
+  const { scopedAll, forMonth } = channelMonthResolver(data, mode);
+  return months.map((key) => {
+    const { inMonth, summary, usesHq, reservations } = forMonth(key);
     const scoped: AnalyticsData = {
       ...scopedAll,
       meta: scopedAll.meta.filter((r) => inMonth(r.date)),
       google: scopedAll.google.filter((r) => inMonth(r.date)),
       opportunities: summary.clickmassaOpportunities,
       updatedOpportunities: [],
-      reservations:
-        hqReservations.length >= MIN_CHANNEL_RESERVATIONS ? hqReservations : summary.revenueRows,
+      reservations,
     };
     // Consolidado inclui a equipe de marketing; o mês corrente vai só até hoje (como o faturamento).
     const monthEnd = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0))
@@ -1477,9 +1507,8 @@ export function computeChannelMonthly(
     const lastDay = monthEnd < isoDay(new Date()) ? monthEnd : isoDay(new Date());
     const teamSpend = mode === "both" ? teamCostForRange(teamCosts, `${key}-01`, lastDay) : 0;
     const kpis = computeKpis(scoped, teamSpend);
-    const usesHq = hqReservations.length >= MIN_CHANNEL_RESERVATIONS;
     const { created } = summary;
-    const won = usesHq ? hqReservations.length : summary.won;
+    const won = usesHq ? reservations.length : summary.won;
     return {
       month: `${MONTH_LABEL[Number(key.slice(5, 7)) - 1]}/${key.slice(2, 4)}`,
       conversao: created >= MIN_CHANNEL_OPPORTUNITIES ? (won / created) * 100 : null,

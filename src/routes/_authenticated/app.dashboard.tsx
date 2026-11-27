@@ -46,6 +46,9 @@ import {
   computeAttribution,
   computeKpis,
   withPartnerReservations,
+  channelReservations,
+  normalizeOrigin,
+  type AnalyticsData,
   computeChannelMonthly,
   MIN_CHANNEL_OPPORTUNITIES,
   MIN_CHANNEL_RESERVATIONS,
@@ -260,36 +263,56 @@ function Dashboard() {
   // Equipe de marketing atende todos os canais: só entra em "Todas as origens".
   const teamSpend =
     includeTeam && !selectedOrigin && teamCosts ? teamCostForRange(teamCosts, from, to) : 0;
-  const kpis =
+  // Meta e Google: reservas pela mesma regra mês a mês do comparativo de CAC (parceiro do HQ desde ago/2026,
+  // antes disso a origem do lead). Demais origens: parceiro de comissão do HQ.
+  const reservationsFor = (
+    origin: string | null,
+    d: NonNullable<typeof data>,
+    scoped: AnalyticsData,
+  ) => {
+    const key = origin ? normalizeOrigin(origin) : null;
+    return key === "meta" || key === "google"
+      ? { ...scoped, reservations: channelReservations(d.current, key) }
+      : withPartnerReservations(scoped, origin, d.current.reservations);
+  };
+  const baseKpis =
     originData && data
-      ? computeKpis(
-          withPartnerReservations(originData, selectedOrigin, data.current.reservations),
-          teamSpend,
-        )
+      ? computeKpis(reservationsFor(selectedOrigin, data, originData), teamSpend)
       : null;
+  // ROAS global: só o faturamento atribuído a Meta + Google (o investimento é só mídia/equipe de marketing).
+  const marketingRevenue =
+    data && !selectedOrigin
+      ? channelReservations(data.current, "both").reduce((s, r) => s + r.total_amount, 0)
+      : null;
+  const kpis = baseKpis
+    ? {
+        ...baseKpis,
+        roas:
+          marketingRevenue == null
+            ? baseKpis.roas
+            : baseKpis.spend
+              ? marketingRevenue / baseKpis.spend
+              : 0,
+        roasRevenue: marketingRevenue ?? baseKpis.revenue,
+      }
+    : null;
   // Mesmo cálculo do filtro de origem, por canal, para a linha "Meta · Google" de cada card.
   const channelKpis = (origin: "meta" | "google") =>
     data
-      ? computeKpis(
-          withPartnerReservations(
-            filterAnalyticsByOrigin(data.current, origin),
-            origin,
-            data.current.reservations,
-          ),
-        )
+      ? computeKpis(reservationsFor(origin, data, filterAnalyticsByOrigin(data.current, origin)))
       : null;
   const metaKpis = !selectedOrigin ? channelKpis("meta") : null;
   const googleKpis = !selectedOrigin ? channelKpis("google") : null;
   const fmtPct = (v: number | null) =>
     v == null ? "—" : `${(v * 100).toFixed(1).replace(".", ",")}%`;
-  const channelRows = (format: (k: NonNullable<typeof kpis>) => string) =>
+  const channelRows = (format: (k: ReturnType<typeof computeKpis>) => string) =>
     metaKpis && googleKpis
       ? [
           { label: "Meta", values: [format(metaKpis)] },
           { label: "Google", values: [format(googleKpis)] },
         ]
       : null;
-  const breakdownOf = (column: string, format: (k: NonNullable<typeof kpis>) => string) => {
+  const breakdownOf = (column: string, format: (k: ReturnType<typeof computeKpis>) => string) => {
     const rows = channelRows(format);
     return rows ? { columns: [column], rows } : undefined;
   };
@@ -591,7 +614,7 @@ function Dashboard() {
               value={kpis ? `${kpis.roas.toFixed(2)}x` : "—"}
               calc={
                 kpis
-                  ? `${brl(kpis.revenue)} de faturamento ÷ ${brl(kpis.spend)} investidos = ${kpis.roas.toFixed(2)}x`
+                  ? `${brl(kpis.roasRevenue)} de faturamento ${selectedOrigin ? "" : "de Meta + Google "}÷ ${brl(kpis.spend)} investidos = ${kpis.roas.toFixed(2)}x`
                   : undefined
               }
               breakdown={breakdownOf("ROAS", (k) => `${k.roas.toFixed(2)}x`)}
