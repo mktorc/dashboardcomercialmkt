@@ -1,3 +1,4 @@
+import { useEffect, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -48,7 +49,8 @@ export type Block =
       items: { q: string; options: string[]; correct: number; why: string; page: string }[];
     }
   | { t: "faq"; items: { q: string; a: string; pt: string; es: string }[] }
-  | { t: "widget"; name: "fleet" | "calc"; area: string }
+  | { t: "widget"; name: "fleet" | "calc" | "map" | "arrivals"; area: string }
+  | { t: "thumb"; id: string; alt: string }
   | { t: "file"; name: string; link: string; kind: "video" | "image" | "doc" };
 
 export type Article = {
@@ -62,6 +64,8 @@ export type Article = {
   areas: KbArea[];
   shared: boolean;
   updatedAt: string;
+  /** Página revisada à mão (curadoria.ts). */
+  curated?: boolean;
 };
 export type Template = {
   title: string;
@@ -230,6 +234,7 @@ export type KbEngajamento = {
   trend: Record<string, { now: number; before: number }>;
   ranking: { name: string; best: number; total: number; tries: number }[];
   notes: { articleId: string; name?: string; reason: string; note: string; at: string }[];
+  misses: { q: string; hits: number; at: string }[];
 };
 export function useKbEngajamento(area: KbArea) {
   return useQuery({
@@ -237,4 +242,57 @@ export function useKbEngajamento(area: KbArea) {
     queryFn: () => kbApi<KbEngajamento>(`engajamento?area=${area}`),
     staleTime: 60_000,
   });
+}
+
+// ───── Favoritos (por navegador): estrela na página e seção no menu ─────
+const favSubs = new Set<() => void>();
+const favCache = new Map<string, string[]>();
+function favRead(area: string): string[] {
+  if (!favCache.has(area)) {
+    try {
+      favCache.set(area, JSON.parse(localStorage.getItem(`kb-fav:${area}`) ?? "[]") as string[]);
+    } catch {
+      favCache.set(area, []);
+    }
+  }
+  return favCache.get(area)!;
+}
+export function toggleFavorite(area: string, id: string) {
+  const cur = favRead(area);
+  const next = cur.includes(id) ? cur.filter((x) => x !== id) : [id, ...cur];
+  favCache.set(area, next);
+  try {
+    localStorage.setItem(`kb-fav:${area}`, JSON.stringify(next));
+  } catch {
+    /* sem armazenamento: vale só nesta aba */
+  }
+  favSubs.forEach((f) => f());
+}
+const EMPTY: string[] = [];
+export function useFavorites(area: string): string[] {
+  return useSyncExternalStore(
+    (f) => {
+      favSubs.add(f);
+      return () => favSubs.delete(f);
+    },
+    () => favRead(area),
+    () => EMPTY,
+  );
+}
+
+/** Dia da revisão à mão (igual a CURADORIA_EM em src/lib/kb/curadoria.ts). */
+export const CURADORIA_EM = "2026-11-27";
+
+/** Busca sem nenhum resultado: registra o termo depois de 1,5 s parado (painel de saúde). */
+export function useLogMiss(area: KbArea, q: string, empty: boolean) {
+  useEffect(() => {
+    const t = q.trim();
+    if (!empty || t.length < 4) return;
+    const h = setTimeout(() => {
+      void kbApi("feedback", { method: "POST", body: { area, action: "miss", q: t } }).catch(
+        () => {},
+      );
+    }, 1500);
+    return () => clearTimeout(h);
+  }, [area, q, empty]);
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Car, Luggage, Minus, Plus, Users } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyButton } from "./KbBlocks";
 import { kbApi, useKbEngajamento, type KbArea } from "./kb-api";
 
@@ -18,10 +18,12 @@ type Fleet = {
   cap: [number, number, number][];
   franquia: number;
   tanque: number | null;
+  thumb?: string;
 };
 export const FLEET: Fleet[] = [
   {
     key: "sedan",
+    thumb: "1sFkWgPAGmIENFGnC6il_BcOWQMHR3OVl",
     name: "Sedan",
     models: "Toyota Corolla",
     es: "Sedan",
@@ -31,6 +33,7 @@ export const FLEET: Fleet[] = [
   },
   {
     key: "suv-media",
+    thumb: "1CHg6uZ1e6rS3x80dUM32tJCZf2Wxl9F-",
     name: "SUV Média",
     models: "Sportage, Tucson, RAV4",
     es: "SUV Mediana",
@@ -45,6 +48,7 @@ export const FLEET: Fleet[] = [
   },
   {
     key: "suv-grande",
+    thumb: "1fnf73GrEGz0jVBhSu54rm0Jl1DUxbYyA",
     name: "SUV Grande (Full Size)",
     models: "Sorento, Highlander, Palisade",
     es: "SUV Grande",
@@ -58,6 +62,7 @@ export const FLEET: Fleet[] = [
   },
   {
     key: "minivan",
+    thumb: "1BP9lT8Q-5BYBxfAS-kQFyYSbM4Bslo-R",
     name: "Minivan",
     models: "Kia Carnival",
     es: "Minivan",
@@ -72,6 +77,7 @@ export const FLEET: Fleet[] = [
   },
   {
     key: "suv-executive",
+    thumb: "1oxSBiD46H4F3un_1lJuLZ_SWiKUExF_O",
     name: "SUV Executive",
     models: "Suburban, Yukon XL",
     es: "SUV Executive",
@@ -95,6 +101,7 @@ export const FLEET: Fleet[] = [
   },
   {
     key: "luxury",
+    thumb: "1LZ8JUnjKBPMZAidnhRpX2KDlOk7y1iXx",
     name: "Luxury",
     models: "Cadillac Escalade ESV",
     es: "Luxury",
@@ -222,7 +229,10 @@ export function FleetPicker({ area }: { area: string }) {
                     : "bg-muted/20 opacity-50 hover:opacity-80"
                 }`}
               >
-                <span className="min-w-0">
+                {f.thumb && (
+                  <DriveThumb id={f.thumb} alt={f.models} className="h-12 w-16 shrink-0" />
+                )}
+                <span className="min-w-0 flex-1">
                   <span className="block font-semibold text-foreground">{f.name}</span>
                   <span className="block truncate text-xs text-muted-foreground">{f.models}</span>
                 </span>
@@ -378,7 +388,18 @@ export function QuoteCalc() {
 // ───────────── Quiz de treino ─────────────
 export type QuizQ = { q: string; options: string[]; correct: number; why: string; page: string };
 
-export function Quiz({ items, area }: { items: QuizQ[]; area: string }) {
+/** Sorteia até n perguntas, embaralhando também as alternativas. */
+function draw(all: QuizQ[], n = 8): QuizQ[] {
+  const pick = [...all].sort(() => Math.random() - 0.5).slice(0, n);
+  return pick.map((q) => {
+    const order = q.options.map((_, i) => i).sort(() => Math.random() - 0.5);
+    return { ...q, options: order.map((i) => q.options[i]!), correct: order.indexOf(q.correct) };
+  });
+}
+
+export function Quiz({ items: bank, area }: { items: QuizQ[]; area: string }) {
+  const [items, setItems] = useState<QuizQ[]>(() => bank.slice(0, 8));
+  useEffect(() => setItems(draw(bank)), [bank]);
   const [i, setI] = useState(0);
   const [pick, setPick] = useState<number | null>(null);
   const [score, setScore] = useState(0);
@@ -411,6 +432,7 @@ export function Quiz({ items, area }: { items: QuizQ[]; area: string }) {
         <button
           type="button"
           onClick={() => {
+            setItems(draw(bank));
             setI(0);
             setPick(null);
             setScore(0);
@@ -440,6 +462,11 @@ export function Quiz({ items, area }: { items: QuizQ[]; area: string }) {
                     {j + 1}
                   </span>
                   <span className="flex-1 truncate text-foreground">{r.name}</span>
+                  {r.best / r.total >= 0.75 && (
+                    <span className="shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      Onboarding concluído
+                    </span>
+                  )}
                   <span className="tabular-nums text-muted-foreground">
                     {r.best}/{r.total}
                   </span>
@@ -595,5 +622,252 @@ export function WelcomeTour() {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ───────────── Mapa das bases de retirada ─────────────
+// Contorno simplificado da Flórida (lat, lon) e os pontos de entrega, com valores da base.
+const FL: [number, number][] = [
+  [31.0, -87.6],
+  [31.0, -85.0],
+  [30.7, -84.9],
+  [30.6, -82.2],
+  [30.7, -81.5],
+  [29.9, -81.3],
+  [28.8, -80.6],
+  [27.5, -80.2],
+  [26.5, -80.05],
+  [25.8, -80.12],
+  [25.2, -80.4],
+  [25.1, -81.1],
+  [25.9, -81.7],
+  [26.7, -82.1],
+  [27.6, -82.7],
+  [28.2, -82.8],
+  [29.1, -82.9],
+  [29.9, -83.7],
+  [30.1, -84.3],
+  [29.7, -85.3],
+  [30.2, -86.5],
+  [30.4, -87.4],
+];
+const proj = (lat: number, lon: number): [number, number] => [
+  ((lon + 87.8) / 7.9) * 300,
+  ((31.2 - lat) / 6.4) * 330,
+];
+const BASES: {
+  code: string;
+  name: string;
+  lat: number;
+  lon: number;
+  fee: string;
+  como: string;
+  tpl: string;
+}[] = [
+  {
+    code: "MCO",
+    name: "Aeroporto de Orlando",
+    lat: 28.43,
+    lon: -81.31,
+    fee: "Sem taxa (Lounge: US$ 40)",
+    como: "7h às 18h30 em mãos no Lounge; depois, estacionamento (saída até US$ 25).",
+    tpl: "Ori.MCO Loun / Ori.estacionamento -Mia/MCO",
+  },
+  {
+    code: "SFB",
+    name: "Aeroporto de Sanford",
+    lat: 28.78,
+    lon: -81.24,
+    fee: "US$ 120 por trecho",
+    como: "Em mãos ou estacionamento, com instruções da logística.",
+    tpl: "—",
+  },
+  {
+    code: "PCV",
+    name: "Porto Canaveral",
+    lat: 28.41,
+    lon: -80.6,
+    fee: "US$ 120 por trecho",
+    como: "Em mãos, em horário comercial.",
+    tpl: "Ori.Porto",
+  },
+  {
+    code: "TPA",
+    name: "Aeroporto de Tampa",
+    lat: 27.98,
+    lon: -82.53,
+    fee: "US$ 120 por trecho",
+    como: "Em mãos ou estacionamento, com instruções da logística.",
+    tpl: "—",
+  },
+  {
+    code: "FLL",
+    name: "Fort Lauderdale (aeroporto)",
+    lat: 26.07,
+    lon: -80.15,
+    fee: "US$ 60 por trecho (hotel/porto: US$ 120)",
+    como: "Em mãos se possível; senão estacionamento (até US$ 36).",
+    tpl: "Ori.Mia/FLL",
+  },
+  {
+    code: "MIA",
+    name: "Aeroporto de Miami",
+    lat: 25.79,
+    lon: -80.29,
+    fee: "Sem taxa (hotel/porto: US$ 120)",
+    como: "Em mãos se possível; senão estacionamento (até US$ 36).",
+    tpl: "Ori.Mia/FLL",
+  },
+];
+
+export function MapaBases() {
+  const [sel, setSel] = useState("MCO");
+  const b = BASES.find((x) => x.code === sel)!;
+  const path = FL.map(([la, lo], i) => `${i ? "L" : "M"}${proj(la, lo).join(",")}`).join(" ") + "Z";
+  return (
+    <div className="grid gap-4 rounded-2xl bg-primary/5 p-4 ring-1 ring-primary/20 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:p-5">
+      <svg
+        viewBox="0 0 300 330"
+        role="img"
+        aria-label="Mapa da Flórida com as bases"
+        className="w-full max-w-sm"
+      >
+        <path d={path} className="fill-primary/10 stroke-primary/50" strokeWidth={1.5} />
+        {BASES.map((x) => {
+          const [cx, cy] = proj(x.lat, x.lon);
+          const on = x.code === sel;
+          return (
+            <g key={x.code} onClick={() => setSel(x.code)} className="cursor-pointer">
+              <circle
+                cx={cx}
+                cy={cy}
+                r={on ? 9 : 6}
+                className={on ? "fill-primary" : "fill-primary/60 hover:fill-primary"}
+              />
+              <text x={cx + 11} y={cy + 4} className="fill-foreground text-[11px] font-semibold">
+                {x.code}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Escolher base">
+          {BASES.map((x) => (
+            <button
+              key={x.code}
+              type="button"
+              aria-pressed={x.code === sel}
+              onClick={() => setSel(x.code)}
+              className={`min-h-9 rounded-full px-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                x.code === sel
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/50 text-foreground/80 hover:bg-primary/15"
+              }`}
+            >
+              {x.code}
+            </button>
+          ))}
+        </div>
+        <div className="space-y-2 rounded-xl bg-background/60 p-4" aria-live="polite">
+          <p className="text-lg font-semibold text-foreground">{b.name}</p>
+          <p className="text-2xl font-bold text-primary">{b.fee}</p>
+          <p className="text-sm leading-relaxed text-foreground/90">{b.como}</p>
+          <p className="text-xs text-muted-foreground">Template: {b.tpl}</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Toda taxa na proposta tem 6,5% de imposto. Mapa ilustrativo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ───────────── Foto do carro (miniatura do Drive) ─────────────
+/** Miniatura de um arquivo do Drive; some se o navegador não tiver acesso ao arquivo. */
+export function DriveThumb({
+  id,
+  alt,
+  className = "",
+}: {
+  id: string;
+  alt: string;
+  className?: string;
+}) {
+  const [ok, setOk] = useState(true);
+  if (!ok) return null;
+  return (
+    <img
+      src={`https://drive.google.com/thumbnail?id=${id}&sz=w800`}
+      alt={alt}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setOk(false)}
+      className={`rounded-xl object-cover ${className}`}
+    />
+  );
+}
+
+// ───────────── CS: quem chega amanhã ─────────────
+type Chegada = {
+  reserva: string;
+  hora: string;
+  local: string;
+  categoria: string;
+  template: string;
+};
+
+export function ChegadasAmanha() {
+  const q = useQuery({
+    queryKey: ["kb-chegadas"],
+    queryFn: () => kbApi<{ dia: string; rows: Chegada[] }>("chegadas"),
+    staleTime: 5 * 60_000,
+  });
+  const dia = q.data?.dia ? q.data.dia.split("-").reverse().join("/") : "";
+  return (
+    <div className="space-y-3 rounded-2xl bg-primary/5 p-4 ring-1 ring-primary/20 sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <p className="font-semibold text-foreground">Chegam amanhã {dia && `(${dia})`}</p>
+        {q.data && (
+          <span className="rounded-full bg-primary px-3 py-1 text-sm font-bold tabular-nums text-primary-foreground">
+            {q.data.rows.length} reserva{q.data.rows.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      {q.isLoading && <p className="text-sm text-muted-foreground">Carregando as reservas…</p>}
+      {q.isError && (
+        <p className="text-sm text-muted-foreground">
+          Não foi possível carregar agora. Filtre no HQ.
+        </p>
+      )}
+      {q.data && !q.data.rows.length && (
+        <p className="text-sm text-muted-foreground">Nenhuma reserva chega amanhã.</p>
+      )}
+      {!!q.data?.rows.length && (
+        <ul className="space-y-1.5">
+          {q.data.rows.map((r) => (
+            <li
+              key={r.reserva}
+              className="grid gap-1 rounded-xl bg-background/60 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:gap-3"
+            >
+              <span className="text-lg font-bold tabular-nums text-foreground">{r.hora}</span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-foreground">
+                  RA {r.reserva} · {r.categoria || "categoria não informada"}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">{r.local}</span>
+              </span>
+              <span className="justify-self-start rounded-full bg-primary/15 px-3 py-1 text-xs font-medium text-primary sm:justify-self-end">
+                {r.template}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Do HQ, sincronizado no painel. O template é sugerido pelo local e horário; confira o
+        pagamento e a nota fixa antes de enviar.
+      </p>
+    </div>
   );
 }

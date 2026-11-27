@@ -52,3 +52,20 @@ CREATE TABLE IF NOT EXISTS public.kb_quiz_results (
 ALTER TABLE public.kb_article_views_daily ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kb_feedback_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.kb_quiz_results ENABLE ROW LEVEL SECURITY;
+
+-- 4) Buscas que não acharam nada (painel de saúde da base) ----------------------------------------
+CREATE TABLE IF NOT EXISTS public.kb_search_misses (
+  area      text NOT NULL CHECK (area IN ('comercial','cs')),
+  q         text NOT NULL,
+  hits      integer NOT NULL DEFAULT 1,
+  last_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (area, q)
+);
+ALTER TABLE public.kb_search_misses ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.kb_register_miss(p_area text, p_q text)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  INSERT INTO public.kb_search_misses (area, q, hits, last_at) VALUES (p_area, p_q, 1, now())
+  ON CONFLICT (area, q) DO UPDATE SET hits = kb_search_misses.hits + 1, last_at = now();
+$$;
+REVOKE ALL ON FUNCTION public.kb_register_miss(text, text) FROM PUBLIC, anon, authenticated;

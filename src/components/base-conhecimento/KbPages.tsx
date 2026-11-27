@@ -26,6 +26,8 @@ import {
   isRecent,
   readPages,
   useKbEngajamento,
+  useLogMiss,
+  CURADORIA_EM,
   TRILHA,
   recentViews,
   fmtDate,
@@ -111,6 +113,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
   const index = useMemo(() => buildIndex(data.articles), [data.articles]);
   const hits = useMemo(() => searchArticles(index, q, 6), [index, q]);
   const answer = useMemo(() => quickAnswer(data.articles, q), [data.articles, q]);
+  useLogMiss(data.area, q, !hits.length && !answer);
   const byId = new Map(data.articles.map((a) => [a.id, a]));
   const quick = QUICK[data.area].map((id) => byId.get(id)).filter(Boolean) as Article[];
   const views = (a: Article) => data.stats[a.id]?.views ?? 0;
@@ -123,6 +126,20 @@ export function KbHome({ data }: { data: KbAreaData }) {
     .slice(0, 5);
   const info = AREA_INFO[data.area];
   const eng = useKbEngajamento(data.area);
+  const piores = [...data.articles]
+    .filter((a) => (data.stats[a.id]?.down ?? 0) > 0)
+    .sort((a, b) => (data.stats[b.id]?.down ?? 0) - (data.stats[a.id]?.down ?? 0))
+    .slice(0, 5);
+  const driveMudou = data.articles.filter(
+    (a) => a.curated && a.updatedAt.slice(0, 10) > CURADORIA_EM,
+  );
+  const tplNomes = [
+    ...new Set(
+      data.articles.flatMap((a) => a.blocks.flatMap((b) => (b.t === "tags" ? b.items : []))),
+    ),
+  ];
+  const tplKeys = new Set(data.templates.map((t) => templateKey(t.title)));
+  const semTexto = tplNomes.filter((n) => !tplKeys.has(templateKey(n))).length;
   // "Agora": a página do dia. CS no sábado tem rotina própria.
   const hoje = new Date();
   const hora = hoje.getHours();
@@ -499,6 +516,76 @@ export function KbHome({ data }: { data: KbAreaData }) {
           </Card>
         </section>
       </div>
+
+      {data.admin && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">Saúde da base</h2>
+          <p className="text-sm text-muted-foreground">
+            Onde a base precisa de atenção. Só administradores veem.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2 rounded-2xl bg-muted/25 p-4">
+              <p className="font-semibold text-foreground">Mais votos &ldquo;Não ajudou&rdquo;</p>
+              {piores.length ? (
+                piores.map((a) => (
+                  <ArticleRow
+                    key={a.id}
+                    a={a}
+                    area={data.area}
+                    meta={`${data.stats[a.id]?.down ?? 0} não`}
+                  />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhum voto negativo ainda.</p>
+              )}
+            </div>
+            <div className="space-y-2 rounded-2xl bg-muted/25 p-4">
+              <p className="font-semibold text-foreground">Buscas que não acharam nada</p>
+              {eng.data?.misses.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {eng.data.misses.slice(0, 12).map((m) => (
+                    <span
+                      key={m.q}
+                      className="rounded-full bg-muted/60 px-3 py-1 text-sm text-foreground/90"
+                    >
+                      {m.q} <span className="text-xs text-muted-foreground">×{m.hits}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma ainda: as buscas sem resultado aparecem aqui.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2 rounded-2xl bg-muted/25 p-4">
+              <p className="font-semibold text-foreground">Revisar: o arquivo do Drive mudou</p>
+              {driveMudou.length ? (
+                driveMudou.map((a) => (
+                  <ArticleRow key={a.id} a={a} area={data.area} meta={fmtDate(a.updatedAt)} />
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma página revisada teve o arquivo alterado depois.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2 rounded-2xl bg-muted/25 p-4">
+              <p className="font-semibold text-foreground">Templates sem texto</p>
+              <p className="text-3xl font-bold tabular-nums text-foreground">
+                {semTexto}{" "}
+                <span className="text-base font-normal text-muted-foreground">
+                  de {tplNomes.length}
+                </span>
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Ficam cinza na base. Cadastre o texto no documento &ldquo;Templates de
+                mensagem&rdquo; do Drive.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {data.admin && !!eng.data?.notes.length && (
         <section className="space-y-3">

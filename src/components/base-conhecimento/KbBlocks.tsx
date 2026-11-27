@@ -1,8 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   AlertTriangle,
   Calculator,
   CarFront,
+  MapPinned,
   Check,
   ChevronRight,
   Copy,
@@ -17,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { slug, type Block, type Template } from "./kb-api";
 import { templateKey, VARIABLE_RE } from "@/lib/kb/templates";
 import { namedIcon } from "./kb-icons";
-import { FleetPicker, Quiz, QuoteCalc } from "./KbWidgets";
+import { ChegadasAmanha, DriveThumb, FleetPicker, MapaBases, Quiz, QuoteCalc } from "./KbWidgets";
 
 // Renderização do conteúdo dos artigos.
 
@@ -67,7 +68,55 @@ export function CopyButton({ text, label = "Copiar" }: { text: string; label?: s
 }
 
 /** Mensagem pronta para enviar ao cliente: bloco com "Copiar" e variáveis destacadas. */
-export function MessageBlock({ title, text }: { title?: string | undefined; text: string }) {
+// ───── Nome do cliente: preenchido uma vez no topo da página, entra em todas as mensagens ─────
+let clientName = "";
+const nameSubs = new Set<() => void>();
+export function setClientName(v: string) {
+  clientName = v;
+  nameSubs.forEach((f) => f());
+}
+export function useClientName() {
+  return useSyncExternalStore(
+    (f) => {
+      nameSubs.add(f);
+      return () => nameSubs.delete(f);
+    },
+    () => clientName,
+    () => "",
+  );
+}
+const NAME_RE = /\(nome do cliente\)|\[nome[^\]]*\]|\{\{?\s*nome\s*\}?\}/gi;
+/** Põe o nome do cliente: troca o marcador ou abre com a saudação no idioma. */
+export function personalize(text: string, name: string, lang: "pt" | "es" = "pt") {
+  const n = name.trim();
+  if (!n) return text;
+  if (new RegExp(NAME_RE.source, "i").test(text))
+    return text.replace(new RegExp(NAME_RE.source, "gi"), n);
+  return `${lang === "es" ? "¡Hola" : "Olá"}, ${n}!\n\n${text}`;
+}
+
+/** Campo do topo da página: "Nome do cliente". */
+export function ClientNameInput() {
+  const name = useClientName();
+  return (
+    <label className="flex flex-wrap items-center gap-2 rounded-xl bg-primary/10 px-3 py-2 ring-1 ring-primary/25">
+      <span className="text-sm font-medium text-foreground">Nome do cliente</span>
+      <input
+        value={name}
+        onChange={(e) => setClientName(e.target.value.slice(0, 40))}
+        placeholder="Ex.: Ana"
+        className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
+      />
+      <span className="w-full text-xs text-muted-foreground">
+        Entra em todas as mensagens prontas desta página antes de copiar.
+      </span>
+    </label>
+  );
+}
+
+export function MessageBlock({ title, text: raw }: { title?: string | undefined; text: string }) {
+  const name = useClientName();
+  const text = personalize(raw, name, /español|espanhol|\bES\b/i.test(title ?? "") ? "es" : "pt");
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
       <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
@@ -118,7 +167,9 @@ export function TemplateChip({ name, tpl }: { name: string; tpl?: Template | und
 /** Mesmo texto em vários idiomas: abas e um botão Copiar para o idioma aberto. */
 function LangTabs({ items }: { items: { label: string; text: string }[] }) {
   const [i, setI] = useState(0);
-  const cur = items[i]!;
+  const name = useClientName();
+  const it = items[i]!;
+  const cur = { ...it, text: personalize(it.text, name, /espa/i.test(it.label) ? "es" : "pt") };
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-2 py-1.5">
@@ -552,6 +603,7 @@ export function KbBlock({
     case "langs":
       return <LangTabs items={b.items} />;
     case "widget":
+      if (b.name === "arrivals") return <ChegadasAmanha />;
       return (
         <details className="group/w space-y-3 rounded-2xl bg-primary/10 ring-1 ring-primary/30 open:bg-transparent open:ring-0">
           <summary className="flex min-h-16 cursor-pointer list-none items-center gap-3 rounded-2xl p-4 transition hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
@@ -566,12 +618,16 @@ export function KbBlock({
               <span className="block font-semibold text-foreground">
                 {b.name === "fleet"
                   ? "Qual carro serve para o cliente?"
-                  : "Calcular taxas de entrega"}
+                  : b.name === "map"
+                    ? "Mapa das bases de retirada"
+                    : "Calcular taxas de entrega"}
               </span>
               <span className="block text-sm text-muted-foreground">
                 {b.name === "fleet"
                   ? "Informe pessoas e malas e veja as categorias que servem."
-                  : "Escolha retirada e devolução e copie o total com imposto."}
+                  : b.name === "map"
+                    ? "Clique na base e veja taxa, como entregamos e o template."
+                    : "Escolha retirada e devolução e copie o total com imposto."}
               </span>
             </span>
             <span className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
@@ -579,7 +635,13 @@ export function KbBlock({
               <span className="hidden group-open/w:inline">Fechar</span>
             </span>
           </summary>
-          {b.name === "fleet" ? <FleetPicker area={b.area} /> : <QuoteCalc />}
+          {b.name === "fleet" ? (
+            <FleetPicker area={b.area} />
+          ) : b.name === "map" ? (
+            <MapaBases />
+          ) : (
+            <QuoteCalc />
+          )}
         </details>
       );
     case "quiz":
@@ -612,6 +674,8 @@ export function KbBlock({
           ))}
         </div>
       );
+    case "thumb":
+      return <DriveThumb id={b.id} alt={b.alt} className="aspect-video w-full max-w-xl" />;
     case "keys":
       return (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

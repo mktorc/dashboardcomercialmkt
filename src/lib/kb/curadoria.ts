@@ -8,6 +8,9 @@ type Block = { t: string } & Record<string, unknown>;
 type SubStep = { title: string; text?: string; tpl?: string[] };
 type Step = { title: string; text?: string; list?: string[]; sub?: SubStep[]; tpl?: string[] };
 
+/** Dia da revisão à mão: arquivo do Drive alterado depois disso pede nova revisão. */
+export const CURADORIA_EM = "2026-11-27";
+
 export type CPage = {
   id: string;
   title: string;
@@ -74,6 +77,8 @@ function fleetPage(o: {
   franquia: string;
   tanque: string;
   media: Block[];
+  /** Arquivo do Drive para a miniatura no topo. */
+  thumb?: string;
   regras?: Block[];
   extra?: Block[];
 }) {
@@ -83,6 +88,7 @@ function fleetPage(o: {
     summary: `${o.modelos}: capacidade, franquia, taxa de combustível${o.media.length ? " e vídeo" : ""}.`,
     keywords: `${o.title} ${o.modelos} ${o.es} frota categoria malas passageiros`,
     blocks: [
+      ...(o.thumb ? [{ t: "thumb", id: o.thumb, alt: o.modelos }] : []),
       p(
         `Modelos da categoria: ${o.modelos}. O cliente reserva a categoria, não o modelo: ele recebe um dos modelos listados.`,
       ),
@@ -111,6 +117,7 @@ function fleetPage(o: {
 const FROTA = [
   fleetPage({
     key: "sedan",
+    thumb: VID.sedan,
     title: "Sedan",
     modelos: "Toyota Corolla",
     es: "Categoría Sedan",
@@ -126,6 +133,7 @@ const FROTA = [
   }),
   fleetPage({
     key: "suv-media",
+    thumb: VID.suvMedia,
     title: "SUV Média",
     modelos: "Kia Sportage, Hyundai Tucson ou Toyota RAV4",
     es: "Categoría SUV Mediana",
@@ -144,6 +152,7 @@ const FROTA = [
   }),
   fleetPage({
     key: "suv-grande",
+    thumb: VID.fullSize,
     title: "SUV Grande (Full Size)",
     modelos: "Kia Sorento, Toyota Highlander ou Hyundai Palisade",
     es: "Categoría SUV Grande",
@@ -166,6 +175,7 @@ const FROTA = [
   }),
   fleetPage({
     key: "minivan",
+    thumb: VID.minivan,
     title: "Minivan",
     modelos: "Kia Carnival (8 lugares)",
     es: "Categoría Minivan",
@@ -181,6 +191,7 @@ const FROTA = [
   }),
   fleetPage({
     key: "suv-executive",
+    thumb: VID.sub7,
     title: "SUV Executive",
     modelos: "Chevrolet Suburban ou GMC Yukon XL (7 ou 8 lugares)",
     es: "Categoría SUV Executive",
@@ -225,6 +236,7 @@ const FROTA = [
   }),
   fleetPage({
     key: "luxury",
+    thumb: VID.cadillac,
     title: "Luxury",
     modelos: "Cadillac Escalade ESV",
     es: "Categoría Luxury",
@@ -599,6 +611,79 @@ const quizPage = (area: "comercial" | "cs", cat: string): CPage => {
       correct: 1,
       why: "Taxa de reabastecimento do Sedan: US$ 50 (pode chegar a 1,5x o valor do posto).",
       page: pg("politica-de-combustivel", "taxas-de-combustivel"),
+    },
+    {
+      q: "Qual a idade mínima para dirigir (principal ou adicional)?",
+      options: ["18 anos", "21 anos", "25 anos", "Não há"],
+      correct: 1,
+      why: "21 anos para o motorista principal e para o adicional.",
+      page: pg("frota-visao-geral-comercial", "idade-minima-para-dirigir"),
+    },
+    {
+      q: "Condutor adicional tem custo?",
+      options: [
+        "US$ 10 por dia",
+        "US$ 50 por reserva",
+        "Não, é sem custo",
+        "Só o primeiro é grátis",
+      ],
+      correct: 2,
+      why: "Condutores adicionais e cadeirinhas são sem custo.",
+      page: pg("beneficios-inclusos", "dicas-de-viagem-e-condicao-es"),
+    },
+    {
+      q: "Quantas diárias o aluguel exige, no mínimo?",
+      options: ["1", "3", "5 consecutivas", "7"],
+      correct: 2,
+      why: "Mínimo de 5 diárias consecutivas (pode haver exceção para cliente com 2 reservas).",
+      page: `frota-visao-geral-${area}`,
+    },
+    {
+      q: "Qual imposto entra sobre as taxas incluídas na proposta?",
+      options: ["Nenhum", "3%", "6,5%", "10%"],
+      correct: 2,
+      why: "Toda taxa incluída na proposta tem 6,5% de imposto.",
+      page: pg("retirada-regras-gerais", "retirada-em-orlando"),
+    },
+    {
+      q: "Quanto custa a entrega em mãos no Lounge, em Orlando?",
+      options: ["Sem custo", "US$ 25", "US$ 40", "US$ 80"],
+      correct: 2,
+      why: "Entrega em mãos no Lounge: US$ 40.",
+      page: pg("retirada-orlando", "retirada-em-orlando"),
+    },
+    {
+      q: "Em caso de acidente, o que o cliente faz primeiro?",
+      options: [
+        "Leva o carro à loja",
+        "Chama a polícia (911) e liga para o suporte",
+        "Manda foto no grupo",
+        "Nada, o seguro cobre",
+      ],
+      correct: 1,
+      why: "É obrigatório chamar a polícia (911) e ligar para o suporte pelo WhatsApp.",
+      page: pg("seguro-e-franquia", "politica-de-seguro-es"),
+    },
+    {
+      q: "Voo de volta sai às 8h. Qual horário de devolução lançar?",
+      options: ["8h", "7h", "6h", "5h"],
+      correct: 3,
+      why: "A devolução fica 3 horas antes da partida do voo.",
+      page: pg("reserva-lancamento-hq", "conferencia-e-orientacoes"),
+    },
+    {
+      q: "A cotação em PDF do HQ vale por quanto tempo?",
+      options: ["1 dia", "3 dias", "7 dias", "30 dias"],
+      correct: 1,
+      why: "A cotação em PDF vale 3 dias.",
+      page: pg("reserva-cotacao", "condicoes-de-reserva"),
+    },
+    {
+      q: "Quanto custa entregar num hotel em Orlando?",
+      options: ["Sem custo", "US$ 60 por trecho", "US$ 80 por trecho", "US$ 120 por trecho"],
+      correct: 2,
+      why: "Hotel em Orlando: US$ 80 por trecho. Casa de férias: US$ 120.",
+      page: pg("retirada-hoteis-casas", "retirada-em-orlando"),
     },
   ];
   return {
@@ -1272,6 +1357,7 @@ const COMERCIAL: Curadoria = {
       summary: "Taxas por local, exceções fora do horário e como registrar no HQ.",
       blocks: [
         { t: "widget", name: "calc", area: "" },
+        { t: "widget", name: "map", area: "" },
         h("Taxas por local"),
         TAXAS_ENTREGA,
         warn("Toda taxa incluída na proposta tem 6,5% de imposto."),
@@ -2263,6 +2349,7 @@ const CS: Curadoria = {
         "retirada entrega mco miami fll tampa sanford hotel porto lounge estacionamento taxa",
       blocks: [
         { t: "widget", name: "calc", area: "" },
+        { t: "widget", name: "map", area: "" },
         h("Resumo por local"),
         table(
           ["Local", "Como entregamos", "Taxa por trecho", "Template"],
@@ -2524,7 +2611,11 @@ const CS: Curadoria = {
       id: "boa-viagem",
       title: "3. Boa viagem",
       summary: "Um dia antes da chegada: mensagem de boa viagem e pagamento.",
-      blocks: [p(ETAPA.boaViagem.text), steps(ETAPA.boaViagem.sub)],
+      blocks: [
+        { t: "widget", name: "arrivals", area: "cs" },
+        p(ETAPA.boaViagem.text),
+        steps(ETAPA.boaViagem.sub),
+      ],
     },
     {
       id: "boas-vindas-cs",

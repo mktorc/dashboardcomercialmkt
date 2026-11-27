@@ -13,13 +13,14 @@ import {
   MessagesSquare,
   Search,
   Settings2,
+  Star,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AREA_INFO, type KbAreaData } from "./kb-api";
 import { KbSearchPalette } from "./KbSearchPalette";
 import { catIcon } from "./kb-icons";
-import { isRecent } from "./kb-api";
+import { isRecent, useFavorites } from "./kb-api";
 
 const navItem =
   "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -60,6 +61,10 @@ function Sidebar({
       return n;
     });
 
+  const favIds = useFavorites(data.area);
+  const favArts = favIds
+    .map((id) => data.articles.find((a) => a.id === id))
+    .filter((a): a is KbAreaData["articles"][number] => !!a);
   return (
     <nav className="flex h-full flex-col gap-1 p-3" aria-label="Navegação da base">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
@@ -142,6 +147,24 @@ function Sidebar({
       </Link>
 
       <div className="mt-3 flex-1 space-y-0.5 overflow-y-auto pr-1">
+        {favArts.length > 0 && (
+          <div className="mb-2 space-y-0.5 rounded-xl bg-primary/5 p-1.5">
+            <p className="flex items-center gap-2 px-2 py-1 text-sm font-medium text-foreground">
+              <Star className="size-4 fill-current text-primary" /> Meus favoritos
+            </p>
+            {favArts.map((a) => (
+              <Link
+                key={a.id}
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: a.id }}
+                onClick={onNavigate}
+                className={`${navItem} ${activeArticle === a.id ? navActive : navIdle}`}
+              >
+                <span className="line-clamp-2">{a.title}</span>
+              </Link>
+            ))}
+          </div>
+        )}
         {cats.map((c) => {
           const open = openCats.has(c.id);
           const kids = data.categories.filter((k) => k.parent === c.id && hasArticles(k.id));

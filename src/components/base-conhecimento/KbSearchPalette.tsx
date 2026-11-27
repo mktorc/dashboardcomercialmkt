@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { buildIndex, quickAnswer, searchArticles } from "./kb-search";
-import type { KbAreaData } from "./kb-api";
+import { useLogMiss, type KbAreaData } from "./kb-api";
 
 /** Abre com Ctrl/⌘ + K. Busca dentro da área, agrupa por categoria e destaca o trecho. */
 export function KbSearchPalette({
@@ -27,6 +27,7 @@ export function KbSearchPalette({
   const index = useMemo(() => buildIndex(data.articles), [data.articles]);
   const hits = useMemo(() => searchArticles(index, q, 25), [index, q]);
   const answer = useMemo(() => quickAnswer(data.articles, q), [data.articles, q]);
+  useLogMiss(data.area, q, !hits.length && !answer);
   const catTitle = (id: string) => data.categories.find((c) => c.id === id)?.title ?? id;
 
   useEffect(() => {

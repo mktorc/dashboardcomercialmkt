@@ -23,6 +23,7 @@ export function blockText(b: Block): string {
     case "keys":
       return b.items.map((x) => `${x.value} ${x.label}`).join(". ");
     case "widget":
+    case "thumb":
       return "";
     case "quiz":
       return b.items.map((x) => x.q).join(". ");

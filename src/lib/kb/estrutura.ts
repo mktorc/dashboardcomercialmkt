@@ -604,6 +604,7 @@ export function organizeKb<A extends EArticle>(
         summary: pg.summary,
         keywords: `${pg.keywords ?? ""} ${base?.keywords ?? ""}`.trim(),
         blocks: pg.blocks,
+        curated: true,
       } as EArticle;
       if (base) articles[at] = page;
       else articles.push(page);

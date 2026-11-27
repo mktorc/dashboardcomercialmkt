@@ -115,3 +115,17 @@ export async function quizRanking(area: string): Promise<QuizEntry[]> {
     }))
     .sort((a, b) => b.best / b.total - a.best / a.total || a.tries - b.tries);
 }
+
+export async function listMisses(area: string): Promise<{ q: string; hits: number; at: string }[]> {
+  const { data } = await db
+    .from("kb_search_misses")
+    .select("q, hits, last_at")
+    .eq("area", area)
+    .order("hits", { ascending: false })
+    .limit(30);
+  return ((data ?? []) as { q: string; hits: number; last_at: string }[]).map((r) => ({
+    q: r.q,
+    hits: r.hits,
+    at: r.last_at,
+  }));
+}

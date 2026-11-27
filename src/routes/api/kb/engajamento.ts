@@ -11,10 +11,11 @@ export const Route = createFileRoute("/api/kb/engajamento")({
         const u = await kb.requireArea(request, url.searchParams.get("area"));
         if ("denied" in u) return u.denied;
         const st = await import("@/lib/kb/engajamento.server");
-        const [trend, ranking, notes] = await Promise.all([
+        const [trend, ranking, notes, misses] = await Promise.all([
           st.viewTrend(),
           st.quizRanking(u.area),
           u.admin ? st.listNotes(u.area) : Promise.resolve([]),
+          u.admin ? st.listMisses(u.area) : Promise.resolve([]),
         ]);
         return Response.json({
           ok: true,
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/api/kb/engajamento")({
             note,
             at,
           })),
+          misses,
         });
       },
     },

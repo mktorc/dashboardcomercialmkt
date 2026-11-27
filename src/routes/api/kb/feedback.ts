@@ -18,6 +18,16 @@ export const Route = createFileRoute("/api/kb/feedback")({
         }
         const u = await kb.requireArea(request, b["area"]);
         if ("denied" in u) return u.denied;
+        if (b["action"] === "miss") {
+          // Busca que não achou nada: guarda o termo (minúsculo, até 80 letras) para o painel de saúde.
+          const q = String(b["q"] ?? "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ")
+            .slice(0, 80);
+          if (q.length >= 3) await kb.db.rpc("kb_register_miss", { p_area: u.area, p_q: q });
+          return kb.ok();
+        }
         const id = typeof b["articleId"] === "string" ? b["articleId"] : "";
         const areas = (await kb.articleAreas()).get(id);
         // Páginas criadas na revisão (perguntas frequentes, quiz...) não estão no articles.json.

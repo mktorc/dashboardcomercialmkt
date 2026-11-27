@@ -3,18 +3,20 @@ import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ChevronRight,
   Clock,
   ExternalLink,
   FileQuestion,
   MessageSquare,
   Share2,
+  Star,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { KbBlock, TemplateChip } from "./KbBlocks";
+import { ClientNameInput, KbBlock, TemplateChip } from "./KbBlocks";
 import { catIcon, sectionIcon } from "./kb-icons";
 import { templateKey } from "@/lib/kb/templates";
 import {
@@ -24,6 +26,9 @@ import {
   kbApi,
   slug,
   pushRecentView,
+  toggleFavorite,
+  CURADORIA_EM,
+  useFavorites,
   isRecent,
   type Article,
   type KbAreaData,
@@ -89,6 +94,63 @@ function Toc({ article }: { article: Article }) {
         })}
       </ul>
     </nav>
+  );
+}
+
+/** "Algo mudou?": avisa o administrador que um valor ou regra desta página está desatualizado. */
+function OutdatedButton({ article, data }: { article: Article; data: KbAreaData }) {
+  const [open, setOpen] = useState(false);
+  const [txt, setTxt] = useState("");
+  const send = useMutation({
+    mutationFn: () =>
+      kbApi("feedback", {
+        method: "POST",
+        body: {
+          area: data.area,
+          articleId: article.id,
+          action: "note",
+          reason: "Informação desatualizada",
+          note: txt.trim(),
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Aviso enviado ao administrador. Obrigado!");
+      setOpen(false);
+      setTxt("");
+    },
+    onError: () => toast.error("Não foi possível enviar"),
+  });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-muted/40 px-3 text-muted-foreground transition hover:text-foreground"
+      >
+        <AlertTriangle className="size-4" /> Algo mudou?
+      </button>
+      {open && (
+        <div className="w-full space-y-2 rounded-xl bg-muted/25 p-3">
+          <p className="text-sm text-foreground">O que está diferente do que acontece hoje?</p>
+          <textarea
+            autoFocus
+            value={txt}
+            onChange={(e) => setTxt(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder="Ex.: a taxa de Tampa agora é US$ 150"
+            className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
+          />
+          <button
+            type="button"
+            disabled={!txt.trim() || send.isPending}
+            onClick={() => send.mutate()}
+            className="min-h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            Avisar o administrador
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -227,6 +289,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
   const article = data.articles.find((a) => a.id === articleId);
   const viewed = useRef<string | null>(null);
   const [tplFilter, setTplFilter] = useState("");
+  const favs = useFavorites(data.area);
   useEffect(() => setTplFilter(""), [articleId]);
 
   useEffect(() => {
@@ -272,6 +335,10 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "");
   const tplHits = tplNames.filter((n) => fold(n).includes(fold(tplFilter.trim())));
+  const isFav = favs.includes(article.id);
+  const hasMessages = article.blocks.some(
+    (b) => b.t === "langs" || b.t === "quote" || b.t === "faq",
+  );
   const heads = article.blocks.flatMap((b) => (b.t === "h" ? [b.text] : []));
   const words = JSON.stringify(article.blocks).split(/\s+/).length;
   const minutes = Math.max(1, Math.round(words / 200));
@@ -415,10 +482,35 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                 <ExternalLink className="size-4" /> Abrir no Drive
               </a>
             )}
+            <button
+              type="button"
+              onClick={() => toggleFavorite(data.area, article.id)}
+              aria-pressed={isFav}
+              className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 transition ${
+                isFav
+                  ? "bg-primary/20 text-primary"
+                  : "bg-muted/40 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Star className={`size-4 ${isFav ? "fill-current" : ""}`} />
+              {isFav ? "Nos favoritos" : "Favoritar"}
+            </button>
+            <OutdatedButton article={article} data={data} />
           </div>
         </header>
 
+        {data.admin && article.curated && article.updatedAt.slice(0, 10) > CURADORIA_EM && (
+          <div className="mt-4 flex gap-3 rounded-xl bg-amber-500/10 p-3 text-sm text-foreground ring-1 ring-amber-500/40">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+            <span>
+              O arquivo do Drive desta página mudou em {fmtDate(article.updatedAt)}, depois da
+              revisão. Confira se o texto daqui ainda está certo. (Só administradores veem este
+              aviso.)
+            </span>
+          </div>
+        )}
         <div className="space-y-5 py-6">
+          {hasMessages && <ClientNameInput />}
           {tplNames.length > 15 && (
             <div className="space-y-3">
               <input
