@@ -47,6 +47,7 @@ import {
   computeKpis,
   withPartnerReservations,
   channelReservations,
+  channelCreated,
   normalizeOrigin,
   type AnalyticsData,
   computeChannelMonthly,
@@ -284,9 +285,20 @@ function Dashboard() {
     data && !selectedOrigin
       ? channelReservations(data.current, "both").reduce((s, r) => s + r.total_amount, 0)
       : null;
+  // CPL: oportunidades criadas pela mesma contagem do funil/CAC (Meta + Google em "Todas as origens").
+  const cplMode = (origin: string | null) => {
+    const key = origin ? normalizeOrigin(origin) : null;
+    return key === "meta" || key === "google" ? key : key === null ? ("both" as const) : null;
+  };
+  // Mantém `leads` (usado na conversão); o CPL ganha a própria contagem em `cplLeads`.
+  const withCpl = <K extends ReturnType<typeof computeKpis>>(k: K, origin: string | null) => {
+    const mode = cplMode(origin);
+    const cplLeads = data && mode ? channelCreated(data.current, mode) : k.leads;
+    return { ...k, cplLeads, cpl: cplLeads ? k.spend / cplLeads : 0 };
+  };
   const kpis = baseKpis
     ? {
-        ...baseKpis,
+        ...withCpl(baseKpis, selectedOrigin),
         roas:
           marketingRevenue == null
             ? baseKpis.roas
@@ -299,7 +311,10 @@ function Dashboard() {
   // Mesmo cálculo do filtro de origem, por canal, para a linha "Meta · Google" de cada card.
   const channelKpis = (origin: "meta" | "google") =>
     data
-      ? computeKpis(reservationsFor(origin, data, filterAnalyticsByOrigin(data.current, origin)))
+      ? withCpl(
+          computeKpis(reservationsFor(origin, data, filterAnalyticsByOrigin(data.current, origin))),
+          origin,
+        )
       : null;
   const metaKpis = !selectedOrigin ? channelKpis("meta") : null;
   const googleKpis = !selectedOrigin ? channelKpis("google") : null;
@@ -518,12 +533,12 @@ function Dashboard() {
               icon={Target}
               label="CPL global"
               help={
-                "Custo por lead: investimento ÷ oportunidades criadas no ClickMassa no período.\nMostra quanto custa gerar cada oportunidade."
+                "Custo por lead: investimento ÷ oportunidades criadas no período (Meta + Google em Todas as origens).\nMostra quanto custa gerar cada oportunidade."
               }
               value={kpis ? brl(kpis.cpl) : "—"}
               calc={
                 kpis
-                  ? `${brl(kpis.spend)} investidos ÷ ${kpis.leads} oportunidades no ClickMassa = ${brl(kpis.cpl)}`
+                  ? `${brl(kpis.spend)} investidos ÷ ${kpis.cplLeads} oportunidades criadas${selectedOrigin ? "" : " de Meta + Google"} = ${brl(kpis.cpl)}\nOportunidades: ClickMassa desde 15/06/2026; antes, leads do Kommo da origem.`
                   : undefined
               }
               breakdown={breakdownOf("CPL", (k) => brl(k.cpl))}

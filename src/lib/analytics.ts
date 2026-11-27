@@ -1470,17 +1470,29 @@ function channelMonthResolver(data: AnalyticsData, mode: ChannelComparisonMode) 
   return { scopedAll, forMonth };
 }
 
+/** Meses (YYYY-MM) presentes nos dados do período. */
+function periodMonths(data: AnalyticsData) {
+  const months = new Set<string>();
+  [...data.reservations, ...data.opportunities, ...(data.kommoLeadsAll ?? [])].forEach((r) => {
+    if (r.created_at) months.add(r.created_at.slice(0, 7));
+  });
+  return [...months].sort();
+}
+
 /** Reservas atribuídas ao canal no período todo (soma da regra mês a mês do comparativo de CAC). */
 export function channelReservations(
   data: AnalyticsData,
   mode: ChannelComparisonMode,
 ): ReservationRow[] {
   const { forMonth } = channelMonthResolver(data, mode);
-  const months = new Set<string>();
-  [...data.reservations, ...data.opportunities, ...(data.kommoLeadsAll ?? [])].forEach((r) => {
-    if (r.created_at) months.add(r.created_at.slice(0, 7));
-  });
-  return [...months].sort().flatMap((key) => forMonth(key).reservations);
+  return periodMonths(data).flatMap((key) => forMonth(key).reservations);
+}
+
+/** Oportunidades criadas do canal no período: a mesma contagem do funil e do comparativo de CAC
+ * (ClickMassa desde 15/06/2026; antes, os leads do Kommo da origem). */
+export function channelCreated(data: AnalyticsData, mode: ChannelComparisonMode): number {
+  const { forMonth } = channelMonthResolver(data, mode);
+  return periodMonths(data).reduce((sum, key) => sum + forMonth(key).summary.created, 0);
 }
 
 export function computeChannelMonthly(
