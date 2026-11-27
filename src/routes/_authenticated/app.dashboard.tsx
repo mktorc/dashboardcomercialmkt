@@ -294,7 +294,16 @@ function Dashboard() {
   const withCpl = <K extends ReturnType<typeof computeKpis>>(k: K, origin: string | null) => {
     const mode = cplMode(origin);
     const cplLeads = data && mode ? channelCreated(data.current, mode) : k.leads;
-    return { ...k, cplLeads, cpl: cplLeads ? k.spend / cplLeads : 0 };
+    // Conversão com as mesmas ganhas e criadas do funil/CAC (Meta + Google em "Todas as origens").
+    const convWon =
+      data && mode === "both" ? channelReservations(data.current, "both").length : k.reservations;
+    return {
+      ...k,
+      cplLeads,
+      cpl: cplLeads ? k.spend / cplLeads : 0,
+      convWon,
+      conversion: cplLeads ? convWon / cplLeads : 0,
+    };
   };
   const kpis = baseKpis
     ? {
@@ -550,12 +559,12 @@ function Dashboard() {
               icon={UserCheck}
               label="Conversão comercial"
               help={
-                "Percentual de oportunidades que viraram reserva.\nReservas confirmadas no HQ ÷ oportunidades criadas no ClickMassa."
+                "Percentual de oportunidades que viraram reserva.\nGanhas ÷ oportunidades criadas no período (Meta + Google em Todas as origens)."
               }
               value={kpis ? pct(kpis.conversion) : "—"}
               calc={
                 kpis
-                  ? `${kpis.reservations} reservas no HQ ÷ ${kpis.leads} oportunidades no ClickMassa = ${pct(kpis.conversion)}`
+                  ? `${kpis.convWon} ganhas ÷ ${kpis.cplLeads} oportunidades criadas${selectedOrigin ? "" : " de Meta + Google"} = ${pct(kpis.conversion)}\nMesma contagem do funil e do comparativo de CAC.`
                   : undefined
               }
               breakdown={breakdownOf("Conversão", (k) => pct(k.conversion))}
