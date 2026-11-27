@@ -48,6 +48,7 @@ import {
   withPartnerReservations,
   channelReservations,
   channelCreated,
+  usd2,
   normalizeOrigin,
   type AnalyticsData,
   computeChannelMonthly,
@@ -571,13 +572,13 @@ function Dashboard() {
               help={
                 "Custo por lead: investimento ÷ oportunidades criadas no período (Meta + Google em Todas as origens).\nMostra quanto custa gerar cada oportunidade."
               }
-              value={kpis ? brl(kpis.cpl) : "—"}
+              value={kpis ? usd2(kpis.cpl) : "—"}
               calc={
                 kpis
-                  ? `${brl(kpis.spend)} investidos ÷ ${kpis.cplLeads} oportunidades criadas${selectedOrigin ? "" : " de Meta + Google"} = ${brl(kpis.cpl)}\nOportunidades: ClickMassa desde 15/06/2026; antes, leads do Kommo da origem.`
+                  ? `${brl(kpis.spend)} investidos ÷ ${kpis.cplLeads} oportunidades criadas${selectedOrigin ? "" : " de Meta + Google"} = ${usd2(kpis.cpl)}\nOportunidades: ClickMassa desde 15/06/2026; antes, leads do Kommo da origem.`
                   : undefined
               }
-              breakdown={breakdownOf("CPL", (k) => brl(k.cpl))}
+              breakdown={breakdownOf("CPL", (k) => usd2(k.cpl))}
               wrapHint
               compact
               className="h-full"

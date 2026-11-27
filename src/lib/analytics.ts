@@ -497,8 +497,8 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
 
 export const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-/** Dólar com centavos, para custos unitários (CPC/CPA) abaixo de US$ 1. */
-const usd2 = (v: number) =>
+/** Dólar com centavos, para custos unitários (CPC/CPA/CPL). */
+export const usd2 = (v: number) =>
   v.toLocaleString("pt-BR", {
     style: "currency",
     currency: "USD",
