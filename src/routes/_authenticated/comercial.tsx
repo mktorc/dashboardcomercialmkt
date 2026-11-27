@@ -47,6 +47,7 @@ import {
   fetchComercial,
   fetchActiveOpportunities,
   fetchOverdueTasksByLead,
+  fetchOverdueTasksByOpportunity,
   fetchLeadOrigins,
   filterNonAgencyData,
   keepNonAgencyOpps,
@@ -161,6 +162,10 @@ export function ComercialPage({
   const { data: activeOppsData } = useQuery({
     queryKey: ["comercial", "active-opportunities"],
     queryFn: fetchActiveOpportunities,
+  });
+  const { data: overdueByOpp } = useQuery({
+    queryKey: ["comercial", "overdue-tasks-by-opportunity"],
+    queryFn: fetchOverdueTasksByOpportunity,
   });
   const { data: overdueByLead } = useQuery({
     queryKey: ["comercial", "overdue-tasks-by-lead"],
@@ -279,14 +284,17 @@ export function ComercialPage({
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .map((o) => ({ ...o, owner: o.seller_name!.trim() }));
   const noTaskRows = [...noTaskMap.values()].sort((a, b) => b.noTask - a.noTask);
-  // Atrasadas: o contador do próprio ClickMassa (bate com o filtro "tarefas vencidas" de lá, que conta
-  // as de hoje cujo horário já passou). Sem contador ainda, cai nas tarefas com prazo antes de hoje.
+  // Atrasadas: recalculadas das tarefas por oportunidade (data + hora de Brasília, como o filtro
+  // "tarefas vencidas" do ClickMassa). O countDelayed gravado é só reserva: envelhece quando o
+  // vendedor remarca tarefas.
   const overdueCount = (o: COpp) =>
-    o.delayed_tasks != null
-      ? o.delayed_tasks
-      : o.lead_id
-        ? (overdueByLead?.get(o.lead_id) ?? 0)
-        : 0;
+    overdueByOpp && overdueByOpp.size > 0
+      ? (overdueByOpp.get(o.opportunity_id) ?? 0)
+      : o.delayed_tasks != null
+        ? o.delayed_tasks
+        : o.lead_id
+          ? (overdueByLead?.get(o.lead_id) ?? 0)
+          : 0;
   const overdueList = activeOpps
     .filter((o) => o.seller_name?.trim() && overdueCount(o) > 0)
     .map((o) => ({

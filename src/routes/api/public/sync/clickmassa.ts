@@ -26,6 +26,15 @@ function detectUtm(text: string | null) {
   return { source, medium: q("utm_medium"), campaign: q("utm_campaign") };
 }
 
+function dueAt(raw: string | null, day: string | null, time: string | null, fullDay: boolean) {
+  if (raw && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !isNaN(Date.parse(raw)))
+    return new Date(raw).toISOString();
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const hm = !fullDay && time && /^\d{2}:\d{2}(:\d{2})?$/.test(time) ? time : "23:59:59";
+  const iso = `${day}T${hm.length === 5 ? `${hm}:00` : hm}-03:00`;
+  return isNaN(Date.parse(iso)) ? null : new Date(iso).toISOString();
+}
+
 export const Route = createFileRoute("/api/public/sync/clickmassa")({
   server: {
     handlers: {
@@ -167,14 +176,15 @@ export const Route = createFileRoute("/api/public/sync/clickmassa")({
                 task_id: String(t["id"]),
                 user_name: names.get(String(t["responsibleUserId"])) ?? null,
                 lead_id: t["contactId"] ? `cm-${t["contactId"]}` : null,
-                completed: Boolean(t["completed"]),
+                opportunity_id: t["opportunityId"] != null ? String(t["opportunityId"]) : null,
+                // Cancelada não conta como pendente nem atrasada no ClickMassa.
+                completed: Boolean(t["completed"]) || Boolean(t["canceledAt"]),
                 completed_at: s(t["completedAt"]) ?? s(t["completed_at"]),
                 due_date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null,
                 // Vencimento com hora: o ClickMassa já conta como atrasada a tarefa de hoje cujo horário passou.
-                due_at:
-                  raw && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !isNaN(Date.parse(raw))
-                    ? new Date(raw).toISOString()
-                    : null,
+                // Sem dueDate, o vencimento é date + time no horário de Brasília (é assim que o
+                // ClickMassa decide "vencida": conferido contra o countDelayed das oportunidades).
+                due_at: dueAt(raw, d, s(t["time"]), Boolean(t["fullDay"])),
                 created_at: s(t["createdAt"]) ?? new Date().toISOString(),
               };
             });

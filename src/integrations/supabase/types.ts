@@ -155,6 +155,7 @@ export type Database = {
           due_date: string | null;
           id: string;
           lead_id: string | null;
+          opportunity_id: string | null;
           task_id: string;
           user_name: string | null;
         };
@@ -166,6 +167,7 @@ export type Database = {
           due_date?: string | null;
           id?: string;
           lead_id?: string | null;
+          opportunity_id?: string | null;
           task_id: string;
           user_name?: string | null;
         };
@@ -177,6 +179,7 @@ export type Database = {
           due_date?: string | null;
           id?: string;
           lead_id?: string | null;
+          opportunity_id?: string | null;
           task_id?: string;
           user_name?: string | null;
         };

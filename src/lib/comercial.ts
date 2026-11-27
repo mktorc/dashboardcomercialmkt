@@ -293,6 +293,30 @@ export async function fetchOverdueTasksByLead(): Promise<Map<string, number>> {
   return map;
 }
 
+/** opportunity_id → nº de tarefas vencidas, recalculado das tarefas (data + hora) a cada carga.
+ * O countDelayed gravado na oportunidade é foto da última leitura e envelhece quando o vendedor
+ * remarca ou conclui tarefas; este mapa acompanha a sincronização de tarefas. */
+export async function fetchOverdueTasksByOpportunity(): Promise<Map<string, number>> {
+  const today = ymdLocal(new Date());
+  const now = new Date().toISOString();
+  const { data, error } = await fetchAll((a, b) =>
+    supabase
+      .from("crm_tasks")
+      .select("task_id, opportunity_id")
+      .eq("completed", false)
+      .or(`due_at.lt.${now},and(due_at.is.null,due_date.lt.${today})`)
+      .not("opportunity_id", "is", null)
+      .order("task_id")
+      .range(a, b),
+  );
+  if (error) throw error;
+  const map = new Map<string, number>();
+  (data as { opportunity_id: string }[]).forEach((t) =>
+    map.set(t.opportunity_id, (map.get(t.opportunity_id) ?? 0) + 1),
+  );
+  return map;
+}
+
 const ymdLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
