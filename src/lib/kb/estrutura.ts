@@ -4,6 +4,8 @@
 // Roda sobre os artigos já gerados: não mexe no Drive nem no articles.json. Se um artigo não for
 // encontrado (ex.: a IA renomeou), a regra só ignora aquela parte e o artigo continua visível.
 
+import { CURADORIA } from "./curadoria";
+
 type Block = { t: string } & Record<string, unknown>;
 export type EArticle = {
   id: string;
@@ -525,9 +527,15 @@ export function organizeKb<A extends EArticle>(
   articlesIn: A[],
   categoriesIn: ECategory[],
   sources: Sources = {},
+  areaIn?: string,
 ): { articles: A[]; categories: ECategory[] } {
+  // Área: a informada, ou a dos artigos (nunca a da 1ª categoria: a lista traz as duas áreas e o
+  // CS acabava tratado como Comercial, com páginas dele caindo em categorias do Comercial).
+  const area = areaIn ?? articlesIn[0]?.category.split("-")[0];
   let articles: EArticle[] = [...articlesIn];
-  let categories: ECategory[] = categoriesIn.map((c) => ({ ...c }));
+  let categories: ECategory[] = categoriesIn
+    .filter((c) => !area || c.id.startsWith(`${area}-`))
+    .map((c) => ({ ...c }));
   const rank = new Map<string, number>(); // ordem dentro da categoria
 
   // 1) Frota (Comercial e CS).
@@ -536,7 +544,6 @@ export function organizeKb<A extends EArticle>(
   fleet.order.forEach((id, i) => rank.set(id, i));
 
   // 2) Assuntos do Comercial.
-  const area = categories[0]?.id.split("-")[0];
   if (area === "comercial") {
     const byBase = new Map<string, EArticle[]>();
     for (const a of articles) byBase.set(baseId(a.id), [...(byBase.get(baseId(a.id)) ?? []), a]);
@@ -579,6 +586,32 @@ export function organizeKb<A extends EArticle>(
 
   // 3) PT/ES do mesmo assunto que sobraram.
   articles = mergeLanguagePairs(articles, sources);
+
+  // 3b) Revisão humana (curadoria.ts): troca o texto da IA, esconde repetidas e cria as que faltam.
+  const cur = area ? CURADORIA[area] : undefined;
+  if (cur) {
+    const hide = new Set(cur.hide);
+    articles = articles.filter((a) => !hide.has(a.id));
+    cur.pages.forEach((pg, i) => {
+      const at = articles.findIndex((a) => a.id === pg.id);
+      const base = at >= 0 ? articles[at]! : null;
+      if (!base && !(pg.cat && categories.some((c) => c.id === pg.cat))) return;
+      const page: EArticle = {
+        ...(base ?? { sources: [], areas: [area!] }),
+        id: pg.id,
+        category: base?.category ?? pg.cat!,
+        title: pg.title,
+        summary: pg.summary,
+        keywords: `${pg.keywords ?? ""} ${base?.keywords ?? ""}`.trim(),
+        blocks: pg.blocks,
+      } as EArticle;
+      if (base) articles[at] = page;
+      else articles.push(page);
+      rank.set(pg.id, i);
+    });
+    const dicas = categories.find((c) => c.id === "cs-dicas-e-viagem");
+    if (dicas) dicas.title = "Dicas e Benefícios";
+  }
 
   // 4) Ordem: categorias (filhos logo após o pai) e artigos dentro de cada uma.
   const tops = categories

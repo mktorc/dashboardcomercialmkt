@@ -18,6 +18,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AREA_INFO, type KbAreaData } from "./kb-api";
 import { KbSearchPalette } from "./KbSearchPalette";
+import { catIcon } from "./kb-icons";
+import { isRecent } from "./kb-api";
 
 const navItem =
   "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -61,13 +63,14 @@ function Sidebar({
   return (
     <nav className="flex h-full flex-col gap-1 p-3" aria-label="Navegação da base">
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <div className="min-w-0">
-          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            Base de Conhecimento
-          </p>
-          <p className="font-semibold leading-tight text-foreground">
-            {AREA_INFO[data.area].title}
-          </p>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <img src="/logo-orc.png" alt="Orlando Rent Car" className="size-10 shrink-0 rounded-xl" />
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Base de Conhecimento</p>
+            <p className="font-semibold leading-tight text-foreground">
+              {AREA_INFO[data.area].title}
+            </p>
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {onCollapse && (
@@ -150,7 +153,13 @@ function Sidebar({
               onClick={onNavigate}
               className={`${navItem} ${activeArticle === a.id ? navActive : navIdle}`}
             >
-              <span className="truncate">{a.title}</span>
+              <span className="line-clamp-2">{a.title}</span>
+              {isRecent(a.updatedAt) && (
+                <span
+                  aria-label="Atualizado esta semana"
+                  className="ml-auto size-1.5 shrink-0 rounded-full bg-primary"
+                />
+              )}
             </Link>
           );
           return (
@@ -161,7 +170,10 @@ function Sidebar({
                 aria-expanded={open}
                 className={`${navItem} w-full justify-between font-medium text-foreground/90 hover:bg-muted/50`}
               >
-                <span className="truncate">{c.title}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="text-primary">{catIcon(c.title)}</span>
+                  <span className="truncate">{c.title}</span>
+                </span>
                 <ChevronRight
                   className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
                 />
@@ -179,7 +191,7 @@ function Sidebar({
                           aria-expanded={kOpen}
                           className={`${navItem} w-full justify-between font-medium text-foreground/80 hover:bg-muted/50`}
                         >
-                          <span className="truncate">{k.title}</span>
+                          <span className="line-clamp-2">{k.title}</span>
                           <ChevronRight
                             className={`size-4 shrink-0 text-muted-foreground transition-transform ${kOpen ? "rotate-90" : ""}`}
                           />
@@ -254,7 +266,7 @@ export function KbLayout({ data, children }: { data: KbAreaData; children: React
       return !c;
     });
   return (
-    <div className="min-h-screen bg-background">
+    <div className="kb-orc min-h-screen bg-background">
       {/* Celular: barra no topo com a gaveta */}
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden">
         <button

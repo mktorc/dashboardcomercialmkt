@@ -18,6 +18,20 @@ export function blockText(b: Block): string {
       return b.caption;
     case "file":
       return b.name;
+    case "cards":
+      return b.items.map((c) => `${c.title} ${c.text}`).join(". ");
+    case "keys":
+      return b.items.map((x) => `${x.value} ${x.label}`).join(". ");
+    case "widget":
+      return "";
+    case "quiz":
+      return b.items.map((x) => x.q).join(". ");
+    case "faq":
+      return b.items.map((f) => `${f.q} ${f.a}`).join(". ");
+    case "langs":
+      return b.items.map((l) => l.text).join(". ");
+    case "flow":
+      return b.items.map((f) => `${f.title} ${f.when ?? ""}`).join(". ");
     default:
       return b.text;
   }
@@ -125,4 +139,65 @@ export function searchArticles(index: Indexed[], query: string, limit = 20): Sea
     hits.push({ article: it.article, score, snippet });
   }
   return hits.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// ───────────── Resposta direta ─────────────
+// "franquia van", "taxa tampa": procura nos números-chave e nas linhas de tabela das páginas
+// e devolve o valor, em vez de só listar artigos.
+export type QuickAnswer = { value: string; label: string; article: Article };
+const foldQ = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const QA_STOP = new Set([
+  "qual",
+  "quanto",
+  "custa",
+  "valor",
+  "para",
+  "como",
+  "taxa",
+  "preco",
+  "de",
+  "da",
+  "do",
+  "em",
+  "e",
+  "o",
+  "a",
+]);
+
+export function quickAnswer(articles: Article[], q: string): QuickAnswer | null {
+  const all = foldQ(q)
+    .split(/[^a-z0-9$]+/)
+    .filter((t) => t.length >= 2);
+  const toks = all.filter((t) => !QA_STOP.has(t));
+  if (!toks.length) return null;
+  const wantsFee = all.some((t) => ["taxa", "valor", "quanto", "custa", "preco"].includes(t));
+  let best: (QuickAnswer & { score: number }) | null = null;
+  const consider = (value: string, label: string, ctx: string, a: Article, bonus: number) => {
+    const hay = foldQ(`${label} ${ctx} ${a.title}`);
+    const has = (s: string, t: string) =>
+      new RegExp(`(^|[^a-z0-9])${t.replace(/[$]/g, "\\$")}`).test(s);
+    if (!toks.every((t) => has(hay, t))) return;
+    const score = bonus + toks.filter((t) => has(foldQ(label), t)).length;
+    if (!best || score > best.score) best = { value, label, article: a, score };
+  };
+  for (const a of articles)
+    for (const b of a.blocks) {
+      if (b.t === "keys") for (const k of b.items) consider(k.value, k.label, "", a, 2);
+      if (b.t === "table" && b.head.length >= 2)
+        for (const r of b.rows) {
+          // Valor = primeira coluna (depois da 1ª) com US$ ou %; senão a última.
+          let vi = r.findIndex((c, i) => i > 0 && /\$|%/.test(c));
+          if (vi < 0) vi = r.length - 1;
+          const val = r[vi] ?? "";
+          if (wantsFee && !/\$|%|\d/.test(val)) continue;
+          consider(
+            val,
+            r[0] ?? "",
+            `${r.join(" ")} ${b.head.join(" ")}`,
+            a,
+            /\$|%|\d/.test(val) ? 1 : 0,
+          );
+        }
+    }
+  return best;
 }

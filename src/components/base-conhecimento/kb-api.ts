@@ -21,7 +21,14 @@ export const AREA_INFO: Record<
   },
 };
 
-export type Step = { title: string; text?: string; list?: string[] };
+/** Passo de um procedimento. `sub`: passo a passo dentro do passo; `tpl`: templates a usar nele. */
+export type Step = {
+  title: string;
+  text?: string;
+  list?: string[];
+  sub?: { title: string; text?: string; tpl?: string[] }[];
+  tpl?: string[];
+};
 export type Block =
   | { t: "p" | "h" | "note" | "warn"; text: string }
   | { t: "list"; items: string[]; title?: string }
@@ -31,6 +38,17 @@ export type Block =
   | { t: "quote"; text: string; title?: string }
   | { t: "tags"; items: string[]; title?: string }
   | { t: "sub"; text: string }
+  | { t: "cards"; items: { title: string; text: string; icon?: string }[] }
+  | { t: "flow"; items: { title: string; when?: string }[] }
+  | { t: "langs"; items: { label: string; text: string }[] }
+  | { t: "keys"; items: { value: string; label: string }[] }
+  | {
+      t: "quiz";
+      area: string;
+      items: { q: string; options: string[]; correct: number; why: string; page: string }[];
+    }
+  | { t: "faq"; items: { q: string; a: string; pt: string; es: string }[] }
+  | { t: "widget"; name: "fleet" | "calc"; area: string }
   | { t: "file"; name: string; link: string; kind: "video" | "image" | "doc" };
 
 export type Article = {
@@ -144,4 +162,79 @@ export function articleForFile(fileId: string, data: KbAreaData): Article | null
     data.articles.find((a) => a.sources.some((s) => keys.includes(s))) ??
     null
   );
+}
+
+/** Atualizada nos últimos 7 dias (selo "Atualizado"). */
+export const isRecent = (iso: string) => Date.now() - new Date(iso).getTime() < 7 * 86_400_000;
+
+/** Últimas páginas abertas neste navegador (só conveniência: pode vir vazio). */
+export function recentViews(area: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(`kb-recent:${area}`) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+export function pushRecentView(area: string, id: string) {
+  try {
+    const read = new Set(readPages(area));
+    read.add(id);
+    localStorage.setItem(`kb-read:${area}`, JSON.stringify([...read]));
+    const list = [id, ...recentViews(area).filter((x) => x !== id)].slice(0, 6);
+    localStorage.setItem(`kb-recent:${area}`, JSON.stringify(list));
+  } catch {
+    /* sem armazenamento: segue sem histórico */
+  }
+}
+
+/** Páginas já abertas neste navegador (trilha de onboarding). */
+export function readPages(area: string): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(`kb-read:${area}`) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+/** Trilha de onboarding: o que o colaborador novo lê, em ordem. */
+export const TRILHA: Record<KbArea, string[]> = {
+  comercial: [
+    "frota-visao-geral-comercial",
+    "pagamento-condicoes",
+    "retirada-regras-gerais",
+    "seguro-e-franquia",
+    "cancelamento-e-alteracoes",
+    "reserva-cotacao",
+    "reserva-lancamento-hq",
+    "crm-tarefas",
+    "regras-operacionais",
+    "faq-cliente-comercial",
+    "quiz-comercial",
+  ],
+  cs: [
+    "rotina-de-dias-uteis",
+    "processo-de-onboarding",
+    "conferencia-e-orientacoes",
+    "boa-viagem",
+    "frota-visao-geral-cs",
+    "formas-de-pagamento",
+    "retirada-em-orlando",
+    "politica-de-seguro-es",
+    "politica-de-cancelamento-es",
+    "faq-cliente-cs",
+    "quiz-cs",
+  ],
+};
+
+export type KbEngajamento = {
+  trend: Record<string, { now: number; before: number }>;
+  ranking: { name: string; best: number; total: number; tries: number }[];
+  notes: { articleId: string; name?: string; reason: string; note: string; at: string }[];
+};
+export function useKbEngajamento(area: KbArea) {
+  return useQuery({
+    queryKey: ["kb-engajamento", area],
+    queryFn: () => kbApi<KbEngajamento>(`engajamento?area=${area}`),
+    staleTime: 60_000,
+  });
 }

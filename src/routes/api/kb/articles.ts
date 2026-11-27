@@ -81,6 +81,7 @@ export const Route = createFileRoute("/api/kb/articles")({
           filtered as unknown as Parameters<typeof organizeKb>[0],
           data.categories as Parameters<typeof organizeKb>[1],
           data.sources,
+          u.area,
         );
         const articles = org.articles as unknown as Article[];
         const ids = articles.map((a) => a.id);

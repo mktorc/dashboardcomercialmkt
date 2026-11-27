@@ -148,3 +148,25 @@
     color: var(--color-foreground);
   }
 }
+
+/* Base de Conhecimento: paleta da logo ORC (verde-escuro de fundo, limão nos destaques). */
+.kb-orc {
+  --background: oklch(0.17 0.035 152);
+  --card: oklch(0.21 0.045 152);
+  --popover: oklch(0.21 0.045 152);
+  --muted: oklch(0.27 0.055 150);
+  --muted-foreground: oklch(0.78 0.035 145);
+  --border: oklch(0.33 0.06 150);
+  --input: oklch(0.33 0.06 150);
+  --primary: oklch(0.83 0.24 136); /* #44e500, limão da logo */
+  --primary-foreground: oklch(0.24 0.07 150); /* verde-escuro da logo */
+  --ring: oklch(0.83 0.24 136);
+  --accent: oklch(0.83 0.24 136);
+  --accent-foreground: oklch(0.24 0.07 150);
+  background-image: radial-gradient(
+    ellipse 80% 40% at 50% -10%,
+    oklch(0.42 0.115 152 / 0.35),
+    transparent 70%
+  );
+  background-attachment: fixed;
+}

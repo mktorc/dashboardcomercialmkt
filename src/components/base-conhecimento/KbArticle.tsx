@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { KbBlock } from "./KbBlocks";
+import { KbBlock, TemplateChip } from "./KbBlocks";
+import { catIcon, sectionIcon } from "./kb-icons";
 import { templateKey } from "@/lib/kb/templates";
 import {
   AREA_INFO,
@@ -22,6 +23,8 @@ import {
   fmtDate,
   kbApi,
   slug,
+  pushRecentView,
+  isRecent,
   type Article,
   type KbAreaData,
   type Template,
@@ -92,6 +95,23 @@ function Toc({ article }: { article: Article }) {
 function Helpful({ article, data }: { article: Article; data: KbAreaData }) {
   const qc = useQueryClient();
   const mine = data.stats[article.id]?.mine ?? 0;
+  const [ask, setAsk] = useState(false);
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const send = useMutation({
+    mutationFn: () =>
+      kbApi("feedback", {
+        method: "POST",
+        body: { area: data.area, articleId: article.id, action: "note", reason, note: note.trim() },
+      }),
+    onSuccess: () => {
+      toast.success("Recebido! Vamos melhorar esta página.");
+      setAsk(false);
+      setReason("");
+      setNote("");
+    },
+    onError: () => toast.error("Não foi possível enviar"),
+  });
   const vote = useMutation({
     mutationFn: (v: number) =>
       kbApi("feedback", {
@@ -139,11 +159,66 @@ function Helpful({ article, data }: { article: Article; data: KbAreaData }) {
       <button
         type="button"
         className={btn(-1)}
-        onClick={() => vote.mutate(mine === -1 ? 0 : -1)}
+        onClick={() => {
+          const v = mine === -1 ? 0 : -1;
+          vote.mutate(v);
+          setAsk(v === -1);
+        }}
         aria-pressed={mine === -1}
       >
         <ThumbsDown className="size-4" /> Não
       </button>
+      {ask && (
+        <div className="w-full space-y-3 pt-1">
+          <p className="text-sm font-medium text-foreground">O que faltou?</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "Informação errada",
+              "Faltou informação",
+              "Difícil de entender",
+              "Não achei o que queria",
+            ].map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={reason === r}
+                onClick={() => setReason(reason === r ? "" : r)}
+                className={`min-h-9 rounded-full px-3 text-sm transition ${
+                  reason === r
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/50 text-foreground/85 hover:bg-primary/15"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 500))}
+            rows={2}
+            placeholder="Conte em uma frase (opcional)"
+            className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={(!reason && !note.trim()) || send.isPending}
+              onClick={() => send.mutate()}
+              className="min-h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            >
+              Enviar
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsk(false)}
+              className="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted"
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -151,10 +226,13 @@ function Helpful({ article, data }: { article: Article; data: KbAreaData }) {
 export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: string }) {
   const article = data.articles.find((a) => a.id === articleId);
   const viewed = useRef<string | null>(null);
+  const [tplFilter, setTplFilter] = useState("");
+  useEffect(() => setTplFilter(""), [articleId]);
 
   useEffect(() => {
     if (!article || viewed.current === article.id) return;
     viewed.current = article.id;
+    pushRecentView(data.area, article.id);
     window.scrollTo({ top: 0 });
     void kbApi("feedback", {
       method: "POST",
@@ -183,13 +261,36 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
   const cat = data.categories.find((c) => c.id === article.category);
   const parentCat = cat?.parent ? data.categories.find((c) => c.id === cat.parent) : undefined;
   const drive = driveLinkOf(article, data);
-  const related = data.articles
-    .filter((a) => a.category === article.category && a.id !== article.id)
-    .slice(0, 4);
+  const relatedAll = data.articles.filter(
+    (a) => a.category === article.category && a.id !== article.id,
+  );
+  // Página de templates: busca pelo nome.
+  const tplNames = article.blocks.flatMap((b) => (b.t === "tags" ? b.items : []));
+  const fold = (x: string) =>
+    x
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const tplHits = tplNames.filter((n) => fold(n).includes(fold(tplFilter.trim())));
+  const heads = article.blocks.flatMap((b) => (b.t === "h" ? [b.text] : []));
+  const words = JSON.stringify(article.blocks).split(/\s+/).length;
+  const minutes = Math.max(1, Math.round(words / 200));
+  // Anterior/Próxima: as páginas da mesma categoria, na ordem do menu (etapas de um processo).
+  const siblings = data.articles.filter((a) => a.category === article.category);
+  const pos = siblings.findIndex((a) => a.id === article.id);
+  const prev = pos > 0 ? siblings[pos - 1] : undefined;
+  const next = pos >= 0 ? siblings[pos + 1] : undefined;
+  // Leia também: outras da categoria, sem repetir as que já estão em Anterior/Próxima.
+  const related = relatedAll.filter((a) => a.id !== prev?.id && a.id !== next?.id).slice(0, 4);
+  // Etapas numeradas ("1. Onboarding", "2. ..."): mostra a barra de progresso da jornada.
+  const isJourney = /^\d+\.\s/.test(article.title);
 
   return (
     <div className="mx-auto flex w-full max-w-[1180px] justify-center gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8 lg:py-10 2xl:max-w-[1500px]">
-      <article className="min-w-0 max-w-[860px] flex-1 break-words 2xl:max-w-[1040px]">
+      <article
+        key={article.id}
+        className="min-w-0 max-w-[860px] flex-1 break-words motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 2xl:max-w-[1040px]"
+      >
         <nav
           aria-label="Trilha"
           className="mb-5 flex flex-wrap items-center gap-1 text-sm text-muted-foreground"
@@ -215,19 +316,94 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
 
         <header className="space-y-3 border-b border-border pb-6">
           <div className="flex flex-wrap gap-2">
+            {isRecent(article.updatedAt) && (
+              <Badge className="bg-primary/15 text-primary hover:bg-primary/15">
+                Atualizado esta semana
+              </Badge>
+            )}
             {article.shared && (
               <Badge variant="outline" className="gap-1 border-sky-400/40 text-sky-300">
                 <Share2 className="size-3" /> Compartilhado
               </Badge>
             )}
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            {article.title}
-          </h1>
-          <p className="text-base leading-7 text-muted-foreground">{article.summary}</p>
+          <div className="flex items-start gap-4">
+            <span
+              aria-hidden
+              className="hidden size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:flex"
+            >
+              {catIcon(parentCat?.title ?? cat?.title ?? "", "size-7")}
+            </span>
+            <div className="min-w-0 space-y-2">
+              <h1 className="text-[1.75rem] font-bold leading-tight tracking-tight text-foreground sm:text-4xl">
+                {article.title}
+              </h1>
+              <p className="max-w-[60ch] text-base leading-7 text-muted-foreground sm:text-lg">
+                {article.summary}
+              </p>
+            </div>
+          </div>
+          {heads.length > 1 && (
+            <nav aria-label="Nesta página" className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const all = [...document.querySelectorAll<HTMLDetailsElement>("details.kb-sec")];
+                  const open = !all.every((d) => d.open);
+                  all.forEach((d) => (d.open = open));
+                }}
+                className="inline-flex min-h-8 items-center gap-1 rounded-full bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                Abrir / recolher tudo
+              </button>
+              <span className="text-xs text-muted-foreground">ou abra uma seção:</span>
+              {heads.map((h) => (
+                <a
+                  key={h}
+                  href={`#${slug(h)}`}
+                  onClick={() => {
+                    const d = document.getElementById(slug(h))?.parentElement;
+                    if (d instanceof HTMLDetailsElement) d.open = true;
+                  }}
+                  className="inline-flex min-h-8 items-center rounded-full bg-muted/50 px-3 text-[13px] text-foreground/85 transition hover:bg-primary/15 hover:text-foreground"
+                >
+                  {h}
+                </a>
+              ))}
+            </nav>
+          )}
+          {isJourney && siblings.length > 1 && (
+            <nav aria-label="Etapas do processo" className="space-y-1.5 pt-1">
+              <p className="text-xs text-muted-foreground">
+                Etapa {pos + 1} de {siblings.length}
+              </p>
+              <ol className="flex gap-1">
+                {siblings.map((s, i) => (
+                  <li key={s.id} className="min-w-0 flex-1">
+                    <Link
+                      to="/base-conhecimento/$area/$artigo"
+                      params={{ area: data.area, artigo: s.id }}
+                      title={s.title}
+                      aria-current={i === pos ? "step" : undefined}
+                      className={`block h-1.5 rounded-full transition ${
+                        i < pos
+                          ? "bg-primary/60"
+                          : i === pos
+                            ? "bg-primary"
+                            : "bg-muted hover:bg-primary/30"
+                      }`}
+                    >
+                      <span className="sr-only">{s.title}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-4" /> Atualizado em {fmtDate(article.updatedAt)}
+              <Clock className="size-4" /> {minutes} min de leitura · atualizado em{" "}
+              {fmtDate(article.updatedAt)}
             </span>
             {drive && (
               <a
@@ -243,38 +419,152 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
         </header>
 
         <div className="space-y-5 py-6">
-          {sections(article.blocks).map((sec) => {
-            const render = (i: number) => (
-              <KbBlock
-                key={i}
-                block={article.blocks[i]!}
-                index={i}
-                articleId={article.id}
-                images={data.images}
-                templates={templates}
+          {tplNames.length > 15 && (
+            <div className="space-y-3">
+              <input
+                type="search"
+                value={tplFilter}
+                onChange={(e) => setTplFilter(e.target.value)}
+                placeholder={`Buscar entre ${tplNames.length} templates…`}
+                aria-label="Buscar template"
+                className="h-11 w-full rounded-lg border border-border bg-muted/20 px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/30"
               />
-            );
-            if (sec.head === null) return sec.body.map(render);
-            const text = (article.blocks[sec.head] as { text: string }).text;
-            return (
-              <details key={sec.head} open className="group space-y-5">
-                <summary
-                  id={slug(text)}
-                  className="flex cursor-pointer list-none items-center gap-2 scroll-mt-24 pt-4 text-lg font-semibold tracking-tight text-foreground [&::-webkit-details-marker]:hidden"
+              {tplFilter.trim() && (
+                <div className="flex flex-wrap gap-2">
+                  {tplHits.length ? (
+                    tplHits.map((n) => (
+                      <TemplateChip key={n} name={n} tpl={templates.get(templateKey(n))} />
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Nenhum template com esse nome.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {!tplFilter.trim() &&
+            sections(article.blocks).map((sec) => {
+              const render = (i: number) => (
+                <KbBlock
+                  key={i}
+                  block={article.blocks[i]!}
+                  index={i}
+                  articleId={article.id}
+                  images={data.images}
+                  templates={templates}
+                />
+              );
+              if (sec.head === null) return sec.body.map(render);
+              const text = (article.blocks[sec.head] as { text: string }).text;
+              return (
+                <details
+                  key={sec.head}
+                  className="kb-sec group space-y-5 rounded-xl [&:not([open])]:!mt-2.5"
                 >
-                  <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
-                  {text}
-                </summary>
-                {sec.body.map(render)}
-              </details>
-            );
-          })}
+                  <summary
+                    id={slug(text)}
+                    className="flex min-h-14 cursor-pointer list-none items-center gap-3 scroll-mt-24 rounded-xl bg-muted/25 px-3 py-2 text-lg font-semibold tracking-tight text-foreground transition hover:bg-muted/45 group-open:bg-transparent group-open:px-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      {sectionIcon(text, "size-[18px]")}
+                    </span>
+                    <span className="flex-1">{text}</span>
+                    <span className="text-xs font-normal text-muted-foreground group-open:hidden">
+                      Abrir
+                    </span>
+                    <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+                  </summary>
+                  <div className="ml-[17px] space-y-5 border-l-2 border-primary/15 pl-5 sm:pl-7">
+                    {sec.body.map(render)}
+                  </div>
+                </details>
+              );
+            })}
         </div>
 
-        <div className="space-y-6 border-t border-border pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Celular: barra fixa no polegar com Anterior, Abrir tudo e Próxima. */}
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-md items-center justify-between gap-2">
+            {prev ? (
+              <Link
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: prev.id }}
+                aria-label={`Anterior: ${prev.title}`}
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-muted/50 px-3 text-sm text-foreground"
+              >
+                <ChevronRight className="size-5 rotate-180" />
+              </Link>
+            ) : (
+              <span className="min-w-11" />
+            )}
+            {heads.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const all = [...document.querySelectorAll<HTMLDetailsElement>("details.kb-sec")];
+                  const open = !all.every((d) => d.open);
+                  all.forEach((d) => (d.open = open));
+                }}
+                className="min-h-11 flex-1 rounded-lg bg-muted/50 px-3 text-sm font-medium text-foreground"
+              >
+                Abrir / recolher tudo
+              </button>
+            )}
+            {next ? (
+              <Link
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: next.id }}
+                aria-label={`Próxima: ${next.title}`}
+                className="flex min-h-11 items-center justify-center gap-1 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"
+              >
+                Próxima <ChevronRight className="size-5" />
+              </Link>
+            ) : (
+              <span className="min-w-11" />
+            )}
+          </div>
+        </div>
+        {(prev || next) && (
+          <nav aria-label="Etapas" className="mt-4 grid gap-3 sm:grid-cols-2">
+            {prev ? (
+              <Link
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: prev.id }}
+                className="group flex items-center gap-3 rounded-lg border border-border p-3 transition hover:border-primary hover:bg-muted/30"
+              >
+                <ChevronRight className="size-5 shrink-0 rotate-180 text-primary" />
+                <span className="min-w-0">
+                  <span className="block text-xs text-muted-foreground">Anterior</span>
+                  <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
+                    {prev.title}
+                  </span>
+                </span>
+              </Link>
+            ) : (
+              <span />
+            )}
+            {next && (
+              <Link
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: next.id }}
+                className="group flex items-center justify-end gap-3 rounded-lg border border-primary/40 bg-primary/10 p-3 text-right transition hover:border-primary"
+              >
+                <span className="min-w-0">
+                  <span className="block text-xs text-muted-foreground">Próxima</span>
+                  <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
+                    {next.title}
+                  </span>
+                </span>
+                <ChevronRight className="size-5 shrink-0 text-primary" />
+              </Link>
+            )}
+          </nav>
+        )}
+
+        <div className="mt-12 space-y-12 pb-20 lg:pb-0">
+          <div className="flex flex-col gap-4 rounded-2xl bg-muted/25 p-5 sm:flex-row sm:items-center sm:justify-between">
             <Helpful article={article} data={data} />
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="ghost" size="sm" className="self-start sm:self-auto">
               <Link
                 to="/base-conhecimento/$area/chat"
                 params={{ area: data.area }}
@@ -287,16 +577,14 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
 
           {related.length > 0 && (
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-                Artigos relacionados
-              </h2>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <h2 className="text-lg font-semibold text-foreground">Leia também</h2>
+              <div className="grid gap-3 sm:grid-cols-2">
                 {related.map((a) => (
                   <Link
                     key={a.id}
                     to="/base-conhecimento/$area/$artigo"
                     params={{ area: data.area, artigo: a.id }}
-                    className="group rounded-lg border border-border p-3 transition hover:border-primary hover:bg-muted/30"
+                    className="group rounded-xl bg-muted/15 p-4 transition hover:bg-muted/35"
                   >
                     <p className="text-sm font-medium text-foreground group-hover:text-primary">
                       {a.title}

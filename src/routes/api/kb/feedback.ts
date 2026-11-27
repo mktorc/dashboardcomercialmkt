@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-// Visualização ({ action: "view" }) e "Isso ajudou?" ({ action: "vote", vote: 1 | -1 | 0 }).
+// Visualização ({ action: "view" }), "Isso ajudou?" ({ action: "vote", vote: 1 | -1 | 0 }),
+// motivo do "Não" ({ action: "note", reason, note }) e nota do quiz ({ action: "quiz", score, total }).
 // Um voto por usuário e artigo: votar de novo troca o voto; 0 remove.
+// Visualização por dia, motivos e notas do quiz: tabelas kb_article_views_daily, kb_feedback_notes
+// e kb_quiz_results (sql-para-gravar/base_conhecimento_engajamento.sql).
 export const Route = createFileRoute("/api/kb/feedback")({
   server: {
     handlers: {
@@ -17,7 +20,12 @@ export const Route = createFileRoute("/api/kb/feedback")({
         if ("denied" in u) return u.denied;
         const id = typeof b["articleId"] === "string" ? b["articleId"] : "";
         const areas = (await kb.articleAreas()).get(id);
-        if (!areas?.includes(u.area)) return kb.fail("Artigo não encontrado nesta área", 404);
+        // Páginas criadas na revisão (perguntas frequentes, quiz...) não estão no articles.json.
+        const { CURADORIA } = await import("@/lib/kb/curadoria");
+        const curated = CURADORIA[u.area]?.pages.some((p) => p.id === id);
+        if (!areas?.includes(u.area) && !curated)
+          return kb.fail("Artigo não encontrado nesta área", 404);
+        const st = await import("@/lib/kb/engajamento.server");
 
         if (b["action"] === "view") {
           await kb.db.rpc("kb_register_view", { p_article: id });
@@ -40,6 +48,28 @@ export const Route = createFileRoute("/api/kb/feedback")({
             });
             if (error) return kb.fail("Falha ao gravar o voto", 500);
           } else return kb.fail("Voto inválido");
+          return kb.ok();
+        }
+        if (b["action"] === "note") {
+          const reason = String(b["reason"] ?? "").slice(0, 60);
+          const note = String(b["note"] ?? "").slice(0, 500);
+          if (!reason && !note) return kb.fail("Diga o que faltou");
+          try {
+            await st.addNote({ area: u.area, articleId: id, userId: u.userId, reason, note });
+          } catch {
+            return kb.fail("Falha ao gravar", 500);
+          }
+          return kb.ok();
+        }
+        if (b["action"] === "quiz") {
+          const score = Math.max(0, Math.floor(Number(b["score"])));
+          const total = Math.max(1, Math.floor(Number(b["total"])));
+          if (!Number.isFinite(score) || score > total) return kb.fail("Nota inválida");
+          try {
+            await st.saveQuiz(u.area, u.userId, score, total);
+          } catch {
+            return kb.fail("Falha ao gravar a nota", 500);
+          }
           return kb.ok();
         }
         return kb.fail("Ação inválida");

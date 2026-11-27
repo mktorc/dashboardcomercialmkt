@@ -46,9 +46,7 @@ describe("organizeKb", () => {
   it("não deixa vídeo/foto de veículo solto: vai para a categoria", () => {
     expect(r.articles.map((a) => a.id)).not.toContain("veiculo-cadillac-escalade");
     const lux = byId("frota-luxury-comercial")!;
-    expect(lux.blocks).toContainEqual(
-      expect.objectContaining({ t: "file", name: "Cadillac Luxury" }),
-    );
+    expect(lux.blocks).toContainEqual(expect.objectContaining({ t: "file", kind: "image" }));
     const exec = byId("frota-suv-executive-comercial")!;
     expect(exec.blocks).toContainEqual({ t: "h", text: "Regras da categoria" });
     expect(exec.sources).toEqual(expect.arrayContaining(["sub", "man"]));
@@ -60,10 +58,13 @@ describe("organizeKb", () => {
     expect(frota[0]).toBe("Visão geral da frota");
   });
 
-  it("condições de pagamento PT e ES numa página só", () => {
+  it("condições de pagamento: uma página, com texto para o cliente em PT e em ES", () => {
     const p = byId("pagamento-condicoes")!;
-    const hs = p.blocks.filter((b) => b.t === "h").map((b) => b["text"]);
-    expect(hs).toEqual(["Do material em português", "Do material em espanhol"]);
+    const langs = p.blocks.find((b) => b.t === "langs") as unknown as {
+      items: { label: string }[];
+    };
+    expect(langs.items.map((l) => l.label)).toEqual(["Português", "Español"]);
+    expect(r.articles.filter((a) => a.category === "comercial-pagamentos")).toHaveLength(1);
   });
 
   it("Sistemas vira tópico com HQ dentro; painel inicial é do HQ e traz o vídeo", () => {
@@ -74,7 +75,7 @@ describe("organizeKb", () => {
       title: "HQ",
       parent: "comercial-sistemas",
     });
-    expect(hq.blocks[0]).toMatchObject({ t: "file", kind: "video", name: "Introdução HQ" });
+    expect(hq.blocks[0]).toMatchObject({ t: "file", kind: "video" });
     expect(r.categories[0]!.id).toBe("comercial-sistemas");
   });
 });

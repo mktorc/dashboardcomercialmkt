@@ -9,7 +9,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { buildIndex, searchArticles } from "./kb-search";
+import { buildIndex, quickAnswer, searchArticles } from "./kb-search";
 import type { KbAreaData } from "./kb-api";
 
 /** Abre com Ctrl/⌘ + K. Busca dentro da área, agrupa por categoria e destaca o trecho. */
@@ -26,6 +26,7 @@ export function KbSearchPalette({
   const [q, setQ] = useState("");
   const index = useMemo(() => buildIndex(data.articles), [data.articles]);
   const hits = useMemo(() => searchArticles(index, q, 25), [index, q]);
+  const answer = useMemo(() => quickAnswer(data.articles, q), [data.articles, q]);
   const catTitle = (id: string) => data.categories.find((c) => c.id === id)?.title ?? id;
 
   useEffect(() => {
@@ -88,6 +89,27 @@ export function KbSearchPalette({
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 Digite para buscar. Erros de digitação e acentos não atrapalham.
               </p>
+            )}
+            {answer && (
+              <CommandGroup heading="Resposta">
+                <CommandItem
+                  value="__answer"
+                  onSelect={() => go(answer.article.id)}
+                  className="flex cursor-pointer items-center gap-3 rounded-md bg-primary/10 px-3 py-3"
+                >
+                  <span className="text-2xl font-bold tabular-nums text-foreground">
+                    {answer.value}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-foreground">
+                      {answer.label}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      em {answer.article.title}
+                    </span>
+                  </span>
+                </CommandItem>
+              </CommandGroup>
             )}
             {[...groups.entries()].map(([cat, items]) => (
               <CommandGroup key={cat} heading={catTitle(cat)}>

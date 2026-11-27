@@ -37,6 +37,7 @@ import { Route as ApiFilaToggleRouteImport } from './routes/api/fila/toggle'
 import { Route as ApiKbAreasRouteImport } from './routes/api/kb/areas'
 import { Route as ApiKbArticlesRouteImport } from './routes/api/kb/articles'
 import { Route as ApiKbAskRouteImport } from './routes/api/kb/ask'
+import { Route as ApiKbEngajamentoRouteImport } from './routes/api/kb/engajamento'
 import { Route as ApiKbFeedbackRouteImport } from './routes/api/kb/feedback'
 import { Route as ApiKbFilesRouteImport } from './routes/api/kb/files'
 import { Route as ApiKbSyncRouteImport } from './routes/api/kb/sync'
@@ -208,6 +209,11 @@ const ApiKbAskRoute = ApiKbAskRouteImport.update({
   path: '/api/kb/ask',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiKbEngajamentoRoute = ApiKbEngajamentoRouteImport.update({
+  id: '/api/kb/engajamento',
+  path: '/api/kb/engajamento',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiKbFeedbackRoute = ApiKbFeedbackRouteImport.update({
   id: '/api/kb/feedback',
   path: '/api/kb/feedback',
@@ -365,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/api/kb/areas': typeof ApiKbAreasRoute
   '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/engajamento': typeof ApiKbEngajamentoRoute
   '/api/kb/feedback': typeof ApiKbFeedbackRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -417,6 +424,7 @@ export interface FileRoutesByTo {
   '/api/kb/areas': typeof ApiKbAreasRoute
   '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/engajamento': typeof ApiKbEngajamentoRoute
   '/api/kb/feedback': typeof ApiKbFeedbackRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -472,6 +480,7 @@ export interface FileRoutesById {
   '/api/kb/areas': typeof ApiKbAreasRoute
   '/api/kb/articles': typeof ApiKbArticlesRoute
   '/api/kb/ask': typeof ApiKbAskRoute
+  '/api/kb/engajamento': typeof ApiKbEngajamentoRoute
   '/api/kb/feedback': typeof ApiKbFeedbackRoute
   '/api/kb/files': typeof ApiKbFilesRoute
   '/api/kb/sync': typeof ApiKbSyncRoute
@@ -527,6 +536,7 @@ export interface FileRouteTypes {
     | '/api/kb/areas'
     | '/api/kb/articles'
     | '/api/kb/ask'
+    | '/api/kb/engajamento'
     | '/api/kb/feedback'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -579,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/kb/areas'
     | '/api/kb/articles'
     | '/api/kb/ask'
+    | '/api/kb/engajamento'
     | '/api/kb/feedback'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -633,6 +644,7 @@ export interface FileRouteTypes {
     | '/api/kb/areas'
     | '/api/kb/articles'
     | '/api/kb/ask'
+    | '/api/kb/engajamento'
     | '/api/kb/feedback'
     | '/api/kb/files'
     | '/api/kb/sync'
@@ -680,6 +692,7 @@ export interface RootRouteChildren {
   ApiKbAreasRoute: typeof ApiKbAreasRoute
   ApiKbArticlesRoute: typeof ApiKbArticlesRoute
   ApiKbAskRoute: typeof ApiKbAskRoute
+  ApiKbEngajamentoRoute: typeof ApiKbEngajamentoRoute
   ApiKbFeedbackRoute: typeof ApiKbFeedbackRoute
   ApiKbFilesRoute: typeof ApiKbFilesRoute
   ApiKbSyncRoute: typeof ApiKbSyncRoute
@@ -898,6 +911,13 @@ declare module '@tanstack/react-router' {
       path: '/api/kb/ask'
       fullPath: '/api/kb/ask'
       preLoaderRoute: typeof ApiKbAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/kb/engajamento': {
+      id: '/api/kb/engajamento'
+      path: '/api/kb/engajamento'
+      fullPath: '/api/kb/engajamento'
+      preLoaderRoute: typeof ApiKbEngajamentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/kb/feedback': {
@@ -1146,6 +1166,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiKbAreasRoute: ApiKbAreasRoute,
   ApiKbArticlesRoute: ApiKbArticlesRoute,
   ApiKbAskRoute: ApiKbAskRoute,
+  ApiKbEngajamentoRoute: ApiKbEngajamentoRoute,
   ApiKbFeedbackRoute: ApiKbFeedbackRoute,
   ApiKbFilesRoute: ApiKbFilesRoute,
   ApiKbSyncRoute: ApiKbSyncRoute,

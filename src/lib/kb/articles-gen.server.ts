@@ -78,9 +78,16 @@ Responda APENAS com JSON neste formato:
  {"t":"tags","title":"opcional","items":["..."]}
 ]}]}`;
 
+/** Remove lixo que o modelo \u00e0s vezes solta: outra escrita (t\u00e2mil, cingal\u00eas...) e frase em loop. */
+function despam(s: string): string {
+  let t = s.replace(/[\u0900-\u0dff\u0590-\u06ff]+\S*/g, "");
+  t = t.replace(/(?:\b\w\.){4,}\w?/g, ""); // "s.s.s.s.s"
+  t = t.replace(/(.{12,200}?[.!?])(?:\s*\1){1,}/g, "$1"); // mesma frase repetida
+  return t.replace(/\s{2,}/g, " ");
+}
 const str = (v: unknown) =>
   typeof v === "string"
-    ? v.replace(/[\u0000-\u0008\u000b-\u001f\ue000-\uf8ff\ufffd]/g, "").trim()
+    ? despam(v.replace(/[\u0000-\u0008\u000b-\u001f\ue000-\uf8ff\ufffd]/g, "")).trim()
     : "";
 const strs = (v: unknown) => (Array.isArray(v) ? v.map(str).filter(Boolean) : []);
 
