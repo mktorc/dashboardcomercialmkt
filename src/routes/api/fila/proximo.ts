@@ -21,16 +21,10 @@ export const Route = createFileRoute("/api/fila/proximo")({
         const signal = AbortSignal.timeout(DB_TIMEOUT_MS);
         try {
           if (teste) {
-            const { data, error } = await db
-              .from("vendedores")
-              .select("cm_user_id, nome")
-              .eq("ativo", true)
-              .order("ultimo_lead_at", { ascending: true, nullsFirst: true })
-              .order("id", { ascending: true })
-              .limit(1)
-              .abortSignal(signal);
+            // fila_previa aplica a mesma regra de fila_proximo (ativo + horário programado).
+            const { data, error } = await db.rpc("fila_previa").abortSignal(signal);
             if (error) throw error;
-            const v = data?.[0];
+            const v = Array.isArray(data) ? data[0] : data;
             if (!v) return noStore(fail("Nenhum vendedor ativo"));
             return noStore(ok({ userId: v.cm_user_id, nome: v.nome, teste: true }));
           }

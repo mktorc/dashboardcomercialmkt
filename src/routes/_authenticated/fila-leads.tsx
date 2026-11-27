@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Clock, Plus, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { guardPage } from "@/lib/roles";
+import { DIAS, noHorario, resumoHorarios, type Horarios } from "@/lib/fila-horario";
 
 export const Route = createFileRoute("/_authenticated/fila-leads")({
   head: () => ({
@@ -41,7 +42,14 @@ type Vendedor = {
   email: string | null;
   ativo: boolean;
   ultimo_lead_at: string | null;
+  usar_horario?: boolean;
+  forcar_ativo?: boolean;
+  horarios?: Horarios | null;
 };
+
+// Mesma regra do SQL: ativo E (plantão OU dentro do horário programado).
+const disponivel = (v: Vendedor) =>
+  v.ativo && (!!v.forcar_ativo || noHorario(!!v.usar_horario, v.horarios ?? null));
 type Historico = {
   id: string;
   created_at: string;
@@ -76,15 +84,14 @@ const fmt = (iso: string) =>
     minute: "2-digit",
   });
 
-// Mesma ordem da função SQL fila_proximo: quem nunca recebeu primeiro, depois o mais antigo.
+// Mesma ordem e regra da função SQL fila_proximo: ativo + dentro do horário programado;
+// quem nunca recebeu primeiro, depois o mais antigo.
 function ordenarFila(vs: Vendedor[]) {
-  return vs
-    .filter((v) => v.ativo)
-    .sort((a, b) => {
-      if (!a.ultimo_lead_at !== !b.ultimo_lead_at) return a.ultimo_lead_at ? 1 : -1;
-      const d = (a.ultimo_lead_at ?? "").localeCompare(b.ultimo_lead_at ?? "");
-      return d || a.id - b.id;
-    });
+  return vs.filter(disponivel).sort((a, b) => {
+    if (!a.ultimo_lead_at !== !b.ultimo_lead_at) return a.ultimo_lead_at ? 1 : -1;
+    const d = (a.ultimo_lead_at ?? "").localeCompare(b.ultimo_lead_at ?? "");
+    return d || a.id - b.id;
+  });
 }
 
 function badgeOrigem(h: Historico) {
@@ -141,7 +148,7 @@ function FilaLeadsPage() {
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
           <TabsContent value="externo">
-            <ExternoTab ativos={fila} onDone={refresh} onErr={onErr} />
+            <ExternoTab ativos={lista.filter((v) => v.ativo)} onDone={refresh} onErr={onErr} />
           </TabsContent>
           <TabsContent value="equipe">
             <EquipeTab
@@ -250,9 +257,16 @@ function EquipeTab({
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [remover, setRemover] = useState<Vendedor | null>(null);
+  const [editarHorario, setEditarHorario] = useState<Vendedor | null>(null);
 
   const toggle = useMutation({
     mutationFn: (v: Vendedor) => api("toggle", { method: "POST", body: { userId: v.cm_user_id } }),
+    onSuccess: onDone,
+    onError: onErr,
+  });
+  const plantao = useMutation({
+    mutationFn: (v: Vendedor) =>
+      api(`vendedores/${v.id}`, { method: "PATCH", body: { forcar_ativo: !v.forcar_ativo } }),
     onSuccess: onDone,
     onError: onErr,
   });
@@ -310,13 +324,37 @@ function EquipeTab({
                 <Badge variant={posicao.get(v.id) === 1 ? "default" : "secondary"}>
                   {posicao.get(v.id) === 1 ? "Próximo" : `${posicao.get(v.id)}º`}
                 </Badge>
+              ) : v.ativo ? (
+                <Badge variant="outline">Fora do horário</Badge>
               ) : (
                 <Badge variant="outline">Inativo</Badge>
               )}
+              {v.ativo && v.usar_horario && v.forcar_ativo ? (
+                <Badge className="bg-amber-500 text-white hover:bg-amber-500">Plantão</Badge>
+              ) : null}
             </div>
             <p className="text-xs text-muted-foreground">
               Último lead: {v.ultimo_lead_at ? fmt(v.ultimo_lead_at) : "—"}
             </p>
+            <button
+              type="button"
+              className="mt-1 flex items-center gap-1 text-left text-xs text-primary hover:underline"
+              onClick={() => setEditarHorario(v)}
+            >
+              <Clock className="size-3 shrink-0" />
+              {v.usar_horario ? resumoHorarios(v.horarios ?? null) : "Sem horário programado"}
+            </button>
+            {v.ativo && v.usar_horario ? (
+              <Button
+                variant={v.forcar_ativo ? "default" : "outline"}
+                size="sm"
+                className="mt-2 h-7 text-xs"
+                disabled={plantao.isPending}
+                onClick={() => plantao.mutate(v)}
+              >
+                {v.forcar_ativo ? "Encerrar plantão (voltar ao horário)" : "Ligar fora do horário"}
+              </Button>
+            ) : null}
           </div>
           <Switch
             checked={v.ativo}
@@ -378,6 +416,16 @@ function EquipeTab({
         </DialogContent>
       </Dialog>
 
+      {editarHorario ? (
+        <HorarioDialog
+          key={editarHorario.id}
+          vendedor={editarHorario}
+          onClose={() => setEditarHorario(null)}
+          onDone={onDone}
+          onErr={onErr}
+        />
+      ) : null}
+
       <Dialog open={!!remover} onOpenChange={(o) => !o && setRemover(null)}>
         <DialogContent>
           <DialogHeader>
@@ -401,6 +449,139 @@ function EquipeTab({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Ordem de exibição: segunda a domingo.
+const ORDEM_DIAS = [1, 2, 3, 4, 5, 6, 0];
+type Linha = { on: boolean; ini: string; fim: string };
+
+function HorarioDialog({
+  vendedor,
+  onClose,
+  onDone,
+  onErr,
+}: {
+  vendedor: Vendedor;
+  onClose: () => void;
+  onDone: () => void;
+  onErr: (e: Error) => void;
+}) {
+  const [usar, setUsar] = useState(!!vendedor.usar_horario);
+  const [linhas, setLinhas] = useState<Record<number, Linha>>(() => {
+    const h = vendedor.horarios ?? {};
+    const out: Record<number, Linha> = {};
+    for (const d of ORDEM_DIAS) {
+      const j = h[String(d)];
+      out[d] = j ? { on: true, ini: j.ini, fim: j.fim } : { on: false, ini: "09:00", fim: "18:00" };
+    }
+    return out;
+  });
+  const L = (d: number): Linha => linhas[d] ?? { on: false, ini: "09:00", fim: "18:00" };
+  const set = (d: number, p: Partial<Linha>) =>
+    setLinhas((l) => ({ ...l, [d]: { ...L(d), ...p } }));
+  const copiarSegunda = () => {
+    const s = L(1);
+    setLinhas((l) => {
+      const out = { ...l };
+      for (const d of [2, 3, 4, 5]) out[d] = { ...s };
+      return out;
+    });
+  };
+
+  const invalido = ORDEM_DIAS.some((d) => L(d).on && !(L(d).ini < L(d).fim));
+
+  const salvar = useMutation({
+    mutationFn: () => {
+      const horarios: Horarios = {};
+      for (const d of ORDEM_DIAS)
+        if (L(d).on) horarios[String(d)] = { ini: L(d).ini, fim: L(d).fim };
+      return api(`vendedores/${vendedor.id}`, {
+        method: "PATCH",
+        body: { usar_horario: usar, horarios },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Horário salvo");
+      onClose();
+      onDone();
+    },
+    onError: onErr,
+  });
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Horário de {vendedor.nome}</DialogTitle>
+        </DialogHeader>
+        <div className="flex items-center justify-between gap-3 rounded-md border p-3">
+          <div>
+            <p className="text-sm font-medium text-foreground">Usar horário programado</p>
+            <p className="text-xs text-muted-foreground">
+              Recebe leads só nos dias e horários marcados (horário de Brasília). Fora do horário dá
+              pra ligar na hora pelo botão "Ligar fora do horário" (plantão). O botão manual
+              desligado bloqueia sempre.
+            </p>
+          </div>
+          <Switch checked={usar} onCheckedChange={setUsar} aria-label="Usar horário programado" />
+        </div>
+        <div className={`space-y-2 ${usar ? "" : "pointer-events-none opacity-50"}`}>
+          {ORDEM_DIAS.map((d) => {
+            const l = L(d);
+            const erro = l.on && !(l.ini < l.fim);
+            return (
+              <div key={d} className="flex items-center gap-2">
+                <label className="flex w-16 items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={l.on}
+                    onChange={(e) => set(d, { on: e.target.checked })}
+                    className="size-4"
+                  />
+                  {DIAS[d]}
+                </label>
+                {l.on ? (
+                  <>
+                    <Input
+                      type="time"
+                      value={l.ini}
+                      onChange={(e) => set(d, { ini: e.target.value })}
+                      className={`h-9 flex-1 ${erro ? "border-destructive" : ""}`}
+                      aria-label={`Início ${DIAS[d]}`}
+                    />
+                    <span className="text-xs text-muted-foreground">até</span>
+                    <Input
+                      type="time"
+                      value={l.fim}
+                      onChange={(e) => set(d, { fim: e.target.value })}
+                      className={`h-9 flex-1 ${erro ? "border-destructive" : ""}`}
+                      aria-label={`Fim ${DIAS[d]}`}
+                    />
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Folga</span>
+                )}
+              </div>
+            );
+          })}
+          <Button variant="link" size="sm" className="h-auto px-0" onClick={copiarSegunda}>
+            Copiar o horário de segunda para terça a sexta
+          </Button>
+          {invalido ? (
+            <p className="text-xs text-destructive">O início precisa ser antes do fim.</p>
+          ) : null}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button disabled={invalido || salvar.isPending} onClick={() => salvar.mutate()}>
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
