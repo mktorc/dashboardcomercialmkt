@@ -48,6 +48,7 @@ import { Route as AppComissoesHistoricoRouteImport } from './routes/app.comissoe
 import { Route as AuthenticatedBaseConhecimentoAreaIndexRouteImport } from './routes/_authenticated/base-conhecimento.$area.index'
 import { Route as AuthenticatedBaseConhecimentoAreaArtigoRouteImport } from './routes/_authenticated/base-conhecimento.$area.$artigo'
 import { Route as AuthenticatedBaseConhecimentoAreaChatRouteImport } from './routes/_authenticated/base-conhecimento.$area.chat'
+import { Route as AuthenticatedBaseConhecimentoAreaPainelRouteImport } from './routes/_authenticated/base-conhecimento.$area.painel'
 import { Route as AuthenticatedBaseConhecimentoAreaTemplatesRouteImport } from './routes/_authenticated/base-conhecimento.$area.templates'
 import { Route as AuthenticatedBaseConhecimentoAreaTrilhaRouteImport } from './routes/_authenticated/base-conhecimento.$area.trilha'
 import { Route as ApiFilaVendedoresIndexRouteImport } from './routes/api/fila/vendedores/index'
@@ -269,6 +270,12 @@ const AuthenticatedBaseConhecimentoAreaChatRoute =
     path: '/chat',
     getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
   } as any)
+const AuthenticatedBaseConhecimentoAreaPainelRoute =
+  AuthenticatedBaseConhecimentoAreaPainelRouteImport.update({
+    id: '/painel',
+    path: '/painel',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
 const AuthenticatedBaseConhecimentoAreaTemplatesRoute =
   AuthenticatedBaseConhecimentoAreaTemplatesRouteImport.update({
     id: '/templates',
@@ -395,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/base-conhecimento/': typeof AuthenticatedBaseConhecimentoIndexRoute
   '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/base-conhecimento/$area/painel': typeof AuthenticatedBaseConhecimentoAreaPainelRoute
   '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -450,6 +458,7 @@ export interface FileRoutesByTo {
   '/base-conhecimento': typeof AuthenticatedBaseConhecimentoIndexRoute
   '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/base-conhecimento/$area/painel': typeof AuthenticatedBaseConhecimentoAreaPainelRoute
   '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -508,6 +517,7 @@ export interface FileRoutesById {
   '/_authenticated/base-conhecimento/': typeof AuthenticatedBaseConhecimentoIndexRoute
   '/_authenticated/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/_authenticated/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  '/_authenticated/base-conhecimento/$area/painel': typeof AuthenticatedBaseConhecimentoAreaPainelRoute
   '/_authenticated/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   '/_authenticated/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
@@ -566,6 +576,7 @@ export interface FileRouteTypes {
     | '/base-conhecimento/'
     | '/base-conhecimento/$area/$artigo'
     | '/base-conhecimento/$area/chat'
+    | '/base-conhecimento/$area/painel'
     | '/base-conhecimento/$area/templates'
     | '/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
@@ -621,6 +632,7 @@ export interface FileRouteTypes {
     | '/base-conhecimento'
     | '/base-conhecimento/$area/$artigo'
     | '/base-conhecimento/$area/chat'
+    | '/base-conhecimento/$area/painel'
     | '/base-conhecimento/$area/templates'
     | '/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
@@ -678,6 +690,7 @@ export interface FileRouteTypes {
     | '/_authenticated/base-conhecimento/'
     | '/_authenticated/base-conhecimento/$area/$artigo'
     | '/_authenticated/base-conhecimento/$area/chat'
+    | '/_authenticated/base-conhecimento/$area/painel'
     | '/_authenticated/base-conhecimento/$area/templates'
     | '/_authenticated/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
@@ -1016,6 +1029,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaChatRouteImport
       parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
     }
+    '/_authenticated/base-conhecimento/$area/painel': {
+      id: '/_authenticated/base-conhecimento/$area/painel'
+      path: '/painel'
+      fullPath: '/base-conhecimento/$area/painel'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaPainelRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
+    }
     '/_authenticated/base-conhecimento/$area/templates': {
       id: '/_authenticated/base-conhecimento/$area/templates'
       path: '/templates'
@@ -1134,6 +1154,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedBaseConhecimentoAreaRouteChildren {
   AuthenticatedBaseConhecimentoAreaArtigoRoute: typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   AuthenticatedBaseConhecimentoAreaChatRoute: typeof AuthenticatedBaseConhecimentoAreaChatRoute
+  AuthenticatedBaseConhecimentoAreaPainelRoute: typeof AuthenticatedBaseConhecimentoAreaPainelRoute
   AuthenticatedBaseConhecimentoAreaTemplatesRoute: typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
   AuthenticatedBaseConhecimentoAreaTrilhaRoute: typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   AuthenticatedBaseConhecimentoAreaIndexRoute: typeof AuthenticatedBaseConhecimentoAreaIndexRoute
@@ -1145,6 +1166,8 @@ const AuthenticatedBaseConhecimentoAreaRouteChildren: AuthenticatedBaseConhecime
       AuthenticatedBaseConhecimentoAreaArtigoRoute,
     AuthenticatedBaseConhecimentoAreaChatRoute:
       AuthenticatedBaseConhecimentoAreaChatRoute,
+    AuthenticatedBaseConhecimentoAreaPainelRoute:
+      AuthenticatedBaseConhecimentoAreaPainelRoute,
     AuthenticatedBaseConhecimentoAreaTemplatesRoute:
       AuthenticatedBaseConhecimentoAreaTemplatesRoute,
     AuthenticatedBaseConhecimentoAreaTrilhaRoute:

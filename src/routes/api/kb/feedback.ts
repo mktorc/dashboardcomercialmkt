@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/kb/feedback")({
         const kb = await import("@/lib/kb/kb.server");
         let b: Record<string, unknown> = {};
         try {
-          b = JSON.parse((await request.text()).slice(0, 2048));
+          b = JSON.parse((await request.text()).slice(0, 32 * 1024));
         } catch {
           return kb.fail("Corpo inválido");
         }
@@ -27,6 +27,31 @@ export const Route = createFileRoute("/api/kb/feedback")({
             .slice(0, 80);
           if (q.length >= 3) await kb.db.rpc("kb_register_miss", { p_area: u.area, p_q: q });
           return kb.ok();
+        }
+        if (b["action"] === "ai_rate" || b["action"] === "progress") {
+          const st0 = await import("@/lib/kb/engajamento.server");
+          try {
+            if (b["action"] === "ai_rate") {
+              const qid = Math.floor(Number(b["id"]));
+              const r = Number(b["rating"]);
+              if (!Number.isFinite(qid) || qid <= 0) return kb.fail("Pergunta inválida");
+              await st0.rateQuestion(qid, u.userId, r === 1 ? 1 : r === -1 ? -1 : null);
+              return kb.ok();
+            }
+            const ids = (v: unknown) =>
+              Array.isArray(v)
+                ? v.filter((x): x is string => typeof x === "string").map((x) => x.slice(0, 120))
+                : [];
+            const merged = await st0.saveProgress(
+              u.area,
+              u.userId,
+              ids(b["read"]),
+              Array.isArray(b["favs"]) ? ids(b["favs"]) : null,
+            );
+            return Response.json({ ok: true, ...merged });
+          } catch {
+            return kb.fail("Falha ao gravar", 500);
+          }
         }
         const id = typeof b["articleId"] === "string" ? b["articleId"] : "";
         const areas = (await kb.articleAreas()).get(id);

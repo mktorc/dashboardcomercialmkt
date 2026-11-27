@@ -69,3 +69,32 @@ RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   ON CONFLICT (area, q) DO UPDATE SET hits = kb_search_misses.hits + 1, last_at = now();
 $$;
 REVOKE ALL ON FUNCTION public.kb_register_miss(text, text) FROM PUBLIC, anon, authenticated;
+
+-- 5) Perguntas feitas à ORCI (painel do administrador: o que mais perguntam, quem pergunta,
+--    o que a base não respondeu e a nota 👍/👎 de cada resposta) ---------------------------------
+CREATE TABLE IF NOT EXISTS public.kb_ai_questions (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  area        text NOT NULL CHECK (area IN ('comercial','cs')),
+  user_id     uuid NOT NULL,
+  user_name   text,
+  question    text NOT NULL,
+  answered    boolean NOT NULL DEFAULT true,
+  rating      smallint CHECK (rating IN (-1, 1)),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS kb_ai_questions_area_idx ON public.kb_ai_questions (area, created_at DESC);
+ALTER TABLE public.kb_ai_questions ENABLE ROW LEVEL SECURITY;
+
+-- 6) Progresso de cada pessoa (trilha lida e favoritos), para não perder ao trocar de computador
+--    e para o painel do gestor -----------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.kb_progress (
+  area        text NOT NULL CHECK (area IN ('comercial','cs')),
+  user_id     uuid NOT NULL,
+  user_name   text,
+  read_ids    text[] NOT NULL DEFAULT '{}',
+  fav_ids     text[] NOT NULL DEFAULT '{}',
+  first_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (area, user_id)
+);
+ALTER TABLE public.kb_progress ENABLE ROW LEVEL SECURITY;

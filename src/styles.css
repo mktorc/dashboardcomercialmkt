@@ -170,3 +170,52 @@
   );
   background-attachment: fixed;
 }
+/* Tema claro da base (botão sol/lua): mesma identidade, fundo claro. */
+.kb-orc.kb-light {
+  --background: oklch(0.985 0.008 140);
+  --foreground: oklch(0.24 0.06 150);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.06 150);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.06 150);
+  --muted: oklch(0.94 0.02 140);
+  --muted-foreground: oklch(0.45 0.04 150);
+  --border: oklch(0.88 0.03 140);
+  --input: oklch(0.88 0.03 140);
+  --primary: oklch(0.62 0.2 140);
+  --primary-foreground: oklch(0.99 0.01 140);
+  --ring: oklch(0.62 0.2 140);
+  --accent: oklch(0.62 0.2 140);
+  --accent-foreground: oklch(0.99 0.01 140);
+  background-image: radial-gradient(
+    ellipse 80% 40% at 50% -10%,
+    oklch(0.9 0.12 140 / 0.45),
+    transparent 70%
+  );
+}
+
+/* Certificado da trilha: só ele sai na impressão, em paisagem e com as cores. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+  body:has(#kb-cert) * {
+    visibility: hidden;
+  }
+  body:has(#kb-cert) #kb-cert,
+  body:has(#kb-cert) #kb-cert * {
+    visibility: visible;
+  }
+  body:has(#kb-cert) #kb-cert {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    width: 100vw;
+    height: auto;
+    border-radius: 0;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

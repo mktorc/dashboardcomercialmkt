@@ -189,6 +189,42 @@ export function pushRecentView(area: string, id: string) {
   } catch {
     /* sem armazenamento: segue sem histórico */
   }
+  void postProgress(area, { read: [id] });
+}
+
+/** Salva o progresso no servidor (vale em qualquer computador e alimenta o painel do gestor). */
+export async function postProgress(area: string, p: { read?: string[]; favs?: string[] }) {
+  try {
+    const res = await fetch("/api/kb/feedback", {
+      method: "POST",
+      headers: { ...(await authHeader()), "content-type": "application/json" },
+      body: JSON.stringify({ action: "progress", area, read: p.read ?? [], favs: p.favs }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as { read: string[]; favs: string[] };
+  } catch {
+    return null;
+  }
+}
+
+/** Ao abrir a área: junta o que está neste navegador com o que está salvo no servidor. */
+export async function syncProgress(area: string) {
+  const local = readPages(area);
+  const merged = await postProgress(area, { read: local });
+  if (!merged) return;
+  try {
+    localStorage.setItem(`kb-read:${area}`, JSON.stringify(merged.read));
+    const favLocal = favRead(area);
+    const favs = [...new Set([...favLocal, ...merged.favs])];
+    if (favs.length !== favLocal.length) {
+      favCache.set(area, favs);
+      localStorage.setItem(`kb-fav:${area}`, JSON.stringify(favs));
+      favSubs.forEach((f) => f());
+      void postProgress(area, { favs });
+    }
+  } catch {
+    /* ignora */
+  }
 }
 
 /** Páginas já abertas neste navegador (trilha de onboarding). */
@@ -235,6 +271,30 @@ export type KbEngajamento = {
   ranking: { name: string; best: number; total: number; tries: number }[];
   notes: { articleId: string; name?: string; reason: string; note: string; at: string }[];
   misses: { q: string; hits: number; at: string }[];
+  ai: {
+    total: number;
+    answeredPct: number;
+    up: number;
+    down: number;
+    top: { q: string; n: number; unanswered: number }[];
+    unanswered: { q: string; name: string; at: string }[];
+    disliked: { q: string; name: string; at: string }[];
+    people: {
+      name: string;
+      total: number;
+      unanswered: number;
+      up: number;
+      down: number;
+      last: string;
+    }[];
+  } | null;
+  team: {
+    name: string;
+    read: string[];
+    firstAt: string;
+    updatedAt: string;
+    quiz: { best: number; total: number } | null;
+  }[];
 };
 export function useKbEngajamento(area: KbArea) {
   return useQuery({
@@ -267,6 +327,7 @@ export function toggleFavorite(area: string, id: string) {
     /* sem armazenamento: vale só nesta aba */
   }
   favSubs.forEach((f) => f());
+  void postProgress(area, { favs: next });
 }
 const EMPTY: string[] = [];
 export function useFavorites(area: string): string[] {

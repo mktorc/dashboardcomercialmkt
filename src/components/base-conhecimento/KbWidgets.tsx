@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyButton } from "./KbBlocks";
+import { Certificado } from "./KbCertificado";
 import { kbApi, useKbEngajamento, type KbArea } from "./kb-api";
 
 // ───────────── Frota ─────────────
@@ -417,65 +418,74 @@ export function Quiz({ items: bank, area }: { items: QuizQ[]; area: string }) {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done]);
+  const passou = done && score >= items.length * 0.75;
   if (done)
     return (
-      <div className="space-y-4 rounded-2xl bg-primary/10 p-6 text-center ring-1 ring-primary/30">
-        <p className="text-5xl font-bold tabular-nums text-primary">
-          {score}/{items.length}
-        </p>
-        <p className="text-lg font-semibold text-foreground">
-          {score === items.length
-            ? "Gabaritou! Você domina o assunto."
-            : score >= items.length * 0.7
-              ? "Muito bem! Revise só as que errou."
-              : "Vale revisar as páginas da trilha e tentar de novo."}
-        </p>
-        <button
-          type="button"
-          onClick={() => {
-            setItems(draw(bank));
-            setI(0);
-            setPick(null);
-            setScore(0);
-          }}
-          className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          Fazer de novo
-        </button>
-        {!!rank.data?.ranking.length && (
-          <div className="mx-auto max-w-sm space-y-2 pt-2 text-left">
-            <p className="text-center text-sm font-semibold text-foreground">
-              Melhores notas da equipe
-            </p>
-            <ol className="space-y-1">
-              {rank.data.ranking.slice(0, 5).map((r, j) => (
-                <li
-                  key={j}
-                  className="flex items-center gap-3 rounded-lg bg-background/60 px-3 py-2 text-sm"
-                >
-                  <span
-                    className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      j === 0
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
-                    }`}
+      <div className="space-y-6">
+        {passou && <Certificado area={area as KbArea} />}
+        <div className="space-y-4 rounded-2xl bg-primary/10 p-6 text-center ring-1 ring-primary/30">
+          <p className="text-5xl font-bold tabular-nums text-primary">
+            {score}/{items.length}
+          </p>
+          <p className="text-lg font-semibold text-foreground">
+            {score === items.length
+              ? "Gabaritou! Você domina o assunto."
+              : score >= items.length * 0.7
+                ? "Muito bem! Revise só as que errou."
+                : "Vale revisar as páginas da trilha e tentar de novo."}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {passou
+              ? "Seu certificado está aí em cima. Pode imprimir ou salvar em PDF."
+              : "Acerte 75% ou mais para ganhar o certificado da trilha."}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setItems(draw(bank));
+              setI(0);
+              setPick(null);
+              setScore(0);
+            }}
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Fazer de novo
+          </button>
+          {!!rank.data?.ranking.length && (
+            <div className="mx-auto max-w-sm space-y-2 pt-2 text-left">
+              <p className="text-center text-sm font-semibold text-foreground">
+                Melhores notas da equipe
+              </p>
+              <ol className="space-y-1">
+                {rank.data.ranking.slice(0, 5).map((r, j) => (
+                  <li
+                    key={j}
+                    className="flex items-center gap-3 rounded-lg bg-background/60 px-3 py-2 text-sm"
                   >
-                    {j + 1}
-                  </span>
-                  <span className="flex-1 truncate text-foreground">{r.name}</span>
-                  {r.best / r.total >= 0.75 && (
-                    <span className="shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                      Onboarding concluído
+                    <span
+                      className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                        j === 0
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {j + 1}
                     </span>
-                  )}
-                  <span className="tabular-nums text-muted-foreground">
-                    {r.best}/{r.total}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
+                    <span className="flex-1 truncate text-foreground">{r.name}</span>
+                    {r.best / r.total >= 0.75 && (
+                      <span className="shrink-0 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        Onboarding concluído
+                      </span>
+                    )}
+                    <span className="tabular-nums text-muted-foreground">
+                      {r.best}/{r.total}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </div>
       </div>
     );
   const it = items[i]!;

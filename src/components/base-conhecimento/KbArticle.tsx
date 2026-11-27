@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -321,6 +321,24 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
     () => new Map<string, Template>(data.templates.map((t) => [templateKey(t.title), t])),
     [data.templates],
   );
+  // J/K: próxima e anterior (as mesmas do rodapé). O alvo é atualizado a cada renderização.
+  const navigate = useNavigate();
+  const jk = useRef<{ prev?: string | undefined; next?: string | undefined }>({});
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const id = e.key === "j" ? jk.current.next : e.key === "k" ? jk.current.prev : undefined;
+      if (id)
+        void navigate({
+          to: "/base-conhecimento/$area/$artigo",
+          params: { area: data.area, artigo: id },
+        });
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [navigate, data.area]);
 
   if (!article)
     return (
@@ -367,6 +385,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
   const prev = inTrilha ? trilha[tPos - 1] : pos > 0 ? siblings[pos - 1] : undefined;
   const next = inTrilha ? trilha[tPos + 1] : pos >= 0 ? siblings[pos + 1] : undefined;
   const nextLabel = inTrilha ? "Próxima da trilha" : "Próxima";
+  jk.current = { prev: prev?.id, next: next?.id };
   // Leia também: outras da categoria, sem repetir as que já estão em Anterior/Próxima.
   const related = relatedAll.filter((a) => a.id !== prev?.id && a.id !== next?.id).slice(0, 4);
   // Etapas numeradas ("1. Onboarding", "2. ..."): mostra a barra de progresso da jornada.

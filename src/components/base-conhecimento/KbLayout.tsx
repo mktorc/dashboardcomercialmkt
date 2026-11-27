@@ -15,10 +15,16 @@ import {
   Settings2,
   Star,
   GraduationCap,
+  BarChart3,
+  Moon,
+  Sparkles,
+  Sun,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AREA_INFO, type KbAreaData } from "./kb-api";
+import { AREA_INFO, syncProgress, type KbAreaData } from "./kb-api";
+import { KbChat } from "./KbChat";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { KbSearchPalette } from "./KbSearchPalette";
 import { catIcon } from "./kb-icons";
 import { isRecent, useFavorites } from "./kb-api";
@@ -262,6 +268,16 @@ function Sidebar({
         </Link>
         {data.admin && (
           <Link
+            to="/base-conhecimento/$area/painel"
+            params={{ area: data.area }}
+            onClick={onNavigate}
+            className={`${navItem} ${path === `${base}/painel` ? navActive : navIdle}`}
+          >
+            <BarChart3 className="size-4" /> Painel do gestor
+          </Link>
+        )}
+        {data.admin && (
+          <Link
             to="/base-conhecimento/admin"
             onClick={onNavigate}
             className={`${navItem} ${navIdle}`}
@@ -288,6 +304,47 @@ export function KbLayout({ data, children }: { data: KbAreaData; children: React
       /* sem armazenamento: começa aberta */
     }
   }, []);
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  const [light, setLight] = useState(false);
+  const [orci, setOrci] = useState(false);
+  const [help, setHelp] = useState(false);
+  useEffect(() => {
+    try {
+      setLight(localStorage.getItem("kb-theme") === "light");
+    } catch {
+      /* começa escuro */
+    }
+  }, []);
+  // Progresso salvo no servidor: vale em qualquer computador.
+  useEffect(() => {
+    void syncProgress(data.area);
+  }, [data.area]);
+  // Atalhos: "/" busca, "?" mostra os atalhos (J/K trocam de página dentro do artigo).
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        setPalette(true);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setHelp(true);
+      }
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+  const toggleTheme = () =>
+    setLight((l) => {
+      try {
+        localStorage.setItem("kb-theme", l ? "dark" : "light");
+      } catch {
+        /* ignora */
+      }
+      return !l;
+    });
   const toggle = () =>
     setCollapsed((c) => {
       try {
@@ -298,7 +355,7 @@ export function KbLayout({ data, children }: { data: KbAreaData; children: React
       return !c;
     });
   return (
-    <div className="kb-orc min-h-screen bg-background">
+    <div className={`kb-orc min-h-screen bg-background text-foreground ${light ? "kb-light" : ""}`}>
       {/* Celular: barra no topo com a gaveta */}
       <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur lg:hidden">
         <button
@@ -369,6 +426,60 @@ export function KbLayout({ data, children }: { data: KbAreaData; children: React
         </main>
       </div>
       <KbSearchPalette data={data} open={palette} onOpenChange={setPalette} />
+
+      {/* Botões flutuantes: tema e ORCI (no celular, acima da barra de navegação). */}
+      <div className="fixed bottom-20 right-4 z-40 flex items-center gap-2 lg:bottom-6 lg:right-6">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={light ? "Usar tema escuro" : "Usar tema claro"}
+          title={light ? "Tema escuro" : "Tema claro"}
+          className="flex size-11 items-center justify-center rounded-full bg-card text-foreground shadow-lg ring-1 ring-border transition hover:ring-primary"
+        >
+          {light ? <Moon className="size-5" /> : <Sun className="size-5" />}
+        </button>
+        {!path.endsWith("/chat") && (
+          <button
+            type="button"
+            onClick={() => setOrci(true)}
+            className="flex h-11 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Sparkles className="size-4" /> Pergunte à ORCI
+          </button>
+        )}
+      </div>
+      <Sheet open={orci} onOpenChange={setOrci}>
+        <SheetContent
+          side="right"
+          className={`kb-orc w-full p-0 sm:max-w-md ${light ? "kb-light" : ""} bg-background text-foreground`}
+        >
+          <SheetTitle className="sr-only">ORCI</SheetTitle>
+          <KbChat data={data} compact />
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={help} onOpenChange={setHelp}>
+        <DialogContent
+          className={`kb-orc max-w-sm ${light ? "kb-light" : ""} bg-background text-foreground`}
+        >
+          <DialogTitle>Atalhos de teclado</DialogTitle>
+          <ul className="space-y-2 text-sm">
+            {[
+              ["/", "Buscar na base"],
+              ["J", "Próxima página (ou etapa da trilha)"],
+              ["K", "Página anterior"],
+              ["?", "Mostrar estes atalhos"],
+            ].map(([k, t]) => (
+              <li key={k} className="flex items-center justify-between gap-3">
+                <span className="text-foreground/85">{t}</span>
+                <kbd className="min-w-7 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-center text-xs font-semibold">
+                  {k}
+                </kbd>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

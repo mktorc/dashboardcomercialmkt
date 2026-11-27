@@ -77,12 +77,15 @@ export const Route = createFileRoute("/api/kb/ask")({
         const enc = new TextEncoder();
         const line = (o: unknown) => enc.encode(JSON.stringify(o) + "\n");
 
+        const st = await import("@/lib/kb/engajamento.server");
         if (!hits.length) {
+          const qid = await st.logQuestion(u.area, u.userId, question, false).catch(() => null);
           return new Response(
             new ReadableStream({
               start(c) {
                 c.enqueue(line({ type: "sources", sources: [] }));
                 c.enqueue(line({ type: "text", text: `${NOT_FOUND}.` }));
+                c.enqueue(line({ type: "meta", id: qid }));
                 c.enqueue(line({ type: "done" }));
                 c.close();
               },
@@ -147,6 +150,7 @@ export const Route = createFileRoute("/api/kb/ask")({
               const reader = res.body.getReader();
               const dec = new TextDecoder();
               let buf = "";
+              let full = "";
               for (;;) {
                 const { done, value } = await reader.read();
                 if (done) break;
@@ -159,9 +163,18 @@ export const Route = createFileRoute("/api/kb/ask")({
                   const text = (ev?.candidates?.[0]?.content?.parts ?? [])
                     .map((p: { text?: string }) => p.text ?? "")
                     .join("");
-                  if (text) c.enqueue(line({ type: "text", text }));
+                  if (text) {
+                    full += text;
+                    c.enqueue(line({ type: "text", text }));
+                  }
                 }
               }
+              // Guarda a pergunta para o painel do administrador (respondida ou não).
+              const answered = !full.trim().startsWith(NOT_FOUND);
+              const qid = await st
+                .logQuestion(u.area, u.userId, question, answered)
+                .catch(() => null);
+              c.enqueue(line({ type: "meta", id: qid }));
               c.enqueue(line({ type: "done" }));
             } catch (e) {
               console.error("[kb] erro na IA", e);

@@ -21,6 +21,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { buildIndex, quickAnswer, searchArticles } from "./kb-search";
 import { MessageBlock, TemplateChip } from "./KbBlocks";
 import { WelcomeTour } from "./KbWidgets";
+import { Certificado } from "./KbCertificado";
+import { supabase } from "@/integrations/supabase/client";
 import { templateKey } from "@/lib/kb/templates";
 import { catIcon } from "./kb-icons";
 import {
@@ -831,11 +833,7 @@ export function KbTrilhaPage({ data }: { data: KbAreaData }) {
           );
         })}
       </ol>
-      {!prox && trilha.length > 0 && (
-        <p className="rounded-xl bg-primary/10 p-4 text-sm text-foreground ring-1 ring-primary/30">
-          Trilha concluída. Você pode voltar a qualquer etapa quando precisar.
-        </p>
-      )}
+      {!prox && trilha.length > 0 && <Certificado area={data.area} />}
     </div>
   );
 }

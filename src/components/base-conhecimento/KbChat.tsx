@@ -1,13 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
-import { ArrowUp, Bot, ExternalLink, FileText, Sparkles, Trash2 } from "lucide-react";
+import {
+  ArrowUp,
+  Bot,
+  ExternalLink,
+  FileText,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "./KbBlocks";
 import { articleForFile, authHeader, AREA_INFO, type KbAreaData } from "./kb-api";
 
 type Source = { fileId?: string; name: string; link: string | null; folder: string };
-type Msg = { role: "user" | "assistant"; content: string; sources?: Source[]; error?: boolean };
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  sources?: Source[];
+  error?: boolean;
+  /** Id da pergunta gravada (para a nota 👍/👎). */
+  qid?: number | null;
+  rating?: 1 | -1 | null;
+};
 
 export const SUGGESTIONS: Record<KbAreaData["area"], string[]> = {
   cs: [
@@ -30,9 +47,12 @@ const stripSources = (t: string) => t.replace(/\n+\**Fontes:?\**[\s\S]*$/i, "").
 export function KbChat({
   data,
   initialQuestion,
+  compact = false,
 }: {
   data: KbAreaData;
   initialQuestion?: string | undefined;
+  /** Dentro do painel lateral (botão flutuante): ocupa a altura do painel. */
+  compact?: boolean;
 }) {
   const key = `kb-chat:${data.area}`;
   const [msgs, setMsgs] = useState<Msg[]>(() => {
@@ -101,6 +121,7 @@ export function KbChat({
               ],
             }));
           else if (ev.type === "text") patch((m) => ({ ...m, content: m.content + ev.text }));
+          else if (ev.type === "meta") patch((m) => ({ ...m, qid: ev.id ?? null }));
           else if (ev.type === "error") throw new Error(ev.msg);
         }
       }
@@ -108,6 +129,19 @@ export function KbChat({
       patch((m) => ({ ...m, content: (e as Error).message || "Erro ao perguntar", error: true }));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function rate(i: number, qid: number, rating: 1 | -1 | null) {
+    setMsgs((prev) => prev.map((m, j) => (j === i ? { ...m, rating } : m)));
+    try {
+      await fetch("/api/kb/feedback", {
+        method: "POST",
+        headers: { ...(await authHeader()), "content-type": "application/json" },
+        body: JSON.stringify({ action: "ai_rate", area: data.area, id: qid, rating }),
+      });
+    } catch {
+      /* a nota fica só na tela */
     }
   }
 
@@ -121,7 +155,13 @@ export function KbChat({
   }, [initialQuestion]);
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-57px)] max-w-3xl flex-col px-4 lg:h-screen">
+    <div
+      className={
+        compact
+          ? "flex h-full flex-col px-4"
+          : "mx-auto flex h-[calc(100vh-57px)] max-w-3xl flex-col px-4 lg:h-screen"
+      }
+    >
       <div className="flex items-center justify-between gap-2 py-5">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">ORCI</h1>
@@ -271,6 +311,33 @@ export function KbChat({
                       );
                     })}
                     <CopyButton text={stripSources(m.content)} label="Copiar resposta" />
+                    {m.qid ? (
+                      <span className="ml-auto inline-flex items-center gap-1">
+                        <span className="text-xs text-muted-foreground">Ajudou?</span>
+                        {([1, -1] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            aria-pressed={m.rating === r}
+                            aria-label={r === 1 ? "Resposta boa" : "Resposta ruim"}
+                            onClick={() => void rate(i, m.qid!, m.rating === r ? null : r)}
+                            className={`flex size-8 items-center justify-center rounded-full transition ${
+                              m.rating === r
+                                ? r === 1
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-destructive/80 text-white"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            }`}
+                          >
+                            {r === 1 ? (
+                              <ThumbsUp className="size-4" />
+                            ) : (
+                              <ThumbsDown className="size-4" />
+                            )}
+                          </button>
+                        ))}
+                      </span>
+                    ) : null}
                   </div>
                 )}
               </div>

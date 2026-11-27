@@ -4,6 +4,7 @@ import {
   Calculator,
   CarFront,
   MapPinned,
+  MessageCircle,
   Check,
   ChevronRight,
   Copy,
@@ -114,6 +115,21 @@ export function ClientNameInput() {
   );
 }
 
+/** Abre o WhatsApp Web com a mensagem já escrita (a pessoa escolhe o contato e envia). */
+export function WhatsAppButton({ text }: { text: string }) {
+  return (
+    <a
+      href={`https://web.whatsapp.com/send?text=${encodeURIComponent(text)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Abrir no WhatsApp Web com o texto pronto"
+      className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+    >
+      <MessageCircle className="size-3.5" /> WhatsApp
+    </a>
+  );
+}
+
 export function MessageBlock({ title, text: raw }: { title?: string | undefined; text: string }) {
   const name = useClientName();
   const text = personalize(raw, name, /español|espanhol|\bES\b/i.test(title ?? "") ? "es" : "pt");
@@ -123,7 +139,10 @@ export function MessageBlock({ title, text: raw }: { title?: string | undefined;
         <span className="truncate text-xs font-medium text-muted-foreground">
           {title ?? "Mensagem"}
         </span>
-        <CopyButton text={text} />
+        <span className="flex items-center gap-1">
+          <WhatsAppButton text={text} />
+          <CopyButton text={text} />
+        </span>
       </div>
       <p className="whitespace-pre-wrap px-3 py-3 text-sm leading-relaxed text-foreground">
         <HighlightVars text={text} />
@@ -191,7 +210,10 @@ function LangTabs({ items }: { items: { label: string; text: string }[] }) {
             </button>
           ))}
         </div>
-        <CopyButton text={cur.text} label={`Copiar em ${cur.label.toLowerCase()}`} />
+        <span className="flex items-center gap-1">
+          <WhatsAppButton text={cur.text} />
+          <CopyButton text={cur.text} label={`Copiar em ${cur.label.toLowerCase()}`} />
+        </span>
       </div>
       <p
         role="tabpanel"

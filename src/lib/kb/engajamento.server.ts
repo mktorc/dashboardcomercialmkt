@@ -129,3 +129,191 @@ export async function listMisses(area: string): Promise<{ q: string; hits: numbe
     at: r.last_at,
   }));
 }
+
+// ───────────── ORCI: perguntas, notas e relatório do administrador ─────────────
+export async function logQuestion(
+  area: string,
+  userId: string,
+  question: string,
+  answered: boolean,
+): Promise<number | null> {
+  const { data, error } = await db
+    .from("kb_ai_questions")
+    .insert({ area, user_id: userId, user_name: await nameOf(userId), question, answered })
+    .select("id")
+    .single();
+  if (error) return null;
+  return (data as { id: number }).id;
+}
+
+/** Nota 👍/👎 numa resposta: só quem perguntou pode dar. */
+export async function rateQuestion(id: number, userId: string, rating: 1 | -1 | null) {
+  const { error } = await db
+    .from("kb_ai_questions")
+    .update({ rating })
+    .eq("id", id)
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+}
+
+const normQ = (q: string) =>
+  q
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export type AiReport = {
+  total: number;
+  answeredPct: number;
+  up: number;
+  down: number;
+  top: { q: string; n: number; unanswered: number }[];
+  unanswered: { q: string; name: string; at: string }[];
+  disliked: { q: string; name: string; at: string }[];
+  people: {
+    name: string;
+    total: number;
+    unanswered: number;
+    up: number;
+    down: number;
+    last: string;
+  }[];
+};
+
+export async function aiReport(area: string, days = 30): Promise<AiReport> {
+  const since = new Date(Date.now() - days * 86_400_000).toISOString();
+  const { data } = await db
+    .from("kb_ai_questions")
+    .select("question, user_name, answered, rating, created_at")
+    .eq("area", area)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(3000);
+  const rows = (data ?? []) as {
+    question: string;
+    user_name: string | null;
+    answered: boolean;
+    rating: number | null;
+    created_at: string;
+  }[];
+  const top = new Map<string, { q: string; n: number; unanswered: number }>();
+  const people = new Map<string, AiReport["people"][number]>();
+  for (const r of rows) {
+    const k = normQ(r.question);
+    const t = top.get(k) ?? { q: r.question, n: 0, unanswered: 0 };
+    t.n++;
+    if (!r.answered) t.unanswered++;
+    top.set(k, t);
+    const name = r.user_name ?? "Colaborador";
+    const p = people.get(name) ?? {
+      name,
+      total: 0,
+      unanswered: 0,
+      up: 0,
+      down: 0,
+      last: r.created_at,
+    };
+    p.total++;
+    if (!r.answered) p.unanswered++;
+    if (r.rating === 1) p.up++;
+    if (r.rating === -1) p.down++;
+    people.set(name, p);
+  }
+  const answered = rows.filter((r) => r.answered).length;
+  const pick = (f: (r: (typeof rows)[number]) => boolean) =>
+    rows
+      .filter(f)
+      .slice(0, 20)
+      .map((r) => ({ q: r.question, name: r.user_name ?? "Colaborador", at: r.created_at }));
+  return {
+    total: rows.length,
+    answeredPct: rows.length ? Math.round((answered / rows.length) * 100) : 0,
+    up: rows.filter((r) => r.rating === 1).length,
+    down: rows.filter((r) => r.rating === -1).length,
+    top: [...top.values()].sort((a, b) => b.n - a.n).slice(0, 15),
+    unanswered: pick((r) => !r.answered),
+    disliked: pick((r) => r.rating === -1),
+    people: [...people.values()].sort((a, b) => b.total - a.total),
+  };
+}
+
+// ───────────── Progresso por pessoa (trilha e favoritos) ─────────────
+export async function getProgress(area: string, userId: string) {
+  const { data } = await db
+    .from("kb_progress")
+    .select("read_ids, fav_ids")
+    .eq("area", area)
+    .eq("user_id", userId)
+    .maybeSingle();
+  return {
+    read: (data?.read_ids as string[] | undefined) ?? [],
+    favs: (data?.fav_ids as string[] | undefined) ?? [],
+  };
+}
+
+/** Junta o que veio do navegador com o que está salvo: lidas somam; favoritos seguem o navegador. */
+export async function saveProgress(
+  area: string,
+  userId: string,
+  read: string[],
+  favs: string[] | null,
+) {
+  const prev = await getProgress(area, userId);
+  const merged = {
+    read: [...new Set([...prev.read, ...read])].slice(0, 500),
+    favs: (favs ?? prev.favs).slice(0, 200),
+  };
+  const { error } = await db.from("kb_progress").upsert({
+    area,
+    user_id: userId,
+    user_name: await nameOf(userId),
+    read_ids: merged.read,
+    fav_ids: merged.favs,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(error.message);
+  return merged;
+}
+
+export type TeamRow = {
+  name: string;
+  read: string[];
+  firstAt: string;
+  updatedAt: string;
+  quiz: { best: number; total: number } | null;
+};
+
+export async function teamProgress(area: string): Promise<TeamRow[]> {
+  const [{ data: prog }, { data: quiz }] = await Promise.all([
+    db
+      .from("kb_progress")
+      .select("user_id, user_name, read_ids, first_at, updated_at")
+      .eq("area", area)
+      .limit(500),
+    db.from("kb_quiz_results").select("user_id, best, total").eq("area", area).limit(500),
+  ]);
+  const q = new Map(
+    ((quiz ?? []) as { user_id: string; best: number; total: number }[]).map((r) => [r.user_id, r]),
+  );
+  return (
+    (prog ?? []) as {
+      user_id: string;
+      user_name: string | null;
+      read_ids: string[];
+      first_at: string;
+      updated_at: string;
+    }[]
+  ).map((r) => {
+    const qq = q.get(r.user_id);
+    return {
+      name: r.user_name ?? "Colaborador",
+      read: r.read_ids,
+      firstAt: r.first_at,
+      updatedAt: r.updated_at,
+      quiz: qq ? { best: qq.best, total: qq.total } : null,
+    };
+  });
+}
