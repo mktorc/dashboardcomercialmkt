@@ -49,6 +49,7 @@ import { Route as AuthenticatedBaseConhecimentoAreaIndexRouteImport } from './ro
 import { Route as AuthenticatedBaseConhecimentoAreaArtigoRouteImport } from './routes/_authenticated/base-conhecimento.$area.$artigo'
 import { Route as AuthenticatedBaseConhecimentoAreaChatRouteImport } from './routes/_authenticated/base-conhecimento.$area.chat'
 import { Route as AuthenticatedBaseConhecimentoAreaTemplatesRouteImport } from './routes/_authenticated/base-conhecimento.$area.templates'
+import { Route as AuthenticatedBaseConhecimentoAreaTrilhaRouteImport } from './routes/_authenticated/base-conhecimento.$area.trilha'
 import { Route as ApiFilaVendedoresIndexRouteImport } from './routes/api/fila/vendedores/index'
 import { Route as ApiFilaVendedoresIdRouteImport } from './routes/api/fila/vendedores/$id'
 import { Route as ApiPublicPushSubscribeRouteImport } from './routes/api/public/push/subscribe'
@@ -274,6 +275,12 @@ const AuthenticatedBaseConhecimentoAreaTemplatesRoute =
     path: '/templates',
     getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
   } as any)
+const AuthenticatedBaseConhecimentoAreaTrilhaRoute =
+  AuthenticatedBaseConhecimentoAreaTrilhaRouteImport.update({
+    id: '/trilha',
+    path: '/trilha',
+    getParentRoute: () => AuthenticatedBaseConhecimentoAreaRoute,
+  } as any)
 const ApiFilaVendedoresIndexRoute = ApiFilaVendedoresIndexRouteImport.update({
   id: '/api/fila/vendedores/',
   path: '/api/fila/vendedores/',
@@ -389,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
   '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
+  '/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -443,6 +451,7 @@ export interface FileRoutesByTo {
   '/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
   '/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
+  '/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -500,6 +509,7 @@ export interface FileRoutesById {
   '/_authenticated/base-conhecimento/$area/$artigo': typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   '/_authenticated/base-conhecimento/$area/chat': typeof AuthenticatedBaseConhecimentoAreaChatRoute
   '/_authenticated/base-conhecimento/$area/templates': typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
+  '/_authenticated/base-conhecimento/$area/trilha': typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   '/api/fila/vendedores/$id': typeof ApiFilaVendedoresIdRoute
   '/api/public/push/subscribe': typeof ApiPublicPushSubscribeRoute
   '/api/public/sync/clickmassa': typeof ApiPublicSyncClickmassaRoute
@@ -557,6 +567,7 @@ export interface FileRouteTypes {
     | '/base-conhecimento/$area/$artigo'
     | '/base-conhecimento/$area/chat'
     | '/base-conhecimento/$area/templates'
+    | '/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -611,6 +622,7 @@ export interface FileRouteTypes {
     | '/base-conhecimento/$area/$artigo'
     | '/base-conhecimento/$area/chat'
     | '/base-conhecimento/$area/templates'
+    | '/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -667,6 +679,7 @@ export interface FileRouteTypes {
     | '/_authenticated/base-conhecimento/$area/$artigo'
     | '/_authenticated/base-conhecimento/$area/chat'
     | '/_authenticated/base-conhecimento/$area/templates'
+    | '/_authenticated/base-conhecimento/$area/trilha'
     | '/api/fila/vendedores/$id'
     | '/api/public/push/subscribe'
     | '/api/public/sync/clickmassa'
@@ -1010,6 +1023,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaTemplatesRouteImport
       parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
     }
+    '/_authenticated/base-conhecimento/$area/trilha': {
+      id: '/_authenticated/base-conhecimento/$area/trilha'
+      path: '/trilha'
+      fullPath: '/base-conhecimento/$area/trilha'
+      preLoaderRoute: typeof AuthenticatedBaseConhecimentoAreaTrilhaRouteImport
+      parentRoute: typeof AuthenticatedBaseConhecimentoAreaRoute
+    }
     '/api/fila/vendedores/': {
       id: '/api/fila/vendedores/'
       path: '/api/fila/vendedores'
@@ -1115,6 +1135,7 @@ interface AuthenticatedBaseConhecimentoAreaRouteChildren {
   AuthenticatedBaseConhecimentoAreaArtigoRoute: typeof AuthenticatedBaseConhecimentoAreaArtigoRoute
   AuthenticatedBaseConhecimentoAreaChatRoute: typeof AuthenticatedBaseConhecimentoAreaChatRoute
   AuthenticatedBaseConhecimentoAreaTemplatesRoute: typeof AuthenticatedBaseConhecimentoAreaTemplatesRoute
+  AuthenticatedBaseConhecimentoAreaTrilhaRoute: typeof AuthenticatedBaseConhecimentoAreaTrilhaRoute
   AuthenticatedBaseConhecimentoAreaIndexRoute: typeof AuthenticatedBaseConhecimentoAreaIndexRoute
 }
 
@@ -1126,6 +1147,8 @@ const AuthenticatedBaseConhecimentoAreaRouteChildren: AuthenticatedBaseConhecime
       AuthenticatedBaseConhecimentoAreaChatRoute,
     AuthenticatedBaseConhecimentoAreaTemplatesRoute:
       AuthenticatedBaseConhecimentoAreaTemplatesRoute,
+    AuthenticatedBaseConhecimentoAreaTrilhaRoute:
+      AuthenticatedBaseConhecimentoAreaTrilhaRoute,
     AuthenticatedBaseConhecimentoAreaIndexRoute:
       AuthenticatedBaseConhecimentoAreaIndexRoute,
   }

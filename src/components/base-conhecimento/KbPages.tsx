@@ -13,6 +13,8 @@ import {
   Search,
   Sparkles,
   TrendingUp,
+  ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,11 +97,6 @@ function ArticleRow({ a, area, meta }: { a: Article; area: KbArea; meta: React.R
     >
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate text-sm text-foreground group-hover:text-primary">{a.title}</span>
-        {isRecent(a.updatedAt) && (
-          <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-            Novo
-          </span>
-        )}
       </span>
       <span className="shrink-0 text-xs text-muted-foreground">{meta}</span>
     </Link>
@@ -109,7 +106,6 @@ function ArticleRow({ a, area, meta }: { a: Article; area: KbArea; meta: React.R
 export function KbHome({ data }: { data: KbAreaData }) {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const [catFilter, setCatFilter] = useState("");
   const index = useMemo(() => buildIndex(data.articles), [data.articles]);
   const hits = useMemo(() => searchArticles(index, q, 6), [index, q]);
   const answer = useMemo(() => quickAnswer(data.articles, q), [data.articles, q]);
@@ -156,6 +152,8 @@ export function KbHome({ data }: { data: KbAreaData }) {
   const [lidasSet, setLidasSet] = useState<Set<string>>(new Set());
   useEffect(() => setLidasSet(new Set(readPages(data.area))), [data.area]);
   const lidas = trilha.filter((a) => lidasSet.has(a.id)).length;
+  const proxTrilha = trilha.find((a) => !lidasSet.has(a.id));
+  const catById = new Map(data.categories.map((c) => [c.id, c]));
   useEffect(() => {
     setContinuar(
       recentViews(data.area)
@@ -183,13 +181,12 @@ export function KbHome({ data }: { data: KbAreaData }) {
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-4 py-8 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-12 2xl:max-w-7xl">
       <WelcomeTour />
-      <section className="space-y-5">
+      <section className="space-y-4">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-primary">{info.title}</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Olá! Como podemos ajudar?
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {saudacao}! O que você precisa?
           </h1>
-          <p className="text-base text-muted-foreground">{info.greeting}</p>
+          <p className="text-sm text-muted-foreground">{info.greeting}</p>
         </div>
         <div className="relative">
           <form
@@ -262,118 +259,101 @@ export function KbHome({ data }: { data: KbAreaData }) {
         </div>
       </section>
 
-      {(agora || continuar.length > 0) && (
-        <section className="grid gap-3 md:grid-cols-2">
-          {agora && (
+      {/* Um único próximo passo: a trilha enquanto não termina; depois, a página do dia. */}
+      <section className="space-y-3">
+        {proxTrilha ? (
+          <Link
+            to="/base-conhecimento/$area/$artigo"
+            params={{ area: data.area, artigo: proxTrilha.id }}
+            className="group flex items-center gap-4 rounded-2xl bg-primary p-4 text-primary-foreground transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
+              <GraduationCap className="size-6" />
+            </span>
+            <span className="min-w-0 flex-1 space-y-1.5">
+              <span className="block text-xs font-medium text-primary-foreground/75">
+                {lidas === 0
+                  ? "Comece sua trilha de onboarding"
+                  : "Continue sua trilha de onboarding"}{" "}
+                · etapa {trilha.indexOf(proxTrilha) + 1} de {trilha.length}
+              </span>
+              <span className="block truncate text-lg font-bold leading-tight sm:text-xl">
+                {proxTrilha.title}
+              </span>
+              <span className="block h-1.5 max-w-xs overflow-hidden rounded-full bg-primary-foreground/20">
+                <span
+                  className="block h-full rounded-full bg-primary-foreground"
+                  style={{ width: `${(lidas / trilha.length) * 100}%` }}
+                />
+              </span>
+            </span>
+            <ArrowRight className="size-6 shrink-0 transition group-hover:translate-x-1 motion-reduce:transition-none" />
+          </Link>
+        ) : (
+          agora && (
             <Link
               to="/base-conhecimento/$area/$artigo"
               params={{ area: data.area, artigo: agora.id }}
-              className="group flex flex-col justify-between gap-4 rounded-2xl bg-primary p-5 text-primary-foreground transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="group flex items-center gap-4 rounded-2xl bg-primary p-4 text-primary-foreground transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
             >
-              <span className="text-sm text-primary-foreground/80">
-                {saudacao}! Comece por aqui hoje
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/15">
+                <CalendarClock className="size-6" />
               </span>
-              <span className="flex items-end justify-between gap-3">
-                <span>
-                  <span className="block text-2xl font-bold leading-tight">{agora.title}</span>
-                  <span className="mt-1 block text-sm text-primary-foreground/85">
-                    {agora.summary}
-                  </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs font-medium text-primary-foreground/75">
+                  Comece por aqui hoje
                 </span>
-                <ArrowRight className="size-6 shrink-0 transition group-hover:translate-x-1 motion-reduce:transition-none" />
+                <span className="block truncate text-lg font-bold leading-tight sm:text-xl">
+                  {agora.title}
+                </span>
               </span>
+              <ArrowRight className="size-6 shrink-0 transition group-hover:translate-x-1 motion-reduce:transition-none" />
             </Link>
-          )}
-          {continuar.length > 0 && (
-            <div className="rounded-2xl bg-muted/25 p-5">
-              <p className="mb-2 text-sm font-semibold text-foreground">Continue de onde parou</p>
-              <ul className="space-y-0.5">
-                {continuar.map((a) => (
-                  <li key={a.id}>
-                    <Link
-                      to="/base-conhecimento/$area/$artigo"
-                      params={{ area: data.area, artigo: a.id }}
-                      className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm text-foreground/90 transition hover:bg-muted/50 hover:text-primary"
-                    >
-                      <span className="truncate">{a.title}</span>
-                      <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </section>
-      )}
-
-      {quick.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-            <CalendarClock className="size-4" /> Dia a dia
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {quick.map((a) => (
+          )
+        )}
+        {continuar.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">Vistas por último:</span>
+            {continuar.slice(0, 3).map((a) => (
               <Link
                 key={a.id}
                 to="/base-conhecimento/$area/$artigo"
                 params={{ area: data.area, artigo: a.id }}
-                className="group flex flex-col gap-1 rounded-xl border border-border p-4 transition hover:-translate-y-0.5 hover:border-primary hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex min-h-8 max-w-[16rem] items-center gap-1.5 rounded-full bg-muted/50 px-3 text-[13px] text-foreground/90 transition hover:bg-primary/15 hover:text-foreground"
               >
-                <span className="flex items-center justify-between text-sm font-medium text-foreground">
-                  {a.title}
-                  <ArrowRight className="size-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
-                </span>
-                <span className="line-clamp-2 text-xs text-muted-foreground">{a.summary}</span>
+                <Clock className="size-3.5 shrink-0 text-muted-foreground" />
+                <span className="truncate">{a.title}</span>
               </Link>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
-      {trilha.length > 0 && (
-        <section className="space-y-3 rounded-2xl bg-muted/20 p-5 ring-1 ring-border/60">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">Trilha de onboarding</h2>
-              <p className="text-sm text-muted-foreground">
-                Para quem está começando: leia nesta ordem e termine com o teste.
-              </p>
-            </div>
-            <span className="text-sm font-semibold tabular-nums text-primary">
-              {lidas} de {trilha.length} lidas
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
-              style={{ width: `${(lidas / trilha.length) * 100}%` }}
-            />
-          </div>
-          <ol className="grid gap-1.5 sm:grid-cols-2">
-            {trilha.map((a, i) => {
-              const ok = lidasSet.has(a.id);
+      {quick.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-foreground">Atalhos do dia a dia</h2>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {quick.map((a) => {
+              const c = catById.get(a.category);
+              const top = c?.parent ? catById.get(c.parent) : c;
               return (
-                <li key={a.id}>
-                  <Link
-                    to="/base-conhecimento/$area/$artigo"
-                    params={{ area: data.area, artigo: a.id }}
-                    className="flex min-h-11 items-center gap-3 rounded-lg px-2 py-1.5 text-sm transition hover:bg-muted/50"
-                  >
-                    <span
-                      className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                        ok ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {ok ? "✓" : i + 1}
-                    </span>
-                    <span className={ok ? "text-muted-foreground" : "text-foreground"}>
-                      {a.title}
-                    </span>
-                  </Link>
-                </li>
+                <Link
+                  key={a.id}
+                  to="/base-conhecimento/$area/$artigo"
+                  params={{ area: data.area, artigo: a.id }}
+                  title={a.summary}
+                  className="group flex min-h-16 items-center gap-3 rounded-xl bg-muted/25 p-3 ring-1 ring-border/60 transition hover:bg-muted/40 hover:ring-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    {catIcon(top?.title ?? "", "size-[18px]")}
+                  </span>
+                  <span className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:text-primary">
+                    {a.title}
+                  </span>
+                </Link>
               );
             })}
-          </ol>
+          </div>
         </section>
       )}
 
@@ -406,28 +386,10 @@ export function KbHome({ data }: { data: KbAreaData }) {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-foreground">Tudo o que tem na base</h2>
-        <div role="group" aria-label="Filtrar por categoria" className="flex flex-wrap gap-2">
-          {[{ id: "", title: "Todas" }, ...data.categories.filter((c) => !c.parent)].map((c) => (
-            <button
-              key={c.id || "todas"}
-              type="button"
-              aria-pressed={catFilter === c.id}
-              onClick={() => setCatFilter(c.id)}
-              className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                catFilter === c.id
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted/50 text-foreground/80 hover:bg-primary/15"
-              }`}
-            >
-              {c.id && catIcon(c.title, "size-3.5")}
-              {c.title}
-            </button>
-          ))}
-        </div>
+        <h2 className="text-base font-semibold text-foreground">Por assunto</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {data.categories
-            .filter((c) => !c.parent && (!catFilter || c.id === catFilter))
+            .filter((c) => !c.parent)
             .map((c) => {
               const kids = new Set([
                 c.id,
@@ -452,7 +414,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
                     </span>
                   </div>
                   <ul className="space-y-0.5">
-                    {arts.slice(0, catFilter ? arts.length : 4).map((a) => (
+                    {arts.slice(0, 4).map((a) => (
                       <li key={a.id}>
                         <Link
                           to="/base-conhecimento/$area/$artigo"
@@ -463,7 +425,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
                         </Link>
                       </li>
                     ))}
-                    {!catFilter && arts.length > 4 && (
+                    {arts.length > 4 && (
                       <li className="px-1 text-xs text-muted-foreground">
                         e mais {arts.length - 4} no menu ao lado
                       </li>
@@ -477,7 +439,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="space-y-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <TrendingUp className="size-4" /> Mais acessados
           </h2>
           <Card className="p-2">
@@ -506,7 +468,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
           </Card>
         </section>
         <section className="space-y-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
             <Clock className="size-4" /> Atualizados recentemente
           </h2>
           <Card className="p-2">
@@ -518,11 +480,12 @@ export function KbHome({ data }: { data: KbAreaData }) {
       </div>
 
       {data.admin && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-foreground">Saúde da base</h2>
-          <p className="text-sm text-muted-foreground">
-            Onde a base precisa de atenção. Só administradores veem.
-          </p>
+        <details className="group space-y-3 rounded-2xl bg-muted/15 p-4 ring-1 ring-border/60">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+            <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+            Saúde da base
+            <span className="text-xs font-normal text-muted-foreground">só administradores</span>
+          </summary>
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2 rounded-2xl bg-muted/25 p-4">
               <p className="font-semibold text-foreground">Mais votos &ldquo;Não ajudou&rdquo;</p>
@@ -584,7 +547,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
               </p>
             </div>
           </div>
-        </section>
+        </details>
       )}
 
       {data.admin && !!eng.data?.notes.length && (
@@ -616,25 +579,25 @@ export function KbHome({ data }: { data: KbAreaData }) {
         </section>
       )}
 
-      <section className="flex flex-col items-start gap-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/15 to-transparent p-6 sm:flex-row sm:items-center">
-        <div className="rounded-xl bg-primary/20 p-3">
-          <Sparkles className="size-6 text-primary" />
-        </div>
-        <div className="flex-1 space-y-1">
-          <h2 className="text-lg font-semibold text-foreground">Pergunte à IA</h2>
-          <p className="text-sm text-muted-foreground">
-            Não achou? A IA responde com base nos arquivos da área e cita as fontes.
-          </p>
-        </div>
-        <Link
-          to="/base-conhecimento/$area/chat"
-          params={{ area: data.area }}
-          search={q.trim() ? { q } : {}}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
-        >
-          <MessageSquare className="size-4" /> {q.trim() ? "Perguntar isso" : "Abrir o chat"}
-        </Link>
-      </section>
+      <Link
+        to="/base-conhecimento/$area/chat"
+        params={{ area: data.area }}
+        search={q.trim() ? { q } : {}}
+        className="group flex items-center gap-3 rounded-2xl bg-muted/25 p-4 ring-1 ring-border/60 transition hover:ring-primary/50"
+      >
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Sparkles className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-foreground">
+            Não achou? Pergunte à IA
+          </span>
+          <span className="block text-xs text-muted-foreground">
+            Ela responde com base nos arquivos da área e mostra as fontes.
+          </span>
+        </span>
+        <ArrowRight className="size-5 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+      </Link>
     </div>
   );
 }
@@ -646,17 +609,29 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
     (t) => !nq || `${t.title} ${t.text}`.toLowerCase().includes(nq),
   );
   const byKey = new Map(data.templates.map((t) => [templateKey(t.title), t]));
-  // Sem o documento "Templates de mensagem": mostra só os nomes que estão nos artigos.
+  // Sem o documento "Templates de mensagem": junta os nomes citados nas páginas (listas de
+  // templates e chips das etapas), agrupados pela página onde aparecem, sem repetir.
+  const seen = new Set<string>();
   const names = data.articles
-    .filter((a) => a.category === "templates")
-    .flatMap(
-      (a) =>
-        a.blocks.filter((b) => b.t === "tags") as { t: "tags"; title?: string; items: string[] }[],
-    )
-    .map((b) => ({
-      title: b.title ?? "Templates",
-      items: b.items.filter((i) => !nq || i.toLowerCase().includes(nq)),
-    }))
+    .map((a) => {
+      const raw = a.blocks.flatMap((b) =>
+        b.t === "tags"
+          ? b.items
+          : b.t === "steps"
+            ? b.items.flatMap((st) => [
+                ...(st.tpl ?? []),
+                ...(st.sub ?? []).flatMap((x) => x.tpl ?? []),
+              ])
+            : [],
+      );
+      const items = raw.filter((i) => {
+        const k = templateKey(i);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return !nq || i.toLowerCase().includes(nq);
+      });
+      return { title: a.title, id: a.id, items };
+    })
     .filter((g) => g.items.length);
   return (
     <div className="mx-auto max-w-[760px] space-y-6 px-4 py-8 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-12 2xl:max-w-7xl">
@@ -688,8 +663,14 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
       )}
       {!data.templates.length &&
         names.map((g) => (
-          <section key={g.title} className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">{g.title}</h2>
+          <section key={g.id} className="space-y-2 rounded-xl bg-muted/20 p-4">
+            <Link
+              to="/base-conhecimento/$area/$artigo"
+              params={{ area: data.area, artigo: g.id }}
+              className="text-sm font-semibold text-foreground hover:text-primary"
+            >
+              {g.title}
+            </Link>
             <div className="flex flex-wrap gap-1.5">
               {g.items.map((i) => (
                 <TemplateChip key={i} name={i} tpl={byKey.get(templateKey(i))} />
@@ -697,6 +678,9 @@ export function KbTemplatesPage({ data }: { data: KbAreaData }) {
             </div>
           </section>
         ))}
+      {!data.templates.length && names.length === 0 && q.trim() && (
+        <p className="text-sm text-muted-foreground">Nenhum template com “{q}”.</p>
+      )}
       {data.templates.length > 0 && full.length === 0 && (
         <p className="text-sm text-muted-foreground">Nenhum template com “{q}”.</p>
       )}
@@ -765,6 +749,93 @@ export function KbAreaChooser({
       <Link to="/app" className="mx-auto text-sm text-muted-foreground hover:text-foreground">
         Voltar aos módulos
       </Link>
+    </div>
+  );
+}
+
+/** Trilha de onboarding: a ordem de leitura para quem está começando, com o progresso. */
+export function KbTrilhaPage({ data }: { data: KbAreaData }) {
+  const byId = new Map(data.articles.map((a) => [a.id, a]));
+  const trilha = TRILHA[data.area].map((id) => byId.get(id)).filter((a): a is Article => !!a);
+  const [lidasSet, setLidasSet] = useState<Set<string>>(new Set());
+  useEffect(() => setLidasSet(new Set(readPages(data.area))), [data.area]);
+  const lidas = trilha.filter((a) => lidasSet.has(a.id)).length;
+  const prox = trilha.find((a) => !lidasSet.has(a.id));
+  return (
+    <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6 lg:py-12">
+      <header className="flex items-start gap-4">
+        <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <GraduationCap className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Trilha de onboarding
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Para quem está começando: leia nesta ordem e termine com o teste. Cada página aberta
+            conta como lida.
+          </p>
+          <div className="flex items-center gap-3 pt-1">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-500 motion-reduce:transition-none"
+                style={{ width: `${(lidas / Math.max(1, trilha.length)) * 100}%` }}
+              />
+            </div>
+            <span className="text-sm font-semibold tabular-nums text-primary">
+              {lidas} de {trilha.length}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <ol className="relative space-y-2 before:absolute before:bottom-6 before:left-[19px] before:top-6 before:w-0.5 before:bg-border">
+        {trilha.map((a, i) => {
+          const ok = lidasSet.has(a.id);
+          const atual = a.id === prox?.id;
+          return (
+            <li key={a.id} className="relative">
+              <Link
+                to="/base-conhecimento/$area/$artigo"
+                params={{ area: data.area, artigo: a.id }}
+                className={`group flex items-center gap-4 rounded-xl p-2 pr-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  atual ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-muted/40"
+                }`}
+              >
+                <span
+                  className={`relative z-10 flex size-6 shrink-0 translate-x-[7px] items-center justify-center rounded-full text-xs font-semibold ring-4 ring-background ${
+                    ok || atual
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {ok ? "✓" : i + 1}
+                </span>
+                <span className="min-w-0 flex-1 pl-2">
+                  <span
+                    className={`block text-sm font-medium ${ok ? "text-muted-foreground" : "text-foreground"} group-hover:text-primary`}
+                  >
+                    {a.title}
+                  </span>
+                  <span className="line-clamp-1 text-xs text-muted-foreground">{a.summary}</span>
+                </span>
+                {atual ? (
+                  <span className="shrink-0 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                    {lidas === 0 ? "Começar" : "Continuar"}
+                  </span>
+                ) : (
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                )}
+              </Link>
+            </li>
+          );
+        })}
+      </ol>
+      {!prox && trilha.length > 0 && (
+        <p className="rounded-xl bg-primary/10 p-4 text-sm text-foreground ring-1 ring-primary/30">
+          Trilha concluída. Você pode voltar a qualquer etapa quando precisar.
+        </p>
+      )}
     </div>
   );
 }

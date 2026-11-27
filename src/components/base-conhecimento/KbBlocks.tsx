@@ -566,15 +566,31 @@ export function KbBlock({
             </thead>
             <tbody>
               {b.rows.map((r, i) => (
-                <tr key={i} className="border-t border-border even:bg-muted/20">
-                  {r.map((c, j) => (
-                    <td
-                      key={j}
-                      className={`px-3 py-2.5 align-top ${j === 0 && r.length > 1 ? "font-medium text-foreground" : "text-foreground/90"}`}
-                    >
-                      {c}
-                    </td>
-                  ))}
+                <tr
+                  key={i}
+                  className="border-t border-border transition-colors even:bg-muted/20 hover:bg-primary/[0.06]"
+                >
+                  {r.map((c, j) => {
+                    // Valores curtos (US$ 40, 6,5%, Sem taxa) ganham destaque e alinham os números.
+                    const valor =
+                      j > 0 &&
+                      c.length <= 24 &&
+                      /^(US\$|R\$|\$|Sem taxa|Grátis|Isento|\d)/i.test(c.trim());
+                    return (
+                      <td
+                        key={j}
+                        className={`px-3 py-2.5 align-top ${
+                          valor
+                            ? "whitespace-nowrap font-semibold tabular-nums text-primary"
+                            : j === 0 && r.length > 1
+                              ? "text-foreground"
+                              : "text-foreground/85"
+                        }`}
+                      >
+                        {c}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -610,6 +626,8 @@ export function KbBlock({
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               {b.name === "fleet" ? (
                 <CarFront className="size-6" />
+              ) : b.name === "map" ? (
+                <MapPinned className="size-6" />
               ) : (
                 <Calculator className="size-6" />
               )}

@@ -13,6 +13,7 @@ import {
   Star,
   ThumbsDown,
   ThumbsUp,
+  GraduationCap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,11 +27,13 @@ import {
   kbApi,
   slug,
   pushRecentView,
+  TRILHA,
   toggleFavorite,
   CURADORIA_EM,
   useFavorites,
   isRecent,
   type Article,
+  type KbArea,
   type KbAreaData,
   type Template,
 } from "./kb-api";
@@ -77,11 +80,15 @@ function Toc({ article }: { article: Article }) {
             <li key={id}>
               <a
                 href={`#${id}`}
-                onClick={() => {
-                  const d = document.getElementById(id)?.parentElement;
+                onClick={(e) => {
+                  e.preventDefault();
+                  const el = document.getElementById(id);
+                  const d = el?.parentElement;
                   if (d instanceof HTMLDetailsElement) d.open = true;
+                  el?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  setActive(id);
                 }}
-                className={`-ml-px block border-l-2 py-1 pl-3 text-sm transition ${
+                className={`-ml-px block border-l-2 py-1.5 pl-3 text-sm leading-snug transition ${
                   active === id
                     ? "border-primary text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground"
@@ -93,6 +100,13 @@ function Toc({ article }: { article: Article }) {
           );
         })}
       </ul>
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        className="mt-3 inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground"
+      >
+        <ChevronRight className="size-3.5 -rotate-90" /> Voltar ao topo
+      </button>
     </nav>
   );
 }
@@ -345,8 +359,14 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
   // Anterior/Próxima: as páginas da mesma categoria, na ordem do menu (etapas de um processo).
   const siblings = data.articles.filter((a) => a.category === article.category);
   const pos = siblings.findIndex((a) => a.id === article.id);
-  const prev = pos > 0 ? siblings[pos - 1] : undefined;
-  const next = pos >= 0 ? siblings[pos + 1] : undefined;
+  // Página da trilha de onboarding: Anterior/Próxima seguem a ordem da trilha.
+  const byId = new Map(data.articles.map((a) => [a.id, a]));
+  const trilha = TRILHA[data.area].map((id) => byId.get(id)).filter((a): a is Article => !!a);
+  const tPos = trilha.findIndex((a) => a.id === article.id);
+  const inTrilha = tPos >= 0;
+  const prev = inTrilha ? trilha[tPos - 1] : pos > 0 ? siblings[pos - 1] : undefined;
+  const next = inTrilha ? trilha[tPos + 1] : pos >= 0 ? siblings[pos + 1] : undefined;
+  const nextLabel = inTrilha ? "Próxima da trilha" : "Próxima";
   // Leia também: outras da categoria, sem repetir as que já estão em Anterior/Próxima.
   const related = relatedAll.filter((a) => a.id !== prev?.id && a.id !== next?.id).slice(0, 4);
   // Etapas numeradas ("1. Onboarding", "2. ..."): mostra a barra de progresso da jornada.
@@ -354,6 +374,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
 
   return (
     <div className="mx-auto flex w-full max-w-[1180px] justify-center gap-8 px-4 py-6 sm:px-6 lg:gap-10 lg:px-8 lg:py-10 2xl:max-w-[1500px]">
+      <ReadingProgress />
       <article
         key={article.id}
         className="min-w-0 max-w-[860px] flex-1 break-words motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-300 2xl:max-w-[1040px]"
@@ -380,6 +401,8 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
           <ChevronRight className="size-3.5" />
           <span className="truncate text-foreground">{article.title}</span>
         </nav>
+
+        {inTrilha && <TrilhaBar area={data.area} trilha={trilha} pos={tPos} />}
 
         <header className="space-y-3 border-b border-border pb-6">
           <div className="flex flex-wrap gap-2">
@@ -423,7 +446,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
               >
                 Abrir / recolher tudo
               </button>
-              <span className="text-xs text-muted-foreground">ou abra uma seção:</span>
+              <span className="text-xs text-muted-foreground xl:hidden">ou abra uma seção:</span>
               {heads.map((h) => (
                 <a
                   key={h}
@@ -432,7 +455,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                     const d = document.getElementById(slug(h))?.parentElement;
                     if (d instanceof HTMLDetailsElement) d.open = true;
                   }}
-                  className="inline-flex min-h-8 items-center rounded-full bg-muted/50 px-3 text-[13px] text-foreground/85 transition hover:bg-primary/15 hover:text-foreground"
+                  className="inline-flex min-h-8 items-center rounded-full bg-muted/50 px-3 text-[13px] text-foreground/85 transition hover:bg-primary/15 hover:text-foreground xl:hidden"
                 >
                   {h}
                 </a>
@@ -442,7 +465,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
           {isJourney && siblings.length > 1 && (
             <nav aria-label="Etapas do processo" className="space-y-1.5 pt-1">
               <p className="text-xs text-muted-foreground">
-                Etapa {pos + 1} de {siblings.length}
+                {cat?.title ?? "Processo"}: etapa {pos + 1} de {siblings.length}
               </p>
               <ol className="flex gap-1">
                 {siblings.map((s, i) => (
@@ -566,7 +589,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                     </span>
                     <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
                   </summary>
-                  <div className="ml-[17px] space-y-5 border-l-2 border-primary/15 pl-5 sm:pl-7">
+                  <div className="space-y-5 sm:ml-[17px] sm:border-l-2 sm:border-primary/15 sm:pl-7">
                     {sec.body.map(render)}
                   </div>
                 </details>
@@ -609,13 +632,22 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                 aria-label={`Próxima: ${next.title}`}
                 className="flex min-h-11 items-center justify-center gap-1 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground"
               >
-                Próxima <ChevronRight className="size-5" />
+                {inTrilha ? "Próxima etapa" : "Próxima"} <ChevronRight className="size-5" />
               </Link>
             ) : (
               <span className="min-w-11" />
             )}
           </div>
         </div>
+        {inTrilha && !next && (
+          <Link
+            to="/base-conhecimento/$area/trilha"
+            params={{ area: data.area }}
+            className="mt-4 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm font-medium text-foreground transition hover:border-primary"
+          >
+            <GraduationCap className="size-5 text-primary" /> Trilha concluída. Ver a trilha
+          </Link>
+        )}
         {(prev || next) && (
           <nav aria-label="Etapas" className="mt-4 grid gap-3 sm:grid-cols-2">
             {prev ? (
@@ -626,7 +658,9 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
               >
                 <ChevronRight className="size-5 shrink-0 rotate-180 text-primary" />
                 <span className="min-w-0">
-                  <span className="block text-xs text-muted-foreground">Anterior</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {inTrilha ? "Etapa anterior da trilha" : "Anterior"}
+                  </span>
                   <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
                     {prev.title}
                   </span>
@@ -642,7 +676,7 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
                 className="group flex items-center justify-end gap-3 rounded-lg border border-primary/40 bg-primary/10 p-3 text-right transition hover:border-primary"
               >
                 <span className="min-w-0">
-                  <span className="block text-xs text-muted-foreground">Próxima</span>
+                  <span className="block text-xs text-muted-foreground">{nextLabel}</span>
                   <span className="block truncate text-sm font-medium text-foreground group-hover:text-primary">
                     {next.title}
                   </span>
@@ -712,6 +746,93 @@ export function KbArticle({ data, articleId }: { data: KbAreaData; articleId: st
       <aside className="hidden w-56 shrink-0 xl:block 2xl:w-64">
         <Toc article={article} />
       </aside>
+    </div>
+  );
+}
+
+/** Faixa da trilha de onboarding: em que etapa a pessoa está e atalho para cada uma. */
+function TrilhaBar({ area, trilha, pos }: { area: KbArea; trilha: Article[]; pos: number }) {
+  const next = trilha[pos + 1];
+  return (
+    <div className="mb-6 space-y-3 rounded-2xl bg-primary/[0.07] p-4 ring-1 ring-primary/25">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <GraduationCap className="size-5" />
+          </span>
+          <div className="leading-tight">
+            <Link
+              to="/base-conhecimento/$area/trilha"
+              params={{ area }}
+              className="text-sm font-semibold text-foreground hover:text-primary"
+            >
+              Trilha de onboarding
+            </Link>
+            <p className="text-xs text-muted-foreground">
+              Etapa {pos + 1} de {trilha.length}
+            </p>
+          </div>
+        </div>
+        {next && (
+          <Link
+            to="/base-conhecimento/$area/$artigo"
+            params={{ area, artigo: next.id }}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="hidden sm:inline">Próxima:</span>
+            <span className="max-w-[16rem] truncate">{next.title}</span>
+            <ChevronRight className="size-4" />
+          </Link>
+        )}
+      </div>
+      <ol className="flex gap-1" aria-label="Etapas da trilha">
+        {trilha.map((s, i) => (
+          <li key={s.id} className="min-w-0 flex-1">
+            <Link
+              to="/base-conhecimento/$area/$artigo"
+              params={{ area, artigo: s.id }}
+              title={`${i + 1}. ${s.title}`}
+              aria-current={i === pos ? "step" : undefined}
+              className={`block h-2 rounded-full transition ${
+                i < pos
+                  ? "bg-primary/60"
+                  : i === pos
+                    ? "bg-primary"
+                    : "bg-muted hover:bg-primary/30"
+              }`}
+            >
+              <span className="sr-only">{s.title}</span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/** Barra fina no topo mostrando quanto da página já foi lido. */
+function ReadingProgress() {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    const on = () => {
+      const h = document.documentElement;
+      const max = h.scrollHeight - h.clientHeight;
+      setP(max > 0 ? Math.min(1, h.scrollTop / max) : 0);
+    };
+    on();
+    window.addEventListener("scroll", on, { passive: true });
+    window.addEventListener("resize", on);
+    return () => {
+      window.removeEventListener("scroll", on);
+      window.removeEventListener("resize", on);
+    };
+  }, []);
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-x-0 top-0 z-40 h-0.5">
+      <div
+        className="h-full origin-left bg-primary transition-transform duration-150 motion-reduce:transition-none"
+        style={{ transform: `scaleX(${p})` }}
+      />
     </div>
   );
 }

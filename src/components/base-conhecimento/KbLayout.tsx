@@ -14,6 +14,7 @@ import {
   Search,
   Settings2,
   Star,
+  GraduationCap,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -235,6 +236,14 @@ function Sidebar({
       </div>
 
       <div className="mt-2 space-y-0.5 border-t border-border pt-2">
+        <Link
+          to="/base-conhecimento/$area/trilha"
+          params={{ area: data.area }}
+          onClick={onNavigate}
+          className={`${navItem} ${path === `${base}/trilha` ? navActive : navIdle}`}
+        >
+          <GraduationCap className="size-4" /> Trilha de onboarding
+        </Link>
         <Link
           to="/base-conhecimento/$area/templates"
           params={{ area: data.area }}

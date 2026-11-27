@@ -88,7 +88,6 @@ function fleetPage(o: {
     summary: `${o.modelos}: capacidade, franquia, taxa de combustível${o.media.length ? " e vídeo" : ""}.`,
     keywords: `${o.title} ${o.modelos} ${o.es} frota categoria malas passageiros`,
     blocks: [
-      ...(o.thumb ? [{ t: "thumb", id: o.thumb, alt: o.modelos }] : []),
       p(
         `Modelos da categoria: ${o.modelos}. O cliente reserva a categoria, não o modelo: ele recebe um dos modelos listados.`,
       ),
@@ -106,7 +105,13 @@ function fleetPage(o: {
         ],
       ),
       ...(o.regras?.length ? [h("Regras da categoria"), ...o.regras] : []),
-      ...(o.media.length ? [h("Vídeo e fotos"), ...o.media] : []),
+      ...(o.media.length || o.thumb
+        ? [
+            h("Vídeo e fotos"),
+            ...(o.thumb ? [{ t: "thumb", id: o.thumb, alt: o.modelos } as Block] : []),
+            ...o.media,
+          ]
+        : []),
       ...(o.extra ?? []),
       h("Nome no material em espanhol"),
       p(`No material para clientes de língua espanhola, esta categoria aparece como "${o.es}".`),
