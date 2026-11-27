@@ -497,6 +497,14 @@ async function attachLeadOrigin<T extends ReservationRow>(rows: T[]): Promise<T[
 
 export const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/** Dólar com centavos, para custos unitários (CPC/CPA) abaixo de US$ 1. */
+const usd2 = (v: number) =>
+  v.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 export const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
 
 /** Custos mensais da equipe de marketing ("YYYY-MM" → valor). */
@@ -1182,13 +1190,13 @@ export function buildMarketingFunnel(
     stages.push({
       label: "Cliques no Google Ads",
       count: clicks,
-      hint: clicks ? `CPC ${brl(spend / clicks)}` : undefined,
+      hint: clicks ? `CPC ${usd2(spend / clicks)}` : undefined,
     });
     metrics.push({ label: "Taxa de Clique → Conversão", value: ratio(conversions, clicks) });
     stages.push({
       label: "Conversões geradas no Google Ads",
       count: conversions,
-      hint: conversions ? `CPA ${brl(spend / conversions)}` : undefined,
+      hint: conversions ? `CPA ${usd2(spend / conversions)}` : undefined,
     });
     metrics.push({
       label: "Taxa de Recepção (Mídia → Contato)",

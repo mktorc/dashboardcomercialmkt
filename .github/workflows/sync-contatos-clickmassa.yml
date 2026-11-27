@@ -2,9 +2,9 @@ name: Sincronizar contatos (ClickMassa)
 
 on:
   schedule:
-    # De hora em hora (minuto 22, fora dos minutos mais disputados e do sync de oportunidades):
-    # atualiza crm_leads com as 50 primeiras páginas de contatos (os mais recentes). Se o GitHub
-    # pular, o Monitor dos dados de precificação dispara esta rotina quando passa de 3 h sem rodar.
+    # De hora em hora (minuto 22): percorre TODAS as páginas de contatos em blocos de 100.
+    # A listagem do ClickMassa não vem ordenada por data, então ler só as primeiras páginas
+    # deixa contatos novos sem conexão (e o funil do Google subconta os contatos).
     - cron: '22 * * * *'
   workflow_dispatch:
 
@@ -15,12 +15,17 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
-      - name: Chamar a sincronização de contatos
+      - name: Chamar a sincronização de contatos (todas as páginas)
         env:
           SYNC_CRON_TOKEN: ${{ secrets.SYNC_CRON_TOKEN }}
         run: |
-          curl --fail-with-body -sS -m 540 -X POST \
-            "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa?startPage=1&maxPages=50" \
-            -H "Authorization: Bearer $SYNC_CRON_TOKEN"
+          page=1
+          while [ -n "$page" ]; do
+            res=$(curl --fail-with-body -sS -m 540 -X POST \
+              "https://dashboardcomercialmkt.vercel.app/api/public/sync/clickmassa?startPage=$page&maxPages=100" \
+              -H "Authorization: Bearer $SYNC_CRON_TOKEN")
+            echo "página $page: $(echo "$res" | jq -c '{synced, withConnection, nextPage}')"
+            page=$(echo "$res" | jq -r '.nextPage // empty')
+          done
