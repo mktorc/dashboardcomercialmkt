@@ -90,7 +90,16 @@ export function KbChat({
         for (const l of lines) {
           if (!l.trim()) continue;
           const ev = JSON.parse(l);
-          if (ev.type === "sources") patch((m) => ({ ...m, sources: ev.sources }));
+          if (ev.type === "sources")
+            // Arquivos com o mesmo nome (cópias no Drive) aparecem uma vez só.
+            patch((m) => ({
+              ...m,
+              sources: [
+                ...new Map(
+                  (ev.sources as Source[]).map((x) => [x.name.trim().toLowerCase(), x]),
+                ).values(),
+              ],
+            }));
           else if (ev.type === "text") patch((m) => ({ ...m, content: m.content + ev.text }));
           else if (ev.type === "error") throw new Error(ev.msg);
         }

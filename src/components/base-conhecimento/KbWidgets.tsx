@@ -2,7 +2,8 @@
 // Usam só os valores que já estão na base (Base operacional e manuais internos).
 import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Car, Luggage, Minus, Plus, Users } from "lucide-react";
+import { Car, GraduationCap, Luggage, Minus, Plus, Search, Sparkles, Users } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyButton } from "./KbBlocks";
@@ -551,74 +552,94 @@ export function Quiz({ items: bank, area }: { items: QuizQ[]; area: string }) {
 }
 
 // ───────────── Passeio de boas-vindas (primeiro acesso) ─────────────
-const TOUR = [
+const DICAS = [
   {
-    title: "Busque e receba a resposta",
-    text: 'Digite na busca (ou aperte ⌘K) algo como "franquia van" ou "taxa tampa": o valor aparece no topo, antes da lista de páginas.',
+    icon: GraduationCap,
+    text: "Siga a trilha: ela mostra o que ler, em ordem, e termina num teste rápido.",
   },
-  {
-    title: "Comece pela trilha",
-    text: "Na página inicial, a Trilha de onboarding mostra o que ler em ordem e termina num teste rápido. Cada página lida ganha um ✓.",
-  },
-  {
-    title: "Execute com o modo guiado",
-    text: 'Nas páginas de processo, as seções vêm recolhidas: abra só o que precisa. Em qualquer lista de passos, o botão "Modo guiado" mostra um passo por vez.',
-  },
+  { icon: Search, text: 'Busque (ou aperte ⌘K): "franquia van" já mostra o valor no topo.' },
+  { icon: Sparkles, text: "Não achou? Pergunte à ORCI, a ORC Intelligence." },
 ];
 
-export function WelcomeTour() {
-  const [step, setStep] = useState<number | null>(null);
+/** Boas-vindas no primeiro acesso: saúda pelo nome e leva direto para a trilha de onboarding. */
+export function WelcomeTour({ area, firstId }: { area: KbArea; firstId?: string | undefined }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
   useEffect(() => {
     try {
-      if (!localStorage.getItem("kb-tour-done")) setStep(0);
+      if (localStorage.getItem("kb-tour-done")) return;
     } catch {
-      /* sem armazenamento: não mostra */
+      return; /* sem armazenamento: não mostra */
     }
+    setOpen(true);
+    void supabase.auth.getSession().then(({ data }) => {
+      const u = data.session?.user;
+      const meta = (u?.user_metadata ?? {}) as Record<string, unknown>;
+      const full = String(meta["full_name"] ?? meta["name"] ?? "").trim();
+      setName((full || "").split(" ")[0] ?? "");
+    });
   }, []);
   const close = () => {
-    setStep(null);
+    setOpen(false);
     try {
       localStorage.setItem("kb-tour-done", "1");
     } catch {
       /* ignora */
     }
   };
-  if (step === null) return null;
-  const s = TOUR[step]!;
-  const last = step === TOUR.length - 1;
+  if (!open) return null;
+  const hora = new Date().getHours();
+  const saud = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
   return (
     <Dialog open onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-md">
-        <div className="space-y-4">
-          <img src="/logo-orc.png" alt="" className="size-12 rounded-xl" />
-          <div className="flex gap-1" aria-hidden>
-            {TOUR.map((_, j) => (
-              <span
-                key={j}
-                className={`h-1.5 flex-1 rounded-full ${j <= step ? "bg-primary" : "bg-muted"}`}
-              />
-            ))}
-          </div>
-          <DialogTitle className="text-xl">{s.title}</DialogTitle>
-          <DialogDescription className="text-[15px] leading-7 text-foreground/85">
-            {s.text}
+      <DialogContent className="kb-orc max-w-md overflow-hidden p-0">
+        <div className="relative flex flex-col items-center gap-3 bg-[radial-gradient(circle_at_50%_0%,var(--color-primary)_0%,transparent_70%)] px-6 pb-4 pt-10 text-center">
+          <img
+            src="/logo-orc.png"
+            alt=""
+            className="size-16 rounded-2xl shadow-lg motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:spin-in-12 motion-safe:duration-700"
+          />
+          <DialogTitle className="text-2xl font-bold motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:delay-200 motion-safe:duration-500 motion-safe:fill-mode-both">
+            {saud}
+            {name ? `, ${name}` : ""}! Seja bem-vindo 👋
+          </DialogTitle>
+          <DialogDescription className="text-[15px] leading-6 text-foreground/85 motion-safe:animate-in motion-safe:fade-in motion-safe:delay-300 motion-safe:duration-500 motion-safe:fill-mode-both">
+            Esta é a Base de Conhecimento da ORC. Para começar com o pé direito, comece pela trilha
+            de onboarding.
           </DialogDescription>
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <button
-              type="button"
+        </div>
+        <ul className="space-y-2 px-6">
+          {DICAS.map((d, i) => (
+            <li
+              key={i}
+              style={{ animationDelay: `${450 + i * 120}ms` }}
+              className="flex items-center gap-3 rounded-xl bg-muted/30 p-3 text-sm text-foreground/90 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-2 motion-safe:duration-500 motion-safe:fill-mode-both"
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <d.icon className="size-4" />
+              </span>
+              {d.text}
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-col gap-2 p-6 pt-5 sm:flex-row-reverse">
+          {firstId ? (
+            <Link
+              to="/base-conhecimento/$area/$artigo"
+              params={{ area, artigo: firstId }}
               onClick={close}
-              className="min-h-10 rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted"
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Pular
-            </button>
-            <button
-              type="button"
-              onClick={() => (last ? close() : setStep(step + 1))}
-              className="min-h-10 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {last ? "Começar" : "Próximo"}
-            </button>
-          </div>
+              <GraduationCap className="size-4" /> Começar a trilha
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={close}
+            className="min-h-11 rounded-xl px-4 text-sm text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            Explorar sozinho
+          </button>
         </div>
       </DialogContent>
     </Dialog>

@@ -180,7 +180,7 @@ export function KbHome({ data }: { data: KbAreaData }) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-4 py-8 sm:px-6 lg:max-w-5xl lg:px-8 lg:py-12 2xl:max-w-7xl">
-      <WelcomeTour />
+      <WelcomeTour area={data.area} firstId={trilha[0]?.id} />
       <section className="space-y-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
